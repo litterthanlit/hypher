@@ -159,6 +159,15 @@ export function useStore() {
     await reload();
   };
 
+  const updatePosition = async (id: string, x: number, y: number) => {
+    const obj = objects.find((o) => o.id === id);
+    if (!obj) return;
+    const updated = { ...obj, canvasPosition: { x, y } };
+    await db.putObject(updated);
+    // Optimistic update without full reload (avoid re-embedding)
+    setObjects((prev) => prev.map((o) => (o.id === id ? updated : o)));
+  };
+
   const refreshSuggestions = async () => {
     setIsProcessing(true);
     try {
@@ -189,7 +198,7 @@ export function useStore() {
     suggestionsFor, connectionsFor, pendingCount,
     addObject, updateObject, removeObject,
     confirmConnection, dismissConnection, refreshSuggestions,
-    createManualConnection, removeConnection,
+    createManualConnection, removeConnection, updatePosition,
     resolveObject, isProcessing, modelLoading,
     search,
   };

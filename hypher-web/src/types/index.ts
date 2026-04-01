@@ -4,6 +4,11 @@ export type ArtifactType = "image" | "video" | "code" | "document" | "font" | "a
 export type ConnectionType = "manual" | "ai_suggested" | "ai_confirmed" | "dismissed";
 export type ObjectKind = "project" | "note" | "artifact";
 
+export interface CanvasPosition {
+  x: number;
+  y: number;
+}
+
 export interface HypherObject {
   id: string;
   kind: ObjectKind;
@@ -12,6 +17,7 @@ export interface HypherObject {
   embedding?: number[];
   embeddingText?: string;
   tags?: string[];
+  canvasPosition?: CanvasPosition;
 }
 
 export interface Project extends HypherObject {

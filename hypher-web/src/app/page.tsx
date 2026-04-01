@@ -8,6 +8,7 @@ import { SuggestionsPanel } from "@/components/SuggestionsPanel";
 import { GraphView } from "@/components/GraphView";
 import { GardenView } from "@/components/GardenView";
 import { StreamView } from "@/components/StreamView";
+import { SpatialCanvas } from "@/components/SpatialCanvas";
 import { SearchDialog } from "@/components/SearchDialog";
 import { ViewSwitcher, type ViewMode } from "@/components/ViewSwitcher";
 import type { ArtifactType } from "@/types";
@@ -25,7 +26,7 @@ function guessArtifactType(filename: string): ArtifactType {
 
 export default function Home() {
   const store = useStore();
-  const [viewMode, setViewMode] = useState<ViewMode>("garden");
+  const [viewMode, setViewMode] = useState<ViewMode>("canvas");
   const [showSearch, setShowSearch] = useState(false);
   const [dragOver, setDragOver] = useState(false);
 
@@ -45,10 +46,11 @@ export default function Home() {
       const tag = (e.target as HTMLElement).tagName;
       if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
 
-      if (e.key === "1") setViewMode("garden");
-      if (e.key === "2") setViewMode("focus");
-      if (e.key === "3") setViewMode("stream");
-      if (e.key === "4") setViewMode("graph");
+      if (e.key === "1") setViewMode("canvas");
+      if (e.key === "2") setViewMode("garden");
+      if (e.key === "3") setViewMode("focus");
+      if (e.key === "4") setViewMode("stream");
+      if (e.key === "5") setViewMode("graph");
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
@@ -115,6 +117,16 @@ export default function Home() {
             <kbd className="toolbar-kbd">⌘K</kbd>
           </button>
         </div>
+
+        {viewMode === "canvas" && (
+          <SpatialCanvas
+            objects={store.objects}
+            connections={store.connections.filter((c) => c.type !== "dismissed")}
+            selectedId={store.selectedId}
+            onSelect={(id) => { store.setSelectedId(id); }}
+            onUpdatePosition={store.updatePosition}
+          />
+        )}
 
         {viewMode === "garden" && (
           <GardenView
