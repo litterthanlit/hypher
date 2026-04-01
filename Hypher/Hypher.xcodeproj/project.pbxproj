@@ -1,0 +1,495 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		B10000000000000000000001 /* Enums.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000001 /* Enums.swift */; };
+		B10000000000000000000002 /* Embeddable.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000002 /* Embeddable.swift */; };
+		B10000000000000000000003 /* Project.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000003 /* Project.swift */; };
+		B10000000000000000000004 /* Note.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000004 /* Note.swift */; };
+		B10000000000000000000005 /* Artifact.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000005 /* Artifact.swift */; };
+		B10000000000000000000006 /* Connection.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000006 /* Connection.swift */; };
+		B10000000000000000000007 /* EmbeddingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000007 /* EmbeddingService.swift */; };
+		B10000000000000000000008 /* ConnectionEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000008 /* ConnectionEngine.swift */; };
+		B10000000000000000000009 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000009 /* ContentView.swift */; };
+		B1000000000000000000000A /* SidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000000A /* SidebarView.swift */; };
+		B1000000000000000000000B /* SidebarRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000000B /* SidebarRow.swift */; };
+		B1000000000000000000000C /* DetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000000C /* DetailView.swift */; };
+		B1000000000000000000000D /* ProjectDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000000D /* ProjectDetailView.swift */; };
+		B1000000000000000000000E /* NoteDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000000E /* NoteDetailView.swift */; };
+		B1000000000000000000000F /* ArtifactDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000000F /* ArtifactDetailView.swift */; };
+		B10000000000000000000010 /* ConnectionRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000010 /* ConnectionRow.swift */; };
+		B10000000000000000000011 /* SuggestionsPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000011 /* SuggestionsPanel.swift */; };
+		B10000000000000000000012 /* SuggestionCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000012 /* SuggestionCard.swift */; };
+		B10000000000000000000013 /* ProjectFormView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000013 /* ProjectFormView.swift */; };
+		B10000000000000000000014 /* NoteFormView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000014 /* NoteFormView.swift */; };
+		B10000000000000000000015 /* ArtifactFormView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000015 /* ArtifactFormView.swift */; };
+		B10000000000000000000016 /* ConfidenceBadge.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000016 /* ConfidenceBadge.swift */; };
+		B10000000000000000000017 /* EmptyStateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000017 /* EmptyStateView.swift */; };
+		B10000000000000000000018 /* VectorMath.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000018 /* VectorMath.swift */; };
+		B10000000000000000000019 /* HypherApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000019 /* HypherApp.swift */; };
+		B1000000000000000000001B /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000001B /* Assets.xcassets */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		A10000000000000000000001 /* Enums.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Enums.swift; sourceTree = "<group>"; };
+		A10000000000000000000002 /* Embeddable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Embeddable.swift; sourceTree = "<group>"; };
+		A10000000000000000000003 /* Project.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Project.swift; sourceTree = "<group>"; };
+		A10000000000000000000004 /* Note.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Note.swift; sourceTree = "<group>"; };
+		A10000000000000000000005 /* Artifact.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Artifact.swift; sourceTree = "<group>"; };
+		A10000000000000000000006 /* Connection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Connection.swift; sourceTree = "<group>"; };
+		A10000000000000000000007 /* EmbeddingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmbeddingService.swift; sourceTree = "<group>"; };
+		A10000000000000000000008 /* ConnectionEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionEngine.swift; sourceTree = "<group>"; };
+		A10000000000000000000009 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		A1000000000000000000000A /* SidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarView.swift; sourceTree = "<group>"; };
+		A1000000000000000000000B /* SidebarRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarRow.swift; sourceTree = "<group>"; };
+		A1000000000000000000000C /* DetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DetailView.swift; sourceTree = "<group>"; };
+		A1000000000000000000000D /* ProjectDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectDetailView.swift; sourceTree = "<group>"; };
+		A1000000000000000000000E /* NoteDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteDetailView.swift; sourceTree = "<group>"; };
+		A1000000000000000000000F /* ArtifactDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtifactDetailView.swift; sourceTree = "<group>"; };
+		A10000000000000000000010 /* ConnectionRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionRow.swift; sourceTree = "<group>"; };
+		A10000000000000000000011 /* SuggestionsPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SuggestionsPanel.swift; sourceTree = "<group>"; };
+		A10000000000000000000012 /* SuggestionCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SuggestionCard.swift; sourceTree = "<group>"; };
+		A10000000000000000000013 /* ProjectFormView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectFormView.swift; sourceTree = "<group>"; };
+		A10000000000000000000014 /* NoteFormView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteFormView.swift; sourceTree = "<group>"; };
+		A10000000000000000000015 /* ArtifactFormView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtifactFormView.swift; sourceTree = "<group>"; };
+		A10000000000000000000016 /* ConfidenceBadge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfidenceBadge.swift; sourceTree = "<group>"; };
+		A10000000000000000000017 /* EmptyStateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmptyStateView.swift; sourceTree = "<group>"; };
+		A10000000000000000000018 /* VectorMath.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VectorMath.swift; sourceTree = "<group>"; };
+		A10000000000000000000019 /* HypherApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HypherApp.swift; sourceTree = "<group>"; };
+		A1000000000000000000001A /* Hypher.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Hypher.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A1000000000000000000001B /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		D10000000000000000000004 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		C10000000000000000000001 /* root */ = {
+			isa = PBXGroup;
+			children = (
+				C10000000000000000000002 /* Hypher */,
+				C1000000000000000000000D /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		C10000000000000000000002 /* Hypher */ = {
+			isa = PBXGroup;
+			children = (
+				A10000000000000000000019 /* HypherApp.swift */,
+				A1000000000000000000001B /* Assets.xcassets */,
+				C10000000000000000000003 /* Models */,
+				C10000000000000000000004 /* Services */,
+				C10000000000000000000005 /* Views */,
+				C1000000000000000000000B /* Utilities */,
+				C1000000000000000000000C /* Preview Content */,
+			);
+			path = Hypher;
+			sourceTree = "<group>";
+		};
+		C10000000000000000000003 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				A10000000000000000000001 /* Enums.swift */,
+				A10000000000000000000002 /* Embeddable.swift */,
+				A10000000000000000000003 /* Project.swift */,
+				A10000000000000000000004 /* Note.swift */,
+				A10000000000000000000005 /* Artifact.swift */,
+				A10000000000000000000006 /* Connection.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		C10000000000000000000004 /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				A10000000000000000000007 /* EmbeddingService.swift */,
+				A10000000000000000000008 /* ConnectionEngine.swift */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
+		C10000000000000000000005 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				A10000000000000000000009 /* ContentView.swift */,
+				C10000000000000000000006 /* Sidebar */,
+				C10000000000000000000007 /* Detail */,
+				C10000000000000000000008 /* Suggestions */,
+				C10000000000000000000009 /* Forms */,
+				C1000000000000000000000A /* Shared */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		C10000000000000000000006 /* Sidebar */ = {
+			isa = PBXGroup;
+			children = (
+				A1000000000000000000000A /* SidebarView.swift */,
+				A1000000000000000000000B /* SidebarRow.swift */,
+			);
+			path = Sidebar;
+			sourceTree = "<group>";
+		};
+		C10000000000000000000007 /* Detail */ = {
+			isa = PBXGroup;
+			children = (
+				A1000000000000000000000C /* DetailView.swift */,
+				A1000000000000000000000D /* ProjectDetailView.swift */,
+				A1000000000000000000000E /* NoteDetailView.swift */,
+				A1000000000000000000000F /* ArtifactDetailView.swift */,
+				A10000000000000000000010 /* ConnectionRow.swift */,
+			);
+			path = Detail;
+			sourceTree = "<group>";
+		};
+		C10000000000000000000008 /* Suggestions */ = {
+			isa = PBXGroup;
+			children = (
+				A10000000000000000000011 /* SuggestionsPanel.swift */,
+				A10000000000000000000012 /* SuggestionCard.swift */,
+			);
+			path = Suggestions;
+			sourceTree = "<group>";
+		};
+		C10000000000000000000009 /* Forms */ = {
+			isa = PBXGroup;
+			children = (
+				A10000000000000000000013 /* ProjectFormView.swift */,
+				A10000000000000000000014 /* NoteFormView.swift */,
+				A10000000000000000000015 /* ArtifactFormView.swift */,
+			);
+			path = Forms;
+			sourceTree = "<group>";
+		};
+		C1000000000000000000000A /* Shared */ = {
+			isa = PBXGroup;
+			children = (
+				A10000000000000000000016 /* ConfidenceBadge.swift */,
+				A10000000000000000000017 /* EmptyStateView.swift */,
+			);
+			path = Shared;
+			sourceTree = "<group>";
+		};
+		C1000000000000000000000B /* Utilities */ = {
+			isa = PBXGroup;
+			children = (
+				A10000000000000000000018 /* VectorMath.swift */,
+			);
+			path = Utilities;
+			sourceTree = "<group>";
+		};
+		C1000000000000000000000C /* Preview Content */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			path = "Preview Content";
+			sourceTree = "<group>";
+		};
+		C1000000000000000000000D /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				A1000000000000000000001A /* Hypher.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		D10000000000000000000002 /* Hypher */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = D10000000000000000000007 /* Build configuration list for PBXNativeTarget "Hypher" */;
+			buildPhases = (
+				D10000000000000000000003 /* Sources */,
+				D10000000000000000000004 /* Frameworks */,
+				D10000000000000000000005 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = Hypher;
+			productName = Hypher;
+			productReference = A1000000000000000000001A /* Hypher.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		D10000000000000000000001 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1600;
+				LastUpgradeCheck = 1600;
+			};
+			buildConfigurationList = D10000000000000000000006 /* Build configuration list for PBXProject "Hypher" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = C10000000000000000000001 /* root */;
+			productRefGroup = C1000000000000000000000D /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				D10000000000000000000002 /* Hypher */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		D10000000000000000000005 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B1000000000000000000001B /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		D10000000000000000000003 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B10000000000000000000001 /* Enums.swift in Sources */,
+				B10000000000000000000002 /* Embeddable.swift in Sources */,
+				B10000000000000000000003 /* Project.swift in Sources */,
+				B10000000000000000000004 /* Note.swift in Sources */,
+				B10000000000000000000005 /* Artifact.swift in Sources */,
+				B10000000000000000000006 /* Connection.swift in Sources */,
+				B10000000000000000000007 /* EmbeddingService.swift in Sources */,
+				B10000000000000000000008 /* ConnectionEngine.swift in Sources */,
+				B10000000000000000000009 /* ContentView.swift in Sources */,
+				B1000000000000000000000A /* SidebarView.swift in Sources */,
+				B1000000000000000000000B /* SidebarRow.swift in Sources */,
+				B1000000000000000000000C /* DetailView.swift in Sources */,
+				B1000000000000000000000D /* ProjectDetailView.swift in Sources */,
+				B1000000000000000000000E /* NoteDetailView.swift in Sources */,
+				B1000000000000000000000F /* ArtifactDetailView.swift in Sources */,
+				B10000000000000000000010 /* ConnectionRow.swift in Sources */,
+				B10000000000000000000011 /* SuggestionsPanel.swift in Sources */,
+				B10000000000000000000012 /* SuggestionCard.swift in Sources */,
+				B10000000000000000000013 /* ProjectFormView.swift in Sources */,
+				B10000000000000000000014 /* NoteFormView.swift in Sources */,
+				B10000000000000000000015 /* ArtifactFormView.swift in Sources */,
+				B10000000000000000000016 /* ConfidenceBadge.swift in Sources */,
+				B10000000000000000000017 /* EmptyStateView.swift in Sources */,
+				B10000000000000000000018 /* VectorMath.swift in Sources */,
+				B10000000000000000000019 /* HypherApp.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		D10000000000000000000008 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		D10000000000000000000009 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+			};
+			name = Release;
+		};
+		D1000000000000000000000A /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = "";
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_ASSET_PATHS = "\"Hypher/Preview Content\"";
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.hypher.app;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		D1000000000000000000000B /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = "";
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_ASSET_PATHS = "\"Hypher/Preview Content\"";
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.hypher.app;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		D10000000000000000000006 /* Build configuration list for PBXProject "Hypher" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				D10000000000000000000008 /* Debug */,
+				D10000000000000000000009 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		D10000000000000000000007 /* Build configuration list for PBXNativeTarget "Hypher" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				D1000000000000000000000A /* Debug */,
+				D1000000000000000000000B /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = D10000000000000000000001 /* Project object */;
+}
