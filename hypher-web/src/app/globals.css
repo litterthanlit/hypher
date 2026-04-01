@@ -1876,6 +1876,118 @@ body {
   color: var(--text-quaternary);
 }
 
+/* ─── Inline Create (Canvas) ─── */
+
+.inline-create {
+  position: absolute;
+  z-index: 100;
+  transform: translate(-50%, -50%);
+  pointer-events: auto;
+}
+
+.inline-create-input-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.inline-create-input {
+  appearance: none;
+  background: var(--bg-primary);
+  border: 1.5px solid var(--border-focus);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  font-weight: 500;
+  padding: 10px 16px;
+  border-radius: var(--radius-lg);
+  outline: none;
+  width: 240px;
+  text-align: center;
+  box-shadow: var(--shadow-lg);
+  letter-spacing: -0.01em;
+}
+
+.inline-create-input::placeholder {
+  color: var(--text-quaternary);
+  font-weight: 400;
+}
+
+.inline-create-hint {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+  background: var(--bg-secondary);
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+}
+
+.inline-create-picker {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  animation: slideUp 150ms ease;
+}
+
+.inline-create-preview {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+  background: var(--bg-primary);
+  padding: 6px 14px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--border-default);
+  box-shadow: var(--shadow-sm);
+  max-width: 200px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.inline-create-options {
+  display: flex;
+  gap: 4px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-pill);
+  padding: 4px;
+  box-shadow: var(--shadow-lg);
+}
+
+.inline-create-option {
+  appearance: none;
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 12.5px;
+  font-family: var(--font-sans);
+  font-weight: 400;
+  padding: 7px 14px;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all var(--transition);
+}
+
+.inline-create-option:hover {
+  background: var(--bg-active);
+  color: var(--text-primary);
+}
+
+.inline-create-option .kind-icon {
+  width: 14px;
+  height: 14px;
+  color: var(--text-tertiary);
+}
+
+.inline-create-option:hover .kind-icon {
+  color: var(--text-secondary);
+}
+
 /* ─── File Drop Overlay ─── */
 
 .drop-overlay {

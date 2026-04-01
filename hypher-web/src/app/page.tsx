@@ -11,7 +11,7 @@ import { StreamView } from "@/components/StreamView";
 import { SpatialCanvas } from "@/components/SpatialCanvas";
 import { SearchDialog } from "@/components/SearchDialog";
 import { ViewSwitcher, type ViewMode } from "@/components/ViewSwitcher";
-import type { ArtifactType } from "@/types";
+import type { ArtifactType, ObjectKind } from "@/types";
 
 function guessArtifactType(filename: string): ArtifactType {
   const ext = filename.split(".").pop()?.toLowerCase() ?? "";
@@ -87,6 +87,24 @@ export default function Home() {
     setDragOver(false);
   }, []);
 
+  // Create object at canvas position
+  const handleCreateAtPosition = useCallback(
+    (kind: ObjectKind, text: string, x: number, y: number) => {
+      const now = Date.now();
+      const id = crypto.randomUUID();
+      const base = { id, createdAt: now, modifiedAt: now, canvasPosition: { x, y } };
+
+      if (kind === "project") {
+        store.addObject({ ...base, kind: "project", name: text, description: "", status: "seed" });
+      } else if (kind === "note") {
+        store.addObject({ ...base, kind: "note", content: text, maturity: "fleeting" });
+      } else {
+        store.addObject({ ...base, kind: "artifact", name: text, type: "other" });
+      }
+    },
+    [store]
+  );
+
   return (
     <main
       className="app-layout"
@@ -125,6 +143,7 @@ export default function Home() {
             selectedId={store.selectedId}
             onSelect={(id) => { store.setSelectedId(id); }}
             onUpdatePosition={store.updatePosition}
+            onCreateAtPosition={handleCreateAtPosition}
           />
         )}
 

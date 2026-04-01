@@ -3,8 +3,7 @@
 import { useRef, useState, useCallback, useEffect } from "react";
 import type { AnyObject, Connection, ObjectKind } from "@/types";
 import { getDisplayName } from "@/types";
-import { KindIcon } from "./Icons";
-import { ConfidenceBadge } from "./ConfidenceBadge";
+import { KindIcon, FolderIcon, NoteIcon, ArtifactIcon } from "./Icons";
 
 interface Props {
   objects: AnyObject[];
@@ -12,10 +11,8 @@ interface Props {
   selectedId: string | null;
   onSelect: (id: string) => void;
   onUpdatePosition: (id: string, x: number, y: number) => void;
+  onCreateAtPosition: (kind: ObjectKind, text: string, x: number, y: number) => void;
 }
-
-const CARD_W = 220;
-const CARD_H_MIN = 100;
 
 const KIND_ACCENT: Record<ObjectKind, string> = {
   project: "var(--accent)",
@@ -28,17 +25,27 @@ function getCardCenter(obj: AnyObject): { x: number; y: number } {
   return { x: 0, y: 0 };
 }
 
-export function SpatialCanvas({ objects, connections, selectedId, onSelect, onUpdatePosition }: Props) {
+interface InlineCreate {
+  canvasX: number;
+  canvasY: number;
+  screenX: number;
+  screenY: number;
+  text: string;
+  step: "typing" | "picking";
+}
+
+export function SpatialCanvas({ objects, connections, selectedId, onSelect, onUpdatePosition, onCreateAtPosition }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [transform, setTransform] = useState({ x: 0, y: 0, k: 1 });
   const [dragging, setDragging] = useState<{ id: string; startX: number; startY: number; objX: number; objY: number } | null>(null);
   const [panning, setPanning] = useState<{ startX: number; startY: number; startTx: number; startTy: number } | null>(null);
   const [hasMoved, setHasMoved] = useState(false);
+  const [inlineCreate, setInlineCreate] = useState<InlineCreate | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   // Auto-layout objects that don't have positions
   const positionedObjects = objects.map((obj, i) => {
     if (obj.canvasPosition) return obj;
-    // Spiral layout for new objects
     const angle = i * 2.4;
     const dist = 180 + i * 40;
     return {
@@ -50,7 +57,6 @@ export function SpatialCanvas({ objects, connections, selectedId, onSelect, onUp
     };
   });
 
-  // Active connections (confirmed + manual + suggested)
   const activeConns = connections.filter(
     (c) => c.type === "ai_confirmed" || c.type === "manual" || c.type === "ai_suggested"
   );
@@ -61,6 +67,7 @@ export function SpatialCanvas({ objects, connections, selectedId, onSelect, onUp
   const onCanvasMouseDown = useCallback(
     (e: React.MouseEvent) => {
       if ((e.target as HTMLElement).closest(".spatial-card")) return;
+      if ((e.target as HTMLElement).closest(".inline-create")) return;
       setPanning({
         startX: e.clientX,
         startY: e.clientY,
@@ -111,7 +118,6 @@ export function SpatialCanvas({ objects, connections, selectedId, onSelect, onUp
     setPanning(null);
   }, [dragging, hasMoved, onUpdatePosition]);
 
-  // Card drag start
   const onCardMouseDown = useCallback(
     (e: React.MouseEvent, obj: AnyObject) => {
       e.stopPropagation();
@@ -137,6 +143,55 @@ export function SpatialCanvas({ objects, connections, selectedId, onSelect, onUp
     [hasMoved, onSelect]
   );
 
+  // Double-click to create
+  const onDoubleClick = useCallback(
+    (e: React.MouseEvent) => {
+      if ((e.target as HTMLElement).closest(".spatial-card")) return;
+      if ((e.target as HTMLElement).closest(".inline-create")) return;
+      if ((e.target as HTMLElement).closest(".spatial-controls")) return;
+
+      const rect = containerRef.current?.getBoundingClientRect();
+      if (!rect) return;
+
+      // Convert screen coords to canvas coords
+      const canvasX = (e.clientX - rect.left - transform.x) / transform.k;
+      const canvasY = (e.clientY - rect.top - transform.y) / transform.k;
+
+      setInlineCreate({
+        canvasX,
+        canvasY,
+        screenX: e.clientX - rect.left,
+        screenY: e.clientY - rect.top,
+        text: "",
+        step: "typing",
+      });
+    },
+    [transform]
+  );
+
+  // Focus input when inline create appears
+  useEffect(() => {
+    if (inlineCreate?.step === "typing") {
+      setTimeout(() => inputRef.current?.focus(), 50);
+    }
+  }, [inlineCreate?.step]);
+
+  const handleInlineKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && inlineCreate && inlineCreate.text.trim()) {
+      e.preventDefault();
+      setInlineCreate({ ...inlineCreate, step: "picking" });
+    }
+    if (e.key === "Escape") {
+      setInlineCreate(null);
+    }
+  };
+
+  const handlePickKind = (kind: ObjectKind) => {
+    if (!inlineCreate) return;
+    onCreateAtPosition(kind, inlineCreate.text.trim(), inlineCreate.canvasX, inlineCreate.canvasY);
+    setInlineCreate(null);
+  };
+
   // Zoom
   const onWheel = useCallback(
     (e: React.WheelEvent) => {
@@ -159,7 +214,6 @@ export function SpatialCanvas({ objects, connections, selectedId, onSelect, onUp
     [transform]
   );
 
-  // Fit to center on mount
   useEffect(() => {
     const rect = containerRef.current?.getBoundingClientRect();
     if (rect) {
@@ -167,7 +221,6 @@ export function SpatialCanvas({ objects, connections, selectedId, onSelect, onUp
     }
   }, []);
 
-  // Render connection lines as SVG
   const renderConnections = () => {
     return activeConns.map((conn) => {
       const source = objectMap.get(conn.sourceId);
@@ -178,7 +231,6 @@ export function SpatialCanvas({ objects, connections, selectedId, onSelect, onUp
       const tp = getCardCenter(target);
       const isSuggested = conn.type === "ai_suggested";
 
-      // Curved line
       const mx = (sp.x + tp.x) / 2;
       const my = (sp.y + tp.y) / 2;
       const dx = tp.x - sp.x;
@@ -191,12 +243,11 @@ export function SpatialCanvas({ objects, connections, selectedId, onSelect, onUp
           <path
             d={`M ${sp.x} ${sp.y} Q ${cx} ${cy} ${tp.x} ${tp.y}`}
             fill="none"
-            stroke={isSuggested ? "var(--accent)" : "var(--accent)"}
+            stroke="var(--accent)"
             strokeWidth={isSuggested ? 1 : 1.5}
             strokeDasharray={isSuggested ? "6 4" : "none"}
             opacity={isSuggested ? 0.2 : 0.35}
           />
-          {/* Confidence label at midpoint */}
           {!isSuggested && conn.confidence < 1 && (
             <text
               x={cx}
@@ -215,15 +266,9 @@ export function SpatialCanvas({ objects, connections, selectedId, onSelect, onUp
   };
 
   const getPreview = (obj: AnyObject) => {
-    if (obj.kind === "project") {
-      return obj.description ? obj.description.slice(0, 120) : "No description";
-    }
-    if (obj.kind === "note") {
-      return obj.content.slice(0, 160);
-    }
-    if (obj.kind === "artifact") {
-      return obj.fileReference || obj.type;
-    }
+    if (obj.kind === "project") return obj.description ? obj.description.slice(0, 120) : "No description";
+    if (obj.kind === "note") return obj.content.slice(0, 160);
+    if (obj.kind === "artifact") return obj.fileReference || obj.type;
     return "";
   };
 
@@ -242,14 +287,13 @@ export function SpatialCanvas({ objects, connections, selectedId, onSelect, onUp
       onMouseUp={onMouseUp}
       onMouseLeave={onMouseUp}
       onWheel={onWheel}
+      onDoubleClick={onDoubleClick}
     >
-      {/* Dot grid background */}
       <div className="spatial-grid" style={{
         backgroundPosition: `${transform.x}px ${transform.y}px`,
         backgroundSize: `${24 * transform.k}px ${24 * transform.k}px`,
       }} />
 
-      {/* Transform layer */}
       <div
         className="spatial-transform"
         style={{
@@ -257,12 +301,10 @@ export function SpatialCanvas({ objects, connections, selectedId, onSelect, onUp
           transformOrigin: "0 0",
         }}
       >
-        {/* Connection SVG */}
         <svg className="spatial-connections" style={{ overflow: "visible" }}>
           {renderConnections()}
         </svg>
 
-        {/* Object cards */}
         {positionedObjects.map((obj) => {
           const pos = obj.canvasPosition!;
           const isSelected = obj.id === selectedId;
@@ -279,17 +321,13 @@ export function SpatialCanvas({ objects, connections, selectedId, onSelect, onUp
               onMouseDown={(e) => onCardMouseDown(e, obj)}
               onClick={(e) => onCardClick(e, obj.id)}
             >
-              {/* Kind accent bar */}
               <div className="spatial-card-accent" style={{ background: KIND_ACCENT[obj.kind] }} />
-
               <div className="spatial-card-body">
                 <div className="spatial-card-header">
                   <KindIcon kind={obj.kind} className="kind-icon" />
                   <span className="spatial-card-title">{getDisplayName(obj)}</span>
                 </div>
-
                 <p className="spatial-card-preview">{getPreview(obj)}</p>
-
                 <div className="spatial-card-footer">
                   <span className="spatial-card-status" style={{ color: KIND_ACCENT[obj.kind] }}>
                     {getStatusLabel(obj)}
@@ -306,6 +344,53 @@ export function SpatialCanvas({ objects, connections, selectedId, onSelect, onUp
           );
         })}
       </div>
+
+      {/* Inline create UI — positioned in screen space */}
+      {inlineCreate && (
+        <div
+          className="inline-create"
+          style={{
+            left: inlineCreate.screenX,
+            top: inlineCreate.screenY,
+          }}
+        >
+          {inlineCreate.step === "typing" && (
+            <div className="inline-create-input-wrap">
+              <input
+                ref={inputRef}
+                className="inline-create-input"
+                value={inlineCreate.text}
+                onChange={(e) => setInlineCreate({ ...inlineCreate, text: e.target.value })}
+                onKeyDown={handleInlineKeyDown}
+                onBlur={() => { if (!inlineCreate.text.trim()) setInlineCreate(null); }}
+                placeholder="Type a name..."
+              />
+              <span className="inline-create-hint">Enter to choose type</span>
+            </div>
+          )}
+
+          {inlineCreate.step === "picking" && (
+            <div className="inline-create-picker">
+              <div className="inline-create-preview">{inlineCreate.text}</div>
+              <div className="inline-create-options">
+                <button className="inline-create-option" onClick={() => handlePickKind("project")}>
+                  <FolderIcon className="kind-icon" />
+                  <span>Project</span>
+                </button>
+                <button className="inline-create-option" onClick={() => handlePickKind("note")}>
+                  <NoteIcon className="kind-icon" />
+                  <span>Note</span>
+                </button>
+                <button className="inline-create-option" onClick={() => handlePickKind("artifact")}>
+                  <ArtifactIcon className="kind-icon" />
+                  <span>Artifact</span>
+                </button>
+              </div>
+              <span className="inline-create-hint">Choose a type</span>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Zoom controls */}
       <div className="spatial-controls">
@@ -339,7 +424,7 @@ export function SpatialCanvas({ objects, connections, selectedId, onSelect, onUp
       {objects.length === 0 && (
         <div className="spatial-empty">
           <p className="spatial-empty-title">Your canvas is empty</p>
-          <p className="spatial-empty-sub">Create objects from the sidebar to place them here.</p>
+          <p className="spatial-empty-sub">Double-click anywhere to create an object, or use the sidebar.</p>
         </div>
       )}
     </div>
