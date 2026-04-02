@@ -16,11 +16,14 @@ interface Props {
   onSelect: (id: string) => void;
   onManualConnect: (sourceId: string, targetId: string) => void;
   onRemoveConnection: (connId: string) => void;
+  onAssignToProject?: (objectId: string, projectId: string) => void;
+  onUnassignFromProject?: (objectId: string) => void;
 }
 
 export function DetailView({
   object, connections, allObjects, resolveObject,
   onUpdate, onDelete, onSelect, onManualConnect, onRemoveConnection,
+  onAssignToProject, onUnassignFromProject,
 }: Props) {
   const [editing, setEditing] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
@@ -126,6 +129,41 @@ export function DetailView({
             </select>
           </div>
         </div>
+
+        {/* Project assignment for non-project objects */}
+        {object.kind !== "project" && onAssignToProject && (
+          <div className="detail-project-assign">
+            {object.projectId ? (
+              <div className="detail-project-current">
+                <span className="detail-project-label">In:</span>
+                <span className="detail-project-name">
+                  {allObjects.find((o) => o.id === object.projectId && o.kind === "project")
+                    ? getDisplayName(allObjects.find((o) => o.id === object.projectId)!)
+                    : "Unknown project"}
+                </span>
+                {onUnassignFromProject && (
+                  <button className="btn-ghost" onClick={() => onUnassignFromProject(object.id)}>Remove</button>
+                )}
+              </div>
+            ) : (
+              <div className="detail-project-picker">
+                <span className="detail-project-label">Assign to:</span>
+                {allObjects.filter((o) => o.kind === "project").slice(0, 5).map((p) => (
+                  <button
+                    key={p.id}
+                    className="assign-pill"
+                    onClick={() => onAssignToProject(object.id, p.id)}
+                  >
+                    {getDisplayName(p)}
+                  </button>
+                ))}
+                {allObjects.filter((o) => o.kind === "project").length === 0 && (
+                  <span className="detail-project-none">No projects yet</span>
+                )}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Content / Description */}
         {object.kind === "project" && (

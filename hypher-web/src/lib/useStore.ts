@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import type { AnyObject, Connection, Project, Note, Artifact, ActivityEntry } from "@/types";
 import { getDisplayName } from "@/types";
 import * as db from "./db";
-import { generateAndSuggest, computeSuggestions } from "./engine";
+import { generateAndSuggest, computeSuggestions, suggestProjectForObject, generateEmbedding } from "./engine";
 
 export function useStore() {
   const [objects, setObjects] = useState<AnyObject[]>([]);
@@ -32,6 +32,18 @@ export function useStore() {
   const projects = objects.filter((o): o is Project => o.kind === "project");
   const notes = objects.filter((o): o is Note => o.kind === "note");
   const artifacts = objects.filter((o): o is Artifact => o.kind === "artifact");
+
+  // Inbox: notes and artifacts not assigned to any project
+  const inboxItems = useMemo(
+    () => objects.filter((o) => o.kind !== "project" && !o.projectId),
+    [objects]
+  );
+
+  // Objects belonging to a specific project
+  const objectsForProject = useCallback(
+    (projectId: string) => objects.filter((o) => o.projectId === projectId),
+    [objects]
+  );
 
   const suggestionsFor = (id: string) =>
     connections.filter(
@@ -77,6 +89,63 @@ export function useStore() {
       setIsProcessing(false);
       setModelLoading(false);
     }
+  };
+
+  // Quick capture: create a fleeting note, embed it, return AI project suggestions
+  const addQuickCapture = async (
+    text: string,
+    projectId?: string | null
+  ): Promise<{ projectId: string; projectName: string; confidence: number }[]> => {
+    const now = Date.now();
+    const note: Note = {
+      id: crypto.randomUUID(),
+      kind: "note",
+      content: text,
+      maturity: "fleeting",
+      createdAt: now,
+      modifiedAt: now,
+      projectId: projectId ?? null,
+    };
+
+    // Optimistic: show immediately
+    setObjects((prev) => [...prev, note]);
+    setIsProcessing(true);
+    setModelLoading(true);
+
+    try {
+      await logActivity("created", note);
+      const embedded = await generateEmbedding(note);
+      await db.putObject(embedded);
+      await computeSuggestions();
+
+      // Get AI project suggestions if not already assigned
+      let suggestions: { projectId: string; projectName: string; confidence: number }[] = [];
+      if (!projectId && embedded.embedding) {
+        suggestions = await suggestProjectForObject(embedded);
+      }
+
+      await reload();
+      return suggestions;
+    } finally {
+      setIsProcessing(false);
+      setModelLoading(false);
+    }
+  };
+
+  const assignToProject = async (objectId: string, projectId: string) => {
+    const obj = objects.find((o) => o.id === objectId);
+    if (!obj) return;
+    const updated = { ...obj, projectId, modifiedAt: Date.now() };
+    await db.putObject(updated);
+    setObjects((prev) => prev.map((o) => (o.id === objectId ? updated : o)));
+  };
+
+  const unassignFromProject = async (objectId: string) => {
+    const obj = objects.find((o) => o.id === objectId);
+    if (!obj) return;
+    const updated = { ...obj, projectId: null, modifiedAt: Date.now() };
+    await db.putObject(updated);
+    setObjects((prev) => prev.map((o) => (o.id === objectId ? updated : o)));
   };
 
   const updateObject = async (obj: AnyObject) => {
@@ -164,7 +233,6 @@ export function useStore() {
     if (!obj) return;
     const updated = { ...obj, canvasPosition: { x, y } };
     await db.putObject(updated);
-    // Optimistic update without full reload (avoid re-embedding)
     setObjects((prev) => prev.map((o) => (o.id === id ? updated : o)));
   };
 
@@ -180,7 +248,6 @@ export function useStore() {
 
   const resolveObject = (id: string) => objects.find((o) => o.id === id);
 
-  // Search
   const search = (query: string): AnyObject[] => {
     if (!query.trim()) return [];
     const q = query.toLowerCase();
@@ -194,9 +261,11 @@ export function useStore() {
 
   return {
     objects, projects, notes, artifacts, connections, activity,
+    inboxItems, objectsForProject,
     selected, selectedId, setSelectedId,
     suggestionsFor, connectionsFor, pendingCount,
-    addObject, updateObject, removeObject,
+    addObject, addQuickCapture, updateObject, removeObject,
+    assignToProject, unassignFromProject,
     confirmConnection, dismissConnection, refreshSuggestions,
     createManualConnection, removeConnection, updatePosition,
     resolveObject, isProcessing, modelLoading,

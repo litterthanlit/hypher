@@ -18,6 +18,7 @@ export interface HypherObject {
   embeddingText?: string;
   tags?: string[];
   canvasPosition?: CanvasPosition;
+  projectId?: string | null;
 }
 
 export interface Project extends HypherObject {

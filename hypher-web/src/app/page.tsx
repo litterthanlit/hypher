@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useStore } from "@/lib/useStore";
+import { CaptureHome } from "@/components/CaptureHome";
 import { Sidebar } from "@/components/Sidebar";
 import { DetailView } from "@/components/DetailView";
 import { SuggestionsPanel } from "@/components/SuggestionsPanel";
@@ -24,8 +25,11 @@ function guessArtifactType(filename: string): ArtifactType {
   return "other";
 }
 
+type AppMode = "capture" | "workspace";
+
 export default function Home() {
   const store = useStore();
+  const [appMode, setAppMode] = useState<AppMode>("capture");
   const [viewMode, setViewMode] = useState<ViewMode>("canvas");
   const [showSearch, setShowSearch] = useState(false);
   const [dragOver, setDragOver] = useState(false);
@@ -33,16 +37,22 @@ export default function Home() {
   // Keyboard shortcuts
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      // Cmd+K — Search
+      // Cmd+K — Search (both modes)
       if ((e.metaKey || e.ctrlKey) && e.key === "k") {
         e.preventDefault();
-        setShowSearch((s) => !s);
+        if (appMode === "workspace") setShowSearch((s) => !s);
+      }
+      // Cmd+N — Jump to capture mode
+      if ((e.metaKey || e.ctrlKey) && e.key === "n") {
+        e.preventDefault();
+        setAppMode("capture");
       }
       // Escape — close search
       if (e.key === "Escape" && showSearch) {
         setShowSearch(false);
       }
-      // 1-4 — view switching (only when not typing in input)
+
+      if (appMode !== "workspace") return;
       const tag = (e.target as HTMLElement).tagName;
       if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
 
@@ -54,16 +64,16 @@ export default function Home() {
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [showSearch]);
+  }, [showSearch, appMode]);
 
-  // File drop handler
+  // File drop handler (both modes)
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
       e.preventDefault();
       setDragOver(false);
       const files = Array.from(e.dataTransfer.files);
       for (const file of files) {
-        const artifact = {
+        store.addObject({
           id: crypto.randomUUID(),
           kind: "artifact" as const,
           name: file.name.replace(/\.[^/.]+$/, ""),
@@ -71,8 +81,7 @@ export default function Home() {
           fileReference: file.name,
           createdAt: Date.now(),
           modifiedAt: Date.now(),
-        };
-        store.addObject(artifact);
+        });
       }
     },
     [store]
@@ -87,7 +96,40 @@ export default function Home() {
     setDragOver(false);
   }, []);
 
-  // Create object at canvas position
+  // Capture home handlers
+  const handleCapture = useCallback(
+    async (text: string, projectId?: string | null) => {
+      return store.addQuickCapture(text, projectId);
+    },
+    [store]
+  );
+
+  const handleCreateProjectAndCapture = useCallback(
+    (projectName: string, noteText: string) => {
+      const now = Date.now();
+      const projectId = crypto.randomUUID();
+      const project = {
+        id: projectId,
+        kind: "project" as const,
+        name: projectName,
+        description: "",
+        status: "seed" as const,
+        createdAt: now,
+        modifiedAt: now,
+      };
+      store.addObject(project);
+      // The note was already created in inbox by addQuickCapture — assign it
+      const recentNote = store.inboxItems.find(
+        (o) => o.kind === "note" && (o as any).content === noteText
+      );
+      if (recentNote) {
+        store.assignToProject(recentNote.id, projectId);
+      }
+    },
+    [store]
+  );
+
+  // Canvas create handler
   const handleCreateAtPosition = useCallback(
     (kind: ObjectKind, text: string, x: number, y: number) => {
       const now = Date.now();
@@ -105,6 +147,44 @@ export default function Home() {
     [store]
   );
 
+  // ── CAPTURE MODE ──
+  if (appMode === "capture") {
+    return (
+      <div
+        className="capture-root"
+        onDrop={handleDrop}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+      >
+        <CaptureHome
+          projects={store.projects}
+          onCapture={handleCapture}
+          onCreateProjectAndCapture={handleCreateProjectAndCapture}
+          onNavigateToWorkspace={() => setAppMode("workspace")}
+        />
+
+        {dragOver && (
+          <div className="drop-overlay">
+            <div className="drop-content">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" width={32} height={32}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" />
+              </svg>
+              <p>Drop files to create artifacts</p>
+            </div>
+          </div>
+        )}
+
+        {store.modelLoading && (
+          <div className="loading-bar">
+            <span className="loading-dot" />
+            Loading embedding model...
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ── WORKSPACE MODE ──
   return (
     <main
       className="app-layout"
@@ -116,11 +196,13 @@ export default function Home() {
         projects={store.projects}
         notes={store.notes}
         artifacts={store.artifacts}
+        inboxItems={store.inboxItems}
         selectedId={store.selectedId}
         onSelect={(id) => { store.setSelectedId(id); if (viewMode === "garden" || viewMode === "stream") setViewMode("focus"); }}
         onAdd={store.addObject}
         pendingCount={store.pendingCount}
         onOpenSearch={() => setShowSearch(true)}
+        onGoHome={() => setAppMode("capture")}
       />
 
       <div className="main-panel">
@@ -144,6 +226,8 @@ export default function Home() {
             onSelect={(id) => { store.setSelectedId(id); }}
             onUpdatePosition={store.updatePosition}
             onCreateAtPosition={handleCreateAtPosition}
+            onProjectClick={(id) => { store.setSelectedId(id); setViewMode("focus"); }}
+            onAssignToProject={store.assignToProject}
           />
         )}
 
@@ -167,6 +251,8 @@ export default function Home() {
             onSelect={store.setSelectedId}
             onManualConnect={store.createManualConnection}
             onRemoveConnection={store.removeConnection}
+            onAssignToProject={store.assignToProject}
+            onUnassignFromProject={store.unassignFromProject}
           />
         )}
 
@@ -197,9 +283,12 @@ export default function Home() {
         onRefresh={store.refreshSuggestions}
         isProcessing={store.isProcessing}
         pendingCount={store.pendingCount}
+        inboxItems={store.inboxItems}
+        projects={store.projects}
+        onAssignToProject={store.assignToProject}
+        onSelectObject={(id) => { store.setSelectedId(id); setViewMode("focus"); }}
       />
 
-      {/* Drop zone overlay */}
       {dragOver && (
         <div className="drop-overlay">
           <div className="drop-content">
@@ -211,7 +300,6 @@ export default function Home() {
         </div>
       )}
 
-      {/* Search overlay */}
       {showSearch && (
         <SearchDialog
           search={store.search}

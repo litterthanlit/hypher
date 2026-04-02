@@ -2,33 +2,59 @@
 
 import { useState } from "react";
 import type { Project, Note, Artifact, AnyObject } from "@/types";
+import { getDisplayName } from "@/types";
 import { CreateForm } from "./CreateForm";
-import { FolderIcon, NoteIcon, ArtifactIcon, PlusIcon } from "./Icons";
+import { FolderIcon, NoteIcon, ArtifactIcon, PlusIcon, KindIcon } from "./Icons";
 
 interface Props {
   projects: Project[];
   notes: Note[];
   artifacts: Artifact[];
+  inboxItems?: AnyObject[];
   selectedId: string | null;
   onSelect: (id: string) => void;
   onAdd: (obj: AnyObject) => void;
   pendingCount: number;
   onOpenSearch?: () => void;
+  onGoHome?: () => void;
 }
 
-export function Sidebar({ projects, notes, artifacts, selectedId, onSelect, onAdd, pendingCount, onOpenSearch }: Props) {
+export function Sidebar({ projects, notes, artifacts, inboxItems = [], selectedId, onSelect, onAdd, pendingCount, onOpenSearch, onGoHome }: Props) {
   const [showForm, setShowForm] = useState<"project" | "note" | "artifact" | null>(null);
 
   return (
     <aside className="sidebar">
       <div className="sidebar-header">
-        <span className="logo">hypher</span>
+        <button className="logo-btn" onClick={onGoHome} title="Capture (Cmd+N)">
+          <span className="logo">hypher</span>
+        </button>
         <button className="btn-icon" onClick={() => setShowForm("project")} title="Create">
           <PlusIcon />
         </button>
       </div>
 
       <nav className="sidebar-nav">
+        {/* Inbox section */}
+        {inboxItems.length > 0 && (
+          <div className="section">
+            <h2 className="section-title inbox-title">Inbox <span className="count inbox-count">{inboxItems.length}</span></h2>
+            <ul>
+              {inboxItems.slice(0, 8).map((item) => (
+                <li key={item.id} className={`sidebar-item ${selectedId === item.id ? "selected" : ""}`} onClick={() => onSelect(item.id)}>
+                  <KindIcon kind={item.kind} className="kind-icon" />
+                  <div className="item-text">
+                    <span className="item-name">{getDisplayName(item)}</span>
+                    <span className="item-sub unassigned">unassigned</span>
+                  </div>
+                </li>
+              ))}
+              {inboxItems.length > 8 && (
+                <li className="empty-hint">+{inboxItems.length - 8} more</li>
+              )}
+            </ul>
+          </div>
+        )}
+
         <div className="section">
           <h2 className="section-title">Projects <span className="count">{projects.length}</span></h2>
           <ul>

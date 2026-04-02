@@ -66,6 +66,26 @@ export async function generateAndSuggest(obj: AnyObject): Promise<AnyObject> {
   return updated;
 }
 
+export async function suggestProjectForObject(
+  obj: AnyObject
+): Promise<{ projectId: string; projectName: string; confidence: number }[]> {
+  const allObjects = await getAllObjects();
+  const projects = allObjects.filter(
+    (o) => o.kind === "project" && o.embedding && o.embedding.length > 0
+  );
+  if (!obj.embedding || projects.length === 0) return [];
+
+  return projects
+    .map((p) => ({
+      projectId: p.id,
+      projectName: p.kind === "project" ? p.name : "",
+      confidence: cosineSimilarity(obj.embedding!, p.embedding!),
+    }))
+    .filter((s) => s.confidence >= 0.35)
+    .sort((a, b) => b.confidence - a.confidence)
+    .slice(0, 3);
+}
+
 function pairKey(a: string, b: string): string {
   return [a, b].sort().join("|");
 }

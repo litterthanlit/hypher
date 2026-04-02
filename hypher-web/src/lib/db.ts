@@ -5,7 +5,7 @@ interface HypherDB extends DBSchema {
   objects: {
     key: string;
     value: AnyObject;
-    indexes: { "by-kind": string };
+    indexes: { "by-kind": string; "by-projectId": string };
   };
   connections: {
     key: string;
@@ -27,11 +27,12 @@ let dbPromise: Promise<IDBPDatabase<HypherDB>> | null = null;
 
 function getDB() {
   if (!dbPromise) {
-    dbPromise = openDB<HypherDB>("hypher", 2, {
-      upgrade(db, oldVersion) {
+    dbPromise = openDB<HypherDB>("hypher", 3, {
+      upgrade(db, oldVersion, _newVersion, tx) {
         if (oldVersion < 1) {
           const objectStore = db.createObjectStore("objects", { keyPath: "id" });
           objectStore.createIndex("by-kind", "kind");
+          objectStore.createIndex("by-projectId", "projectId");
 
           const connStore = db.createObjectStore("connections", { keyPath: "id" });
           connStore.createIndex("by-source", "sourceId");
@@ -41,6 +42,12 @@ function getDB() {
         if (oldVersion < 2) {
           const actStore = db.createObjectStore("activity", { keyPath: "id" });
           actStore.createIndex("by-timestamp", "timestamp");
+        }
+        if (oldVersion >= 1 && oldVersion < 3) {
+          const objectStore = tx.objectStore("objects");
+          if (!objectStore.indexNames.contains("by-projectId")) {
+            objectStore.createIndex("by-projectId", "projectId");
+          }
         }
       },
     });
@@ -67,6 +74,17 @@ export async function putObject(obj: AnyObject): Promise<void> {
 export async function deleteObject(id: string): Promise<void> {
   const db = await getDB();
   await db.delete("objects", id);
+}
+
+export async function getInboxObjects(): Promise<AnyObject[]> {
+  const db = await getDB();
+  const all = await db.getAll("objects");
+  return all.filter((o) => o.kind !== "project" && !o.projectId);
+}
+
+export async function getObjectsByProjectId(projectId: string): Promise<AnyObject[]> {
+  const db = await getDB();
+  return db.getAllFromIndex("objects", "by-projectId", projectId);
 }
 
 // Connections
