@@ -71,6 +71,21 @@ export function SpatialCanvas({
     return { ...obj, canvasPosition: { x: -300, y: -200 + i * 60 } };
   });
 
+  // Find shared objects — connected across different projects
+  const sharedObjectIds = useMemo(() => {
+    const shared = new Set<string>();
+    const activeC = connections.filter((c) => c.type === "ai_confirmed" || c.type === "manual");
+    for (const conn of activeC) {
+      const sourceObj = objects.find((o) => o.id === conn.sourceId);
+      const targetObj = objects.find((o) => o.id === conn.targetId);
+      if (sourceObj && targetObj && sourceObj.projectId && targetObj.projectId && sourceObj.projectId !== targetObj.projectId) {
+        shared.add(sourceObj.id);
+        shared.add(targetObj.id);
+      }
+    }
+    return shared;
+  }, [objects, connections]);
+
   const activeConns = connections.filter(
     (c) => c.type === "ai_confirmed" || c.type === "manual" || c.type === "ai_suggested"
   );
@@ -302,6 +317,7 @@ export function SpatialCanvas({
                 members={members}
                 connectionCount={connCount}
                 isSelected={selectedId === project.id}
+                sharedObjectIds={sharedObjectIds}
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={(e) => handleClusterDrop(e, project.id)}
               />

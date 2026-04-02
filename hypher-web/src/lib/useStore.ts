@@ -6,6 +6,12 @@ import { getDisplayName } from "@/types";
 import * as db from "./db";
 import { generateAndSuggest, computeSuggestions, suggestProjectForObject, generateEmbedding } from "./engine";
 
+export interface ToastMessage {
+  id: string;
+  text: string;
+  action?: { label: string; onClick: () => void };
+}
+
 export function useStore() {
   const [objects, setObjects] = useState<AnyObject[]>([]);
   const [connections, setConnections] = useState<Connection[]>([]);
@@ -13,6 +19,16 @@ export function useStore() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [modelLoading, setModelLoading] = useState(false);
+  const [toasts, setToasts] = useState<ToastMessage[]>([]);
+
+  const addToast = useCallback((text: string, action?: ToastMessage["action"]) => {
+    const id = crypto.randomUUID();
+    setToasts((prev) => [...prev, { id, text, action }]);
+  }, []);
+
+  const dismissToast = useCallback((id: string) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+  }, []);
 
   const reload = useCallback(async () => {
     const [objs, conns, acts] = await Promise.all([
@@ -79,12 +95,20 @@ export function useStore() {
   };
 
   const addObject = async (obj: AnyObject) => {
+    const prevSuggestionCount = connections.filter((c) => c.type === "ai_suggested").length;
     setIsProcessing(true);
     setModelLoading(true);
     try {
       await logActivity("created", obj);
       await generateAndSuggest(obj);
       await reload();
+      // Check for new suggestions and toast
+      const allConns = await db.getAllConnections();
+      const newCount = allConns.filter((c) => c.type === "ai_suggested").length;
+      const diff = newCount - prevSuggestionCount;
+      if (diff > 0) {
+        addToast(`Found ${diff} new connection${diff > 1 ? "s" : ""}`);
+      }
     } finally {
       setIsProcessing(false);
       setModelLoading(false);
@@ -96,6 +120,7 @@ export function useStore() {
     text: string,
     projectId?: string | null
   ): Promise<{ projectId: string; projectName: string; confidence: number }[]> => {
+    const prevSuggestionCount = connections.filter((c) => c.type === "ai_suggested").length;
     const now = Date.now();
     const note: Note = {
       id: crypto.randomUUID(),
@@ -125,6 +150,13 @@ export function useStore() {
       }
 
       await reload();
+      // Toast for new connections
+      const allConns = await db.getAllConnections();
+      const newCount = allConns.filter((c) => c.type === "ai_suggested").length;
+      const diff = newCount - prevSuggestionCount;
+      if (diff > 0) {
+        addToast(`Found ${diff} new connection${diff > 1 ? "s" : ""}`);
+      }
       return suggestions;
     } finally {
       setIsProcessing(false);
@@ -269,6 +301,7 @@ export function useStore() {
     confirmConnection, dismissConnection, refreshSuggestions,
     createManualConnection, removeConnection, updatePosition,
     resolveObject, isProcessing, modelLoading,
+    toasts, dismissToast,
     search,
   };
 }

@@ -9,6 +9,7 @@ interface Props {
   members: AnyObject[];
   connectionCount: number;
   isSelected: boolean;
+  sharedObjectIds?: Set<string>;
   onDragOver?: (e: React.DragEvent) => void;
   onDrop?: (e: React.DragEvent) => void;
 }
@@ -22,7 +23,7 @@ const STATUS_COLORS: Record<string, string> = {
   archived: "var(--text-quaternary)",
 };
 
-export function ProjectCluster({ project, members, connectionCount, isSelected, onDragOver, onDrop }: Props) {
+export function ProjectCluster({ project, members, connectionCount, isSelected, sharedObjectIds = new Set(), onDragOver, onDrop }: Props) {
   const notes = members.filter((m) => m.kind === "note").slice(0, 2);
   const artifacts = members.filter((m) => m.kind === "artifact").slice(0, 2);
   const previewItems = [...notes, ...artifacts].slice(0, 4);
@@ -45,7 +46,7 @@ export function ProjectCluster({ project, members, connectionCount, isSelected, 
       {/* 2x2 preview grid */}
       <div className="cluster-grid">
         {previewItems.map((item) => (
-          <div key={item.id} className="cluster-cell">
+          <div key={item.id} className={`cluster-cell ${sharedObjectIds.has(item.id) ? "shared" : ""}`}>
             {item.kind === "note" && (
               <>
                 <NoteIcon className="cluster-cell-icon" />

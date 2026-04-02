@@ -12,6 +12,7 @@ import { StreamView } from "@/components/StreamView";
 import { SpatialCanvas } from "@/components/SpatialCanvas";
 import { SearchDialog } from "@/components/SearchDialog";
 import { ViewSwitcher, type ViewMode } from "@/components/ViewSwitcher";
+import { ToastContainer } from "@/components/Toast";
 import type { ArtifactType, ObjectKind } from "@/types";
 
 function guessArtifactType(filename: string): ArtifactType {
@@ -174,6 +175,8 @@ export default function Home() {
           </div>
         )}
 
+        <ToastContainer messages={store.toasts} onDismiss={store.dismissToast} />
+
         {store.modelLoading && (
           <div className="loading-bar">
             <span className="loading-dot" />
@@ -307,6 +310,8 @@ export default function Home() {
           onClose={() => setShowSearch(false)}
         />
       )}
+
+      <ToastContainer messages={store.toasts} onDismiss={store.dismissToast} />
 
       {store.modelLoading && (
         <div className="loading-bar">
