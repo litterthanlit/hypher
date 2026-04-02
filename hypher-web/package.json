@@ -8,8 +8,6 @@
   },
   "dependencies": {
     "@huggingface/transformers": "^4.0.0",
-    "@types/d3-force": "^3.0.10",
-    "d3-force": "^3.0.0",
     "idb": "^8.0.3",
     "next": "^16.2.1",
     "react": "^19.2.4",
