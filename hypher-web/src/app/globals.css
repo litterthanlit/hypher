@@ -2453,6 +2453,12 @@ body {
   align-items: center;
 }
 
+.capture-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .capture-workspace-btn {
   appearance: none;
   background: var(--bg-secondary);

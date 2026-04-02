@@ -48,6 +48,11 @@ export default function Home() {
         e.preventDefault();
         setAppMode("capture");
       }
+      // Cmd+Shift+V — Clipboard capture
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === "V") {
+        e.preventDefault();
+        store.captureFromClipboard();
+      }
       // Escape — close search
       if (e.key === "Escape" && showSearch) {
         setShowSearch(false);
@@ -65,7 +70,36 @@ export default function Home() {
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [showSearch, appMode]);
+  }, [showSearch, appMode, store]);
+
+  // Rediscovery: surface an old idea on load and every 10 minutes
+  useEffect(() => {
+    const surface = () => {
+      const item = store.getRediscovery();
+      if (!item) return;
+      const name = item.kind === "note"
+        ? (item as any).content?.slice(0, 50)
+        : (item as any).name ?? "an idea";
+      const daysAgo = Math.floor((Date.now() - item.createdAt) / 86400000);
+      store.addToast(
+        `Remember? "${name}" — ${daysAgo}d ago`,
+        {
+          label: "View",
+          onClick: () => {
+            store.setSelectedId(item.id);
+            setAppMode("workspace");
+            setViewMode("focus");
+          },
+        }
+      );
+      store.markSurfaced(item.id);
+    };
+
+    // Surface after a short delay on mount (let data load)
+    const initial = setTimeout(surface, 3000);
+    const interval = setInterval(surface, 600000); // every 10 min
+    return () => { clearTimeout(initial); clearInterval(interval); };
+  }, [store.objects.length > 0]);
 
   // File drop handler (both modes)
   const handleDrop = useCallback(
@@ -162,6 +196,7 @@ export default function Home() {
           onCapture={handleCapture}
           onCreateProjectAndCapture={handleCreateProjectAndCapture}
           onNavigateToWorkspace={() => setAppMode("workspace")}
+          onClipboardCapture={store.captureFromClipboard}
         />
 
         {dragOver && (

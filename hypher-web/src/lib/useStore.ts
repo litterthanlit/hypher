@@ -280,6 +280,56 @@ export function useStore() {
 
   const resolveObject = (id: string) => objects.find((o) => o.id === id);
 
+  // Forgetting curve / rediscovery engine
+  // Spaced intervals: 1d, 3d, 7d, 14d, 30d
+  const REDISCOVERY_INTERVALS = [1, 3, 7, 14, 30].map((d) => d * 86400000);
+
+  const getRediscovery = useCallback((): AnyObject | null => {
+    const now = Date.now();
+    const candidates = objects.filter((obj) => {
+      if (obj.kind === "project") return false;
+      const age = now - obj.createdAt;
+      if (age < 86400000) return false; // skip items less than 1 day old
+      const lastSurfaced = obj.lastSurfacedAt ?? 0;
+      const timeSinceSurface = now - lastSurfaced;
+
+      // Find the appropriate interval for this object's age
+      for (const interval of REDISCOVERY_INTERVALS) {
+        if (age >= interval && timeSinceSurface >= interval) {
+          return true;
+        }
+      }
+      return false;
+    });
+
+    if (candidates.length === 0) return null;
+    // Pick a random candidate (weighted toward older unsurfaced items)
+    candidates.sort((a, b) => (a.lastSurfacedAt ?? 0) - (b.lastSurfacedAt ?? 0));
+    return candidates[0] ?? null;
+  }, [objects]);
+
+  const markSurfaced = async (id: string) => {
+    const obj = objects.find((o) => o.id === id);
+    if (!obj) return;
+    const updated = { ...obj, lastSurfacedAt: Date.now() };
+    await db.putObject(updated);
+    setObjects((prev) => prev.map((o) => (o.id === id ? updated : o)));
+  };
+
+  // Clipboard capture
+  const captureFromClipboard = async (): Promise<boolean> => {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (!text.trim()) return false;
+      await addQuickCapture(text.trim());
+      addToast("Captured from clipboard");
+      return true;
+    } catch {
+      addToast("Could not read clipboard — check browser permissions");
+      return false;
+    }
+  };
+
   const search = (query: string): AnyObject[] => {
     if (!query.trim()) return [];
     const q = query.toLowerCase();
@@ -301,7 +351,8 @@ export function useStore() {
     confirmConnection, dismissConnection, refreshSuggestions,
     createManualConnection, removeConnection, updatePosition,
     resolveObject, isProcessing, modelLoading,
-    toasts, dismissToast,
+    toasts, addToast, dismissToast,
+    getRediscovery, markSurfaced, captureFromClipboard,
     search,
   };
 }
