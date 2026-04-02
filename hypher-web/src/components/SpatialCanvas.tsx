@@ -1,21 +1,27 @@
 "use client";
 
-import { useRef, useState, useCallback, useEffect, useMemo } from "react";
-import type { AnyObject, Connection, ObjectKind, Project } from "@/types";
+import { useRef, useState, useCallback, useEffect } from "react";
+import type { AnyObject, Connection, ObjectKind } from "@/types";
 import { getDisplayName } from "@/types";
 import { KindIcon, FolderIcon, NoteIcon, ArtifactIcon } from "./Icons";
-import { ProjectCluster } from "./ProjectCluster";
+import { ConnectionPopover } from "./ConnectionPopover";
 
 interface Props {
-  objects: AnyObject[];
+  items: AnyObject[];
   connections: Connection[];
   selectedId: string | null;
   onSelect: (id: string) => void;
   onUpdatePosition: (id: string, x: number, y: number) => void;
   onCreateAtPosition: (kind: ObjectKind, text: string, x: number, y: number) => void;
-  onProjectClick?: (projectId: string) => void;
-  onAssignToProject?: (objectId: string, projectId: string) => void;
+  onConfirmConnection: (id: string) => void;
+  onDismissConnection: (id: string) => void;
 }
+
+const KIND_ACCENT: Record<ObjectKind, string> = {
+  project: "var(--accent)",
+  note: "var(--blue)",
+  artifact: "var(--amber)",
+};
 
 interface InlineCreate {
   canvasX: number;
@@ -27,8 +33,8 @@ interface InlineCreate {
 }
 
 export function SpatialCanvas({
-  objects, connections, selectedId, onSelect,
-  onUpdatePosition, onCreateAtPosition, onProjectClick, onAssignToProject,
+  items, connections, selectedId, onSelect,
+  onUpdatePosition, onCreateAtPosition, onConfirmConnection, onDismissConnection,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [transform, setTransform] = useState({ x: 0, y: 0, k: 1 });
@@ -36,161 +42,47 @@ export function SpatialCanvas({
   const [panning, setPanning] = useState<{ startX: number; startY: number; startTx: number; startTy: number } | null>(null);
   const [hasMoved, setHasMoved] = useState(false);
   const [inlineCreate, setInlineCreate] = useState<InlineCreate | null>(null);
+  const [popover, setPopover] = useState<{ connection: Connection; x: number; y: number } | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Group objects: projects get clusters, unassigned get individual cards
-  const projects = useMemo(() => objects.filter((o): o is Project => o.kind === "project"), [objects]);
-  const projectMembers = useMemo(() => {
-    const map = new Map<string, AnyObject[]>();
-    for (const p of projects) map.set(p.id, []);
-    for (const obj of objects) {
-      if (obj.kind === "project") continue;
-      if (obj.projectId && map.has(obj.projectId)) {
-        map.get(obj.projectId)!.push(obj);
-      }
-    }
-    return map;
-  }, [objects, projects]);
-
-  const inboxObjects = useMemo(
-    () => objects.filter((o) => o.kind !== "project" && !o.projectId),
-    [objects]
-  );
-
-  // Position projects that don't have canvasPosition
-  const positionedProjects = projects.map((p, i) => {
-    if (p.canvasPosition) return p;
-    const angle = i * (Math.PI * 2 / Math.max(projects.length, 1));
-    const dist = 200 + projects.length * 20;
-    return { ...p, canvasPosition: { x: Math.cos(angle) * dist, y: Math.sin(angle) * dist } };
-  });
-
-  // Position inbox objects in a cluster on the side
-  const positionedInbox = inboxObjects.map((obj, i) => {
+  // Position items without canvasPosition
+  const positioned = items.map((obj, i) => {
     if (obj.canvasPosition) return obj;
-    return { ...obj, canvasPosition: { x: -300, y: -200 + i * 60 } };
+    const angle = i * 2.4;
+    const dist = 140 + i * 35;
+    return { ...obj, canvasPosition: { x: Math.cos(angle) * dist, y: Math.sin(angle) * dist } };
   });
 
-  // Find shared objects — connected across different projects
-  const sharedObjectIds = useMemo(() => {
-    const shared = new Set<string>();
-    const activeC = connections.filter((c) => c.type === "ai_confirmed" || c.type === "manual");
-    for (const conn of activeC) {
-      const sourceObj = objects.find((o) => o.id === conn.sourceId);
-      const targetObj = objects.find((o) => o.id === conn.targetId);
-      if (sourceObj && targetObj && sourceObj.projectId && targetObj.projectId && sourceObj.projectId !== targetObj.projectId) {
-        shared.add(sourceObj.id);
-        shared.add(targetObj.id);
-      }
-    }
-    return shared;
-  }, [objects, connections]);
-
+  // Filter connections to only those between items in our list
+  const itemIds = new Set(items.map((o) => o.id));
   const activeConns = connections.filter(
-    (c) => c.type === "ai_confirmed" || c.type === "manual" || c.type === "ai_suggested"
+    (c) => c.type !== "dismissed" && itemIds.has(c.sourceId) && itemIds.has(c.targetId)
   );
 
-  // Connection count per project
-  const projectConnCount = useMemo(() => {
-    const counts = new Map<string, number>();
-    for (const p of projects) {
-      const members = projectMembers.get(p.id) ?? [];
-      const memberIds = new Set([p.id, ...members.map((m) => m.id)]);
-      let count = 0;
-      for (const conn of activeConns) {
-        if (conn.type === "ai_suggested") continue;
-        const hasSource = memberIds.has(conn.sourceId);
-        const hasTarget = memberIds.has(conn.targetId);
-        if (hasSource !== hasTarget) count++; // external connection
-      }
-      counts.set(p.id, count);
-    }
-    return counts;
-  }, [projects, projectMembers, activeConns]);
-
-  // Render connection lines between projects
-  const renderConnections = () => {
-    // Build project position map
-    const projectPosMap = new Map(positionedProjects.map((p) => [p.id, p.canvasPosition!]));
-
-    // Find connections between different projects
-    const projectPairs = new Map<string, number>();
-    for (const conn of activeConns) {
-      if (conn.type === "ai_suggested") continue;
-      let sourceProject: string | null = null;
-      let targetProject: string | null = null;
-
-      for (const [pid, members] of projectMembers) {
-        const memberIds = new Set([pid, ...members.map((m) => m.id)]);
-        if (memberIds.has(conn.sourceId)) sourceProject = pid;
-        if (memberIds.has(conn.targetId)) targetProject = pid;
-      }
-
-      if (sourceProject && targetProject && sourceProject !== targetProject) {
-        const key = [sourceProject, targetProject].sort().join("|");
-        projectPairs.set(key, (projectPairs.get(key) ?? 0) + 1);
-      }
-    }
-
-    return Array.from(projectPairs.entries()).map(([key, count]) => {
-      const [id1, id2] = key.split("|");
-      const p1 = projectPosMap.get(id1!);
-      const p2 = projectPosMap.get(id2!);
-      if (!p1 || !p2) return null;
-
-      const mx = (p1.x + p2.x) / 2;
-      const my = (p1.y + p2.y) / 2;
-      const dx = p2.x - p1.x;
-      const dy = p2.y - p1.y;
-      const cx = mx - dy * 0.08;
-      const cy = my + dx * 0.08;
-
-      return (
-        <g key={key}>
-          <path
-            d={`M ${p1.x} ${p1.y} Q ${cx} ${cy} ${p2.x} ${p2.y}`}
-            fill="none"
-            stroke="var(--accent)"
-            strokeWidth={Math.min(1 + count * 0.5, 4)}
-            opacity={0.25}
-          />
-          <text x={cx} y={cy - 10} textAnchor="middle" fill="var(--text-quaternary)" fontSize="9" fontFamily="var(--font-mono)">
-            {count}
-          </text>
-        </g>
-      );
-    });
-  };
+  const objectMap = new Map(positioned.map((o) => [o.id, o]));
 
   // ── Event handlers ──
-  const onCanvasMouseDown = useCallback(
-    (e: React.MouseEvent) => {
-      if ((e.target as HTMLElement).closest(".project-cluster")) return;
-      if ((e.target as HTMLElement).closest(".spatial-card")) return;
-      if ((e.target as HTMLElement).closest(".inline-create")) return;
-      setPanning({ startX: e.clientX, startY: e.clientY, startTx: transform.x, startTy: transform.y });
-      setHasMoved(false);
-    },
-    [transform]
-  );
+  const onCanvasMouseDown = useCallback((e: React.MouseEvent) => {
+    if ((e.target as HTMLElement).closest(".spatial-card, .inline-create, .conn-popover, .spatial-controls")) return;
+    setPopover(null);
+    setPanning({ startX: e.clientX, startY: e.clientY, startTx: transform.x, startTy: transform.y });
+    setHasMoved(false);
+  }, [transform]);
 
-  const onMouseMove = useCallback(
-    (e: React.MouseEvent) => {
-      if (dragging) {
-        const dx = (e.clientX - dragging.startX) / transform.k;
-        const dy = (e.clientY - dragging.startY) / transform.k;
-        const el = document.getElementById(`card-${dragging.id}`);
-        if (el) el.style.transform = `translate(${dragging.objX + dx}px, ${dragging.objY + dy}px)`;
-        setHasMoved(true);
-        return;
-      }
-      if (panning) {
-        setTransform({ ...transform, x: panning.startTx + (e.clientX - panning.startX), y: panning.startTy + (e.clientY - panning.startY) });
-        setHasMoved(true);
-      }
-    },
-    [dragging, panning, transform]
-  );
+  const onMouseMove = useCallback((e: React.MouseEvent) => {
+    if (dragging) {
+      const dx = (e.clientX - dragging.startX) / transform.k;
+      const dy = (e.clientY - dragging.startY) / transform.k;
+      const el = document.getElementById(`card-${dragging.id}`);
+      if (el) el.style.transform = `translate(${dragging.objX + dx}px, ${dragging.objY + dy}px)`;
+      setHasMoved(true);
+      return;
+    }
+    if (panning) {
+      setTransform({ ...transform, x: panning.startTx + (e.clientX - panning.startX), y: panning.startTy + (e.clientY - panning.startY) });
+      setHasMoved(true);
+    }
+  }, [dragging, panning, transform]);
 
   const onMouseUp = useCallback(() => {
     if (dragging && hasMoved) {
@@ -204,29 +96,20 @@ export function SpatialCanvas({
     setPanning(null);
   }, [dragging, hasMoved, onUpdatePosition]);
 
-  const onItemMouseDown = useCallback((e: React.MouseEvent, obj: AnyObject) => {
+  const onCardMouseDown = useCallback((e: React.MouseEvent, obj: AnyObject) => {
     e.stopPropagation();
     const pos = obj.canvasPosition ?? { x: 0, y: 0 };
     setDragging({ id: obj.id, startX: e.clientX, startY: e.clientY, objX: pos.x, objY: pos.y });
     setHasMoved(false);
   }, []);
 
-  const onItemClick = useCallback((e: React.MouseEvent, id: string) => {
+  const onCardClick = useCallback((e: React.MouseEvent, id: string) => {
     if (!hasMoved) onSelect(id);
   }, [hasMoved, onSelect]);
 
-  const onClusterClick = useCallback((projectId: string) => {
-    if (!hasMoved && onProjectClick) onProjectClick(projectId);
-    else if (!hasMoved) onSelect(projectId);
-  }, [hasMoved, onProjectClick, onSelect]);
-
   // Double-click to create
   const onDoubleClick = useCallback((e: React.MouseEvent) => {
-    if ((e.target as HTMLElement).closest(".project-cluster")) return;
-    if ((e.target as HTMLElement).closest(".spatial-card")) return;
-    if ((e.target as HTMLElement).closest(".inline-create")) return;
-    if ((e.target as HTMLElement).closest(".spatial-controls")) return;
-
+    if ((e.target as HTMLElement).closest(".spatial-card, .inline-create, .spatial-controls, .conn-popover")) return;
     const rect = containerRef.current?.getBoundingClientRect();
     if (!rect) return;
     const canvasX = (e.clientX - rect.left - transform.x) / transform.k;
@@ -249,6 +132,14 @@ export function SpatialCanvas({
     setInlineCreate(null);
   };
 
+  // Connection line click
+  const handleConnectionClick = useCallback((e: React.MouseEvent, conn: Connection) => {
+    if (conn.type !== "ai_suggested") return;
+    const rect = containerRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    setPopover({ connection: conn, x: e.clientX - rect.left, y: e.clientY - rect.top });
+  }, []);
+
   // Zoom
   const onWheel = useCallback((e: React.WheelEvent) => {
     e.preventDefault();
@@ -267,12 +158,18 @@ export function SpatialCanvas({
     if (rect) setTransform({ x: rect.width / 2, y: rect.height / 2, k: 1 });
   }, []);
 
-  // Drop handler for drag-from-inbox
-  const handleClusterDrop = useCallback((e: React.DragEvent, projectId: string) => {
-    e.preventDefault();
-    const objectId = e.dataTransfer.getData("text/plain");
-    if (objectId && onAssignToProject) onAssignToProject(objectId, projectId);
-  }, [onAssignToProject]);
+  // Preview text
+  const getPreview = (obj: AnyObject) => {
+    if (obj.kind === "note") return obj.content.slice(0, 120);
+    if (obj.kind === "artifact") return obj.fileReference || obj.type;
+    return "";
+  };
+
+  const getStatus = (obj: AnyObject) => {
+    if (obj.kind === "note") return obj.maturity;
+    if (obj.kind === "artifact") return obj.type;
+    return "";
+  };
 
   return (
     <div
@@ -294,63 +191,87 @@ export function SpatialCanvas({
         transform: `translate(${transform.x}px, ${transform.y}px) scale(${transform.k})`,
         transformOrigin: "0 0",
       }}>
+        {/* Connection lines */}
         <svg className="spatial-connections" style={{ overflow: "visible" }}>
-          {renderConnections()}
+          {activeConns.map((conn) => {
+            const source = objectMap.get(conn.sourceId);
+            const target = objectMap.get(conn.targetId);
+            if (!source?.canvasPosition || !target?.canvasPosition) return null;
+            const sp = source.canvasPosition;
+            const tp = target.canvasPosition;
+            const isSuggested = conn.type === "ai_suggested";
+            const mx = (sp.x + tp.x) / 2;
+            const my = (sp.y + tp.y) / 2;
+            const dx = tp.x - sp.x;
+            const dy = tp.y - sp.y;
+            const cx = mx - dy * 0.1;
+            const cy = my + dx * 0.1;
+
+            return (
+              <g key={conn.id}>
+                {/* Invisible wider hit area for clicking */}
+                <path
+                  d={`M ${sp.x} ${sp.y} Q ${cx} ${cy} ${tp.x} ${tp.y}`}
+                  fill="none"
+                  stroke="transparent"
+                  strokeWidth={12}
+                  style={{ cursor: isSuggested ? "pointer" : "default" }}
+                  onClick={(e) => handleConnectionClick(e as any, conn)}
+                />
+                <path
+                  d={`M ${sp.x} ${sp.y} Q ${cx} ${cy} ${tp.x} ${tp.y}`}
+                  fill="none"
+                  stroke="var(--accent)"
+                  strokeWidth={isSuggested ? 1 : 1.5}
+                  strokeDasharray={isSuggested ? "6 4" : "none"}
+                  opacity={isSuggested ? 0.25 : 0.4}
+                  pointerEvents="none"
+                />
+              </g>
+            );
+          })}
         </svg>
 
-        {/* Project clusters */}
-        {positionedProjects.map((project) => {
-          const pos = project.canvasPosition!;
-          const members = projectMembers.get(project.id) ?? [];
-          const connCount = projectConnCount.get(project.id) ?? 0;
-
-          return (
-            <div
-              key={project.id}
-              id={`card-${project.id}`}
-              style={{ transform: `translate(${pos.x}px, ${pos.y}px)`, position: "absolute", marginLeft: "-150px", marginTop: "-80px" }}
-              onMouseDown={(e) => onItemMouseDown(e, project)}
-              onClick={() => onClusterClick(project.id)}
-            >
-              <ProjectCluster
-                project={project}
-                members={members}
-                connectionCount={connCount}
-                isSelected={selectedId === project.id}
-                sharedObjectIds={sharedObjectIds}
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={(e) => handleClusterDrop(e, project.id)}
-              />
-            </div>
-          );
-        })}
-
-        {/* Inbox items as individual cards */}
-        {positionedInbox.map((obj) => {
+        {/* Item cards */}
+        {positioned.map((obj) => {
           const pos = obj.canvasPosition!;
+          const isSelected = obj.id === selectedId;
           return (
             <div
               key={obj.id}
               id={`card-${obj.id}`}
-              className={`spatial-card ${selectedId === obj.id ? "selected" : ""}`}
+              className={`spatial-card ${isSelected ? "selected" : ""}`}
               style={{ transform: `translate(${pos.x}px, ${pos.y}px)` }}
-              onMouseDown={(e) => onItemMouseDown(e, obj)}
-              onClick={(e) => onItemClick(e, obj.id)}
+              onMouseDown={(e) => onCardMouseDown(e, obj)}
+              onClick={(e) => onCardClick(e, obj.id)}
             >
-              <div className="spatial-card-accent" style={{ background: obj.kind === "note" ? "var(--blue)" : "var(--amber)" }} />
+              <div className="spatial-card-accent" style={{ background: KIND_ACCENT[obj.kind] }} />
               <div className="spatial-card-body">
                 <div className="spatial-card-header">
                   <KindIcon kind={obj.kind} className="kind-icon" />
                   <span className="spatial-card-title">{getDisplayName(obj)}</span>
                 </div>
+                {getPreview(obj) && <p className="spatial-card-preview">{getPreview(obj)}</p>}
                 <div className="spatial-card-footer">
-                  <span className="spatial-card-status inbox-label">inbox</span>
+                  <span className="spatial-card-status" style={{ color: KIND_ACCENT[obj.kind] }}>{getStatus(obj)}</span>
+                  {obj.embedding && <span className="spatial-card-embedded" />}
                 </div>
               </div>
             </div>
           );
         })}
       </div>
+
+      {/* Connection popover */}
+      {popover && (
+        <ConnectionPopover
+          connection={popover.connection}
+          position={{ x: popover.x, y: popover.y }}
+          onConfirm={onConfirmConnection}
+          onDismiss={onDismissConnection}
+          onClose={() => setPopover(null)}
+        />
+      )}
 
       {/* Inline create */}
       {inlineCreate && (
@@ -373,7 +294,6 @@ export function SpatialCanvas({
             <div className="inline-create-picker">
               <div className="inline-create-preview">{inlineCreate.text}</div>
               <div className="inline-create-options">
-                <button className="inline-create-option" onClick={() => handlePickKind("project")}><FolderIcon className="kind-icon" /><span>Project</span></button>
                 <button className="inline-create-option" onClick={() => handlePickKind("note")}><NoteIcon className="kind-icon" /><span>Note</span></button>
                 <button className="inline-create-option" onClick={() => handlePickKind("artifact")}><ArtifactIcon className="kind-icon" /><span>Artifact</span></button>
               </div>
@@ -386,14 +306,14 @@ export function SpatialCanvas({
       <div className="spatial-controls">
         <button className="btn-icon" onClick={() => setTransform((t) => ({ ...t, k: Math.min(3, t.k * 1.25) }))} title="Zoom in">+</button>
         <span className="spatial-zoom-label">{Math.round(transform.k * 100)}%</span>
-        <button className="btn-icon" onClick={() => setTransform((t) => ({ ...t, k: Math.max(0.15, t.k * 0.8) }))} title="Zoom out">−</button>
-        <button className="btn-icon" onClick={() => { const rect = containerRef.current?.getBoundingClientRect(); if (rect) setTransform({ x: rect.width / 2, y: rect.height / 2, k: 1 }); }} title="Reset view">⌀</button>
+        <button className="btn-icon" onClick={() => setTransform((t) => ({ ...t, k: Math.max(0.15, t.k * 0.8) }))} title="Zoom out">-</button>
+        <button className="btn-icon" onClick={() => { const rect = containerRef.current?.getBoundingClientRect(); if (rect) setTransform({ x: rect.width / 2, y: rect.height / 2, k: 1 }); }} title="Reset view">*</button>
       </div>
 
-      {objects.length === 0 && (
+      {items.length === 0 && (
         <div className="spatial-empty">
-          <p className="spatial-empty-title">Your canvas is empty</p>
-          <p className="spatial-empty-sub">Double-click to create, or capture thoughts from the home screen.</p>
+          <p className="spatial-empty-title">This project is empty</p>
+          <p className="spatial-empty-sub">Double-click to create, or capture from the home screen.</p>
         </div>
       )}
     </div>
