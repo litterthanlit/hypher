@@ -181,10 +181,12 @@ export default function Home() {
       <Sidebar
         projects={store.projects}
         inboxItems={store.inboxItems}
+        recentItems={store.recentItems}
         selectedProjectId={selectedProjectId}
         selectedObjectId={store.selectedId}
         onSelectProject={(id) => { setSelectedProjectId(id); store.setSelectedId(id); }}
         onSelectInboxItem={(id) => { store.setSelectedId(id); }}
+        onSelectRecent={(id) => { store.setSelectedId(id); }}
         onAdd={store.addObject}
         onGoHome={() => setAppMode("capture")}
       />

@@ -9,17 +9,29 @@ import { FolderIcon, KindIcon, PlusIcon } from "./Icons";
 interface Props {
   projects: Project[];
   inboxItems: AnyObject[];
+  recentItems: AnyObject[];
   selectedProjectId: string | null;
   selectedObjectId: string | null;
   onSelectProject: (id: string) => void;
   onSelectInboxItem: (id: string) => void;
+  onSelectRecent: (id: string) => void;
   onAdd: (obj: AnyObject) => void;
   onGoHome: () => void;
 }
 
+function timeAgo(ts: number): string {
+  const diff = Date.now() - ts;
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "now";
+  if (mins < 60) return `${mins}m`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h`;
+  return `${Math.floor(hours / 24)}d`;
+}
+
 export function Sidebar({
-  projects, inboxItems, selectedProjectId, selectedObjectId,
-  onSelectProject, onSelectInboxItem, onAdd, onGoHome,
+  projects, inboxItems, recentItems, selectedProjectId, selectedObjectId,
+  onSelectProject, onSelectInboxItem, onSelectRecent, onAdd, onGoHome,
 }: Props) {
   const [showForm, setShowForm] = useState<"project" | "note" | "artifact" | null>(null);
 
@@ -35,6 +47,30 @@ export function Sidebar({
       </div>
 
       <nav className="sidebar-nav">
+        {recentItems.length > 0 && (
+          <div className="section">
+            <h2 className="section-title recent-title">
+              Recent
+            </h2>
+            <ul>
+              {recentItems.map((item) => (
+                <li
+                  key={item.id}
+                  className={`sidebar-item recent-item ${selectedObjectId === item.id ? "selected" : ""}`}
+                  onClick={() => onSelectRecent(item.id)}
+                >
+                  <KindIcon kind={item.kind} className="kind-icon" />
+                  <div className="item-text">
+                    <span className="item-name">{getDisplayName(item)}</span>
+                  </div>
+                  <span className="recent-time">{timeAgo(item.createdAt)}</span>
+                  <span className="recent-check">✓</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
         {inboxItems.length > 0 && (
           <div className="section">
             <h2 className="section-title inbox-title">

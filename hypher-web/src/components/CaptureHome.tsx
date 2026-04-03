@@ -14,15 +14,111 @@ interface Props {
 
 type CaptureStep = "idle" | "assigning";
 
+function getGreeting(): string {
+  const hour = new Date().getHours();
+  if (hour < 5) return "Late night";
+  if (hour < 12) return "Good morning";
+  if (hour < 17) return "Good afternoon";
+  if (hour < 21) return "Good evening";
+  return "Late night";
+}
+
 export function CaptureHome({ projects, onCapture, onCreateProjectAndCapture, onNavigateToWorkspace, onClipboardCapture }: Props) {
   const [text, setText] = useState("");
   const [step, setStep] = useState<CaptureStep>("idle");
   const [aiSuggestions, setAiSuggestions] = useState<{ projectId: string; projectName: string; confidence: number }[]>([]);
   const [capturedText, setCapturedText] = useState("");
+  const [greeting] = useState(getGreeting);
+  const [placeholderIndex, setPlaceholderIndex] = useState(0);
+  const [cursorVisible, setCursorVisible] = useState(true);
+  const [textVisible, setTextVisible] = useState(true);
+  const [isDragNear, setIsDragNear] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const blinkCount = useRef(0);
+
+  const placeholders = [
+    "what's on your mind...",
+    "something you noticed...",
+    "the idea you keep circling...",
+    "before it fades...",
+    "what clicked today...",
+    "the thread worth pulling...",
+    "say it simply...",
+    "what's forming...",
+  ];
 
   useEffect(() => {
     inputRef.current?.focus();
+  }, []);
+
+  // One rhythm: 3200ms cycle.
+  // At 0ms: cursor on, text visible
+  // At 800ms: cursor off
+  // At 1600ms: cursor on
+  // At 2400ms: cursor off + text fades out
+  // At 2800ms: text swaps (while both hidden)
+  // At 3200ms: cursor on + text fades in (new cycle)
+  useEffect(() => {
+    if (text || step !== "idle") return;
+
+    const CYCLE = 3200;
+    const BLINK = 800;
+
+    const run = () => {
+      // Phase 0: cursor on, text in
+      setCursorVisible(true);
+      setTextVisible(true);
+
+      // Phase 1 (800ms): cursor off
+      const t1 = setTimeout(() => setCursorVisible(false), BLINK);
+
+      // Phase 2 (1600ms): cursor on
+      const t2 = setTimeout(() => setCursorVisible(true), BLINK * 2);
+
+      // Phase 3 (2400ms): cursor off + text out
+      const t3 = setTimeout(() => {
+        setCursorVisible(false);
+        setTextVisible(false);
+      }, BLINK * 3);
+
+      // Phase 3.5 (2800ms): swap text while both hidden
+      const t4 = setTimeout(() => {
+        setPlaceholderIndex((i) => (i + 1) % placeholders.length);
+      }, BLINK * 3 + 400);
+
+      return [t1, t2, t3, t4];
+    };
+
+    const timers = run();
+    const interval = setInterval(() => {
+      timers.forEach(clearTimeout);
+      timers.length = 0;
+      timers.push(...run());
+    }, CYCLE);
+
+    return () => {
+      timers.forEach(clearTimeout);
+      clearInterval(interval);
+    };
+  }, [text, step, placeholders.length]);
+
+  // Detect file drag near the window
+  useEffect(() => {
+    const onDragEnter = (e: DragEvent) => {
+      if (e.dataTransfer?.types.includes("Files")) setIsDragNear(true);
+    };
+    const onDragLeave = (e: DragEvent) => {
+      if (e.relatedTarget === null) setIsDragNear(false);
+    };
+    const onDrop = () => setIsDragNear(false);
+    window.addEventListener("dragenter", onDragEnter);
+    window.addEventListener("dragleave", onDragLeave);
+    window.addEventListener("drop", onDrop);
+    return () => {
+      window.removeEventListener("dragenter", onDragEnter);
+      window.removeEventListener("dragleave", onDragLeave);
+      window.removeEventListener("drop", onDrop);
+    };
   }, []);
 
   // Refocus after each capture cycle
@@ -107,15 +203,38 @@ export function CaptureHome({ projects, onCapture, onCreateProjectAndCapture, on
 
       {/* Center capture area */}
       <div className="capture-center">
-        <input
-          ref={inputRef}
-          className="capture-input"
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder="What's on your mind?"
-          disabled={step === "assigning"}
-        />
+        <div className={`capture-input-wrap ${isDragNear ? "drag-glow" : ""}`}>
+          <input
+            ref={inputRef}
+            className={`capture-input ${text ? "has-text" : ""}`}
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder=""
+            disabled={step === "assigning"}
+          />
+          {!text && step === "idle" && (
+            <span className={`capture-placeholder ${textVisible ? "visible" : ""}`} key={placeholderIndex}>
+              {placeholders[placeholderIndex]}
+            </span>
+          )}
+          {!text && step === "idle" && cursorVisible && <span className="capture-cursor" />}
+          {!text && step === "idle" && (
+            <div className={`capture-drop-hint ${isDragNear ? "visible" : ""}`}>
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 28 24" width={28} height={24}>
+                {/* Dashed rectangle behind */}
+                <rect x="6" y="4" width="18" height="16" rx="3" stroke="currentColor" strokeWidth="1.5" strokeDasharray="3 2.5" opacity="0.5" />
+                {/* Solid rectangle in front */}
+                <rect x="2" y="2" width="18" height="16" rx="3" stroke="currentColor" strokeWidth="1.5" />
+                {/* Upload arrow */}
+                <path d="M11 13V8m0 0L8.5 10.5M11 8l2.5 2.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                {/* Tray */}
+                <path d="M7.5 12v1.5a1 1 0 001 1h5a1 1 0 001-1V12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </div>
+          )}
+        </div>
+
 
         {step === "assigning" && (
           <ProjectAssignPopup

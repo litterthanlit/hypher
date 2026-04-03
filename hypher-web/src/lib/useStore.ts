@@ -55,6 +55,15 @@ export function useStore() {
     [objects]
   );
 
+  // Recent: last 8 items by creation time (all kinds except project)
+  const recentItems = useMemo(
+    () => [...objects]
+      .filter((o) => o.kind !== "project")
+      .sort((a, b) => b.createdAt - a.createdAt)
+      .slice(0, 8),
+    [objects]
+  );
+
   // Objects belonging to a specific project
   const objectsForProject = useCallback(
     (projectId: string) => objects.filter((o) => o.projectId === projectId),
@@ -343,7 +352,7 @@ export function useStore() {
 
   return {
     objects, projects, notes, artifacts, connections, activity,
-    inboxItems, objectsForProject,
+    inboxItems, recentItems, objectsForProject,
     selected, selectedId, setSelectedId,
     suggestionsFor, connectionsFor, pendingCount,
     addObject, addQuickCapture, updateObject, removeObject,
