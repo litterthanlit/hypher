@@ -47,6 +47,28 @@ export function Sidebar({
       </div>
 
       <nav className="sidebar-nav">
+        <div className="section">
+          <h2 className="section-title">
+            Projects <span className="count">{projects.length}</span>
+          </h2>
+          <ul>
+            {projects.map((p) => (
+              <li
+                key={p.id}
+                className={`sidebar-item ${selectedProjectId === p.id ? "selected" : ""}`}
+                onClick={() => onSelectProject(p.id)}
+              >
+                <FolderIcon className="kind-icon" />
+                <div className="item-text">
+                  <span className="item-name">{p.name}</span>
+                  <span className="item-sub">{p.status}</span>
+                </div>
+              </li>
+            ))}
+            {projects.length === 0 && <li className="empty-hint">No projects yet</li>}
+          </ul>
+        </div>
+
         {recentItems.length > 0 && (
           <div className="section">
             <h2 className="section-title recent-title">
@@ -64,7 +86,7 @@ export function Sidebar({
                     <span className="item-name">{getDisplayName(item)}</span>
                   </div>
                   <span className="recent-time">{timeAgo(item.createdAt)}</span>
-                  <span className="recent-check">✓</span>
+                  <span className="recent-check">{"\u2713"}</span>
                 </li>
               ))}
             </ul>
@@ -92,28 +114,6 @@ export function Sidebar({
             </ul>
           </div>
         )}
-
-        <div className="section">
-          <h2 className="section-title">
-            Projects <span className="count">{projects.length}</span>
-          </h2>
-          <ul>
-            {projects.map((p) => (
-              <li
-                key={p.id}
-                className={`sidebar-item ${selectedProjectId === p.id ? "selected" : ""}`}
-                onClick={() => onSelectProject(p.id)}
-              >
-                <FolderIcon className="kind-icon" />
-                <div className="item-text">
-                  <span className="item-name">{p.name}</span>
-                  <span className="item-sub">{p.status}</span>
-                </div>
-              </li>
-            ))}
-            {projects.length === 0 && <li className="empty-hint">No projects yet</li>}
-          </ul>
-        </div>
       </nav>
 
       {showForm && (

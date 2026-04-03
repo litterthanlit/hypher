@@ -43,6 +43,7 @@ export function SpatialCanvas({
   const [hasMoved, setHasMoved] = useState(false);
   const [inlineCreate, setInlineCreate] = useState<InlineCreate | null>(null);
   const [popover, setPopover] = useState<{ connection: Connection; x: number; y: number } | null>(null);
+  const [canvasMode, setCanvasMode] = useState<"select" | "text">("select");
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Position items without canvasPosition
@@ -62,10 +63,13 @@ export function SpatialCanvas({
   const objectMap = new Map(positioned.map((o) => [o.id, o]));
 
   // ── Event handlers ──
+  const panStartPos = useRef<{ x: number; y: number } | null>(null);
+
   const onCanvasMouseDown = useCallback((e: React.MouseEvent) => {
     if ((e.target as HTMLElement).closest(".spatial-card, .inline-create, .conn-popover, .spatial-controls")) return;
     setPopover(null);
     setPanning({ startX: e.clientX, startY: e.clientY, startTx: transform.x, startTy: transform.y });
+    panStartPos.current = { x: e.clientX, y: e.clientY };
     setHasMoved(false);
   }, [transform]);
 
@@ -96,26 +100,52 @@ export function SpatialCanvas({
     setPanning(null);
   }, [dragging, hasMoved, onUpdatePosition]);
 
+  const dragStartPos = useRef<{ x: number; y: number } | null>(null);
+
   const onCardMouseDown = useCallback((e: React.MouseEvent, obj: AnyObject) => {
     e.stopPropagation();
     const pos = obj.canvasPosition ?? { x: 0, y: 0 };
     setDragging({ id: obj.id, startX: e.clientX, startY: e.clientY, objX: pos.x, objY: pos.y });
+    dragStartPos.current = { x: e.clientX, y: e.clientY };
     setHasMoved(false);
   }, []);
 
   const onCardClick = useCallback((e: React.MouseEvent, id: string) => {
-    if (!hasMoved) onSelect(id);
+    // Only count as "moved" if mouse traveled > 4px (prevents micro-movements blocking clicks)
+    if (dragStartPos.current) {
+      const dx = e.clientX - dragStartPos.current.x;
+      const dy = e.clientY - dragStartPos.current.y;
+      if (Math.sqrt(dx * dx + dy * dy) < 5) {
+        onSelect(id);
+      }
+    } else if (!hasMoved) {
+      onSelect(id);
+    }
   }, [hasMoved, onSelect]);
 
-  // Double-click to create
-  const onDoubleClick = useCallback((e: React.MouseEvent) => {
-    if ((e.target as HTMLElement).closest(".spatial-card, .inline-create, .spatial-controls, .conn-popover")) return;
-    const rect = containerRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    const canvasX = (e.clientX - rect.left - transform.x) / transform.k;
-    const canvasY = (e.clientY - rect.top - transform.y) / transform.k;
-    setInlineCreate({ canvasX, canvasY, screenX: e.clientX - rect.left, screenY: e.clientY - rect.top, text: "", step: "typing" });
-  }, [transform]);
+  // Click on empty space — behavior depends on mode
+  const onCanvasClick = useCallback((e: React.MouseEvent) => {
+    if ((e.target as HTMLElement).closest(".spatial-card, .inline-create, .spatial-controls, .conn-popover, .canvas-toolbar")) return;
+    if (inlineCreate) return;
+    // Only if we didn't pan (< 5px movement)
+    if (panStartPos.current) {
+      const dx = e.clientX - panStartPos.current.x;
+      const dy = e.clientY - panStartPos.current.y;
+      if (Math.sqrt(dx * dx + dy * dy) > 5) return;
+    }
+
+    if (canvasMode === "text") {
+      const rect = containerRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      const canvasX = (e.clientX - rect.left - transform.x) / transform.k;
+      const canvasY = (e.clientY - rect.top - transform.y) / transform.k;
+      setInlineCreate({ canvasX, canvasY, screenX: e.clientX - rect.left, screenY: e.clientY - rect.top, text: "", step: "typing" });
+    }
+    // In select mode, clicking empty space deselects
+    if (canvasMode === "select") {
+      onSelect("");
+    }
+  }, [transform, inlineCreate, canvasMode, onSelect]);
 
   useEffect(() => {
     if (inlineCreate?.step === "typing") setTimeout(() => inputRef.current?.focus(), 50);
@@ -131,6 +161,18 @@ export function SpatialCanvas({
     onCreateAtPosition(kind, inlineCreate.text.trim(), inlineCreate.canvasX, inlineCreate.canvasY);
     setInlineCreate(null);
   };
+
+  // Keyboard shortcuts for mode switching
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement).tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA") return;
+      if (e.key === "v" || e.key === "V") setCanvasMode("select");
+      if (e.key === "t" || e.key === "T") setCanvasMode("text");
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
 
   // Connection line click
   const handleConnectionClick = useCallback((e: React.MouseEvent, conn: Connection) => {
@@ -173,14 +215,14 @@ export function SpatialCanvas({
 
   return (
     <div
-      className="spatial-canvas"
+      className={`spatial-canvas ${canvasMode === "text" ? "text-mode" : ""}`}
       ref={containerRef}
       onMouseDown={onCanvasMouseDown}
       onMouseMove={onMouseMove}
       onMouseUp={onMouseUp}
       onMouseLeave={onMouseUp}
       onWheel={onWheel}
-      onDoubleClick={onDoubleClick}
+      onClick={onCanvasClick}
     >
       <div className="spatial-grid" style={{
         backgroundPosition: `${transform.x}px ${transform.y}px`,
@@ -245,18 +287,29 @@ export function SpatialCanvas({
               onMouseDown={(e) => onCardMouseDown(e, obj)}
               onClick={(e) => onCardClick(e, obj.id)}
             >
-              <div className="spatial-card-accent" style={{ background: KIND_ACCENT[obj.kind] }} />
-              <div className="spatial-card-body">
-                <div className="spatial-card-header">
-                  <KindIcon kind={obj.kind} className="kind-icon" />
-                  <span className="spatial-card-title">{getDisplayName(obj)}</span>
-                </div>
-                {getPreview(obj) && <p className="spatial-card-preview">{getPreview(obj)}</p>}
-                <div className="spatial-card-footer">
-                  <span className="spatial-card-status" style={{ color: KIND_ACCENT[obj.kind] }}>{getStatus(obj)}</span>
-                  {obj.embedding && <span className="spatial-card-embedded" />}
-                </div>
-              </div>
+              {obj.kind === "artifact" && (obj as any).thumbnailDataUrl ? (
+                <>
+                  <img className="spatial-card-thumb" src={(obj as any).thumbnailDataUrl} alt={getDisplayName(obj)} />
+                  <div className="spatial-card-body compact">
+                    <span className="spatial-card-title">{getDisplayName(obj)}</span>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="spatial-card-accent" style={{ background: KIND_ACCENT[obj.kind] }} />
+                  <div className="spatial-card-body">
+                    <div className="spatial-card-header">
+                      <KindIcon kind={obj.kind} className="kind-icon" />
+                      <span className="spatial-card-title">{getDisplayName(obj)}</span>
+                    </div>
+                    {getPreview(obj) && <p className="spatial-card-preview">{getPreview(obj)}</p>}
+                    <div className="spatial-card-footer">
+                      <span className="spatial-card-status" style={{ color: KIND_ACCENT[obj.kind] }}>{getStatus(obj)}</span>
+                      {obj.embedding && <span className="spatial-card-embedded" />}
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           );
         })}
@@ -302,18 +355,40 @@ export function SpatialCanvas({
         </div>
       )}
 
-      {/* Zoom controls */}
-      <div className="spatial-controls">
-        <button className="btn-icon" onClick={() => setTransform((t) => ({ ...t, k: Math.min(3, t.k * 1.25) }))} title="Zoom in">+</button>
-        <span className="spatial-zoom-label">{Math.round(transform.k * 100)}%</span>
-        <button className="btn-icon" onClick={() => setTransform((t) => ({ ...t, k: Math.max(0.15, t.k * 0.8) }))} title="Zoom out">-</button>
-        <button className="btn-icon" onClick={() => { const rect = containerRef.current?.getBoundingClientRect(); if (rect) setTransform({ x: rect.width / 2, y: rect.height / 2, k: 1 }); }} title="Reset view">*</button>
+      {/* Bottom toolbar: mode switcher + zoom */}
+      <div className="canvas-toolbar">
+        <div className="canvas-mode-switcher">
+          <button
+            className={`canvas-mode-btn ${canvasMode === "select" ? "active" : ""}`}
+            onClick={() => setCanvasMode("select")}
+            title="Select (V)"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" width={16} height={16}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15.042 21.672 13.684 16.6m0 0-2.51 2.225.569-9.47 5.227 7.917-3.286-.672ZM12 2.25V4.5m5.834.166-1.591 1.591M20.25 10.5H18M7.757 14.743l-1.59 1.59M6 10.5H3.75m4.007-4.243-1.59-1.59" />
+            </svg>
+          </button>
+          <button
+            className={`canvas-mode-btn ${canvasMode === "text" ? "active" : ""}`}
+            onClick={() => setCanvasMode("text")}
+            title="Text (T)"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" width={16} height={16}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.087.16 2.185.283 3.293.369V21l4.076-4.076a1.526 1.526 0 0 1 1.037-.443 48.2 48.2 0 0 0 5.887-.375c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0 0 12 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018Z" />
+            </svg>
+          </button>
+        </div>
+
+        <div className="spatial-controls">
+          <button className="btn-icon" onClick={() => setTransform((t) => ({ ...t, k: Math.min(3, t.k * 1.25) }))} title="Zoom in">+</button>
+          <span className="spatial-zoom-label">{Math.round(transform.k * 100)}%</span>
+          <button className="btn-icon" onClick={() => setTransform((t) => ({ ...t, k: Math.max(0.15, t.k * 0.8) }))} title="Zoom out">-</button>
+        </div>
       </div>
 
       {items.length === 0 && (
         <div className="spatial-empty">
           <p className="spatial-empty-title">This project is empty</p>
-          <p className="spatial-empty-sub">Double-click to create, or capture from the home screen.</p>
+          <p className="spatial-empty-sub">Click anywhere to start typing, or capture from the home screen.</p>
         </div>
       )}
     </div>

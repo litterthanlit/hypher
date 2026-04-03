@@ -2,7 +2,7 @@
 
 /* ─── Light (default) ─── */
 :root {
-  --bg-root: #faf9f7;
+  --bg-root: #FAFAFA;
   --bg-primary: #ffffff;
   --bg-secondary: #f4f3f1;
   --bg-tertiary: #eae8e4;
@@ -841,11 +841,82 @@ body {
   margin-left: auto;
 }
 
-/* Zoom controls */
-.spatial-controls {
+.spatial-card-thumb {
+  width: 100%;
+  height: 120px;
+  object-fit: cover;
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  display: block;
+}
+
+.spatial-card-body.compact {
+  padding: 8px 12px;
+}
+
+.spatial-card-body.compact .spatial-card-title {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+/* Text mode cursor */
+.spatial-canvas.text-mode {
+  cursor: text;
+}
+
+.spatial-canvas.text-mode:active {
+  cursor: text;
+}
+
+/* Bottom canvas toolbar */
+.canvas-toolbar {
   position: absolute;
   bottom: 16px;
-  right: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  z-index: 50;
+}
+
+.canvas-mode-switcher {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-md);
+}
+
+.canvas-mode-btn {
+  appearance: none;
+  background: transparent;
+  border: none;
+  color: var(--text-quaternary);
+  width: 32px;
+  height: 28px;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--transition);
+}
+
+.canvas-mode-btn:hover {
+  color: var(--text-secondary);
+  background: var(--bg-hover);
+}
+
+.canvas-mode-btn.active {
+  color: var(--text-primary);
+  background: var(--bg-selected);
+}
+
+/* Zoom controls */
+.spatial-controls {
   display: flex;
   align-items: center;
   gap: 4px;
@@ -853,7 +924,6 @@ body {
   background: var(--bg-primary);
   border: 1px solid var(--border-default);
   border-radius: var(--radius-pill);
-  z-index: 50;
   box-shadow: var(--shadow-md);
 }
 
@@ -1538,6 +1608,26 @@ body {
 @keyframes hintPulse {
   0%, 100% { opacity: 0.7; transform: translateY(-50%) scale(1); }
   50% { opacity: 1; transform: translateY(-50%) scale(1.1); }
+}
+
+.notion-import-btn {
+  appearance: none;
+  background: transparent;
+  border: 1px dashed var(--border-default);
+  color: var(--text-quaternary);
+  font-family: var(--font-sans);
+  font-size: 12px;
+  padding: 8px 16px;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  transition: all var(--transition);
+  margin-top: 24px;
+}
+
+.notion-import-btn:hover {
+  border-color: var(--border-hover);
+  color: var(--text-secondary);
+  background: var(--bg-hover);
 }
 
 .capture-input::placeholder {

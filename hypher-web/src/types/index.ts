@@ -40,6 +40,7 @@ export interface Artifact extends HypherObject {
   name: string;
   type: ArtifactType;
   fileReference?: string;
+  thumbnailDataUrl?: string;
 }
 
 export interface Connection {

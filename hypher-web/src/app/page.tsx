@@ -8,6 +8,7 @@ import { SpatialCanvas } from "@/components/SpatialCanvas";
 import { ListView } from "@/components/ListView";
 import { SearchDialog } from "@/components/SearchDialog";
 import { ToastContainer } from "@/components/Toast";
+import { generateSeedData } from "@/lib/notion-seed";
 import type { ArtifactType, ObjectKind } from "@/types";
 
 function guessArtifactType(filename: string): ArtifactType {
@@ -99,26 +100,77 @@ export default function Home() {
     return () => { clearTimeout(initial); clearInterval(interval); };
   }, [store.objects.length > 0]);
 
-  // File drop
+  // File drop — reads images as thumbnails
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     setDragOver(false);
     for (const file of Array.from(e.dataTransfer.files)) {
-      store.addObject({
-        id: crypto.randomUUID(),
-        kind: "artifact",
-        name: file.name.replace(/\.[^/.]+$/, ""),
-        type: guessArtifactType(file.name),
-        fileReference: file.name,
-        createdAt: Date.now(),
-        modifiedAt: Date.now(),
-        projectId: selectedProjectId,
-      });
+      const artifactType = guessArtifactType(file.name);
+      const isImage = artifactType === "image";
+
+      if (isImage) {
+        const reader = new FileReader();
+        reader.onload = () => {
+          // Resize to thumbnail
+          const img = new Image();
+          img.onload = () => {
+            const canvas = document.createElement("canvas");
+            const maxSize = 400;
+            const scale = Math.min(maxSize / img.width, maxSize / img.height, 1);
+            canvas.width = img.width * scale;
+            canvas.height = img.height * scale;
+            const ctx = canvas.getContext("2d")!;
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            const thumbnailDataUrl = canvas.toDataURL("image/jpeg", 0.7);
+            store.addObject({
+              id: crypto.randomUUID(),
+              kind: "artifact",
+              name: file.name.replace(/\.[^/.]+$/, ""),
+              type: artifactType,
+              fileReference: file.name,
+              thumbnailDataUrl,
+              createdAt: Date.now(),
+              modifiedAt: Date.now(),
+              projectId: selectedProjectId,
+            });
+          };
+          img.src = reader.result as string;
+        };
+        reader.readAsDataURL(file);
+      } else {
+        store.addObject({
+          id: crypto.randomUUID(),
+          kind: "artifact",
+          name: file.name.replace(/\.[^/.]+$/, ""),
+          type: artifactType,
+          fileReference: file.name,
+          createdAt: Date.now(),
+          modifiedAt: Date.now(),
+          projectId: selectedProjectId,
+        });
+      }
     }
   }, [store, selectedProjectId]);
 
   const handleDragOver = useCallback((e: React.DragEvent) => { e.preventDefault(); setDragOver(true); }, []);
   const handleDragLeave = useCallback(() => setDragOver(false), []);
+
+  // Notion import
+  const [notionImported, setNotionImported] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return localStorage.getItem("hypher-notion-imported") === "true";
+  });
+
+  const handleNotionImport = useCallback(async () => {
+    const seed = generateSeedData();
+    store.addToast(`Importing ${seed.length} items from Notion...`);
+    for (const obj of seed) {
+      await store.addObject(obj);
+    }
+    localStorage.setItem("hypher-notion-imported", "true");
+    setNotionImported(true);
+    store.addToast(`Imported ${seed.length} items from Notion`);
+  }, [store]);
 
   // Capture handlers
   const handleCapture = useCallback(
@@ -156,6 +208,7 @@ export default function Home() {
           onCreateProjectAndCapture={handleCreateProjectAndCapture}
           onNavigateToWorkspace={() => setAppMode("workspace")}
           onClipboardCapture={store.captureFromClipboard}
+          onNotionImport={notionImported ? undefined : handleNotionImport}
         />
         <ToastContainer messages={store.toasts} onDismiss={store.dismissToast} />
         {dragOver && (

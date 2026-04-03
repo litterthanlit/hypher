@@ -10,6 +10,7 @@ interface Props {
   onCreateProjectAndCapture: (projectName: string, noteText: string) => void;
   onNavigateToWorkspace: () => void;
   onClipboardCapture?: () => void;
+  onNotionImport?: () => void;
 }
 
 type CaptureStep = "idle" | "assigning";
@@ -23,7 +24,7 @@ function getGreeting(): string {
   return "Late night";
 }
 
-export function CaptureHome({ projects, onCapture, onCreateProjectAndCapture, onNavigateToWorkspace, onClipboardCapture }: Props) {
+export function CaptureHome({ projects, onCapture, onCreateProjectAndCapture, onNavigateToWorkspace, onClipboardCapture, onNotionImport }: Props) {
   const [text, setText] = useState("");
   const [step, setStep] = useState<CaptureStep>("idle");
   const [aiSuggestions, setAiSuggestions] = useState<{ projectId: string; projectName: string; confidence: number }[]>([]);
@@ -246,6 +247,12 @@ export function CaptureHome({ projects, onCapture, onCreateProjectAndCapture, on
             onNewProject={handleNewProject}
             onDismiss={handleInbox}
           />
+        )}
+
+        {onNotionImport && step === "idle" && !text && (
+          <button className="notion-import-btn" onClick={onNotionImport}>
+            Import from Notion
+          </button>
         )}
       </div>
     </div>
