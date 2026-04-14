@@ -2191,3 +2191,30 @@ body {
   filter: brightness(1.1);
   transition: opacity 100ms ease, filter 100ms ease;
 }
+
+/* ── Anchor points ─────────────────────────────────────────────── */
+
+.anchor-points {
+  pointer-events: auto;
+}
+
+.anchor-dot {
+  fill: white;
+  stroke: var(--accent);
+  stroke-width: 1.5;
+  cursor: crosshair;
+  transition: transform 100ms ease;
+}
+
+.anchor-dot:hover {
+  fill: var(--accent);
+}
+
+/* Rubber band line while dragging to connect */
+.anchor-drag-line {
+  stroke: var(--accent);
+  stroke-width: 2;
+  stroke-dasharray: 6 4;
+  opacity: 0.5;
+  pointer-events: none;
+}

@@ -21,6 +21,8 @@ import { useUndoRedo } from "./canvas/hooks/useUndoRedo";
 import { useContextMenu } from "./canvas/features/useContextMenu";
 import { CardContextMenu, CanvasContextMenu } from "./canvas/features/ContextMenu";
 import { ConnectionLines } from "./canvas/features/ConnectionLines";
+import { useAnchorDrag } from "./canvas/features/useAnchorDrag";
+import { AnchorPoints } from "./canvas/features/AnchorPoints";
 import { getCardColor, getCardRotation } from "./canvas/cards/cardUtils";
 import { StickyNote } from "./canvas/cards/StickyNote";
 import { ProjectCard } from "./canvas/cards/ProjectCard";
@@ -60,6 +62,7 @@ export function SpatialCanvas({
   const containerRef = useRef<HTMLDivElement>(null);
   const [inlineCreate, setInlineCreate] = useState<InlineCreate | null>(null);
   const [popover, setPopover] = useState<{ connection: Connection; x: number; y: number } | null>(null);
+  const [hoveredCardId, setHoveredCardId] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Derive projectId from items
@@ -227,6 +230,11 @@ export function SpatialCanvas({
     onUpdatePosition,
   });
 
+  const anchorDrag = useAnchorDrag({
+    onConnect: onCreateManualConnection,
+    zoomLevel: transform.k,
+  });
+
   const allRects = useMemo(() => {
     return positioned.map((obj) => ({
       id: obj.id,
@@ -270,6 +278,13 @@ export function SpatialCanvas({
   }, [drag, rubberBand, spaceHeld, canvasMode, contextMenu]);
 
   const onMouseMove = useCallback((e: React.MouseEvent) => {
+    if (anchorDrag.isDraggingAnchor) {
+      const rect = containerRef.current?.getBoundingClientRect();
+      if (rect) {
+        anchorDrag.onAnchorMouseMove(e.clientX, e.clientY, rect, transform.x, transform.y);
+      }
+      return;
+    }
     if (resize.resizing) {
       resize.onResizeMove(e);
       return;
@@ -305,9 +320,14 @@ export function SpatialCanvas({
         }
       }
     }
-  }, [drag, rubberBand, resize, transform.k, positioned, computeSnap]);
+  }, [drag, rubberBand, resize, transform.k, transform.x, transform.y, positioned, computeSnap, anchorDrag]);
 
   const onMouseUp = useCallback(() => {
+    if (anchorDrag.isDraggingAnchor) {
+      anchorDrag.cancelAnchorDrag();
+      return;
+    }
+
     setActiveGuides([]);
 
     // Handle resize undo
@@ -359,7 +379,7 @@ export function SpatialCanvas({
     }
 
     drag.onMouseUp();
-  }, [drag, rubberBand, resize, positioned, undoRedo]);
+  }, [drag, rubberBand, resize, positioned, undoRedo, anchorDrag]);
 
   const onCardMouseDown = useCallback((e: React.MouseEvent, obj: AnyObject) => {
     if (editingId === obj.id) return;
@@ -479,6 +499,36 @@ export function SpatialCanvas({
             objectMap={objectMap}
             onConnectionClick={handleConnectionClick}
           />
+          {/* Anchor points on hovered card */}
+          {hoveredCardId && !drag.dragging && (() => {
+            const obj = objectMap.get(hoveredCardId);
+            if (!obj?.canvasPosition) return null;
+            const w = obj.canvasSize?.w ?? 224;
+            const h = obj.canvasSize?.h ?? 120;
+            return (
+              <AnchorPoints
+                key={`anchor-${hoveredCardId}`}
+                objId={hoveredCardId}
+                x={obj.canvasPosition.x}
+                y={obj.canvasPosition.y}
+                width={w}
+                height={h}
+                onStartDrag={anchorDrag.startAnchorDrag}
+              />
+            );
+          })()}
+
+          {/* Drag-to-connect rubber band line */}
+          {anchorDrag.anchorDrag && (
+            <line
+              className="anchor-drag-line"
+              x1={anchorDrag.anchorDrag.sourceX}
+              y1={anchorDrag.anchorDrag.sourceY}
+              x2={anchorDrag.anchorDrag.currentX}
+              y2={anchorDrag.anchorDrag.currentY}
+            />
+          )}
+
           {/* Snap guides */}
           <SnapGuides guides={activeGuides} />
         </svg>
@@ -515,6 +565,13 @@ export function SpatialCanvas({
                 scale: 1,
               }}
               transition={{ type: "spring", stiffness: 500, damping: 25 }}
+              onMouseEnter={() => setHoveredCardId(obj.id)}
+              onMouseLeave={() => setHoveredCardId(null)}
+              onMouseUp={() => {
+                if (anchorDrag.isDraggingAnchor) {
+                  anchorDrag.endAnchorDrag(obj.id);
+                }
+              }}
               onMouseDown={(e) => onCardMouseDown(e, obj)}
               onClick={(e) => onCardClick(e, obj.id)}
               onDoubleClick={(e) => onCardDoubleClick(e, obj)}
