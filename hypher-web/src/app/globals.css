@@ -2183,3 +2183,11 @@ body {
   margin: 4px 12px;
   background: var(--border);
 }
+
+/* ── Connection line hover ─────────────────────────────────────── */
+
+.connection-line-group:hover .connection-line {
+  opacity: 0.8 !important;
+  filter: brightness(1.1);
+  transition: opacity 100ms ease, filter 100ms ease;
+}

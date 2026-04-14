@@ -20,6 +20,7 @@ import { SnapGuides } from "./canvas/features/SnapGuides";
 import { useUndoRedo } from "./canvas/hooks/useUndoRedo";
 import { useContextMenu } from "./canvas/features/useContextMenu";
 import { CardContextMenu, CanvasContextMenu } from "./canvas/features/ContextMenu";
+import { ConnectionLines } from "./canvas/features/ConnectionLines";
 import { getCardColor, getCardRotation } from "./canvas/cards/cardUtils";
 import { StickyNote } from "./canvas/cards/StickyNote";
 import { ProjectCard } from "./canvas/cards/ProjectCard";
@@ -473,43 +474,11 @@ export function SpatialCanvas({
       }}>
         {/* Connection lines */}
         <svg className="spatial-connections" style={{ overflow: "visible" }}>
-          {activeConns.map((conn) => {
-            const source = objectMap.get(conn.sourceId);
-            const target = objectMap.get(conn.targetId);
-            if (!source?.canvasPosition || !target?.canvasPosition) return null;
-            const sp = source.canvasPosition;
-            const tp = target.canvasPosition;
-            const isSuggested = conn.type === "ai_suggested";
-            const mx = (sp.x + tp.x) / 2;
-            const my = (sp.y + tp.y) / 2;
-            const dx = tp.x - sp.x;
-            const dy = tp.y - sp.y;
-            const cx = mx - dy * 0.1;
-            const cy = my + dx * 0.1;
-
-            return (
-              <g key={conn.id}>
-                {/* Invisible wider hit area for clicking */}
-                <path
-                  d={`M ${sp.x} ${sp.y} Q ${cx} ${cy} ${tp.x} ${tp.y}`}
-                  fill="none"
-                  stroke="transparent"
-                  strokeWidth={12}
-                  style={{ cursor: isSuggested ? "pointer" : "default" }}
-                  onClick={(e) => handleConnectionClick(e as any, conn)}
-                />
-                <path
-                  d={`M ${sp.x} ${sp.y} Q ${cx} ${cy} ${tp.x} ${tp.y}`}
-                  fill="none"
-                  stroke="var(--accent)"
-                  strokeWidth={isSuggested ? 1 : 1.5}
-                  strokeDasharray={isSuggested ? "6 4" : "none"}
-                  opacity={isSuggested ? 0.25 : 0.4}
-                  pointerEvents="none"
-                />
-              </g>
-            );
-          })}
+          <ConnectionLines
+            connections={activeConns}
+            objectMap={objectMap}
+            onConnectionClick={handleConnectionClick}
+          />
           {/* Snap guides */}
           <SnapGuides guides={activeGuides} />
         </svg>
