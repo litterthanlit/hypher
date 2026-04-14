@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useCallback, useEffect } from "react";
+import { useRef, useState, useCallback, useEffect, useMemo } from "react";
 import { motion } from "framer-motion";
 import type { AnyObject, Connection, ObjectKind, Note, Project, Artifact } from "@/types";
 import { ConnectionPopover } from "./ConnectionPopover";
@@ -15,6 +15,8 @@ import { RubberBandSelect } from "./canvas/features/RubberBandSelect";
 import { InlineEditor } from "./canvas/features/InlineEditor";
 import { useResize } from "./canvas/features/useResize";
 import { ResizeHandles } from "./canvas/features/ResizeHandles";
+import { useSnapGuides, type SnapGuide } from "./canvas/features/useSnapGuides";
+import { SnapGuides } from "./canvas/features/SnapGuides";
 import { getCardColor, getCardRotation } from "./canvas/cards/cardUtils";
 import { StickyNote } from "./canvas/cards/StickyNote";
 import { ProjectCard } from "./canvas/cards/ProjectCard";
@@ -169,6 +171,20 @@ export function SpatialCanvas({
     onUpdatePosition,
   });
 
+  const allRects = useMemo(() => {
+    return positioned.map((obj) => ({
+      id: obj.id,
+      x: obj.canvasPosition?.x ?? 0,
+      y: obj.canvasPosition?.y ?? 0,
+      w: obj.canvasSize?.w ?? 224,
+      h: 120, // approximate card height
+    }));
+  }, [positioned]);
+
+  const snapThreshold = 8 / transform.k;
+  const { computeSnap } = useSnapGuides(allRects, selection.selectedIds, snapThreshold);
+  const [activeGuides, setActiveGuides] = useState<SnapGuide[]>([]);
+
   // Notify parent when primary selection changes
   useEffect(() => {
     onSelect(selection.primarySelectedId ?? "");
@@ -206,9 +222,36 @@ export function SpatialCanvas({
       return;
     }
     drag.onMouseMove(e);
-  }, [drag, rubberBand, resize]);
+
+    // Compute snap guides during drag
+    if (drag.dragging) {
+      const dx = (e.clientX - drag.dragging.startX) / transform.k;
+      const dy = (e.clientY - drag.dragging.startY) / transform.k;
+      const obj = positioned.find((o) => o.id === drag.dragging!.id);
+      if (obj) {
+        const dragRect = {
+          id: obj.id,
+          x: drag.dragging.objX + dx,
+          y: drag.dragging.objY + dy,
+          w: obj.canvasSize?.w ?? 224,
+          h: 120,
+        };
+        const result = computeSnap(dragRect);
+        setActiveGuides(result.guides);
+
+        // Apply snap offset to the dragged card position
+        if (result.snapDx !== 0 || result.snapDy !== 0) {
+          const el = document.getElementById(`card-${obj.id}`);
+          if (el) {
+            el.style.transform = `translate(${dragRect.x + result.snapDx}px, ${dragRect.y + result.snapDy}px)`;
+          }
+        }
+      }
+    }
+  }, [drag, rubberBand, resize, transform.k, positioned, computeSnap]);
 
   const onMouseUp = useCallback(() => {
+    setActiveGuides([]);
     if (resize.resizing) {
       resize.endResize();
       return;
@@ -352,6 +395,8 @@ export function SpatialCanvas({
               </g>
             );
           })}
+          {/* Snap guides */}
+          <SnapGuides guides={activeGuides} />
         </svg>
 
         {/* Item cards */}
