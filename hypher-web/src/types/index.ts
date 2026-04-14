@@ -22,6 +22,7 @@ export interface HypherObject {
   lastSurfacedAt?: number;
   canvasColor?: string;
   canvasSize?: { w: number; h: number };
+  canvasZIndex?: number;
 }
 
 export interface Project extends HypherObject {
