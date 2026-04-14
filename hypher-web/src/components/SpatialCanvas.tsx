@@ -29,6 +29,7 @@ import { getCardColor, getCardRotation } from "./canvas/cards/cardUtils";
 import { StickyNote } from "./canvas/cards/StickyNote";
 import { ProjectCard } from "./canvas/cards/ProjectCard";
 import { ArtifactCard } from "./canvas/cards/ArtifactCard";
+import { Minimap } from "./canvas/features/Minimap";
 
 interface Props {
   items: AnyObject[];
@@ -64,6 +65,7 @@ export function SpatialCanvas({
   onPasteObjects,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const [minimapVisible, setMinimapVisible] = useState(true);
   const [inlineCreate, setInlineCreate] = useState<InlineCreate | null>(null);
   const [popover, setPopover] = useState<{ connection: Connection; x: number; y: number } | null>(null);
   const [hoveredCardId, setHoveredCardId] = useState<string | null>(null);
@@ -134,6 +136,16 @@ export function SpatialCanvas({
     }
     return rects;
   }, [positioned]);
+
+  const panTo = useCallback((canvasX: number, canvasY: number) => {
+    const rect = containerRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    setTransform((t) => ({
+      ...t,
+      x: rect.width / 2 - canvasX * t.k,
+      y: rect.height / 2 - canvasY * t.k,
+    }));
+  }, [containerRef, setTransform]);
 
   const drag = useDragInteraction({
     transform,
@@ -253,6 +265,7 @@ export function SpatialCanvas({
     onCopy: clipboard.copy,
     onCut: clipboard.cut,
     onPaste: () => clipboard.paste(),
+    onToggleMinimap: () => setMinimapVisible((v) => !v),
   });
 
   const resize = useResize({
@@ -805,6 +818,15 @@ export function SpatialCanvas({
           <button className="btn-icon" onClick={() => animateZoom(Math.max(0.15, transform.k * 0.8))} title="Zoom out">-</button>
         </div>
       </div>
+
+      <Minimap
+        items={positioned}
+        transform={transform}
+        containerWidth={containerRef.current?.clientWidth ?? 0}
+        containerHeight={containerRef.current?.clientHeight ?? 0}
+        onPanTo={panTo}
+        visible={minimapVisible}
+      />
 
       {items.length === 0 && (
         <div className="spatial-empty">

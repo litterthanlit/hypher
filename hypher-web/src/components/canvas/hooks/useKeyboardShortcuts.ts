@@ -23,6 +23,7 @@ interface UseKeyboardShortcutsOptions {
   onCopy?: () => void;
   onCut?: () => void;
   onPaste?: () => void;
+  onToggleMinimap?: () => void;
 }
 
 export function useKeyboardShortcuts({
@@ -30,7 +31,7 @@ export function useKeyboardShortcuts({
   onDeleteSelected, onDuplicateSelected, onNudge,
   onEnterEdit, editingId, onExitEdit,
   onUndo, onRedo, onZoomIn, onZoomOut, onResetZoom,
-  onCopy, onCut, onPaste,
+  onCopy, onCut, onPaste, onToggleMinimap,
 }: UseKeyboardShortcutsOptions) {
   const [canvasMode, setCanvasMode] = useState<CanvasMode>("select");
   const [spaceHeld, setSpaceHeld] = useState(false);
@@ -128,6 +129,13 @@ export function useKeyboardShortcuts({
         return;
       }
 
+      // Toggle minimap: Cmd+M
+      if ((e.metaKey || e.ctrlKey) && e.key === "m") {
+        e.preventDefault();
+        onToggleMinimap?.();
+        return;
+      }
+
       // Selection shortcuts
       if ((e.metaKey || e.ctrlKey) && e.key === "a") {
         e.preventDefault();
@@ -170,7 +178,7 @@ export function useKeyboardShortcuts({
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("keyup", onKeyUp);
     };
-  }, [selectedIds, clearSelection, selectAll, allItemIds, onDeleteSelected, onDuplicateSelected, onNudge, editingId, onExitEdit, onEnterEdit, onUndo, onRedo, onZoomIn, onZoomOut, onResetZoom, onCopy, onCut, onPaste]);
+  }, [selectedIds, clearSelection, selectAll, allItemIds, onDeleteSelected, onDuplicateSelected, onNudge, editingId, onExitEdit, onEnterEdit, onUndo, onRedo, onZoomIn, onZoomOut, onResetZoom, onCopy, onCut, onPaste, onToggleMinimap]);
 
   return { canvasMode, setCanvasMode, spaceHeld };
 }
