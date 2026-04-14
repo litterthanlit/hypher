@@ -25,6 +25,8 @@ interface CardMenuProps {
   target: MenuTarget & { type: "card" };
   onEdit: () => void;
   onDuplicate: () => void;
+  onBringToFront: () => void;
+  onSendToBack: () => void;
   onDelete: () => void;
   onClose: () => void;
 }
@@ -38,10 +40,13 @@ interface CanvasMenuProps {
   onClose: () => void;
 }
 
-export function CardContextMenu({ position, onEdit, onDuplicate, onDelete, onClose }: CardMenuProps) {
+export function CardContextMenu({ position, onEdit, onDuplicate, onBringToFront, onSendToBack, onDelete, onClose }: CardMenuProps) {
   const entries: MenuEntry[] = [
     { label: "Edit", shortcut: "Enter", onClick: onEdit },
     { label: "Duplicate", shortcut: "⌘D", onClick: onDuplicate },
+    { type: "separator" },
+    { label: "Bring to Front", onClick: onBringToFront },
+    { label: "Send to Back", onClick: onSendToBack },
     { type: "separator" },
     { label: "Delete", shortcut: "⌫", onClick: onDelete, danger: true },
   ];

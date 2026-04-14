@@ -95,6 +95,14 @@ export function SpatialCanvas({
 
   const getPositionedItems = useCallback(() => positioned, [positioned]);
 
+  const getMaxZIndex = useCallback(() => {
+    let max = 0;
+    for (const obj of positioned) {
+      if ((obj.canvasZIndex ?? 0) > max) max = obj.canvasZIndex ?? 0;
+    }
+    return max;
+  }, [positioned]);
+
   const getCardRects = useCallback(() => {
     const rects = new Map<string, { x: number; y: number; w: number; h: number }>();
     for (const obj of positioned) {
@@ -404,8 +412,40 @@ export function SpatialCanvas({
       } else {
         selection.select(id);
       }
+      // Auto-raise clicked card
+      const obj = positioned.find((o) => o.id === id);
+      if (obj) {
+        const maxZ = getMaxZIndex();
+        const currentZ = obj.canvasZIndex ?? 0;
+        if (currentZ < maxZ) {
+          onUpdateObject({ ...obj, canvasZIndex: maxZ + 1, modifiedAt: Date.now() } as AnyObject);
+        }
+      }
     }
-  }, [drag, selection]);
+  }, [drag, selection, positioned, getMaxZIndex, onUpdateObject]);
+
+  const handleBringToFront = useCallback(() => {
+    const maxZ = getMaxZIndex();
+    for (const id of selection.selectedIds) {
+      const obj = positioned.find((o) => o.id === id);
+      if (obj) {
+        onUpdateObject({ ...obj, canvasZIndex: maxZ + 1, modifiedAt: Date.now() } as AnyObject);
+      }
+    }
+  }, [selection.selectedIds, positioned, getMaxZIndex, onUpdateObject]);
+
+  const handleSendToBack = useCallback(() => {
+    let minZ = 0;
+    for (const obj of positioned) {
+      if ((obj.canvasZIndex ?? 0) < minZ) minZ = obj.canvasZIndex ?? 0;
+    }
+    for (const id of selection.selectedIds) {
+      const obj = positioned.find((o) => o.id === id);
+      if (obj) {
+        onUpdateObject({ ...obj, canvasZIndex: minZ - 1, modifiedAt: Date.now() } as AnyObject);
+      }
+    }
+  }, [selection.selectedIds, positioned, onUpdateObject]);
 
   // Click on empty space — behavior depends on mode
   const onCanvasClick = useCallback((e: React.MouseEvent) => {
@@ -552,7 +592,7 @@ export function SpatialCanvas({
                 width: obj.canvasSize?.w ?? 224,
                 marginLeft: -(obj.canvasSize?.w ?? 224) / 2,
                 rotate: isDragging ? rotation + 1 : rotation,
-                zIndex: isDragging ? 1000 : isSelected ? 20 : undefined,
+                zIndex: isDragging ? 1000 : isSelected ? 20 : (obj.canvasZIndex ?? 0),
               }}
               whileHover={!isDragging ? {
                 scale: 1.01,
@@ -744,6 +784,8 @@ export function SpatialCanvas({
           onDuplicate={() => {
             handleDuplicateSelected();
           }}
+          onBringToFront={handleBringToFront}
+          onSendToBack={handleSendToBack}
           onDelete={() => {
             handleDeleteSelected();
           }}
