@@ -15,12 +15,18 @@ interface UseKeyboardShortcutsOptions {
   onEnterEdit: () => void;
   editingId: string | null;
   onExitEdit: () => void;
+  onUndo?: () => void;
+  onRedo?: () => void;
+  onZoomIn?: () => void;
+  onZoomOut?: () => void;
+  onResetZoom?: () => void;
 }
 
 export function useKeyboardShortcuts({
   selectedIds, clearSelection, selectAll, allItemIds,
   onDeleteSelected, onDuplicateSelected, onNudge,
   onEnterEdit, editingId, onExitEdit,
+  onUndo, onRedo, onZoomIn, onZoomOut, onResetZoom,
 }: UseKeyboardShortcutsOptions) {
   const [canvasMode, setCanvasMode] = useState<CanvasMode>("select");
   const [spaceHeld, setSpaceHeld] = useState(false);
@@ -54,6 +60,48 @@ export function useKeyboardShortcuts({
       if (e.key === "v" || e.key === "V") { setCanvasMode("select"); return; }
       if (e.key === "h" || e.key === "H") { setCanvasMode("pan"); return; }
       if (e.key === "t" || e.key === "T") { setCanvasMode("text"); return; }
+
+      // Undo: Cmd+Z (without Shift)
+      if ((e.metaKey || e.ctrlKey) && e.key === "z" && !e.shiftKey) {
+        e.preventDefault();
+        onUndo?.();
+        return;
+      }
+
+      // Redo: Cmd+Shift+Z
+      if ((e.metaKey || e.ctrlKey) && e.key === "z" && e.shiftKey) {
+        e.preventDefault();
+        onRedo?.();
+        return;
+      }
+
+      // Edit selected: Cmd+E
+      if ((e.metaKey || e.ctrlKey) && e.key === "e") {
+        e.preventDefault();
+        onEnterEdit();
+        return;
+      }
+
+      // Reset zoom: Cmd+0
+      if ((e.metaKey || e.ctrlKey) && e.key === "0") {
+        e.preventDefault();
+        onResetZoom?.();
+        return;
+      }
+
+      // Zoom in: Cmd+=
+      if ((e.metaKey || e.ctrlKey) && (e.key === "=" || e.key === "+")) {
+        e.preventDefault();
+        onZoomIn?.();
+        return;
+      }
+
+      // Zoom out: Cmd+-
+      if ((e.metaKey || e.ctrlKey) && e.key === "-") {
+        e.preventDefault();
+        onZoomOut?.();
+        return;
+      }
 
       // Selection shortcuts
       if ((e.metaKey || e.ctrlKey) && e.key === "a") {
@@ -97,7 +145,7 @@ export function useKeyboardShortcuts({
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("keyup", onKeyUp);
     };
-  }, [selectedIds, clearSelection, selectAll, allItemIds, onDeleteSelected, onDuplicateSelected, onNudge, editingId, onExitEdit, onEnterEdit]);
+  }, [selectedIds, clearSelection, selectAll, allItemIds, onDeleteSelected, onDuplicateSelected, onNudge, editingId, onExitEdit, onEnterEdit, onUndo, onRedo, onZoomIn, onZoomOut, onResetZoom]);
 
   return { canvasMode, setCanvasMode, spaceHeld };
 }

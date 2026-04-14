@@ -209,6 +209,11 @@ export function SpatialCanvas({
     onEnterEdit: handleEnterEdit,
     editingId,
     onExitEdit: handleExitEdit,
+    onUndo: undoRedo.undo,
+    onRedo: undoRedo.redo,
+    onZoomIn: () => animateZoom(Math.min(3, transform.k * 1.25)),
+    onZoomOut: () => animateZoom(Math.max(0.15, transform.k * 0.8)),
+    onResetZoom: () => animateZoom(1),
   });
 
   const resize = useResize({
