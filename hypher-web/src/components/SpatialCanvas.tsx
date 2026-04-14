@@ -81,6 +81,33 @@ export function SpatialCanvas({
     localStorage.setItem(`hypher-canvas-bg-${projectId}`, next);
   }, [canvasBg, items]);
 
+  const animateZoom = useCallback((newK: number) => {
+    const rect = containerRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const cx = rect.width / 2;
+    const cy = rect.height / 2;
+    const ratio = newK / transform.k;
+    const targetX = cx - (cx - transform.x) * ratio;
+    const targetY = cy - (cy - transform.y) * ratio;
+
+    const startK = transform.k;
+    const startX = transform.x;
+    const startY = transform.y;
+
+    animate(0, 1, {
+      type: "spring",
+      stiffness: 300,
+      damping: 30,
+      onUpdate: (t) => {
+        setTransform({
+          k: startK + (newK - startK) * t,
+          x: startX + (targetX - startX) * t,
+          y: startY + (targetY - startY) * t,
+        });
+      },
+    });
+  }, [transform]);
+
   // Position items without canvasPosition
   const positioned = items.map((obj, i) => {
     if (obj.canvasPosition) return obj;
@@ -465,9 +492,9 @@ export function SpatialCanvas({
         </button>
 
         <div className="spatial-controls">
-          <button className="btn-icon" onClick={() => setTransform((t) => ({ ...t, k: Math.min(3, t.k * 1.25) }))} title="Zoom in">+</button>
+          <button className="btn-icon" onClick={() => animateZoom(Math.min(3, transform.k * 1.25))} title="Zoom in">+</button>
           <span className="spatial-zoom-label">{Math.round(transform.k * 100)}%</span>
-          <button className="btn-icon" onClick={() => setTransform((t) => ({ ...t, k: Math.max(0.15, t.k * 0.8) }))} title="Zoom out">-</button>
+          <button className="btn-icon" onClick={() => animateZoom(Math.max(0.15, transform.k * 0.8))} title="Zoom out">-</button>
         </div>
       </div>
 
