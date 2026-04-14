@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState, useCallback, useEffect } from "react";
+import { motion, animate } from "framer-motion";
 import type { AnyObject, Connection, ObjectKind } from "@/types";
 import { getDisplayName } from "@/types";
 import { KindIcon, FolderIcon, NoteIcon, ArtifactIcon } from "./Icons";
@@ -22,6 +23,26 @@ const KIND_ACCENT: Record<ObjectKind, string> = {
   note: "var(--blue)",
   artifact: "var(--amber)",
 };
+
+const CARD_COLORS = ["yellow", "green", "blue", "pink", "purple", "orange", "red", "grey"] as const;
+
+function defaultCardColor(content: string): string {
+  let hash = 0;
+  for (let i = 0; i < content.length; i++) hash = (hash * 31 + content.charCodeAt(i)) | 0;
+  return CARD_COLORS[Math.abs(hash) % CARD_COLORS.length];
+}
+
+function getCardColor(obj: AnyObject): string {
+  if (obj.canvasColor) return obj.canvasColor;
+  if (obj.kind === "note") return defaultCardColor(obj.content);
+  return "";
+}
+
+function getCardRotation(id: string): number {
+  const c0 = id.charCodeAt(0) || 0;
+  const c1 = id.charCodeAt(1) || 0;
+  return ((c0 + c1) % 400) / 100 - 2;
+}
 
 interface InlineCreate {
   canvasX: number;
@@ -45,6 +66,20 @@ export function SpatialCanvas({
   const [popover, setPopover] = useState<{ connection: Connection; x: number; y: number } | null>(null);
   const [canvasMode, setCanvasMode] = useState<"select" | "text">("select");
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const [canvasBg, setCanvasBg] = useState<"dots" | "grid" | "lines" | "blank">(() => {
+    if (typeof window === "undefined") return "dots";
+    const projectId = items.find(i => i.kind === "project")?.id ?? "default";
+    return (localStorage.getItem(`hypher-canvas-bg-${projectId}`) as any) ?? "dots";
+  });
+
+  const cycleBg = useCallback(() => {
+    const order: Array<"dots" | "grid" | "lines" | "blank"> = ["dots", "grid", "lines", "blank"];
+    const next = order[(order.indexOf(canvasBg) + 1) % order.length];
+    setCanvasBg(next);
+    const projectId = items.find(i => i.kind === "project")?.id ?? "default";
+    localStorage.setItem(`hypher-canvas-bg-${projectId}`, next);
+  }, [canvasBg, items]);
 
   // Position items without canvasPosition
   const positioned = items.map((obj, i) => {
@@ -224,7 +259,7 @@ export function SpatialCanvas({
       onWheel={onWheel}
       onClick={onCanvasClick}
     >
-      <div className="spatial-grid" style={{
+      <div className="spatial-grid" data-bg={canvasBg} style={{
         backgroundPosition: `${transform.x}px ${transform.y}px`,
         backgroundSize: `${24 * transform.k}px ${24 * transform.k}px`,
       }} />
@@ -278,25 +313,49 @@ export function SpatialCanvas({
         {positioned.map((obj) => {
           const pos = obj.canvasPosition!;
           const isSelected = obj.id === selectedId;
+          const isDragging = dragging?.id === obj.id;
+          const color = getCardColor(obj);
+          const rotation = obj.kind === "note" ? getCardRotation(obj.id) : 0;
+
           return (
-            <div
+            <motion.div
               key={obj.id}
               id={`card-${obj.id}`}
-              className={`spatial-card ${isSelected ? "selected" : ""}`}
-              style={{ transform: `translate(${pos.x}px, ${pos.y}px)` }}
+              className={`spatial-card spatial-card-${obj.kind} ${isSelected ? "selected" : ""}`}
+              data-color={color}
+              style={{
+                transform: `translate(${pos.x}px, ${pos.y}px)`,
+                rotate: isDragging ? rotation + 1 : rotation,
+                zIndex: isDragging ? 1000 : isSelected ? 20 : undefined,
+              }}
+              whileHover={!isDragging ? {
+                scale: 1.01,
+                boxShadow: "0 2px 4px rgba(0,0,0,0.08), 0 8px 24px rgba(0,0,0,0.06)",
+              } : undefined}
+              animate={isDragging ? {
+                scale: 1.03,
+                boxShadow: "0 8px 16px rgba(0,0,0,0.12), 0 24px 48px rgba(0,0,0,0.08)",
+              } : {
+                scale: 1,
+              }}
+              transition={{ type: "spring", stiffness: 500, damping: 25 }}
               onMouseDown={(e) => onCardMouseDown(e, obj)}
               onClick={(e) => onCardClick(e, obj.id)}
             >
-              {obj.kind === "artifact" && (obj as any).thumbnailDataUrl ? (
-                <>
-                  <img className="spatial-card-thumb" src={(obj as any).thumbnailDataUrl} alt={getDisplayName(obj)} />
-                  <div className="spatial-card-body compact">
-                    <span className="spatial-card-title">{getDisplayName(obj)}</span>
+              {obj.kind === "note" && (
+                <div className="spatial-card-body">
+                  <span className="spatial-card-title">{getDisplayName(obj)}</span>
+                  {getPreview(obj) && <p className="spatial-card-preview">{getPreview(obj)}</p>}
+                  <div className="spatial-card-footer">
+                    <span className="spatial-card-status">{getStatus(obj)}</span>
+                    {obj.embedding && <span className="spatial-card-embedded" />}
                   </div>
-                </>
-              ) : (
+                </div>
+              )}
+
+              {obj.kind === "project" && (
                 <>
-                  <div className="spatial-card-accent" style={{ background: KIND_ACCENT[obj.kind] }} />
+                  <div className="spatial-card-accent-bar" />
                   <div className="spatial-card-body">
                     <div className="spatial-card-header">
                       <KindIcon kind={obj.kind} className="kind-icon" />
@@ -305,12 +364,29 @@ export function SpatialCanvas({
                     {getPreview(obj) && <p className="spatial-card-preview">{getPreview(obj)}</p>}
                     <div className="spatial-card-footer">
                       <span className="spatial-card-status" style={{ color: KIND_ACCENT[obj.kind] }}>{getStatus(obj)}</span>
-                      {obj.embedding && <span className="spatial-card-embedded" />}
                     </div>
                   </div>
                 </>
               )}
-            </div>
+
+              {obj.kind === "artifact" && (
+                <>
+                  {(obj as any).thumbnailDataUrl ? (
+                    <>
+                      <img className="spatial-card-thumb" src={(obj as any).thumbnailDataUrl} alt={getDisplayName(obj)} />
+                      <div className="spatial-card-thumb-label">{getDisplayName(obj)}</div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="spatial-card-no-thumb">
+                        <ArtifactIcon className="kind-icon" />
+                      </div>
+                      <div className="spatial-card-thumb-label">{getDisplayName(obj)}</div>
+                    </>
+                  )}
+                </>
+              )}
+            </motion.div>
           );
         })}
       </div>
@@ -377,6 +453,16 @@ export function SpatialCanvas({
             </svg>
           </button>
         </div>
+
+        <button
+          className="canvas-mode-btn"
+          onClick={cycleBg}
+          title={`Background: ${canvasBg}`}
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" width={16} height={16}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6A2.25 2.25 0 0 1 6 3.75h2.25A2.25 2.25 0 0 1 10.5 6v2.25a2.25 2.25 0 0 1-2.25 2.25H6a2.25 2.25 0 0 1-2.25-2.25V6ZM3.75 15.75A2.25 2.25 0 0 1 6 13.5h2.25a2.25 2.25 0 0 1 2.25 2.25V18a2.25 2.25 0 0 1-2.25 2.25H6A2.25 2.25 0 0 1 3.75 18v-2.25ZM13.5 6a2.25 2.25 0 0 1 2.25-2.25H18A2.25 2.25 0 0 1 20.25 6v2.25A2.25 2.25 0 0 1 18 10.5h-2.25a2.25 2.25 0 0 1-2.25-2.25V6ZM13.5 15.75a2.25 2.25 0 0 1 2.25-2.25H18a2.25 2.25 0 0 1 2.25 2.25V18A2.25 2.25 0 0 1 18 20.25h-2.25a2.25 2.25 0 0 1-2.25-2.25v-2.25Z" />
+          </svg>
+        </button>
 
         <div className="spatial-controls">
           <button className="btn-icon" onClick={() => setTransform((t) => ({ ...t, k: Math.min(3, t.k * 1.25) }))} title="Zoom in">+</button>
