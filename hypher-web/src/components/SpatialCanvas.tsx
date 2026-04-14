@@ -13,6 +13,8 @@ import type { CanvasMode } from "./canvas/hooks/useKeyboardShortcuts";
 import { useRubberBand } from "./canvas/features/useRubberBand";
 import { RubberBandSelect } from "./canvas/features/RubberBandSelect";
 import { InlineEditor } from "./canvas/features/InlineEditor";
+import { useResize } from "./canvas/features/useResize";
+import { ResizeHandles } from "./canvas/features/ResizeHandles";
 import { getCardColor, getCardRotation } from "./canvas/cards/cardUtils";
 import { StickyNote } from "./canvas/cards/StickyNote";
 import { ProjectCard } from "./canvas/cards/ProjectCard";
@@ -136,6 +138,18 @@ export function SpatialCanvas({
     getCardRects,
   });
 
+  const sizeTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+
+  const handleUpdateSize = useCallback((id: string, w: number, h: number) => {
+    clearTimeout(sizeTimers.current[id]);
+    sizeTimers.current[id] = setTimeout(() => {
+      delete sizeTimers.current[id];
+      const obj = positioned.find((o) => o.id === id);
+      if (!obj) return;
+      onUpdateObject({ ...obj, canvasSize: { w, h }, modifiedAt: Date.now() } as AnyObject);
+    }, 200);
+  }, [positioned, onUpdateObject]);
+
   const { canvasMode, setCanvasMode, spaceHeld } = useKeyboardShortcuts({
     selectedIds: selection.selectedIds,
     clearSelection: selection.clearSelection,
@@ -147,6 +161,12 @@ export function SpatialCanvas({
     onEnterEdit: handleEnterEdit,
     editingId,
     onExitEdit: handleExitEdit,
+  });
+
+  const resize = useResize({
+    zoomLevel: transform.k,
+    onUpdateSize: handleUpdateSize,
+    onUpdatePosition,
   });
 
   // Notify parent when primary selection changes
@@ -177,20 +197,28 @@ export function SpatialCanvas({
   }, [drag, rubberBand, spaceHeld, canvasMode]);
 
   const onMouseMove = useCallback((e: React.MouseEvent) => {
+    if (resize.resizing) {
+      resize.onResizeMove(e);
+      return;
+    }
     if (rubberBand.isActive) {
       rubberBand.moveBand(e);
       return;
     }
     drag.onMouseMove(e);
-  }, [drag, rubberBand]);
+  }, [drag, rubberBand, resize]);
 
   const onMouseUp = useCallback(() => {
+    if (resize.resizing) {
+      resize.endResize();
+      return;
+    }
     if (rubberBand.isActive) {
       rubberBand.endBand();
       return;
     }
     drag.onMouseUp();
-  }, [drag, rubberBand]);
+  }, [drag, rubberBand, resize]);
 
   const onCardMouseDown = useCallback((e: React.MouseEvent, obj: AnyObject) => {
     if (editingId === obj.id) return; // Don't drag while editing
@@ -342,6 +370,8 @@ export function SpatialCanvas({
               data-color={color}
               style={{
                 transform: `translate(${pos.x}px, ${pos.y}px)`,
+                width: obj.canvasSize?.w ?? 224,
+                marginLeft: -(obj.canvasSize?.w ?? 224) / 2,
                 rotate: isDragging ? rotation + 1 : rotation,
                 zIndex: isDragging ? 1000 : isSelected ? 20 : undefined,
               }}
@@ -363,6 +393,16 @@ export function SpatialCanvas({
               {obj.kind === "note" && <StickyNote obj={obj as Note} />}
               {obj.kind === "project" && <ProjectCard obj={obj as Project} />}
               {obj.kind === "artifact" && <ArtifactCard obj={obj as Artifact} />}
+              {selection.selectionCount === 1 && isSelected && !isDragging && editingId !== obj.id && (
+                <ResizeHandles
+                  kind={obj.kind}
+                  onStartResize={(e, handle) => {
+                    const w = obj.canvasSize?.w ?? 224;
+                    const h = obj.canvasSize?.h ?? 120;
+                    resize.startResize(e, handle, obj.id, obj.kind, w, h, pos.x, pos.y);
+                  }}
+                />
+              )}
             </motion.div>
           );
         })}
