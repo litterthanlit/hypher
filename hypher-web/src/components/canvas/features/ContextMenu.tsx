@@ -35,6 +35,7 @@ interface CanvasMenuProps {
   position: MenuPosition;
   target: MenuTarget & { type: "canvas" };
   onAddNote: () => void;
+  onPaste: () => void;
   onSelectAll: () => void;
   onResetView: () => void;
   onClose: () => void;
@@ -54,10 +55,11 @@ export function CardContextMenu({ position, onEdit, onDuplicate, onBringToFront,
   return <ContextMenuBase position={position} entries={entries} onClose={onClose} />;
 }
 
-export function CanvasContextMenu({ position, onAddNote, onSelectAll, onResetView, onClose }: CanvasMenuProps) {
+export function CanvasContextMenu({ position, onAddNote, onPaste, onSelectAll, onResetView, onClose }: CanvasMenuProps) {
   const entries: MenuEntry[] = [
     { label: "Add Note", onClick: onAddNote },
     { type: "separator" },
+    { label: "Paste", shortcut: "⌘V", onClick: onPaste },
     { label: "Select All", shortcut: "⌘A", onClick: onSelectAll },
     { type: "separator" },
     { label: "Reset View", onClick: onResetView },

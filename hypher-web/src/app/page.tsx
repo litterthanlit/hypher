@@ -302,6 +302,7 @@ export default function Home() {
             onRestoreObjects={store.restoreObjects}
             onRestoreConnections={store.restoreConnections}
             onCreateManualConnection={store.createManualConnection}
+            onPasteObjects={store.pasteObjects}
           />
         ) : (
           <ListView

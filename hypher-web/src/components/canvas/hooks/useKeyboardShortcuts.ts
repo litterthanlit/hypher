@@ -20,6 +20,9 @@ interface UseKeyboardShortcutsOptions {
   onZoomIn?: () => void;
   onZoomOut?: () => void;
   onResetZoom?: () => void;
+  onCopy?: () => void;
+  onCut?: () => void;
+  onPaste?: () => void;
 }
 
 export function useKeyboardShortcuts({
@@ -27,6 +30,7 @@ export function useKeyboardShortcuts({
   onDeleteSelected, onDuplicateSelected, onNudge,
   onEnterEdit, editingId, onExitEdit,
   onUndo, onRedo, onZoomIn, onZoomOut, onResetZoom,
+  onCopy, onCut, onPaste,
 }: UseKeyboardShortcutsOptions) {
   const [canvasMode, setCanvasMode] = useState<CanvasMode>("select");
   const [spaceHeld, setSpaceHeld] = useState(false);
@@ -103,6 +107,27 @@ export function useKeyboardShortcuts({
         return;
       }
 
+      // Copy: Cmd+C
+      if ((e.metaKey || e.ctrlKey) && e.key === "c") {
+        e.preventDefault();
+        onCopy?.();
+        return;
+      }
+
+      // Cut: Cmd+X
+      if ((e.metaKey || e.ctrlKey) && e.key === "x") {
+        e.preventDefault();
+        onCut?.();
+        return;
+      }
+
+      // Paste: Cmd+V
+      if ((e.metaKey || e.ctrlKey) && e.key === "v") {
+        e.preventDefault();
+        onPaste?.();
+        return;
+      }
+
       // Selection shortcuts
       if ((e.metaKey || e.ctrlKey) && e.key === "a") {
         e.preventDefault();
@@ -145,7 +170,7 @@ export function useKeyboardShortcuts({
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("keyup", onKeyUp);
     };
-  }, [selectedIds, clearSelection, selectAll, allItemIds, onDeleteSelected, onDuplicateSelected, onNudge, editingId, onExitEdit, onEnterEdit, onUndo, onRedo, onZoomIn, onZoomOut, onResetZoom]);
+  }, [selectedIds, clearSelection, selectAll, allItemIds, onDeleteSelected, onDuplicateSelected, onNudge, editingId, onExitEdit, onEnterEdit, onUndo, onRedo, onZoomIn, onZoomOut, onResetZoom, onCopy, onCut, onPaste]);
 
   return { canvasMode, setCanvasMode, spaceHeld };
 }

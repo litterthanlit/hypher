@@ -18,6 +18,7 @@ import { ResizeHandles } from "./canvas/features/ResizeHandles";
 import { useSnapGuides, type SnapGuide } from "./canvas/features/useSnapGuides";
 import { SnapGuides } from "./canvas/features/SnapGuides";
 import { useUndoRedo } from "./canvas/hooks/useUndoRedo";
+import { useClipboard } from "./canvas/hooks/useClipboard";
 import { useContextMenu } from "./canvas/features/useContextMenu";
 import { CardContextMenu, CanvasContextMenu } from "./canvas/features/ContextMenu";
 import { ConnectionLines } from "./canvas/features/ConnectionLines";
@@ -42,6 +43,7 @@ interface Props {
   onRestoreObjects: (from: AnyObject[], to: AnyObject[]) => Promise<void>;
   onRestoreConnections: (from: Connection[], to: Connection[]) => Promise<void>;
   onCreateManualConnection: (sourceId: string, targetId: string) => Promise<void>;
+  onPasteObjects: (objects: AnyObject[], connections: Connection[]) => Promise<void>;
 }
 
 interface InlineCreate {
@@ -58,6 +60,7 @@ export function SpatialCanvas({
   onUpdatePosition, onCreateAtPosition, onConfirmConnection, onDismissConnection,
   onUpdateObject, onDeleteObjects, onDuplicateObjects,
   onRestoreObjects, onRestoreConnections, onCreateManualConnection,
+  onPasteObjects,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [inlineCreate, setInlineCreate] = useState<InlineCreate | null>(null);
@@ -80,6 +83,22 @@ export function SpatialCanvas({
   });
 
   const contextMenu = useContextMenu();
+
+  const clipboard = useClipboard({
+    getSelectedObjects: () => positioned.filter((o) => selection.selectedIds.has(o.id)),
+    getConnectionsBetween: (ids: string[]) => {
+      const idSet = new Set(ids);
+      return connections.filter(
+        (c) => (c.type === "manual" || c.type === "ai_confirmed") &&
+          idSet.has(c.sourceId) && idSet.has(c.targetId)
+      );
+    },
+    onPaste: async (objects, conns) => {
+      await onPasteObjects(objects, conns);
+      selection.selectAll(objects.map((o) => o.id));
+    },
+    onDelete: (ids) => onDeleteObjects(ids),
+  });
 
   const editStartSnapshot = useRef<AnyObject | null>(null);
   const dragStartPositions = useRef<Map<string, { x: number; y: number }>>(new Map());
@@ -230,6 +249,9 @@ export function SpatialCanvas({
     onZoomIn: () => animateZoom(Math.min(3, transform.k * 1.25)),
     onZoomOut: () => animateZoom(Math.max(0.15, transform.k * 0.8)),
     onResetZoom: () => animateZoom(1),
+    onCopy: clipboard.copy,
+    onCut: clipboard.cut,
+    onPaste: () => clipboard.paste(),
   });
 
   const resize = useResize({
@@ -802,6 +824,7 @@ export function SpatialCanvas({
               onCreateAtPosition("note", "", t.canvasX, t.canvasY);
             }
           }}
+          onPaste={() => clipboard.paste()}
           onSelectAll={() => {
             selection.selectAll(positioned.map((o) => o.id));
           }}

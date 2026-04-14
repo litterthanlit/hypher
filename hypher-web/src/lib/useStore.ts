@@ -602,6 +602,17 @@ export function useStore() {
     }
   };
 
+  /* ── Paste objects (clipboard) ─────────────────────────────────── */
+  const pasteObjects = async (objects: AnyObject[], conns: Connection[]) => {
+    for (const obj of objects) {
+      await putObjectMut(convexInsertArgs(obj));
+    }
+    for (const conn of conns) {
+      const { id, ...data } = conn;
+      await putConnectionMut(data as any);
+    }
+  };
+
   /* ── Search ───────────────────────────────────────────────────── */
   const search = (query: string): AnyObject[] => {
     if (!query.trim()) return [];
@@ -659,5 +670,6 @@ export function useStore() {
     duplicateObjects,
     restoreObjects,
     restoreConnections,
+    pasteObjects,
   };
 }
