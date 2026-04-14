@@ -2118,3 +2118,68 @@ body {
 .spatial-card-note .spatial-card-body.scrollable::-webkit-scrollbar-thumb:hover {
   background: rgba(0,0,0,0.3);
 }
+
+/* ── Context menu ──────────────────────────────────────────────── */
+
+.context-menu {
+  position: absolute;
+  z-index: 2000;
+  min-width: 180px;
+  padding: 4px 0;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.12), 0 1px 4px rgba(0, 0, 0, 0.08);
+  animation: context-menu-in 120ms ease-out;
+}
+
+@keyframes context-menu-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.context-menu-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  height: 32px;
+  padding: 0 12px;
+  border: none;
+  background: none;
+  font-size: 13px;
+  color: var(--text-primary);
+  cursor: pointer;
+  text-align: left;
+}
+
+.context-menu-item:hover {
+  background: var(--accent);
+  color: white;
+}
+
+.context-menu-item.danger:hover {
+  background: #e53e3e;
+}
+
+.context-menu-shortcut {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  margin-left: 24px;
+}
+
+.context-menu-item:hover .context-menu-shortcut {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.context-menu-separator {
+  height: 1px;
+  margin: 4px 12px;
+  background: var(--border);
+}
