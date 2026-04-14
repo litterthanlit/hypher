@@ -29,6 +29,7 @@ export default defineSchema({
     lastSurfacedAt: v.optional(v.number()),
     canvasPosition: v.optional(v.object({ x: v.number(), y: v.number() })),
     canvasColor: v.optional(v.string()),
+    canvasSize: v.optional(v.object({ w: v.number(), h: v.number() })),
   })
     .index("by_kind", ["kind"])
     .index("by_projectId", ["projectId"]),

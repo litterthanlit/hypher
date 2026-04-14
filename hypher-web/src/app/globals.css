@@ -1978,3 +1978,143 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: var(--scrollbar-thumb-hover);
 }
+
+/* ══════════════════════════════════════════
+   Phase 2 — Core Interactions
+   ══════════════════════════════════════════ */
+
+/* ── Resize handles ── */
+.resize-handle {
+  position: absolute;
+  background: white;
+  border: 1px solid rgba(0,0,0,0.2);
+  z-index: 10;
+  pointer-events: auto;
+}
+
+.resize-handle-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin: -4px;
+}
+
+.resize-handle-bar {
+  width: 4px;
+  height: 24px;
+  border-radius: 2px;
+  margin-top: -12px;
+  margin-left: -2px;
+}
+
+.resize-handle[data-pos="n"] { top: 0; left: 50%; cursor: ns-resize; }
+.resize-handle[data-pos="s"] { bottom: 0; left: 50%; cursor: ns-resize; }
+.resize-handle[data-pos="e"] { top: 50%; right: 0; cursor: ew-resize; }
+.resize-handle[data-pos="w"] { top: 50%; left: 0; cursor: ew-resize; }
+.resize-handle[data-pos="ne"] { top: 0; right: 0; cursor: nesw-resize; }
+.resize-handle[data-pos="nw"] { top: 0; left: 0; cursor: nwse-resize; }
+.resize-handle[data-pos="se"] { bottom: 0; right: 0; cursor: nwse-resize; }
+.resize-handle[data-pos="sw"] { bottom: 0; left: 0; cursor: nesw-resize; }
+
+/* ── Rubber band selection ── */
+.rubber-band {
+  position: absolute;
+  border: 1px solid #007AFF;
+  background: rgba(0, 122, 255, 0.08);
+  pointer-events: none;
+  z-index: 999;
+}
+
+/* ── Inline editor ── */
+.inline-editor {
+  position: absolute;
+  z-index: 30;
+  pointer-events: auto;
+}
+
+.inline-editor textarea,
+.inline-editor input {
+  width: 100%;
+  background: transparent;
+  border: none;
+  outline: none;
+  font-family: inherit;
+  resize: none;
+  color: inherit;
+}
+
+.inline-editor textarea {
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.spatial-card.editing {
+  box-shadow: 0 0 0 2px var(--blue);
+  z-index: 30;
+}
+
+/* ── Cursor states ── */
+.spatial-canvas.pan-mode {
+  cursor: grab;
+}
+
+.spatial-canvas.pan-mode:active {
+  cursor: grabbing;
+}
+
+.spatial-canvas.select-mode {
+  cursor: crosshair;
+}
+
+.spatial-canvas.space-pan {
+  cursor: grab;
+}
+
+.spatial-canvas.space-pan:active {
+  cursor: grabbing;
+}
+
+/* ── Snap guides ── */
+.snap-guide {
+  stroke: #007AFF;
+  stroke-width: 1;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 100ms ease;
+}
+
+.snap-guide.visible {
+  opacity: 1;
+}
+
+/* ── Selection count indicator ── */
+.selection-count {
+  font-size: 11px;
+  font-family: var(--font-mono);
+  color: var(--text-secondary);
+  padding: 4px 8px;
+  background: var(--bg-primary);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-default);
+}
+
+/* ── Auto-height scroll for long notes ── */
+.spatial-card-note .spatial-card-body.scrollable {
+  max-height: 600px;
+  overflow-y: auto;
+  mask-image: linear-gradient(to bottom, black calc(100% - 24px), transparent);
+  -webkit-mask-image: linear-gradient(to bottom, black calc(100% - 24px), transparent);
+}
+
+.spatial-card-note .spatial-card-body.scrollable::-webkit-scrollbar {
+  width: 6px;
+}
+
+.spatial-card-note .spatial-card-body.scrollable::-webkit-scrollbar-thumb {
+  background: rgba(0,0,0,0.2);
+  border-radius: 3px;
+}
+
+.spatial-card-note .spatial-card-body.scrollable::-webkit-scrollbar-thumb:hover {
+  background: rgba(0,0,0,0.3);
+}

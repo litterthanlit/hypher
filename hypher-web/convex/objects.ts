@@ -45,6 +45,7 @@ export const put = mutation({
     lastSurfacedAt: v.optional(v.number()),
     canvasPosition: v.optional(v.object({ x: v.number(), y: v.number() })),
     canvasColor: v.optional(v.string()),
+    canvasSize: v.optional(v.object({ w: v.number(), h: v.number() })),
   },
   handler: async (ctx, args) => {
     const { id, ...data } = args;
