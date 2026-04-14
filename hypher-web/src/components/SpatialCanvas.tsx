@@ -17,6 +17,7 @@ import { useResize } from "./canvas/features/useResize";
 import { ResizeHandles } from "./canvas/features/ResizeHandles";
 import { useSnapGuides, type SnapGuide } from "./canvas/features/useSnapGuides";
 import { SnapGuides } from "./canvas/features/SnapGuides";
+import { useUndoRedo } from "./canvas/hooks/useUndoRedo";
 import { getCardColor, getCardRotation } from "./canvas/cards/cardUtils";
 import { StickyNote } from "./canvas/cards/StickyNote";
 import { ProjectCard } from "./canvas/cards/ProjectCard";
@@ -33,6 +34,9 @@ interface Props {
   onUpdateObject: (obj: AnyObject) => void;
   onDeleteObjects: (ids: string[]) => void;
   onDuplicateObjects: (ids: string[]) => Promise<string[]>;
+  onRestoreObjects: (from: AnyObject[], to: AnyObject[]) => Promise<void>;
+  onRestoreConnections: (from: Connection[], to: Connection[]) => Promise<void>;
+  onCreateManualConnection: (sourceId: string, targetId: string) => Promise<void>;
 }
 
 interface InlineCreate {
@@ -48,6 +52,7 @@ export function SpatialCanvas({
   items, connections, onSelect,
   onUpdatePosition, onCreateAtPosition, onConfirmConnection, onDismissConnection,
   onUpdateObject, onDeleteObjects, onDuplicateObjects,
+  onRestoreObjects, onRestoreConnections, onCreateManualConnection,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [inlineCreate, setInlineCreate] = useState<InlineCreate | null>(null);
@@ -62,6 +67,15 @@ export function SpatialCanvas({
     useCanvasTransform(containerRef, projectId);
 
   const selection = useSelectionState();
+
+  const undoRedo = useUndoRedo({
+    restoreObjects: onRestoreObjects,
+    restoreConnections: onRestoreConnections,
+  });
+
+  const editStartSnapshot = useRef<AnyObject | null>(null);
+  const dragStartPositions = useRef<Map<string, { x: number; y: number }>>(new Map());
+  const resizeStartSnapshot = useRef<{ id: string; w: number; h: number } | null>(null);
 
   // Position items without canvasPosition
   const positioned = items.map((obj, i) => {
@@ -102,9 +116,21 @@ export function SpatialCanvas({
     if (count > 3) {
       if (!window.confirm(`Delete ${count} items? This can't be undone.`)) return;
     }
-    onDeleteObjects(Array.from(selection.selectedIds));
+    const ids = Array.from(selection.selectedIds);
+    const deletedObjects = positioned.filter((o) => ids.includes(o.id));
+    const deletedConnections = connections.filter(
+      (c) => ids.includes(c.sourceId) || ids.includes(c.targetId)
+    );
+
+    undoRedo.pushUndo({
+      description: `Delete ${count} item${count > 1 ? "s" : ""}`,
+      before: { objects: deletedObjects, connections: deletedConnections },
+      after: { objects: [], connections: [] },
+    });
+
+    onDeleteObjects(ids);
     selection.clearSelection();
-  }, [selection, onDeleteObjects]);
+  }, [selection, onDeleteObjects, positioned, connections, undoRedo]);
 
   const handleDuplicateSelected = useCallback(async () => {
     if (selection.selectedIds.size === 0) return;
@@ -132,15 +158,26 @@ export function SpatialCanvas({
   const onInlineSave = useCallback((updates: Record<string, unknown>) => {
     const obj = positioned.find((o) => o.id === editingId);
     if (!obj) return;
-    onUpdateObject({ ...obj, ...updates, modifiedAt: Date.now() } as AnyObject);
-  }, [editingId, positioned, onUpdateObject]);
+    const updated = { ...obj, ...updates, modifiedAt: Date.now() } as AnyObject;
+
+    if (editStartSnapshot.current) {
+      undoRedo.pushUndo({
+        description: `Edit ${obj.kind}`,
+        before: { objects: [editStartSnapshot.current], connections: [] },
+        after: { objects: [updated], connections: [] },
+      });
+      editStartSnapshot.current = null;
+    }
+
+    onUpdateObject(updated);
+  }, [editingId, positioned, onUpdateObject, undoRedo]);
 
   const onCardDoubleClick = useCallback((e: React.MouseEvent, obj: AnyObject) => {
     e.stopPropagation();
-    // If multi-select, clear others and edit clicked card
     if (selection.selectionCount > 1) {
       selection.select(obj.id);
     }
+    editStartSnapshot.current = { ...obj };
     setEditingId(obj.id);
   }, [selection]);
 
@@ -261,21 +298,73 @@ export function SpatialCanvas({
 
   const onMouseUp = useCallback(() => {
     setActiveGuides([]);
+
+    // Handle resize undo
     if (resize.resizing) {
+      const snap = resizeStartSnapshot.current;
+      if (snap) {
+        const obj = positioned.find((o) => o.id === snap.id);
+        if (obj && obj.canvasSize && (obj.canvasSize.w !== snap.w || obj.canvasSize.h !== snap.h)) {
+          undoRedo.pushUndo({
+            description: "Resize card",
+            before: { objects: [{ ...obj, canvasSize: { w: snap.w, h: snap.h } } as AnyObject], connections: [] },
+            after: { objects: [obj], connections: [] },
+          });
+        }
+        resizeStartSnapshot.current = null;
+      }
       resize.endResize();
       return;
     }
+
     if (rubberBand.isActive) {
       rubberBand.endBand();
       return;
     }
+
+    // Capture hasMoved before drag.onMouseUp() resets it
+    const moved = drag.hasMoved;
+
+    // Check if drag moved items — record undo
+    if (moved && dragStartPositions.current.size > 0) {
+      const beforeObjects: AnyObject[] = [];
+      const afterObjects: AnyObject[] = [];
+      for (const [id, startPos] of dragStartPositions.current) {
+        const obj = positioned.find((o) => o.id === id);
+        if (!obj) continue;
+        beforeObjects.push({ ...obj, canvasPosition: startPos } as AnyObject);
+        if (obj.canvasPosition && (obj.canvasPosition.x !== startPos.x || obj.canvasPosition.y !== startPos.y)) {
+          afterObjects.push(obj);
+        }
+      }
+      if (afterObjects.length > 0) {
+        undoRedo.pushUndo({
+          description: `Move ${afterObjects.length} item${afterObjects.length > 1 ? "s" : ""}`,
+          before: { objects: beforeObjects, connections: [] },
+          after: { objects: afterObjects, connections: [] },
+        });
+      }
+      dragStartPositions.current = new Map();
+    }
+
     drag.onMouseUp();
-  }, [drag, rubberBand, resize]);
+  }, [drag, rubberBand, resize, positioned, undoRedo]);
 
   const onCardMouseDown = useCallback((e: React.MouseEvent, obj: AnyObject) => {
-    if (editingId === obj.id) return; // Don't drag while editing
+    if (editingId === obj.id) return;
+    const positions = new Map<string, { x: number; y: number }>();
+    const ids = selection.selectedIds.has(obj.id)
+      ? selection.selectedIds
+      : new Set([obj.id]);
+    for (const id of ids) {
+      const item = positioned.find((o) => o.id === id);
+      if (item?.canvasPosition) {
+        positions.set(id, { ...item.canvasPosition });
+      }
+    }
+    dragStartPositions.current = positions;
     drag.startDrag(e, obj);
-  }, [drag, editingId]);
+  }, [drag, editingId, selection.selectedIds, positioned]);
 
   const onCardClick = useCallback((e: React.MouseEvent, id: string) => {
     if (!drag.didMove(e)) {
@@ -453,6 +542,7 @@ export function SpatialCanvas({
                   onStartResize={(e, handle) => {
                     const w = obj.canvasSize?.w ?? 224;
                     const h = obj.canvasSize?.h ?? 120;
+                    resizeStartSnapshot.current = { id: obj.id, w, h };
                     resize.startResize(e, handle, obj.id, obj.kind, w, h, pos.x, pos.y);
                   }}
                 />

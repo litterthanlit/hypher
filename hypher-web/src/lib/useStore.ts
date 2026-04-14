@@ -551,6 +551,57 @@ export function useStore() {
     }
   };
 
+  /* ── Undo/redo restore helpers ───────────────────────────────── */
+
+  const restoreObjects = async (from: AnyObject[], to: AnyObject[]) => {
+    const fromMap = new Map(from.map((o) => [o.id, o]));
+    const toMap = new Map(to.map((o) => [o.id, o]));
+
+    // Objects in "to" but not "from" → re-create
+    for (const obj of to) {
+      if (!fromMap.has(obj.id)) {
+        await putObjectMut(convexUpdateArgs(obj));
+      }
+    }
+
+    // Objects in "from" but not "to" → delete
+    for (const obj of from) {
+      if (!toMap.has(obj.id)) {
+        await removeObjectMut({ id: obj.id as Id<"objects"> });
+      }
+    }
+
+    // Objects in both → restore "to" state
+    for (const obj of to) {
+      if (fromMap.has(obj.id)) {
+        await putObjectMut(convexUpdateArgs(obj));
+      }
+    }
+  };
+
+  const restoreConnections = async (from: Connection[], to: Connection[]) => {
+    const fromMap = new Map(from.map((c) => [c.id, c]));
+    const toMap = new Map(to.map((c) => [c.id, c]));
+
+    for (const conn of to) {
+      if (!fromMap.has(conn.id)) {
+        const { id, ...data } = conn;
+        await putConnectionMut({ id: id as Id<"connections">, ...data } as any);
+      }
+    }
+    for (const conn of from) {
+      if (!toMap.has(conn.id)) {
+        await removeConnectionMut({ id: conn.id as Id<"connections"> });
+      }
+    }
+    for (const conn of to) {
+      if (fromMap.has(conn.id)) {
+        const { id, ...data } = conn;
+        await putConnectionMut({ id: id as Id<"connections">, ...data } as any);
+      }
+    }
+  };
+
   /* ── Search ───────────────────────────────────────────────────── */
   const search = (query: string): AnyObject[] => {
     if (!query.trim()) return [];
@@ -606,5 +657,7 @@ export function useStore() {
     captureFromClipboard,
     search,
     duplicateObjects,
+    restoreObjects,
+    restoreConnections,
   };
 }

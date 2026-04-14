@@ -299,6 +299,9 @@ export default function Home() {
             onUpdateObject={store.updateObject}
             onDeleteObjects={async (ids) => { for (const id of ids) await store.removeObject(id); }}
             onDuplicateObjects={store.duplicateObjects}
+            onRestoreObjects={store.restoreObjects}
+            onRestoreConnections={store.restoreConnections}
+            onCreateManualConnection={store.createManualConnection}
           />
         ) : (
           <ListView
