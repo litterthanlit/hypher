@@ -61,12 +61,39 @@ export function useCanvasTransform(containerRef: React.RefObject<HTMLDivElement 
     e.preventDefault();
     const rect = containerRef.current?.getBoundingClientRect();
     if (!rect) return;
-    const mouseX = e.clientX - rect.left;
-    const mouseY = e.clientY - rect.top;
-    const delta = e.deltaY > 0 ? 0.92 : 1.08;
-    const newK = Math.min(3, Math.max(0.15, transform.k * delta));
-    const ratio = newK / transform.k;
-    setTransform({ k: newK, x: mouseX - (mouseX - transform.x) * ratio, y: mouseY - (mouseY - transform.y) * ratio });
+
+    if (e.ctrlKey) {
+      // Trackpad pinch-to-zoom (Chrome/Firefox send ctrlKey+deltaY for pinch)
+      const mouseX = e.clientX - rect.left;
+      const mouseY = e.clientY - rect.top;
+      const delta = -e.deltaY * 0.01;
+      const newK = Math.min(3, Math.max(0.15, transform.k * (1 + delta)));
+      const ratio = newK / transform.k;
+      setTransform({
+        k: newK,
+        x: mouseX - (mouseX - transform.x) * ratio,
+        y: mouseY - (mouseY - transform.y) * ratio,
+      });
+    } else if (e.deltaMode === 0 && (Math.abs(e.deltaX) > 0 || Math.abs(e.deltaY) > 0)) {
+      // Pixel mode (trackpad two-finger scroll) → direct pan
+      setTransform((t) => ({
+        ...t,
+        x: t.x - e.deltaX,
+        y: t.y - e.deltaY,
+      }));
+    } else {
+      // Line mode (mouse wheel) → zoom at cursor
+      const mouseX = e.clientX - rect.left;
+      const mouseY = e.clientY - rect.top;
+      const delta = e.deltaY > 0 ? 0.92 : 1.08;
+      const newK = Math.min(3, Math.max(0.15, transform.k * delta));
+      const ratio = newK / transform.k;
+      setTransform({
+        k: newK,
+        x: mouseX - (mouseX - transform.x) * ratio,
+        y: mouseY - (mouseY - transform.y) * ratio,
+      });
+    }
   }, [transform, containerRef]);
 
   const screenToCanvas = useCallback((screenX: number, screenY: number): { x: number; y: number } => {
