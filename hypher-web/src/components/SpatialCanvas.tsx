@@ -32,6 +32,7 @@ interface Props {
   onDismissConnection: (id: string) => void;
   onUpdateObject: (obj: AnyObject) => void;
   onDeleteObjects: (ids: string[]) => void;
+  onDuplicateObjects: (ids: string[]) => Promise<string[]>;
 }
 
 interface InlineCreate {
@@ -46,7 +47,7 @@ interface InlineCreate {
 export function SpatialCanvas({
   items, connections, onSelect,
   onUpdatePosition, onCreateAtPosition, onConfirmConnection, onDismissConnection,
-  onUpdateObject,
+  onUpdateObject, onDeleteObjects, onDuplicateObjects,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [inlineCreate, setInlineCreate] = useState<InlineCreate | null>(null);
@@ -96,12 +97,20 @@ export function SpatialCanvas({
   const [editingId, setEditingId] = useState<string | null>(null);
 
   const handleDeleteSelected = useCallback(() => {
-    // Task 13 will implement this fully
-  }, []);
+    const count = selection.selectedIds.size;
+    if (count === 0) return;
+    if (count > 3) {
+      if (!window.confirm(`Delete ${count} items? This can't be undone.`)) return;
+    }
+    onDeleteObjects(Array.from(selection.selectedIds));
+    selection.clearSelection();
+  }, [selection, onDeleteObjects]);
 
-  const handleDuplicateSelected = useCallback(() => {
-    // Task 13 will implement this fully
-  }, []);
+  const handleDuplicateSelected = useCallback(async () => {
+    if (selection.selectedIds.size === 0) return;
+    const newIds = await onDuplicateObjects(Array.from(selection.selectedIds));
+    selection.selectAll(newIds);
+  }, [selection, onDuplicateObjects]);
 
   const handleNudge = useCallback((dx: number, dy: number) => {
     for (const id of selection.selectedIds) {
