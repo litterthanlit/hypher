@@ -12,6 +12,7 @@ import { useKeyboardShortcuts } from "./canvas/hooks/useKeyboardShortcuts";
 import type { CanvasMode } from "./canvas/hooks/useKeyboardShortcuts";
 import { useRubberBand } from "./canvas/features/useRubberBand";
 import { RubberBandSelect } from "./canvas/features/RubberBandSelect";
+import { InlineEditor } from "./canvas/features/InlineEditor";
 import { getCardColor, getCardRotation } from "./canvas/cards/cardUtils";
 import { StickyNote } from "./canvas/cards/StickyNote";
 import { ProjectCard } from "./canvas/cards/ProjectCard";
@@ -41,6 +42,7 @@ interface InlineCreate {
 export function SpatialCanvas({
   items, connections, onSelect,
   onUpdatePosition, onCreateAtPosition, onConfirmConnection, onDismissConnection,
+  onUpdateObject,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [inlineCreate, setInlineCreate] = useState<InlineCreate | null>(null);
@@ -114,6 +116,21 @@ export function SpatialCanvas({
     setEditingId(null);
   }, []);
 
+  const onInlineSave = useCallback((updates: Record<string, unknown>) => {
+    const obj = positioned.find((o) => o.id === editingId);
+    if (!obj) return;
+    onUpdateObject({ ...obj, ...updates, modifiedAt: Date.now() } as AnyObject);
+  }, [editingId, positioned, onUpdateObject]);
+
+  const onCardDoubleClick = useCallback((e: React.MouseEvent, obj: AnyObject) => {
+    e.stopPropagation();
+    // If multi-select, clear others and edit clicked card
+    if (selection.selectionCount > 1) {
+      selection.select(obj.id);
+    }
+    setEditingId(obj.id);
+  }, [selection]);
+
   const rubberBand = useRubberBand({
     onSelectIds: (ids) => selection.selectAll(ids),
     getCardRects,
@@ -176,8 +193,9 @@ export function SpatialCanvas({
   }, [drag, rubberBand]);
 
   const onCardMouseDown = useCallback((e: React.MouseEvent, obj: AnyObject) => {
+    if (editingId === obj.id) return; // Don't drag while editing
     drag.startDrag(e, obj);
-  }, [drag]);
+  }, [drag, editingId]);
 
   const onCardClick = useCallback((e: React.MouseEvent, id: string) => {
     if (!drag.didMove(e)) {
@@ -320,7 +338,7 @@ export function SpatialCanvas({
             <motion.div
               key={obj.id}
               id={`card-${obj.id}`}
-              className={`spatial-card spatial-card-${obj.kind} ${isSelected ? "selected" : ""}`}
+              className={`spatial-card spatial-card-${obj.kind} ${isSelected ? "selected" : ""} ${editingId === obj.id ? "editing" : ""}`}
               data-color={color}
               style={{
                 transform: `translate(${pos.x}px, ${pos.y}px)`,
@@ -340,6 +358,7 @@ export function SpatialCanvas({
               transition={{ type: "spring", stiffness: 500, damping: 25 }}
               onMouseDown={(e) => onCardMouseDown(e, obj)}
               onClick={(e) => onCardClick(e, obj.id)}
+              onDoubleClick={(e) => onCardDoubleClick(e, obj)}
             >
               {obj.kind === "note" && <StickyNote obj={obj as Note} />}
               {obj.kind === "project" && <ProjectCard obj={obj as Project} />}
@@ -347,6 +366,31 @@ export function SpatialCanvas({
             </motion.div>
           );
         })}
+
+        {editingId && (() => {
+          const editObj = positioned.find((o) => o.id === editingId);
+          if (!editObj?.canvasPosition) return null;
+          const pos = editObj.canvasPosition;
+          return (
+            <div
+              className="inline-editor-container"
+              style={{
+                position: "absolute",
+                transform: `translate(${pos.x}px, ${pos.y}px)`,
+                width: editObj.canvasSize?.w ?? 224,
+                marginLeft: -(editObj.canvasSize?.w ?? 224) / 2,
+                marginTop: -50,
+                zIndex: 30,
+              }}
+            >
+              <InlineEditor
+                obj={editObj}
+                onSave={onInlineSave}
+                onExit={handleExitEdit}
+              />
+            </div>
+          );
+        })()}
       </div>
 
       {/* Connection popover */}
