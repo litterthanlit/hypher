@@ -37,12 +37,14 @@ export const put = mutation({
     maturity: v.optional(v.string()),
     type: v.optional(v.string()),
     fileReference: v.optional(v.string()),
+    thumbnailDataUrl: v.optional(v.string()),
     embedding: v.optional(v.array(v.float64())),
     embeddingText: v.optional(v.string()),
     tags: v.optional(v.array(v.string())),
     projectId: v.optional(v.union(v.string(), v.null())),
     lastSurfacedAt: v.optional(v.number()),
     canvasPosition: v.optional(v.object({ x: v.number(), y: v.number() })),
+    canvasColor: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const { id, ...data } = args;

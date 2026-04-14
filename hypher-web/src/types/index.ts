@@ -20,6 +20,7 @@ export interface HypherObject {
   canvasPosition?: CanvasPosition;
   projectId?: string | null;
   lastSurfacedAt?: number;
+  canvasColor?: string;
 }
 
 export interface Project extends HypherObject {

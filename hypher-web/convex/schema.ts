@@ -19,6 +19,7 @@ export default defineSchema({
     // Artifact fields
     type: v.optional(v.string()),
     fileReference: v.optional(v.string()),
+    thumbnailDataUrl: v.optional(v.string()),
 
     // Shared fields
     embedding: v.optional(v.array(v.float64())),
@@ -27,6 +28,7 @@ export default defineSchema({
     projectId: v.optional(v.union(v.string(), v.null())),
     lastSurfacedAt: v.optional(v.number()),
     canvasPosition: v.optional(v.object({ x: v.number(), y: v.number() })),
+    canvasColor: v.optional(v.string()),
   })
     .index("by_kind", ["kind"])
     .index("by_projectId", ["projectId"]),
