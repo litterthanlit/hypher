@@ -1,20 +1,47 @@
 "use client";
 
 import { useRef, useState, useCallback, useEffect, useMemo } from "react";
-import type { AnyObject, Connection, ObjectKind, Project } from "@/types";
-import { getDisplayName } from "@/types";
-import { KindIcon, FolderIcon, NoteIcon, ArtifactIcon } from "./Icons";
-import { ProjectCluster } from "./ProjectCluster";
+import { motion } from "framer-motion";
+import type { AnyObject, Connection, ObjectKind, Note, Project, Artifact } from "@/types";
+import { ConnectionPopover } from "./ConnectionPopover";
+import { NoteIcon, ArtifactIcon } from "./Icons";
+import { useCanvasTransform } from "./canvas/hooks/useCanvasTransform";
+import { useSelectionState } from "./canvas/hooks/useSelectionState";
+import { useDragInteraction } from "./canvas/hooks/useDragInteraction";
+import { useKeyboardShortcuts } from "./canvas/hooks/useKeyboardShortcuts";
+import type { CanvasMode } from "./canvas/hooks/useKeyboardShortcuts";
+import { useRubberBand } from "./canvas/features/useRubberBand";
+import { RubberBandSelect } from "./canvas/features/RubberBandSelect";
+import { InlineEditor } from "./canvas/features/InlineEditor";
+import { useResize } from "./canvas/features/useResize";
+import { ResizeHandles } from "./canvas/features/ResizeHandles";
+import { useSnapGuides, type SnapGuide } from "./canvas/features/useSnapGuides";
+import { SnapGuides } from "./canvas/features/SnapGuides";
+import { useUndoRedo } from "./canvas/hooks/useUndoRedo";
+import { useContextMenu } from "./canvas/features/useContextMenu";
+import { CardContextMenu, CanvasContextMenu } from "./canvas/features/ContextMenu";
+import { ConnectionLines } from "./canvas/features/ConnectionLines";
+import { useAnchorDrag } from "./canvas/features/useAnchorDrag";
+import { AnchorPoints } from "./canvas/features/AnchorPoints";
+import { getCardColor, getCardRotation } from "./canvas/cards/cardUtils";
+import { StickyNote } from "./canvas/cards/StickyNote";
+import { ProjectCard } from "./canvas/cards/ProjectCard";
+import { ArtifactCard } from "./canvas/cards/ArtifactCard";
 
 interface Props {
-  objects: AnyObject[];
+  items: AnyObject[];
   connections: Connection[];
-  selectedId: string | null;
   onSelect: (id: string) => void;
   onUpdatePosition: (id: string, x: number, y: number) => void;
   onCreateAtPosition: (kind: ObjectKind, text: string, x: number, y: number) => void;
-  onProjectClick?: (projectId: string) => void;
-  onAssignToProject?: (objectId: string, projectId: string) => void;
+  onConfirmConnection: (id: string) => void;
+  onDismissConnection: (id: string) => void;
+  onUpdateObject: (obj: AnyObject) => void;
+  onDeleteObjects: (ids: string[]) => void;
+  onDuplicateObjects: (ids: string[]) => Promise<string[]>;
+  onRestoreObjects: (from: AnyObject[], to: AnyObject[]) => Promise<void>;
+  onRestoreConnections: (from: Connection[], to: Connection[]) => Promise<void>;
+  onCreateManualConnection: (sourceId: string, targetId: string) => Promise<void>;
 }
 
 interface InlineCreate {
@@ -27,197 +54,384 @@ interface InlineCreate {
 }
 
 export function SpatialCanvas({
-  objects, connections, selectedId, onSelect,
-  onUpdatePosition, onCreateAtPosition, onProjectClick, onAssignToProject,
+  items, connections, onSelect,
+  onUpdatePosition, onCreateAtPosition, onConfirmConnection, onDismissConnection,
+  onUpdateObject, onDeleteObjects, onDuplicateObjects,
+  onRestoreObjects, onRestoreConnections, onCreateManualConnection,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const [transform, setTransform] = useState({ x: 0, y: 0, k: 1 });
-  const [dragging, setDragging] = useState<{ id: string; startX: number; startY: number; objX: number; objY: number } | null>(null);
-  const [panning, setPanning] = useState<{ startX: number; startY: number; startTx: number; startTy: number } | null>(null);
-  const [hasMoved, setHasMoved] = useState(false);
   const [inlineCreate, setInlineCreate] = useState<InlineCreate | null>(null);
+  const [popover, setPopover] = useState<{ connection: Connection; x: number; y: number } | null>(null);
+  const [hoveredCardId, setHoveredCardId] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Group objects: projects get clusters, unassigned get individual cards
-  const projects = useMemo(() => objects.filter((o): o is Project => o.kind === "project"), [objects]);
-  const projectMembers = useMemo(() => {
-    const map = new Map<string, AnyObject[]>();
-    for (const p of projects) map.set(p.id, []);
-    for (const obj of objects) {
-      if (obj.kind === "project") continue;
-      if (obj.projectId && map.has(obj.projectId)) {
-        map.get(obj.projectId)!.push(obj);
-      }
-    }
-    return map;
-  }, [objects, projects]);
+  // Derive projectId from items
+  const projectId = items.find(i => i.kind === "project")?.id ?? "default";
 
-  const inboxObjects = useMemo(
-    () => objects.filter((o) => o.kind !== "project" && !o.projectId),
-    [objects]
-  );
+  // Hooks
+  const { transform, setTransform, canvasBg, cycleBg, animateZoom, onWheel, screenToCanvas } =
+    useCanvasTransform(containerRef, projectId);
 
-  // Position projects that don't have canvasPosition
-  const positionedProjects = projects.map((p, i) => {
-    if (p.canvasPosition) return p;
-    const angle = i * (Math.PI * 2 / Math.max(projects.length, 1));
-    const dist = 200 + projects.length * 20;
-    return { ...p, canvasPosition: { x: Math.cos(angle) * dist, y: Math.sin(angle) * dist } };
+  const selection = useSelectionState();
+
+  const undoRedo = useUndoRedo({
+    restoreObjects: onRestoreObjects,
+    restoreConnections: onRestoreConnections,
   });
 
-  // Position inbox objects in a cluster on the side
-  const positionedInbox = inboxObjects.map((obj, i) => {
+  const contextMenu = useContextMenu();
+
+  const editStartSnapshot = useRef<AnyObject | null>(null);
+  const dragStartPositions = useRef<Map<string, { x: number; y: number }>>(new Map());
+  const resizeStartSnapshot = useRef<{ id: string; w: number; h: number } | null>(null);
+
+  // Position items without canvasPosition
+  const positioned = items.map((obj, i) => {
     if (obj.canvasPosition) return obj;
-    return { ...obj, canvasPosition: { x: -300, y: -200 + i * 60 } };
+    const angle = i * 2.4;
+    const dist = 140 + i * 35;
+    return { ...obj, canvasPosition: { x: Math.cos(angle) * dist, y: Math.sin(angle) * dist } };
   });
 
-  const activeConns = connections.filter(
-    (c) => c.type === "ai_confirmed" || c.type === "manual" || c.type === "ai_suggested"
-  );
+  const getPositionedItems = useCallback(() => positioned, [positioned]);
 
-  // Connection count per project
-  const projectConnCount = useMemo(() => {
-    const counts = new Map<string, number>();
-    for (const p of projects) {
-      const members = projectMembers.get(p.id) ?? [];
-      const memberIds = new Set([p.id, ...members.map((m) => m.id)]);
-      let count = 0;
-      for (const conn of activeConns) {
-        if (conn.type === "ai_suggested") continue;
-        const hasSource = memberIds.has(conn.sourceId);
-        const hasTarget = memberIds.has(conn.targetId);
-        if (hasSource !== hasTarget) count++; // external connection
-      }
-      counts.set(p.id, count);
-    }
-    return counts;
-  }, [projects, projectMembers, activeConns]);
-
-  // Render connection lines between projects
-  const renderConnections = () => {
-    // Build project position map
-    const projectPosMap = new Map(positionedProjects.map((p) => [p.id, p.canvasPosition!]));
-
-    // Find connections between different projects
-    const projectPairs = new Map<string, number>();
-    for (const conn of activeConns) {
-      if (conn.type === "ai_suggested") continue;
-      let sourceProject: string | null = null;
-      let targetProject: string | null = null;
-
-      for (const [pid, members] of projectMembers) {
-        const memberIds = new Set([pid, ...members.map((m) => m.id)]);
-        if (memberIds.has(conn.sourceId)) sourceProject = pid;
-        if (memberIds.has(conn.targetId)) targetProject = pid;
-      }
-
-      if (sourceProject && targetProject && sourceProject !== targetProject) {
-        const key = [sourceProject, targetProject].sort().join("|");
-        projectPairs.set(key, (projectPairs.get(key) ?? 0) + 1);
-      }
-    }
-
-    return Array.from(projectPairs.entries()).map(([key, count]) => {
-      const [id1, id2] = key.split("|");
-      const p1 = projectPosMap.get(id1!);
-      const p2 = projectPosMap.get(id2!);
-      if (!p1 || !p2) return null;
-
-      const mx = (p1.x + p2.x) / 2;
-      const my = (p1.y + p2.y) / 2;
-      const dx = p2.x - p1.x;
-      const dy = p2.y - p1.y;
-      const cx = mx - dy * 0.08;
-      const cy = my + dx * 0.08;
-
-      return (
-        <g key={key}>
-          <path
-            d={`M ${p1.x} ${p1.y} Q ${cx} ${cy} ${p2.x} ${p2.y}`}
-            fill="none"
-            stroke="var(--accent)"
-            strokeWidth={Math.min(1 + count * 0.5, 4)}
-            opacity={0.25}
-          />
-          <text x={cx} y={cy - 10} textAnchor="middle" fill="var(--text-quaternary)" fontSize="9" fontFamily="var(--font-mono)">
-            {count}
-          </text>
-        </g>
-      );
-    });
-  };
-
-  // ── Event handlers ──
-  const onCanvasMouseDown = useCallback(
-    (e: React.MouseEvent) => {
-      if ((e.target as HTMLElement).closest(".project-cluster")) return;
-      if ((e.target as HTMLElement).closest(".spatial-card")) return;
-      if ((e.target as HTMLElement).closest(".inline-create")) return;
-      setPanning({ startX: e.clientX, startY: e.clientY, startTx: transform.x, startTy: transform.y });
-      setHasMoved(false);
-    },
-    [transform]
-  );
-
-  const onMouseMove = useCallback(
-    (e: React.MouseEvent) => {
-      if (dragging) {
-        const dx = (e.clientX - dragging.startX) / transform.k;
-        const dy = (e.clientY - dragging.startY) / transform.k;
-        const el = document.getElementById(`card-${dragging.id}`);
-        if (el) el.style.transform = `translate(${dragging.objX + dx}px, ${dragging.objY + dy}px)`;
-        setHasMoved(true);
-        return;
-      }
-      if (panning) {
-        setTransform({ ...transform, x: panning.startTx + (e.clientX - panning.startX), y: panning.startTy + (e.clientY - panning.startY) });
-        setHasMoved(true);
-      }
-    },
-    [dragging, panning, transform]
-  );
-
-  const onMouseUp = useCallback(() => {
-    if (dragging && hasMoved) {
-      const el = document.getElementById(`card-${dragging.id}`);
+  const getCardRects = useCallback(() => {
+    const rects = new Map<string, { x: number; y: number; w: number; h: number }>();
+    for (const obj of positioned) {
+      const el = document.getElementById(`card-${obj.id}`);
       if (el) {
-        const match = el.style.transform.match(/translate\((-?[\d.]+)px,\s*(-?[\d.]+)px\)/);
-        if (match) onUpdatePosition(dragging.id, parseFloat(match[1]!), parseFloat(match[2]!));
+        const r = el.getBoundingClientRect();
+        rects.set(obj.id, { x: r.left, y: r.top, w: r.width, h: r.height });
       }
     }
-    setDragging(null);
-    setPanning(null);
-  }, [dragging, hasMoved, onUpdatePosition]);
+    return rects;
+  }, [positioned]);
 
-  const onItemMouseDown = useCallback((e: React.MouseEvent, obj: AnyObject) => {
-    e.stopPropagation();
-    const pos = obj.canvasPosition ?? { x: 0, y: 0 };
-    setDragging({ id: obj.id, startX: e.clientX, startY: e.clientY, objX: pos.x, objY: pos.y });
-    setHasMoved(false);
+  const drag = useDragInteraction({
+    transform,
+    setTransform,
+    selectedIds: selection.selectedIds,
+    onUpdatePosition,
+    getPositionedItems,
+  });
+
+  // Stub handlers (will be implemented in later tasks)
+  const [editingId, setEditingId] = useState<string | null>(null);
+
+  const handleDeleteSelected = useCallback(() => {
+    const count = selection.selectedIds.size;
+    if (count === 0) return;
+    if (count > 3) {
+      if (!window.confirm(`Delete ${count} items? This can't be undone.`)) return;
+    }
+    const ids = Array.from(selection.selectedIds);
+    const deletedObjects = positioned.filter((o) => ids.includes(o.id));
+    const deletedConnections = connections.filter(
+      (c) => ids.includes(c.sourceId) || ids.includes(c.targetId)
+    );
+
+    undoRedo.pushUndo({
+      description: `Delete ${count} item${count > 1 ? "s" : ""}`,
+      before: { objects: deletedObjects, connections: deletedConnections },
+      after: { objects: [], connections: [] },
+    });
+
+    onDeleteObjects(ids);
+    selection.clearSelection();
+  }, [selection, onDeleteObjects, positioned, connections, undoRedo]);
+
+  const handleDuplicateSelected = useCallback(async () => {
+    if (selection.selectedIds.size === 0) return;
+    const newIds = await onDuplicateObjects(Array.from(selection.selectedIds));
+    selection.selectAll(newIds);
+  }, [selection, onDuplicateObjects]);
+
+  const handleNudge = useCallback((dx: number, dy: number) => {
+    for (const id of selection.selectedIds) {
+      const obj = positioned.find((o) => o.id === id);
+      if (!obj?.canvasPosition) continue;
+      onUpdatePosition(id, obj.canvasPosition.x + dx, obj.canvasPosition.y + dy);
+    }
+  }, [selection.selectedIds, positioned, onUpdatePosition]);
+
+  const handleEnterEdit = useCallback(() => {
+    const first = Array.from(selection.selectedIds)[0];
+    if (first) setEditingId(first);
+  }, [selection.selectedIds]);
+
+  const handleExitEdit = useCallback(() => {
+    setEditingId(null);
   }, []);
 
-  const onItemClick = useCallback((e: React.MouseEvent, id: string) => {
-    if (!hasMoved) onSelect(id);
-  }, [hasMoved, onSelect]);
+  const onInlineSave = useCallback((updates: Record<string, unknown>) => {
+    const obj = positioned.find((o) => o.id === editingId);
+    if (!obj) return;
+    const updated = { ...obj, ...updates, modifiedAt: Date.now() } as AnyObject;
 
-  const onClusterClick = useCallback((projectId: string) => {
-    if (!hasMoved && onProjectClick) onProjectClick(projectId);
-    else if (!hasMoved) onSelect(projectId);
-  }, [hasMoved, onProjectClick, onSelect]);
+    if (editStartSnapshot.current) {
+      undoRedo.pushUndo({
+        description: `Edit ${obj.kind}`,
+        before: { objects: [editStartSnapshot.current], connections: [] },
+        after: { objects: [updated], connections: [] },
+      });
+      editStartSnapshot.current = null;
+    }
 
-  // Double-click to create
-  const onDoubleClick = useCallback((e: React.MouseEvent) => {
-    if ((e.target as HTMLElement).closest(".project-cluster")) return;
-    if ((e.target as HTMLElement).closest(".spatial-card")) return;
-    if ((e.target as HTMLElement).closest(".inline-create")) return;
-    if ((e.target as HTMLElement).closest(".spatial-controls")) return;
+    onUpdateObject(updated);
+  }, [editingId, positioned, onUpdateObject, undoRedo]);
 
-    const rect = containerRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    const canvasX = (e.clientX - rect.left - transform.x) / transform.k;
-    const canvasY = (e.clientY - rect.top - transform.y) / transform.k;
-    setInlineCreate({ canvasX, canvasY, screenX: e.clientX - rect.left, screenY: e.clientY - rect.top, text: "", step: "typing" });
-  }, [transform]);
+  const onCardDoubleClick = useCallback((e: React.MouseEvent, obj: AnyObject) => {
+    e.stopPropagation();
+    if (selection.selectionCount > 1) {
+      selection.select(obj.id);
+    }
+    editStartSnapshot.current = { ...obj };
+    setEditingId(obj.id);
+  }, [selection]);
+
+  const rubberBand = useRubberBand({
+    onSelectIds: (ids) => selection.selectAll(ids),
+    getCardRects,
+  });
+
+  const sizeTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+
+  const handleUpdateSize = useCallback((id: string, w: number, h: number) => {
+    clearTimeout(sizeTimers.current[id]);
+    sizeTimers.current[id] = setTimeout(() => {
+      delete sizeTimers.current[id];
+      const obj = positioned.find((o) => o.id === id);
+      if (!obj) return;
+      onUpdateObject({ ...obj, canvasSize: { w, h }, modifiedAt: Date.now() } as AnyObject);
+    }, 200);
+  }, [positioned, onUpdateObject]);
+
+  const { canvasMode, setCanvasMode, spaceHeld } = useKeyboardShortcuts({
+    selectedIds: selection.selectedIds,
+    clearSelection: selection.clearSelection,
+    selectAll: (ids) => selection.selectAll(ids),
+    allItemIds: positioned.map((o) => o.id),
+    onDeleteSelected: handleDeleteSelected,
+    onDuplicateSelected: handleDuplicateSelected,
+    onNudge: handleNudge,
+    onEnterEdit: handleEnterEdit,
+    editingId,
+    onExitEdit: handleExitEdit,
+    onUndo: undoRedo.undo,
+    onRedo: undoRedo.redo,
+    onZoomIn: () => animateZoom(Math.min(3, transform.k * 1.25)),
+    onZoomOut: () => animateZoom(Math.max(0.15, transform.k * 0.8)),
+    onResetZoom: () => animateZoom(1),
+  });
+
+  const resize = useResize({
+    zoomLevel: transform.k,
+    onUpdateSize: handleUpdateSize,
+    onUpdatePosition,
+  });
+
+  const anchorDrag = useAnchorDrag({
+    onConnect: onCreateManualConnection,
+    zoomLevel: transform.k,
+  });
+
+  const allRects = useMemo(() => {
+    return positioned.map((obj) => ({
+      id: obj.id,
+      x: obj.canvasPosition?.x ?? 0,
+      y: obj.canvasPosition?.y ?? 0,
+      w: obj.canvasSize?.w ?? 224,
+      h: 120, // approximate card height
+    }));
+  }, [positioned]);
+
+  const snapThreshold = 8 / transform.k;
+  const { computeSnap } = useSnapGuides(allRects, selection.selectedIds, snapThreshold);
+  const [activeGuides, setActiveGuides] = useState<SnapGuide[]>([]);
+
+  // Notify parent when primary selection changes
+  useEffect(() => {
+    onSelect(selection.primarySelectedId ?? "");
+  }, [selection.primarySelectedId, onSelect]);
+
+  // Filter connections to only those between items in our list
+  const itemIds = new Set(items.map((o) => o.id));
+  const activeConns = connections.filter(
+    (c) => c.type !== "dismissed" && itemIds.has(c.sourceId) && itemIds.has(c.targetId)
+  );
+
+  const objectMap = new Map(positioned.map((o) => [o.id, o]));
+
+  // ── Event handlers ──
+  const onCanvasMouseDown = useCallback((e: React.MouseEvent) => {
+    contextMenu.close();
+    if ((e.target as HTMLElement).closest(".spatial-card, .inline-create, .conn-popover, .spatial-controls, .canvas-toolbar")) return;
+    setPopover(null);
+
+    if (spaceHeld || canvasMode === "pan") {
+      drag.startPan(e);
+    } else if (canvasMode === "select") {
+      rubberBand.startBand(e);
+    } else {
+      drag.startPan(e);
+    }
+  }, [drag, rubberBand, spaceHeld, canvasMode, contextMenu]);
+
+  const onMouseMove = useCallback((e: React.MouseEvent) => {
+    if (anchorDrag.isDraggingAnchor) {
+      const rect = containerRef.current?.getBoundingClientRect();
+      if (rect) {
+        anchorDrag.onAnchorMouseMove(e.clientX, e.clientY, rect, transform.x, transform.y);
+      }
+      return;
+    }
+    if (resize.resizing) {
+      resize.onResizeMove(e);
+      return;
+    }
+    if (rubberBand.isActive) {
+      rubberBand.moveBand(e);
+      return;
+    }
+    drag.onMouseMove(e);
+
+    // Compute snap guides during drag
+    if (drag.dragging) {
+      const dx = (e.clientX - drag.dragging.startX) / transform.k;
+      const dy = (e.clientY - drag.dragging.startY) / transform.k;
+      const obj = positioned.find((o) => o.id === drag.dragging!.id);
+      if (obj) {
+        const dragRect = {
+          id: obj.id,
+          x: drag.dragging.objX + dx,
+          y: drag.dragging.objY + dy,
+          w: obj.canvasSize?.w ?? 224,
+          h: 120,
+        };
+        const result = computeSnap(dragRect);
+        setActiveGuides(result.guides);
+
+        // Apply snap offset to the dragged card position
+        if (result.snapDx !== 0 || result.snapDy !== 0) {
+          const el = document.getElementById(`card-${obj.id}`);
+          if (el) {
+            el.style.transform = `translate(${dragRect.x + result.snapDx}px, ${dragRect.y + result.snapDy}px)`;
+          }
+        }
+      }
+    }
+  }, [drag, rubberBand, resize, transform.k, transform.x, transform.y, positioned, computeSnap, anchorDrag]);
+
+  const onMouseUp = useCallback(() => {
+    if (anchorDrag.isDraggingAnchor) {
+      anchorDrag.cancelAnchorDrag();
+      return;
+    }
+
+    setActiveGuides([]);
+
+    // Handle resize undo
+    if (resize.resizing) {
+      const snap = resizeStartSnapshot.current;
+      if (snap) {
+        const obj = positioned.find((o) => o.id === snap.id);
+        if (obj && obj.canvasSize && (obj.canvasSize.w !== snap.w || obj.canvasSize.h !== snap.h)) {
+          undoRedo.pushUndo({
+            description: "Resize card",
+            before: { objects: [{ ...obj, canvasSize: { w: snap.w, h: snap.h } } as AnyObject], connections: [] },
+            after: { objects: [obj], connections: [] },
+          });
+        }
+        resizeStartSnapshot.current = null;
+      }
+      resize.endResize();
+      return;
+    }
+
+    if (rubberBand.isActive) {
+      rubberBand.endBand();
+      return;
+    }
+
+    // Capture hasMoved before drag.onMouseUp() resets it
+    const moved = drag.hasMoved;
+
+    // Check if drag moved items — record undo
+    if (moved && dragStartPositions.current.size > 0) {
+      const beforeObjects: AnyObject[] = [];
+      const afterObjects: AnyObject[] = [];
+      for (const [id, startPos] of dragStartPositions.current) {
+        const obj = positioned.find((o) => o.id === id);
+        if (!obj) continue;
+        beforeObjects.push({ ...obj, canvasPosition: startPos } as AnyObject);
+        if (obj.canvasPosition && (obj.canvasPosition.x !== startPos.x || obj.canvasPosition.y !== startPos.y)) {
+          afterObjects.push(obj);
+        }
+      }
+      if (afterObjects.length > 0) {
+        undoRedo.pushUndo({
+          description: `Move ${afterObjects.length} item${afterObjects.length > 1 ? "s" : ""}`,
+          before: { objects: beforeObjects, connections: [] },
+          after: { objects: afterObjects, connections: [] },
+        });
+      }
+      dragStartPositions.current = new Map();
+    }
+
+    drag.onMouseUp();
+  }, [drag, rubberBand, resize, positioned, undoRedo, anchorDrag]);
+
+  const onCardMouseDown = useCallback((e: React.MouseEvent, obj: AnyObject) => {
+    if (editingId === obj.id) return;
+    const positions = new Map<string, { x: number; y: number }>();
+    const ids = selection.selectedIds.has(obj.id)
+      ? selection.selectedIds
+      : new Set([obj.id]);
+    for (const id of ids) {
+      const item = positioned.find((o) => o.id === id);
+      if (item?.canvasPosition) {
+        positions.set(id, { ...item.canvasPosition });
+      }
+    }
+    dragStartPositions.current = positions;
+    drag.startDrag(e, obj);
+  }, [drag, editingId, selection.selectedIds, positioned]);
+
+  const onCardClick = useCallback((e: React.MouseEvent, id: string) => {
+    if (!drag.didMove(e)) {
+      if (e.shiftKey) {
+        selection.toggleSelect(id);
+      } else {
+        selection.select(id);
+      }
+    }
+  }, [drag, selection]);
+
+  // Click on empty space — behavior depends on mode
+  const onCanvasClick = useCallback((e: React.MouseEvent) => {
+    if ((e.target as HTMLElement).closest(".spatial-card, .inline-create, .spatial-controls, .conn-popover, .canvas-toolbar")) return;
+    if (inlineCreate) return;
+    // Only if we didn't pan (< 5px movement)
+    if (drag.didPanMove(e)) return;
+
+    if (canvasMode === "text") {
+      const pos = screenToCanvas(e.clientX, e.clientY);
+      const rect = containerRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      setInlineCreate({
+        canvasX: pos.x,
+        canvasY: pos.y,
+        screenX: e.clientX - rect.left,
+        screenY: e.clientY - rect.top,
+        text: "",
+        step: "typing",
+      });
+    }
+    // In select mode, clicking empty space deselects
+    if (canvasMode === "select") {
+      selection.clearSelection();
+    }
+  }, [drag, inlineCreate, canvasMode, screenToCanvas, selection]);
 
   useEffect(() => {
     if (inlineCreate?.step === "typing") setTimeout(() => inputRef.current?.focus(), 50);
@@ -234,43 +448,42 @@ export function SpatialCanvas({
     setInlineCreate(null);
   };
 
-  // Zoom
-  const onWheel = useCallback((e: React.WheelEvent) => {
-    e.preventDefault();
+
+  // Connection line click
+  const handleConnectionClick = useCallback((e: React.MouseEvent, conn: Connection) => {
+    if (conn.type !== "ai_suggested") return;
     const rect = containerRef.current?.getBoundingClientRect();
     if (!rect) return;
-    const mouseX = e.clientX - rect.left;
-    const mouseY = e.clientY - rect.top;
-    const delta = e.deltaY > 0 ? 0.92 : 1.08;
-    const newK = Math.min(3, Math.max(0.15, transform.k * delta));
-    const ratio = newK / transform.k;
-    setTransform({ k: newK, x: mouseX - (mouseX - transform.x) * ratio, y: mouseY - (mouseY - transform.y) * ratio });
-  }, [transform]);
-
-  useEffect(() => {
-    const rect = containerRef.current?.getBoundingClientRect();
-    if (rect) setTransform({ x: rect.width / 2, y: rect.height / 2, k: 1 });
+    setPopover({ connection: conn, x: e.clientX - rect.left, y: e.clientY - rect.top });
   }, []);
 
-  // Drop handler for drag-from-inbox
-  const handleClusterDrop = useCallback((e: React.DragEvent, projectId: string) => {
-    e.preventDefault();
-    const objectId = e.dataTransfer.getData("text/plain");
-    if (objectId && onAssignToProject) onAssignToProject(objectId, projectId);
-  }, [onAssignToProject]);
+  const canvasClassName = [
+    "spatial-canvas",
+    canvasMode === "text" ? "text-mode" : "",
+    canvasMode === "pan" ? "pan-mode" : "",
+    canvasMode === "select" && !spaceHeld ? "select-mode" : "",
+    spaceHeld ? "space-pan" : "",
+  ].filter(Boolean).join(" ");
 
   return (
     <div
-      className="spatial-canvas"
+      className={canvasClassName}
       ref={containerRef}
       onMouseDown={onCanvasMouseDown}
       onMouseMove={onMouseMove}
       onMouseUp={onMouseUp}
       onMouseLeave={onMouseUp}
       onWheel={onWheel}
-      onDoubleClick={onDoubleClick}
+      onClick={onCanvasClick}
+      onContextMenu={(e) => {
+        if ((e.target as HTMLElement).closest(".spatial-card, .canvas-toolbar, .conn-popover, .context-menu")) return;
+        const rect = containerRef.current?.getBoundingClientRect();
+        if (!rect) return;
+        const pos = screenToCanvas(e.clientX, e.clientY);
+        contextMenu.openCanvasMenu(e, pos.x, pos.y, rect);
+      }}
     >
-      <div className="spatial-grid" style={{
+      <div className="spatial-grid" data-bg={canvasBg} style={{
         backgroundPosition: `${transform.x}px ${transform.y}px`,
         backgroundSize: `${24 * transform.k}px ${24 * transform.k}px`,
       }} />
@@ -279,62 +492,157 @@ export function SpatialCanvas({
         transform: `translate(${transform.x}px, ${transform.y}px) scale(${transform.k})`,
         transformOrigin: "0 0",
       }}>
+        {/* Connection lines */}
         <svg className="spatial-connections" style={{ overflow: "visible" }}>
-          {renderConnections()}
+          <ConnectionLines
+            connections={activeConns}
+            objectMap={objectMap}
+            onConnectionClick={handleConnectionClick}
+          />
+          {/* Anchor points on hovered card */}
+          {hoveredCardId && !drag.dragging && (() => {
+            const obj = objectMap.get(hoveredCardId);
+            if (!obj?.canvasPosition) return null;
+            const w = obj.canvasSize?.w ?? 224;
+            const h = obj.canvasSize?.h ?? 120;
+            return (
+              <AnchorPoints
+                key={`anchor-${hoveredCardId}`}
+                objId={hoveredCardId}
+                x={obj.canvasPosition.x}
+                y={obj.canvasPosition.y}
+                width={w}
+                height={h}
+                onStartDrag={anchorDrag.startAnchorDrag}
+              />
+            );
+          })()}
+
+          {/* Drag-to-connect rubber band line */}
+          {anchorDrag.anchorDrag && (
+            <line
+              className="anchor-drag-line"
+              x1={anchorDrag.anchorDrag.sourceX}
+              y1={anchorDrag.anchorDrag.sourceY}
+              x2={anchorDrag.anchorDrag.currentX}
+              y2={anchorDrag.anchorDrag.currentY}
+            />
+          )}
+
+          {/* Snap guides */}
+          <SnapGuides guides={activeGuides} />
         </svg>
 
-        {/* Project clusters */}
-        {positionedProjects.map((project) => {
-          const pos = project.canvasPosition!;
-          const members = projectMembers.get(project.id) ?? [];
-          const connCount = projectConnCount.get(project.id) ?? 0;
+        {/* Item cards */}
+        {positioned.map((obj) => {
+          const pos = obj.canvasPosition!;
+          const isSelected = selection.isSelected(obj.id);
+          const isDragging = drag.dragging?.id === obj.id;
+          const color = getCardColor(obj);
+          const rotation = obj.kind === "note" ? getCardRotation(obj.id) : 0;
 
           return (
-            <div
-              key={project.id}
-              id={`card-${project.id}`}
-              style={{ transform: `translate(${pos.x}px, ${pos.y}px)`, position: "absolute", marginLeft: "-150px", marginTop: "-80px" }}
-              onMouseDown={(e) => onItemMouseDown(e, project)}
-              onClick={() => onClusterClick(project.id)}
+            <motion.div
+              key={obj.id}
+              id={`card-${obj.id}`}
+              className={`spatial-card spatial-card-${obj.kind} ${isSelected ? "selected" : ""} ${editingId === obj.id ? "editing" : ""}`}
+              data-color={color}
+              style={{
+                transform: `translate(${pos.x}px, ${pos.y}px)`,
+                width: obj.canvasSize?.w ?? 224,
+                marginLeft: -(obj.canvasSize?.w ?? 224) / 2,
+                rotate: isDragging ? rotation + 1 : rotation,
+                zIndex: isDragging ? 1000 : isSelected ? 20 : undefined,
+              }}
+              whileHover={!isDragging ? {
+                scale: 1.01,
+                boxShadow: "0 2px 4px rgba(0,0,0,0.08), 0 8px 24px rgba(0,0,0,0.06)",
+              } : undefined}
+              animate={isDragging ? {
+                scale: 1.03,
+                boxShadow: "0 8px 16px rgba(0,0,0,0.12), 0 24px 48px rgba(0,0,0,0.08)",
+              } : {
+                scale: 1,
+              }}
+              transition={{ type: "spring", stiffness: 500, damping: 25 }}
+              onMouseEnter={() => setHoveredCardId(obj.id)}
+              onMouseLeave={() => setHoveredCardId(null)}
+              onMouseUp={() => {
+                if (anchorDrag.isDraggingAnchor) {
+                  anchorDrag.endAnchorDrag(obj.id);
+                }
+              }}
+              onMouseDown={(e) => onCardMouseDown(e, obj)}
+              onClick={(e) => onCardClick(e, obj.id)}
+              onDoubleClick={(e) => onCardDoubleClick(e, obj)}
+              onContextMenu={(e) => {
+                const rect = containerRef.current?.getBoundingClientRect();
+                if (rect) {
+                  if (!selection.isSelected(obj.id)) {
+                    selection.select(obj.id);
+                  }
+                  contextMenu.openCardMenu(e, obj.id, rect);
+                }
+              }}
             >
-              <ProjectCluster
-                project={project}
-                members={members}
-                connectionCount={connCount}
-                isSelected={selectedId === project.id}
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={(e) => handleClusterDrop(e, project.id)}
+              {obj.kind === "note" && <StickyNote obj={obj as Note} />}
+              {obj.kind === "project" && <ProjectCard obj={obj as Project} />}
+              {obj.kind === "artifact" && <ArtifactCard obj={obj as Artifact} />}
+              {selection.selectionCount === 1 && isSelected && !isDragging && editingId !== obj.id && (
+                <ResizeHandles
+                  kind={obj.kind}
+                  onStartResize={(e, handle) => {
+                    const w = obj.canvasSize?.w ?? 224;
+                    const h = obj.canvasSize?.h ?? 120;
+                    resizeStartSnapshot.current = { id: obj.id, w, h };
+                    resize.startResize(e, handle, obj.id, obj.kind, w, h, pos.x, pos.y);
+                  }}
+                />
+              )}
+            </motion.div>
+          );
+        })}
+
+        {editingId && (() => {
+          const editObj = positioned.find((o) => o.id === editingId);
+          if (!editObj?.canvasPosition) return null;
+          const pos = editObj.canvasPosition;
+          return (
+            <div
+              className="inline-editor-container"
+              style={{
+                position: "absolute",
+                transform: `translate(${pos.x}px, ${pos.y}px)`,
+                width: editObj.canvasSize?.w ?? 224,
+                marginLeft: -(editObj.canvasSize?.w ?? 224) / 2,
+                marginTop: -50,
+                zIndex: 30,
+              }}
+            >
+              <InlineEditor
+                obj={editObj}
+                onSave={onInlineSave}
+                onExit={handleExitEdit}
               />
             </div>
           );
-        })}
-
-        {/* Inbox items as individual cards */}
-        {positionedInbox.map((obj) => {
-          const pos = obj.canvasPosition!;
-          return (
-            <div
-              key={obj.id}
-              id={`card-${obj.id}`}
-              className={`spatial-card ${selectedId === obj.id ? "selected" : ""}`}
-              style={{ transform: `translate(${pos.x}px, ${pos.y}px)` }}
-              onMouseDown={(e) => onItemMouseDown(e, obj)}
-              onClick={(e) => onItemClick(e, obj.id)}
-            >
-              <div className="spatial-card-accent" style={{ background: obj.kind === "note" ? "var(--blue)" : "var(--amber)" }} />
-              <div className="spatial-card-body">
-                <div className="spatial-card-header">
-                  <KindIcon kind={obj.kind} className="kind-icon" />
-                  <span className="spatial-card-title">{getDisplayName(obj)}</span>
-                </div>
-                <div className="spatial-card-footer">
-                  <span className="spatial-card-status inbox-label">inbox</span>
-                </div>
-              </div>
-            </div>
-          );
-        })}
+        })()}
       </div>
+
+      {/* Connection popover */}
+      {popover && (
+        <ConnectionPopover
+          connection={popover.connection}
+          position={{ x: popover.x, y: popover.y }}
+          onConfirm={onConfirmConnection}
+          onDismiss={onDismissConnection}
+          onClose={() => setPopover(null)}
+        />
+      )}
+
+      {rubberBand.isActive && (
+        <RubberBandSelect rect={rubberBand.getBandRect(containerRef.current?.getBoundingClientRect() ?? new DOMRect())} />
+      )}
 
       {/* Inline create */}
       {inlineCreate && (
@@ -357,7 +665,6 @@ export function SpatialCanvas({
             <div className="inline-create-picker">
               <div className="inline-create-preview">{inlineCreate.text}</div>
               <div className="inline-create-options">
-                <button className="inline-create-option" onClick={() => handlePickKind("project")}><FolderIcon className="kind-icon" /><span>Project</span></button>
                 <button className="inline-create-option" onClick={() => handlePickKind("note")}><NoteIcon className="kind-icon" /><span>Note</span></button>
                 <button className="inline-create-option" onClick={() => handlePickKind("artifact")}><ArtifactIcon className="kind-icon" /><span>Artifact</span></button>
               </div>
@@ -366,19 +673,101 @@ export function SpatialCanvas({
         </div>
       )}
 
-      {/* Zoom controls */}
-      <div className="spatial-controls">
-        <button className="btn-icon" onClick={() => setTransform((t) => ({ ...t, k: Math.min(3, t.k * 1.25) }))} title="Zoom in">+</button>
-        <span className="spatial-zoom-label">{Math.round(transform.k * 100)}%</span>
-        <button className="btn-icon" onClick={() => setTransform((t) => ({ ...t, k: Math.max(0.15, t.k * 0.8) }))} title="Zoom out">−</button>
-        <button className="btn-icon" onClick={() => { const rect = containerRef.current?.getBoundingClientRect(); if (rect) setTransform({ x: rect.width / 2, y: rect.height / 2, k: 1 }); }} title="Reset view">⌀</button>
+      {/* Bottom toolbar: mode switcher + zoom */}
+      <div className="canvas-toolbar">
+        <div className="canvas-mode-switcher">
+          <button
+            className={`canvas-mode-btn ${canvasMode === "select" ? "active" : ""}`}
+            onClick={() => setCanvasMode("select")}
+            title="Select (V)"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" width={16} height={16}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15.042 21.672 13.684 16.6m0 0-2.51 2.225.569-9.47 5.227 7.917-3.286-.672ZM12 2.25V4.5m5.834.166-1.591 1.591M20.25 10.5H18M7.757 14.743l-1.59 1.59M6 10.5H3.75m4.007-4.243-1.59-1.59" />
+            </svg>
+          </button>
+          <button
+            className={`canvas-mode-btn ${canvasMode === "pan" ? "active" : ""}`}
+            onClick={() => setCanvasMode("pan")}
+            title="Pan (H)"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" width={16} height={16}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M10.05 4.575a1.575 1.575 0 1 0-3.15 0v3.15M10.05 4.575a1.575 1.575 0 0 1 3.15 0v3.15M10.05 4.575v5.1M13.2 7.725a1.575 1.575 0 0 1 3.15 0v3m-3.15-3v5.1m0-5.1a1.575 1.575 0 0 1 3.15 0m-3.15 0v5.1m3.15-5.1v1.875c0 .621.504 1.125 1.125 1.125M13.2 12.825v-1.875m0 1.875c0 .621-.504 1.125-1.125 1.125m1.125-1.125a1.125 1.125 0 0 1 1.125 1.125m-1.125-1.125v1.875m-6.3-7.5v5.1m0-5.1a1.575 1.575 0 0 0-3.15 0m3.15 0v5.1m-3.15-5.1v1.875c0 .621-.504 1.125-1.125 1.125m0 0A1.125 1.125 0 0 1 3.75 12v-1.875" />
+            </svg>
+          </button>
+          <button
+            className={`canvas-mode-btn ${canvasMode === "text" ? "active" : ""}`}
+            onClick={() => setCanvasMode("text")}
+            title="Text (T)"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" width={16} height={16}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.087.16 2.185.283 3.293.369V21l4.076-4.076a1.526 1.526 0 0 1 1.037-.443 48.2 48.2 0 0 0 5.887-.375c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0 0 12 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018Z" />
+            </svg>
+          </button>
+        </div>
+
+        {selection.selectionCount >= 2 && (
+          <span className="selection-count">{selection.selectionCount} selected</span>
+        )}
+
+        <button
+          className="canvas-mode-btn"
+          onClick={cycleBg}
+          title={`Background: ${canvasBg}`}
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" width={16} height={16}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6A2.25 2.25 0 0 1 6 3.75h2.25A2.25 2.25 0 0 1 10.5 6v2.25a2.25 2.25 0 0 1-2.25 2.25H6a2.25 2.25 0 0 1-2.25-2.25V6ZM3.75 15.75A2.25 2.25 0 0 1 6 13.5h2.25a2.25 2.25 0 0 1 2.25 2.25V18a2.25 2.25 0 0 1-2.25 2.25H6A2.25 2.25 0 0 1 3.75 18v-2.25ZM13.5 6a2.25 2.25 0 0 1 2.25-2.25H18A2.25 2.25 0 0 1 20.25 6v2.25A2.25 2.25 0 0 1 18 10.5h-2.25a2.25 2.25 0 0 1-2.25-2.25V6ZM13.5 15.75a2.25 2.25 0 0 1 2.25-2.25H18a2.25 2.25 0 0 1 2.25 2.25V18A2.25 2.25 0 0 1 18 20.25h-2.25a2.25 2.25 0 0 1-2.25-2.25v-2.25Z" />
+          </svg>
+        </button>
+
+        <div className="spatial-controls">
+          <button className="btn-icon" onClick={() => animateZoom(Math.min(3, transform.k * 1.25))} title="Zoom in">+</button>
+          <span className="spatial-zoom-label">{Math.round(transform.k * 100)}%</span>
+          <button className="btn-icon" onClick={() => animateZoom(Math.max(0.15, transform.k * 0.8))} title="Zoom out">-</button>
+        </div>
       </div>
 
-      {objects.length === 0 && (
+      {items.length === 0 && (
         <div className="spatial-empty">
-          <p className="spatial-empty-title">Your canvas is empty</p>
-          <p className="spatial-empty-sub">Double-click to create, or capture thoughts from the home screen.</p>
+          <p className="spatial-empty-title">This project is empty</p>
+          <p className="spatial-empty-sub">Click anywhere to start typing, or capture from the home screen.</p>
         </div>
+      )}
+
+      {contextMenu.menu && contextMenu.menu.target.type === "card" && (
+        <CardContextMenu
+          position={contextMenu.menu.position}
+          target={contextMenu.menu.target}
+          onEdit={() => {
+            const target = contextMenu.menu?.target;
+            if (target?.type === "card") setEditingId(target.id);
+          }}
+          onDuplicate={() => {
+            handleDuplicateSelected();
+          }}
+          onDelete={() => {
+            handleDeleteSelected();
+          }}
+          onClose={contextMenu.close}
+        />
+      )}
+      {contextMenu.menu && contextMenu.menu.target.type === "canvas" && (
+        <CanvasContextMenu
+          position={contextMenu.menu.position}
+          target={contextMenu.menu.target}
+          onAddNote={() => {
+            const t = contextMenu.menu?.target;
+            if (t?.type === "canvas") {
+              onCreateAtPosition("note", "", t.canvasX, t.canvasY);
+            }
+          }}
+          onSelectAll={() => {
+            selection.selectAll(positioned.map((o) => o.id));
+          }}
+          onResetView={() => {
+            animateZoom(1);
+          }}
+          onClose={contextMenu.close}
+        />
       )}
     </div>
   );
