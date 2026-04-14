@@ -164,9 +164,22 @@ export default function Home() {
   const handleNotionImport = useCallback(async () => {
     const seed = generateSeedData();
     store.addToast(`Importing ${seed.length} items from Notion...`);
-    for (const obj of seed) {
-      await store.addObject(obj);
+
+    // Track client-ID → Convex-ID mapping for project references
+    const idMap = new Map<string, string>();
+
+    // First pass: add projects
+    for (const obj of seed.filter((o) => o.kind === "project")) {
+      const convexId = await store.addObject(obj);
+      idMap.set(obj.id, convexId);
     }
+
+    // Second pass: add notes/artifacts with remapped projectIds
+    for (const obj of seed.filter((o) => o.kind !== "project")) {
+      const remapped = obj.projectId ? { ...obj, projectId: idMap.get(obj.projectId) ?? obj.projectId } : obj;
+      await store.addObject(remapped);
+    }
+
     localStorage.setItem("hypher-notion-imported", "true");
     setNotionImported(true);
     store.addToast(`Imported ${seed.length} items from Notion`);
@@ -178,12 +191,11 @@ export default function Home() {
     [store]
   );
 
-  const handleCreateProjectAndCapture = useCallback((projectName: string, noteText: string) => {
+  const handleCreateProjectAndCapture = useCallback(async (projectName: string, noteText: string) => {
     const now = Date.now();
-    const projectId = crypto.randomUUID();
-    store.addObject({ id: projectId, kind: "project", name: projectName, description: "", status: "seed", createdAt: now, modifiedAt: now });
+    const convexProjectId = await store.addObject({ id: crypto.randomUUID(), kind: "project", name: projectName, description: "", status: "seed", createdAt: now, modifiedAt: now });
     const recentNote = store.inboxItems.find((o) => o.kind === "note" && (o as any).content === noteText);
-    if (recentNote) store.assignToProject(recentNote.id, projectId);
+    if (recentNote) store.assignToProject(recentNote.id, convexProjectId);
   }, [store]);
 
   // Canvas create handler
@@ -279,12 +291,13 @@ export default function Home() {
           <SpatialCanvas
             items={projectItems}
             connections={projectConnections}
-            selectedId={store.selectedId}
             onSelect={store.setSelectedId}
             onUpdatePosition={store.updatePosition}
             onCreateAtPosition={handleCreateAtPosition}
             onConfirmConnection={store.confirmConnection}
             onDismissConnection={store.dismissConnection}
+            onUpdateObject={store.updateObject}
+            onDeleteObjects={async (ids) => { for (const id of ids) await store.removeObject(id); }}
           />
         ) : (
           <ListView

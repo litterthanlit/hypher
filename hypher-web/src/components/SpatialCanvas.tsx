@@ -1,47 +1,28 @@
 "use client";
 
 import { useRef, useState, useCallback, useEffect } from "react";
-import { motion, animate } from "framer-motion";
-import type { AnyObject, Connection, ObjectKind } from "@/types";
-import { getDisplayName } from "@/types";
-import { KindIcon, FolderIcon, NoteIcon, ArtifactIcon } from "./Icons";
+import { motion } from "framer-motion";
+import type { AnyObject, Connection, ObjectKind, Note, Project, Artifact } from "@/types";
 import { ConnectionPopover } from "./ConnectionPopover";
+import { NoteIcon, ArtifactIcon } from "./Icons";
+import { useCanvasTransform } from "./canvas/hooks/useCanvasTransform";
+import { useSelectionState } from "./canvas/hooks/useSelectionState";
+import { useDragInteraction } from "./canvas/hooks/useDragInteraction";
+import { getCardColor, getCardRotation } from "./canvas/cards/cardUtils";
+import { StickyNote } from "./canvas/cards/StickyNote";
+import { ProjectCard } from "./canvas/cards/ProjectCard";
+import { ArtifactCard } from "./canvas/cards/ArtifactCard";
 
 interface Props {
   items: AnyObject[];
   connections: Connection[];
-  selectedId: string | null;
   onSelect: (id: string) => void;
   onUpdatePosition: (id: string, x: number, y: number) => void;
   onCreateAtPosition: (kind: ObjectKind, text: string, x: number, y: number) => void;
   onConfirmConnection: (id: string) => void;
   onDismissConnection: (id: string) => void;
-}
-
-const KIND_ACCENT: Record<ObjectKind, string> = {
-  project: "var(--accent)",
-  note: "var(--blue)",
-  artifact: "var(--amber)",
-};
-
-const CARD_COLORS = ["yellow", "green", "blue", "pink", "purple", "orange", "red", "grey"] as const;
-
-function defaultCardColor(content: string): string {
-  let hash = 0;
-  for (let i = 0; i < content.length; i++) hash = (hash * 31 + content.charCodeAt(i)) | 0;
-  return CARD_COLORS[Math.abs(hash) % CARD_COLORS.length];
-}
-
-function getCardColor(obj: AnyObject): string {
-  if (obj.canvasColor) return obj.canvasColor;
-  if (obj.kind === "note") return defaultCardColor(obj.content);
-  return "";
-}
-
-function getCardRotation(id: string): number {
-  const c0 = id.charCodeAt(0) || 0;
-  const c1 = id.charCodeAt(1) || 0;
-  return ((c0 + c1) % 400) / 100 - 2;
+  onUpdateObject: (obj: AnyObject) => void;
+  onDeleteObjects: (ids: string[]) => void;
 }
 
 interface InlineCreate {
@@ -54,59 +35,23 @@ interface InlineCreate {
 }
 
 export function SpatialCanvas({
-  items, connections, selectedId, onSelect,
+  items, connections, onSelect,
   onUpdatePosition, onCreateAtPosition, onConfirmConnection, onDismissConnection,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const [transform, setTransform] = useState({ x: 0, y: 0, k: 1 });
-  const [dragging, setDragging] = useState<{ id: string; startX: number; startY: number; objX: number; objY: number } | null>(null);
-  const [panning, setPanning] = useState<{ startX: number; startY: number; startTx: number; startTy: number } | null>(null);
-  const [hasMoved, setHasMoved] = useState(false);
   const [inlineCreate, setInlineCreate] = useState<InlineCreate | null>(null);
   const [popover, setPopover] = useState<{ connection: Connection; x: number; y: number } | null>(null);
   const [canvasMode, setCanvasMode] = useState<"select" | "text">("select");
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const [canvasBg, setCanvasBg] = useState<"dots" | "grid" | "lines" | "blank">(() => {
-    if (typeof window === "undefined") return "dots";
-    const projectId = items.find(i => i.kind === "project")?.id ?? "default";
-    return (localStorage.getItem(`hypher-canvas-bg-${projectId}`) as any) ?? "dots";
-  });
+  // Derive projectId from items
+  const projectId = items.find(i => i.kind === "project")?.id ?? "default";
 
-  const cycleBg = useCallback(() => {
-    const order: Array<"dots" | "grid" | "lines" | "blank"> = ["dots", "grid", "lines", "blank"];
-    const next = order[(order.indexOf(canvasBg) + 1) % order.length];
-    setCanvasBg(next);
-    const projectId = items.find(i => i.kind === "project")?.id ?? "default";
-    localStorage.setItem(`hypher-canvas-bg-${projectId}`, next);
-  }, [canvasBg, items]);
+  // Hooks
+  const { transform, setTransform, canvasBg, cycleBg, animateZoom, onWheel, screenToCanvas } =
+    useCanvasTransform(containerRef, projectId);
 
-  const animateZoom = useCallback((newK: number) => {
-    const rect = containerRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    const cx = rect.width / 2;
-    const cy = rect.height / 2;
-    const ratio = newK / transform.k;
-    const targetX = cx - (cx - transform.x) * ratio;
-    const targetY = cy - (cy - transform.y) * ratio;
-
-    const startK = transform.k;
-    const startX = transform.x;
-    const startY = transform.y;
-
-    animate(0, 1, {
-      type: "spring",
-      stiffness: 300,
-      damping: 30,
-      onUpdate: (t) => {
-        setTransform({
-          k: startK + (newK - startK) * t,
-          x: startX + (targetX - startX) * t,
-          y: startY + (targetY - startY) * t,
-        });
-      },
-    });
-  }, [transform]);
+  const selection = useSelectionState();
 
   // Position items without canvasPosition
   const positioned = items.map((obj, i) => {
@@ -115,6 +60,21 @@ export function SpatialCanvas({
     const dist = 140 + i * 35;
     return { ...obj, canvasPosition: { x: Math.cos(angle) * dist, y: Math.sin(angle) * dist } };
   });
+
+  const getPositionedItems = useCallback(() => positioned, [positioned]);
+
+  const drag = useDragInteraction({
+    transform,
+    setTransform,
+    selectedIds: selection.selectedIds,
+    onUpdatePosition,
+    getPositionedItems,
+  });
+
+  // Notify parent when primary selection changes
+  useEffect(() => {
+    onSelect(selection.primarySelectedId ?? "");
+  }, [selection.primarySelectedId, onSelect]);
 
   // Filter connections to only those between items in our list
   const itemIds = new Set(items.map((o) => o.id));
@@ -130,84 +90,53 @@ export function SpatialCanvas({
   const onCanvasMouseDown = useCallback((e: React.MouseEvent) => {
     if ((e.target as HTMLElement).closest(".spatial-card, .inline-create, .conn-popover, .spatial-controls")) return;
     setPopover(null);
-    setPanning({ startX: e.clientX, startY: e.clientY, startTx: transform.x, startTy: transform.y });
+    drag.startPan(e);
     panStartPos.current = { x: e.clientX, y: e.clientY };
-    setHasMoved(false);
-  }, [transform]);
+  }, [drag]);
 
   const onMouseMove = useCallback((e: React.MouseEvent) => {
-    if (dragging) {
-      const dx = (e.clientX - dragging.startX) / transform.k;
-      const dy = (e.clientY - dragging.startY) / transform.k;
-      const el = document.getElementById(`card-${dragging.id}`);
-      if (el) el.style.transform = `translate(${dragging.objX + dx}px, ${dragging.objY + dy}px)`;
-      setHasMoved(true);
-      return;
-    }
-    if (panning) {
-      setTransform({ ...transform, x: panning.startTx + (e.clientX - panning.startX), y: panning.startTy + (e.clientY - panning.startY) });
-      setHasMoved(true);
-    }
-  }, [dragging, panning, transform]);
+    drag.onMouseMove(e);
+  }, [drag]);
 
   const onMouseUp = useCallback(() => {
-    if (dragging && hasMoved) {
-      const el = document.getElementById(`card-${dragging.id}`);
-      if (el) {
-        const match = el.style.transform.match(/translate\((-?[\d.]+)px,\s*(-?[\d.]+)px\)/);
-        if (match) onUpdatePosition(dragging.id, parseFloat(match[1]!), parseFloat(match[2]!));
-      }
-    }
-    setDragging(null);
-    setPanning(null);
-  }, [dragging, hasMoved, onUpdatePosition]);
-
-  const dragStartPos = useRef<{ x: number; y: number } | null>(null);
+    drag.onMouseUp();
+  }, [drag]);
 
   const onCardMouseDown = useCallback((e: React.MouseEvent, obj: AnyObject) => {
-    e.stopPropagation();
-    const pos = obj.canvasPosition ?? { x: 0, y: 0 };
-    setDragging({ id: obj.id, startX: e.clientX, startY: e.clientY, objX: pos.x, objY: pos.y });
-    dragStartPos.current = { x: e.clientX, y: e.clientY };
-    setHasMoved(false);
-  }, []);
+    drag.startDrag(e, obj);
+  }, [drag]);
 
   const onCardClick = useCallback((e: React.MouseEvent, id: string) => {
-    // Only count as "moved" if mouse traveled > 4px (prevents micro-movements blocking clicks)
-    if (dragStartPos.current) {
-      const dx = e.clientX - dragStartPos.current.x;
-      const dy = e.clientY - dragStartPos.current.y;
-      if (Math.sqrt(dx * dx + dy * dy) < 5) {
-        onSelect(id);
-      }
-    } else if (!hasMoved) {
-      onSelect(id);
+    if (!drag.didMove(e)) {
+      selection.select(id);
     }
-  }, [hasMoved, onSelect]);
+  }, [drag, selection]);
 
   // Click on empty space — behavior depends on mode
   const onCanvasClick = useCallback((e: React.MouseEvent) => {
     if ((e.target as HTMLElement).closest(".spatial-card, .inline-create, .spatial-controls, .conn-popover, .canvas-toolbar")) return;
     if (inlineCreate) return;
     // Only if we didn't pan (< 5px movement)
-    if (panStartPos.current) {
-      const dx = e.clientX - panStartPos.current.x;
-      const dy = e.clientY - panStartPos.current.y;
-      if (Math.sqrt(dx * dx + dy * dy) > 5) return;
-    }
+    if (drag.didPanMove(e)) return;
 
     if (canvasMode === "text") {
+      const pos = screenToCanvas(e.clientX, e.clientY);
       const rect = containerRef.current?.getBoundingClientRect();
       if (!rect) return;
-      const canvasX = (e.clientX - rect.left - transform.x) / transform.k;
-      const canvasY = (e.clientY - rect.top - transform.y) / transform.k;
-      setInlineCreate({ canvasX, canvasY, screenX: e.clientX - rect.left, screenY: e.clientY - rect.top, text: "", step: "typing" });
+      setInlineCreate({
+        canvasX: pos.x,
+        canvasY: pos.y,
+        screenX: e.clientX - rect.left,
+        screenY: e.clientY - rect.top,
+        text: "",
+        step: "typing",
+      });
     }
     // In select mode, clicking empty space deselects
     if (canvasMode === "select") {
-      onSelect("");
+      selection.clearSelection();
     }
-  }, [transform, inlineCreate, canvasMode, onSelect]);
+  }, [drag, inlineCreate, canvasMode, screenToCanvas, selection]);
 
   useEffect(() => {
     if (inlineCreate?.step === "typing") setTimeout(() => inputRef.current?.focus(), 50);
@@ -243,37 +172,6 @@ export function SpatialCanvas({
     if (!rect) return;
     setPopover({ connection: conn, x: e.clientX - rect.left, y: e.clientY - rect.top });
   }, []);
-
-  // Zoom
-  const onWheel = useCallback((e: React.WheelEvent) => {
-    e.preventDefault();
-    const rect = containerRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    const mouseX = e.clientX - rect.left;
-    const mouseY = e.clientY - rect.top;
-    const delta = e.deltaY > 0 ? 0.92 : 1.08;
-    const newK = Math.min(3, Math.max(0.15, transform.k * delta));
-    const ratio = newK / transform.k;
-    setTransform({ k: newK, x: mouseX - (mouseX - transform.x) * ratio, y: mouseY - (mouseY - transform.y) * ratio });
-  }, [transform]);
-
-  useEffect(() => {
-    const rect = containerRef.current?.getBoundingClientRect();
-    if (rect) setTransform({ x: rect.width / 2, y: rect.height / 2, k: 1 });
-  }, []);
-
-  // Preview text
-  const getPreview = (obj: AnyObject) => {
-    if (obj.kind === "note") return obj.content.slice(0, 120);
-    if (obj.kind === "artifact") return obj.fileReference || obj.type;
-    return "";
-  };
-
-  const getStatus = (obj: AnyObject) => {
-    if (obj.kind === "note") return obj.maturity;
-    if (obj.kind === "artifact") return obj.type;
-    return "";
-  };
 
   return (
     <div
@@ -339,8 +237,8 @@ export function SpatialCanvas({
         {/* Item cards */}
         {positioned.map((obj) => {
           const pos = obj.canvasPosition!;
-          const isSelected = obj.id === selectedId;
-          const isDragging = dragging?.id === obj.id;
+          const isSelected = selection.isSelected(obj.id);
+          const isDragging = drag.dragging?.id === obj.id;
           const color = getCardColor(obj);
           const rotation = obj.kind === "note" ? getCardRotation(obj.id) : 0;
 
@@ -369,50 +267,9 @@ export function SpatialCanvas({
               onMouseDown={(e) => onCardMouseDown(e, obj)}
               onClick={(e) => onCardClick(e, obj.id)}
             >
-              {obj.kind === "note" && (
-                <div className="spatial-card-body">
-                  <span className="spatial-card-title">{getDisplayName(obj)}</span>
-                  {getPreview(obj) && <p className="spatial-card-preview">{getPreview(obj)}</p>}
-                  <div className="spatial-card-footer">
-                    <span className="spatial-card-status">{getStatus(obj)}</span>
-                    {obj.embedding && <span className="spatial-card-embedded" />}
-                  </div>
-                </div>
-              )}
-
-              {obj.kind === "project" && (
-                <>
-                  <div className="spatial-card-accent-bar" />
-                  <div className="spatial-card-body">
-                    <div className="spatial-card-header">
-                      <KindIcon kind={obj.kind} className="kind-icon" />
-                      <span className="spatial-card-title">{getDisplayName(obj)}</span>
-                    </div>
-                    {getPreview(obj) && <p className="spatial-card-preview">{getPreview(obj)}</p>}
-                    <div className="spatial-card-footer">
-                      <span className="spatial-card-status" style={{ color: KIND_ACCENT[obj.kind] }}>{getStatus(obj)}</span>
-                    </div>
-                  </div>
-                </>
-              )}
-
-              {obj.kind === "artifact" && (
-                <>
-                  {obj.thumbnailDataUrl ? (
-                    <>
-                      <img className="spatial-card-thumb" src={obj.thumbnailDataUrl} alt={getDisplayName(obj)} />
-                      <div className="spatial-card-thumb-label">{getDisplayName(obj)}</div>
-                    </>
-                  ) : (
-                    <>
-                      <div className="spatial-card-no-thumb">
-                        <ArtifactIcon className="kind-icon" />
-                      </div>
-                      <div className="spatial-card-thumb-label">{getDisplayName(obj)}</div>
-                    </>
-                  )}
-                </>
-              )}
+              {obj.kind === "note" && <StickyNote obj={obj as Note} />}
+              {obj.kind === "project" && <ProjectCard obj={obj as Project} />}
+              {obj.kind === "artifact" && <ArtifactCard obj={obj as Artifact} />}
             </motion.div>
           );
         })}
