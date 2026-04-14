@@ -2218,3 +2218,28 @@ body {
   opacity: 0.5;
   pointer-events: none;
 }
+
+/* ── Minimap ───────────────────────────────────────────────────── */
+
+.minimap {
+  position: absolute;
+  bottom: 16px;
+  right: 16px;
+  width: 160px;
+  height: 120px;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  z-index: 100;
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.minimap-viewport {
+  cursor: grab;
+}
+
+.minimap-viewport:active {
+  cursor: grabbing;
+}
