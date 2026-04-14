@@ -18,6 +18,8 @@ import { ResizeHandles } from "./canvas/features/ResizeHandles";
 import { useSnapGuides, type SnapGuide } from "./canvas/features/useSnapGuides";
 import { SnapGuides } from "./canvas/features/SnapGuides";
 import { useUndoRedo } from "./canvas/hooks/useUndoRedo";
+import { useContextMenu } from "./canvas/features/useContextMenu";
+import { CardContextMenu, CanvasContextMenu } from "./canvas/features/ContextMenu";
 import { getCardColor, getCardRotation } from "./canvas/cards/cardUtils";
 import { StickyNote } from "./canvas/cards/StickyNote";
 import { ProjectCard } from "./canvas/cards/ProjectCard";
@@ -72,6 +74,8 @@ export function SpatialCanvas({
     restoreObjects: onRestoreObjects,
     restoreConnections: onRestoreConnections,
   });
+
+  const contextMenu = useContextMenu();
 
   const editStartSnapshot = useRef<AnyObject | null>(null);
   const dragStartPositions = useRef<Map<string, { x: number; y: number }>>(new Map());
@@ -251,6 +255,7 @@ export function SpatialCanvas({
 
   // ── Event handlers ──
   const onCanvasMouseDown = useCallback((e: React.MouseEvent) => {
+    contextMenu.close();
     if ((e.target as HTMLElement).closest(".spatial-card, .inline-create, .conn-popover, .spatial-controls, .canvas-toolbar")) return;
     setPopover(null);
 
@@ -261,7 +266,7 @@ export function SpatialCanvas({
     } else {
       drag.startPan(e);
     }
-  }, [drag, rubberBand, spaceHeld, canvasMode]);
+  }, [drag, rubberBand, spaceHeld, canvasMode, contextMenu]);
 
   const onMouseMove = useCallback((e: React.MouseEvent) => {
     if (resize.resizing) {
@@ -449,6 +454,13 @@ export function SpatialCanvas({
       onMouseLeave={onMouseUp}
       onWheel={onWheel}
       onClick={onCanvasClick}
+      onContextMenu={(e) => {
+        if ((e.target as HTMLElement).closest(".spatial-card, .canvas-toolbar, .conn-popover, .context-menu")) return;
+        const rect = containerRef.current?.getBoundingClientRect();
+        if (!rect) return;
+        const pos = screenToCanvas(e.clientX, e.clientY);
+        contextMenu.openCanvasMenu(e, pos.x, pos.y, rect);
+      }}
     >
       <div className="spatial-grid" data-bg={canvasBg} style={{
         backgroundPosition: `${transform.x}px ${transform.y}px`,
@@ -537,6 +549,15 @@ export function SpatialCanvas({
               onMouseDown={(e) => onCardMouseDown(e, obj)}
               onClick={(e) => onCardClick(e, obj.id)}
               onDoubleClick={(e) => onCardDoubleClick(e, obj)}
+              onContextMenu={(e) => {
+                const rect = containerRef.current?.getBoundingClientRect();
+                if (rect) {
+                  if (!selection.isSelected(obj.id)) {
+                    selection.select(obj.id);
+                  }
+                  contextMenu.openCardMenu(e, obj.id, rect);
+                }
+              }}
             >
               {obj.kind === "note" && <StickyNote obj={obj as Note} />}
               {obj.kind === "project" && <ProjectCard obj={obj as Project} />}
@@ -684,6 +705,43 @@ export function SpatialCanvas({
           <p className="spatial-empty-title">This project is empty</p>
           <p className="spatial-empty-sub">Click anywhere to start typing, or capture from the home screen.</p>
         </div>
+      )}
+
+      {contextMenu.menu && contextMenu.menu.target.type === "card" && (
+        <CardContextMenu
+          position={contextMenu.menu.position}
+          target={contextMenu.menu.target}
+          onEdit={() => {
+            const target = contextMenu.menu?.target;
+            if (target?.type === "card") setEditingId(target.id);
+          }}
+          onDuplicate={() => {
+            handleDuplicateSelected();
+          }}
+          onDelete={() => {
+            handleDeleteSelected();
+          }}
+          onClose={contextMenu.close}
+        />
+      )}
+      {contextMenu.menu && contextMenu.menu.target.type === "canvas" && (
+        <CanvasContextMenu
+          position={contextMenu.menu.position}
+          target={contextMenu.menu.target}
+          onAddNote={() => {
+            const t = contextMenu.menu?.target;
+            if (t?.type === "canvas") {
+              onCreateAtPosition("note", "", t.canvasX, t.canvasY);
+            }
+          }}
+          onSelectAll={() => {
+            selection.selectAll(positioned.map((o) => o.id));
+          }}
+          onResetView={() => {
+            animateZoom(1);
+          }}
+          onClose={contextMenu.close}
+        />
       )}
     </div>
   );
