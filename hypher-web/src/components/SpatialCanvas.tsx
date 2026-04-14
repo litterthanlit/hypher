@@ -23,6 +23,7 @@ import { useContextMenu } from "./canvas/features/useContextMenu";
 import { CardContextMenu, CanvasContextMenu } from "./canvas/features/ContextMenu";
 import { ConnectionLines } from "./canvas/features/ConnectionLines";
 import { useAnchorDrag } from "./canvas/features/useAnchorDrag";
+import { useTouchInteraction } from "./canvas/hooks/useTouchInteraction";
 import { AnchorPoints } from "./canvas/features/AnchorPoints";
 import { getCardColor, getCardRotation } from "./canvas/cards/cardUtils";
 import { StickyNote } from "./canvas/cards/StickyNote";
@@ -263,6 +264,20 @@ export function SpatialCanvas({
   const anchorDrag = useAnchorDrag({
     onConnect: onCreateManualConnection,
     zoomLevel: transform.k,
+  });
+
+  const touch = useTouchInteraction({
+    transform,
+    setTransform,
+    onLongPress: (clientX, clientY) => {
+      const rect = containerRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      const pos = screenToCanvas(clientX, clientY);
+      contextMenu.openCanvasMenu(
+        { preventDefault: () => {}, clientX, clientY } as any,
+        pos.x, pos.y, rect
+      );
+    },
   });
 
   const allRects = useMemo(() => {
@@ -537,6 +552,9 @@ export function SpatialCanvas({
       onMouseLeave={onMouseUp}
       onWheel={onWheel}
       onClick={onCanvasClick}
+      onTouchStart={touch.onTouchStart}
+      onTouchMove={touch.onTouchMove}
+      onTouchEnd={touch.onTouchEnd}
       onContextMenu={(e) => {
         if ((e.target as HTMLElement).closest(".spatial-card, .canvas-toolbar, .conn-popover, .context-menu")) return;
         const rect = containerRef.current?.getBoundingClientRect();
