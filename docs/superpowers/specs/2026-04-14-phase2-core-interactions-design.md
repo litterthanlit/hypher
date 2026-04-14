@@ -142,7 +142,7 @@ const RESIZE_CONFIG: Record<ObjectKind, ResizeConfig> = {
 
 Width is resizable, height adjusts to content. Implementation: render a hidden measuring div with the same font/padding/width, read its `scrollHeight`, apply as card height.
 
-Soft cap: 600px max auto-height. Beyond that, card gets internal scroll with a fade-out gradient at bottom.
+Soft cap: 600px max auto-height. Beyond that, card gets internal scroll with a fade-out gradient at bottom. Scrollbar: hidden by default, appears on hover. Thin (6px), rounded, `rgba(0,0,0,0.2)`.
 
 ### Data model
 
@@ -183,8 +183,8 @@ Writes use the same debounced pattern as position updates (200ms timer, local ov
 | Cmd+A | Select all items on canvas |
 | Escape | Clear selection |
 | Click empty canvas | Clear selection |
-| Delete/Backspace | Remove selected items. Confirm dialog if >3 items. |
-| Cmd+D | Duplicate selected items (+20px, +20px offset). New Convex IDs via `addObject()`. |
+| Delete/Backspace | Remove selected items. Confirm if >3: native `window.confirm("Delete N items? This can't be undone.")` |
+| Cmd+D | Duplicate selected items (+20px, +20px offset). New Convex IDs via `addObject()`. Connections between duplicated items are preserved (new connection IDs). |
 | Drag selected card | Move entire selection group |
 | Arrow keys | Nudge selection 1px |
 | Shift+Arrow | Nudge selection 10px |
