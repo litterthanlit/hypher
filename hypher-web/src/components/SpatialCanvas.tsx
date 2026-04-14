@@ -10,6 +10,8 @@ import { useSelectionState } from "./canvas/hooks/useSelectionState";
 import { useDragInteraction } from "./canvas/hooks/useDragInteraction";
 import { useKeyboardShortcuts } from "./canvas/hooks/useKeyboardShortcuts";
 import type { CanvasMode } from "./canvas/hooks/useKeyboardShortcuts";
+import { useRubberBand } from "./canvas/features/useRubberBand";
+import { RubberBandSelect } from "./canvas/features/RubberBandSelect";
 import { getCardColor, getCardRotation } from "./canvas/cards/cardUtils";
 import { StickyNote } from "./canvas/cards/StickyNote";
 import { ProjectCard } from "./canvas/cards/ProjectCard";
@@ -64,6 +66,18 @@ export function SpatialCanvas({
 
   const getPositionedItems = useCallback(() => positioned, [positioned]);
 
+  const getCardRects = useCallback(() => {
+    const rects = new Map<string, { x: number; y: number; w: number; h: number }>();
+    for (const obj of positioned) {
+      const el = document.getElementById(`card-${obj.id}`);
+      if (el) {
+        const r = el.getBoundingClientRect();
+        rects.set(obj.id, { x: r.left, y: r.top, w: r.width, h: r.height });
+      }
+    }
+    return rects;
+  }, [positioned]);
+
   const drag = useDragInteraction({
     transform,
     setTransform,
@@ -100,6 +114,11 @@ export function SpatialCanvas({
     setEditingId(null);
   }, []);
 
+  const rubberBand = useRubberBand({
+    onSelectIds: (ids) => selection.selectAll(ids),
+    getCardRects,
+  });
+
   const { canvasMode, setCanvasMode, spaceHeld } = useKeyboardShortcuts({
     selectedIds: selection.selectedIds,
     clearSelection: selection.clearSelection,
@@ -128,20 +147,33 @@ export function SpatialCanvas({
 
   // ── Event handlers ──
   const onCanvasMouseDown = useCallback((e: React.MouseEvent) => {
-    if ((e.target as HTMLElement).closest(".spatial-card, .inline-create, .conn-popover, .spatial-controls")) return;
+    if ((e.target as HTMLElement).closest(".spatial-card, .inline-create, .conn-popover, .spatial-controls, .canvas-toolbar")) return;
     setPopover(null);
-    // In pan mode or Space held, always pan
-    // In select mode without Space, also pan for now (rubber band replaces this in Task 9)
-    drag.startPan(e);
-  }, [drag]);
+
+    if (spaceHeld || canvasMode === "pan") {
+      drag.startPan(e);
+    } else if (canvasMode === "select") {
+      rubberBand.startBand(e);
+    } else {
+      drag.startPan(e);
+    }
+  }, [drag, rubberBand, spaceHeld, canvasMode]);
 
   const onMouseMove = useCallback((e: React.MouseEvent) => {
+    if (rubberBand.isActive) {
+      rubberBand.moveBand(e);
+      return;
+    }
     drag.onMouseMove(e);
-  }, [drag]);
+  }, [drag, rubberBand]);
 
   const onMouseUp = useCallback(() => {
+    if (rubberBand.isActive) {
+      rubberBand.endBand();
+      return;
+    }
     drag.onMouseUp();
-  }, [drag]);
+  }, [drag, rubberBand]);
 
   const onCardMouseDown = useCallback((e: React.MouseEvent, obj: AnyObject) => {
     drag.startDrag(e, obj);
@@ -149,7 +181,11 @@ export function SpatialCanvas({
 
   const onCardClick = useCallback((e: React.MouseEvent, id: string) => {
     if (!drag.didMove(e)) {
-      selection.select(id);
+      if (e.shiftKey) {
+        selection.toggleSelect(id);
+      } else {
+        selection.select(id);
+      }
     }
   }, [drag, selection]);
 
@@ -322,6 +358,10 @@ export function SpatialCanvas({
           onDismiss={onDismissConnection}
           onClose={() => setPopover(null)}
         />
+      )}
+
+      {rubberBand.isActive && (
+        <RubberBandSelect rect={rubberBand.getBandRect(containerRef.current?.getBoundingClientRect() ?? new DOMRect())} />
       )}
 
       {/* Inline create */}
