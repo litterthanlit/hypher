@@ -8,6 +8,8 @@ import { NoteIcon, ArtifactIcon } from "./Icons";
 import { useCanvasTransform } from "./canvas/hooks/useCanvasTransform";
 import { useSelectionState } from "./canvas/hooks/useSelectionState";
 import { useDragInteraction } from "./canvas/hooks/useDragInteraction";
+import { useKeyboardShortcuts } from "./canvas/hooks/useKeyboardShortcuts";
+import type { CanvasMode } from "./canvas/hooks/useKeyboardShortcuts";
 import { getCardColor, getCardRotation } from "./canvas/cards/cardUtils";
 import { StickyNote } from "./canvas/cards/StickyNote";
 import { ProjectCard } from "./canvas/cards/ProjectCard";
@@ -41,7 +43,6 @@ export function SpatialCanvas({
   const containerRef = useRef<HTMLDivElement>(null);
   const [inlineCreate, setInlineCreate] = useState<InlineCreate | null>(null);
   const [popover, setPopover] = useState<{ connection: Connection; x: number; y: number } | null>(null);
-  const [canvasMode, setCanvasMode] = useState<"select" | "text">("select");
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Derive projectId from items
@@ -71,6 +72,47 @@ export function SpatialCanvas({
     getPositionedItems,
   });
 
+  // Stub handlers (will be implemented in later tasks)
+  const [editingId, setEditingId] = useState<string | null>(null);
+
+  const handleDeleteSelected = useCallback(() => {
+    // Task 13 will implement this fully
+  }, []);
+
+  const handleDuplicateSelected = useCallback(() => {
+    // Task 13 will implement this fully
+  }, []);
+
+  const handleNudge = useCallback((dx: number, dy: number) => {
+    for (const id of selection.selectedIds) {
+      const obj = positioned.find((o) => o.id === id);
+      if (!obj?.canvasPosition) continue;
+      onUpdatePosition(id, obj.canvasPosition.x + dx, obj.canvasPosition.y + dy);
+    }
+  }, [selection.selectedIds, positioned, onUpdatePosition]);
+
+  const handleEnterEdit = useCallback(() => {
+    const first = Array.from(selection.selectedIds)[0];
+    if (first) setEditingId(first);
+  }, [selection.selectedIds]);
+
+  const handleExitEdit = useCallback(() => {
+    setEditingId(null);
+  }, []);
+
+  const { canvasMode, setCanvasMode, spaceHeld } = useKeyboardShortcuts({
+    selectedIds: selection.selectedIds,
+    clearSelection: selection.clearSelection,
+    selectAll: (ids) => selection.selectAll(ids),
+    allItemIds: positioned.map((o) => o.id),
+    onDeleteSelected: handleDeleteSelected,
+    onDuplicateSelected: handleDuplicateSelected,
+    onNudge: handleNudge,
+    onEnterEdit: handleEnterEdit,
+    editingId,
+    onExitEdit: handleExitEdit,
+  });
+
   // Notify parent when primary selection changes
   useEffect(() => {
     onSelect(selection.primarySelectedId ?? "");
@@ -85,13 +127,12 @@ export function SpatialCanvas({
   const objectMap = new Map(positioned.map((o) => [o.id, o]));
 
   // ── Event handlers ──
-  const panStartPos = useRef<{ x: number; y: number } | null>(null);
-
   const onCanvasMouseDown = useCallback((e: React.MouseEvent) => {
     if ((e.target as HTMLElement).closest(".spatial-card, .inline-create, .conn-popover, .spatial-controls")) return;
     setPopover(null);
+    // In pan mode or Space held, always pan
+    // In select mode without Space, also pan for now (rubber band replaces this in Task 9)
     drag.startPan(e);
-    panStartPos.current = { x: e.clientX, y: e.clientY };
   }, [drag]);
 
   const onMouseMove = useCallback((e: React.MouseEvent) => {
@@ -153,17 +194,6 @@ export function SpatialCanvas({
     setInlineCreate(null);
   };
 
-  // Keyboard shortcuts for mode switching
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      const tag = (e.target as HTMLElement).tagName;
-      if (tag === "INPUT" || tag === "TEXTAREA") return;
-      if (e.key === "v" || e.key === "V") setCanvasMode("select");
-      if (e.key === "t" || e.key === "T") setCanvasMode("text");
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, []);
 
   // Connection line click
   const handleConnectionClick = useCallback((e: React.MouseEvent, conn: Connection) => {
@@ -173,9 +203,17 @@ export function SpatialCanvas({
     setPopover({ connection: conn, x: e.clientX - rect.left, y: e.clientY - rect.top });
   }, []);
 
+  const canvasClassName = [
+    "spatial-canvas",
+    canvasMode === "text" ? "text-mode" : "",
+    canvasMode === "pan" ? "pan-mode" : "",
+    canvasMode === "select" && !spaceHeld ? "select-mode" : "",
+    spaceHeld ? "space-pan" : "",
+  ].filter(Boolean).join(" ");
+
   return (
     <div
-      className={`spatial-canvas ${canvasMode === "text" ? "text-mode" : ""}`}
+      className={canvasClassName}
       ref={containerRef}
       onMouseDown={onCanvasMouseDown}
       onMouseMove={onMouseMove}
@@ -328,6 +366,15 @@ export function SpatialCanvas({
             </svg>
           </button>
           <button
+            className={`canvas-mode-btn ${canvasMode === "pan" ? "active" : ""}`}
+            onClick={() => setCanvasMode("pan")}
+            title="Pan (H)"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" width={16} height={16}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M10.05 4.575a1.575 1.575 0 1 0-3.15 0v3.15M10.05 4.575a1.575 1.575 0 0 1 3.15 0v3.15M10.05 4.575v5.1M13.2 7.725a1.575 1.575 0 0 1 3.15 0v3m-3.15-3v5.1m0-5.1a1.575 1.575 0 0 1 3.15 0m-3.15 0v5.1m3.15-5.1v1.875c0 .621.504 1.125 1.125 1.125M13.2 12.825v-1.875m0 1.875c0 .621-.504 1.125-1.125 1.125m1.125-1.125a1.125 1.125 0 0 1 1.125 1.125m-1.125-1.125v1.875m-6.3-7.5v5.1m0-5.1a1.575 1.575 0 0 0-3.15 0m3.15 0v5.1m-3.15-5.1v1.875c0 .621-.504 1.125-1.125 1.125m0 0A1.125 1.125 0 0 1 3.75 12v-1.875" />
+            </svg>
+          </button>
+          <button
             className={`canvas-mode-btn ${canvasMode === "text" ? "active" : ""}`}
             onClick={() => setCanvasMode("text")}
             title="Text (T)"
@@ -337,6 +384,10 @@ export function SpatialCanvas({
             </svg>
           </button>
         </div>
+
+        {selection.selectionCount >= 2 && (
+          <span className="selection-count">{selection.selectionCount} selected</span>
+        )}
 
         <button
           className="canvas-mode-btn"
