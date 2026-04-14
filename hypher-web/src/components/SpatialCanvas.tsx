@@ -398,9 +398,9 @@ export function SpatialCanvas({
 
               {obj.kind === "artifact" && (
                 <>
-                  {(obj as any).thumbnailDataUrl ? (
+                  {obj.thumbnailDataUrl ? (
                     <>
-                      <img className="spatial-card-thumb" src={(obj as any).thumbnailDataUrl} alt={getDisplayName(obj)} />
+                      <img className="spatial-card-thumb" src={obj.thumbnailDataUrl} alt={getDisplayName(obj)} />
                       <div className="spatial-card-thumb-label">{getDisplayName(obj)}</div>
                     </>
                   ) : (

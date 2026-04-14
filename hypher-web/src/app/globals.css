@@ -128,25 +128,6 @@
     --scrollbar-thumb: rgba(255, 255, 255, 0.06);
     --scrollbar-thumb-hover: rgba(255, 255, 255, 0.12);
 
-    /* Card colors — same in light and dark mode */
-    --card-yellow: #FFF9C4;
-    --card-green: #C8E6C9;
-    --card-blue: #BBDEFB;
-    --card-pink: #F8BBD0;
-    --card-purple: #E1BEE7;
-    --card-orange: #FFE0B2;
-    --card-red: #FFCDD2;
-    --card-grey: #F5F5F5;
-
-    --card-yellow-text: #3a3520;
-    --card-green-text: #2d4a30;
-    --card-blue-text: #1a2f4a;
-    --card-pink-text: #4a1a2d;
-    --card-purple-text: #3a1a4a;
-    --card-orange-text: #4a3520;
-    --card-red-text: #4a1a1a;
-    --card-grey-text: #3a3a3a;
-
     color-scheme: dark;
   }
 }
