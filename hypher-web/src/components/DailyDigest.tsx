@@ -46,6 +46,10 @@ export function DailyDigest({ projects, allObjects, onDismiss, onSelectProject }
         blockers: p.blockers,
         lastActivity: p.lastActivity,
         itemCount: itemCounts[p.id] ?? 0,
+        githubRepo: p.githubRepo,
+        githubSummary: p.githubRepo
+          ? `Connected to ${p.githubRepo}${p.githubLastSync ? `, last synced ${new Date(p.githubLastSync).toLocaleDateString()}` : ""}`
+          : undefined,
       }));
 
       const result = await generateDigest({ projects: projectData });

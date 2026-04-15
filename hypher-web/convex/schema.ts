@@ -15,6 +15,10 @@ export default defineSchema({
     blockers: v.optional(v.string()),
     lastActivity: v.optional(v.number()),
 
+    // GitHub fields (Phase 6)
+    githubRepo: v.optional(v.string()),       // "owner/repo"
+    githubLastSync: v.optional(v.number()),   // timestamp
+
     // Note fields
     content: v.optional(v.string()),
     maturity: v.optional(v.string()),
@@ -55,6 +59,13 @@ export default defineSchema({
     .index("by_source", ["sourceId"])
     .index("by_target", ["targetId"])
     .index("by_type", ["type"]),
+
+  githubTokens: defineTable({
+    userId: v.string(),
+    accessToken: v.string(),
+    refreshToken: v.optional(v.string()),
+    expiresAt: v.optional(v.number()),
+  }).index("by_user", ["userId"]),
 
   activity: defineTable({
     action: v.string(),

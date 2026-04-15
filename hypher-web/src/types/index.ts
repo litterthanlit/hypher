@@ -34,6 +34,8 @@ export interface Project extends HypherObject {
   priority?: ProjectPriority;
   blockers?: string;
   lastActivity?: number;
+  githubRepo?: string;       // "owner/repo"
+  githubLastSync?: number;
 }
 
 export interface Note extends HypherObject {

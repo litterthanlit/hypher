@@ -36,6 +36,8 @@ export const put = mutation({
     priority: v.optional(v.number()),
     blockers: v.optional(v.string()),
     lastActivity: v.optional(v.number()),
+    githubRepo: v.optional(v.string()),
+    githubLastSync: v.optional(v.number()),
     content: v.optional(v.string()),
     maturity: v.optional(v.string()),
     type: v.optional(v.string()),
