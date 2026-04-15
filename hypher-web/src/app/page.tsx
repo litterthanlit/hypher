@@ -10,6 +10,7 @@ import { ProjectDashboard } from "@/components/ProjectDashboard";
 import { DailyDigest } from "@/components/DailyDigest";
 import { SearchDialog } from "@/components/SearchDialog";
 import { ToastContainer } from "@/components/Toast";
+import { ApiKeysPanel } from "@/components/ApiKeysPanel";
 import { generateSeedData } from "@/lib/notion-seed";
 import type { ArtifactType, ObjectKind } from "@/types";
 
@@ -34,6 +35,7 @@ export default function Home() {
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [showSearch, setShowSearch] = useState(false);
   const [showDigest, setShowDigest] = useState(false);
+  const [showApiKeys, setShowApiKeys] = useState(false);
   const [dragOver, setDragOver] = useState(false);
 
   // Auto-show digest on first open of the day
@@ -285,6 +287,7 @@ export default function Home() {
         onGoHome={() => setAppMode("capture")}
         onDashboard={() => { setContentMode("dashboard"); setSelectedProjectId(null); }}
         onDigest={() => setShowDigest(true)}
+        onApiKeys={() => setShowApiKeys(true)}
       />
 
       <div className="main-panel">
@@ -383,6 +386,10 @@ export default function Home() {
             if (appMode !== "workspace") setAppMode("workspace");
           }}
         />
+      )}
+
+      {showApiKeys && (
+        <ApiKeysPanel onClose={() => setShowApiKeys(false)} />
       )}
 
       {dragOver && (

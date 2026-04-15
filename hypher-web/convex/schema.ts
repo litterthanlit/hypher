@@ -67,6 +67,14 @@ export default defineSchema({
     expiresAt: v.optional(v.number()),
   }).index("by_user", ["userId"]),
 
+  apiKeys: defineTable({
+    userId: v.string(),
+    key: v.string(),
+    name: v.string(),
+    createdAt: v.number(),
+    lastUsed: v.optional(v.number()),
+  }).index("by_key", ["key"]),
+
   activity: defineTable({
     action: v.string(),
     objectId: v.string(),

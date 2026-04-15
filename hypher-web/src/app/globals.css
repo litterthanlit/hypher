@@ -829,6 +829,149 @@ body {
   overflow-y: auto;
 }
 
+/* ─── API Keys Panel ─── */
+
+.api-keys-panel {
+  max-width: 420px;
+}
+
+.api-keys-desc {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  margin-bottom: 16px;
+}
+
+.api-keys-desc code {
+  font-family: var(--font-mono);
+  background: var(--bg-tertiary);
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: 11px;
+}
+
+.api-key-create {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.api-key-create input {
+  flex: 1;
+}
+
+.api-key-revealed {
+  background: var(--accent-subtle);
+  border: 1px solid var(--accent-muted);
+  border-radius: var(--radius-sm);
+  padding: 12px;
+  margin-bottom: 16px;
+}
+
+.api-key-revealed-warning {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--accent);
+  margin-bottom: 8px;
+}
+
+.api-key-revealed-value {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.api-key-revealed-value code {
+  flex: 1;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-primary);
+  background: var(--bg-primary);
+  padding: 8px;
+  border-radius: 4px;
+  word-break: break-all;
+}
+
+.api-key-copy-btn {
+  padding: 6px 12px;
+  font-size: 11px;
+  font-family: var(--font-sans);
+  font-weight: 500;
+  color: var(--bg-primary);
+  background: var(--accent);
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.api-key-dismiss-btn {
+  padding: 6px 12px;
+  font-size: 11px;
+  font-family: var(--font-sans);
+  color: var(--text-tertiary);
+  background: none;
+  border: 1px solid var(--border-default);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.api-keys-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.api-keys-empty {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  text-align: center;
+  padding: 16px 0;
+}
+
+.api-key-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: var(--bg-secondary);
+  border-radius: var(--radius-sm);
+}
+
+.api-key-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.api-key-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.api-key-meta {
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+
+.api-key-revoke {
+  padding: 4px 10px;
+  font-size: 11px;
+  font-family: var(--font-sans);
+  color: var(--text-tertiary);
+  background: none;
+  border: 1px solid var(--border-default);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all var(--transition);
+}
+
+.api-key-revoke:hover {
+  color: var(--red);
+  border-color: var(--red);
+}
+
 /* ─── Project Dashboard ─── */
 
 .dashboard {
