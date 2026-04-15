@@ -7,6 +7,7 @@ import { Sidebar } from "@/components/Sidebar";
 import { SpatialCanvas } from "@/components/SpatialCanvas";
 import { ListView } from "@/components/ListView";
 import { ProjectDashboard } from "@/components/ProjectDashboard";
+import { DailyDigest } from "@/components/DailyDigest";
 import { SearchDialog } from "@/components/SearchDialog";
 import { ToastContainer } from "@/components/Toast";
 import { generateSeedData } from "@/lib/notion-seed";
@@ -32,7 +33,18 @@ export default function Home() {
   const [contentMode, setContentMode] = useState<ContentMode>("canvas");
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [showSearch, setShowSearch] = useState(false);
+  const [showDigest, setShowDigest] = useState(false);
   const [dragOver, setDragOver] = useState(false);
+
+  // Auto-show digest on first open of the day
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const today = new Date().toISOString().slice(0, 10);
+    const lastDigest = localStorage.getItem("hypher-last-digest-date");
+    if (lastDigest !== today && store.projects.length > 0) {
+      setShowDigest(true);
+    }
+  }, [store.projects.length]);
 
   // Load content mode from localStorage when project changes
   useEffect(() => {
@@ -64,6 +76,10 @@ export default function Home() {
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === "V") {
         e.preventDefault();
         store.captureFromClipboard();
+      }
+      if ((e.metaKey || e.ctrlKey) && (e.key === "d" || e.key === "D") && !e.shiftKey) {
+        e.preventDefault();
+        setShowDigest(true);
       }
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === "p" || e.key === "P")) {
         e.preventDefault();
@@ -262,6 +278,7 @@ export default function Home() {
         onAdd={store.addObject}
         onGoHome={() => setAppMode("capture")}
         onDashboard={() => { setContentMode("dashboard"); setSelectedProjectId(null); }}
+        onDigest={() => setShowDigest(true)}
       />
 
       <div className="main-panel">
@@ -342,6 +359,23 @@ export default function Home() {
           search={store.search}
           onSelect={(id) => { store.setSelectedId(id); setShowSearch(false); }}
           onClose={() => setShowSearch(false)}
+        />
+      )}
+
+      {showDigest && (
+        <DailyDigest
+          projects={store.projects}
+          allObjects={store.objects}
+          onDismiss={() => {
+            setShowDigest(false);
+            localStorage.setItem("hypher-last-digest-date", new Date().toISOString().slice(0, 10));
+          }}
+          onSelectProject={(id) => {
+            setSelectedProjectId(id);
+            store.setSelectedId(id);
+            setContentMode("canvas");
+            if (appMode !== "workspace") setAppMode("workspace");
+          }}
         />
       )}
 
