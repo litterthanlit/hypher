@@ -60,6 +60,13 @@ export const put = mutation({
   },
 });
 
+export const touchLastActivity = mutation({
+  args: { id: v.id("objects"), timestamp: v.number() },
+  handler: async (ctx, { id, timestamp }) => {
+    await ctx.db.patch(id, { lastActivity: timestamp });
+  },
+});
+
 export const remove = mutation({
   args: { id: v.id("objects") },
   handler: async (ctx, { id }) => {

@@ -65,5 +65,11 @@ export default defineSchema({
     targetKind: v.optional(v.string()),
     targetName: v.optional(v.string()),
     timestamp: v.number(),
-  }).index("by_timestamp", ["timestamp"]),
+    // Phase 5.3: project-level activity tracking
+    projectId: v.optional(v.string()),
+    activityType: v.optional(v.string()),
+    summary: v.optional(v.string()),
+  })
+    .index("by_timestamp", ["timestamp"])
+    .index("by_project", ["projectId"]),
 });

@@ -44,6 +44,7 @@ interface Props {
   onRestoreObjects: (from: AnyObject[], to: AnyObject[]) => Promise<void>;
   onRestoreConnections: (from: Connection[], to: Connection[]) => Promise<void>;
   onCreateManualConnection: (sourceId: string, targetId: string) => Promise<void>;
+  onLogView?: (projectId: string) => void;
 }
 
 interface InlineCreate {
@@ -59,7 +60,7 @@ export function SpatialCanvas({
   project, items, connections, onSelect,
   onUpdatePosition, onCreateAtPosition, onConfirmConnection, onDismissConnection,
   onUpdateObject, onDeleteObjects, onDuplicateObjects,
-  onRestoreObjects, onRestoreConnections, onCreateManualConnection,
+  onRestoreObjects, onRestoreConnections, onCreateManualConnection, onLogView,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [inlineCreate, setInlineCreate] = useState<InlineCreate | null>(null);
@@ -70,6 +71,13 @@ export function SpatialCanvas({
 
   // Derive projectId from items
   const projectId = items.find(i => i.kind === "project")?.id ?? "default";
+
+  // Log view activity after 10 seconds on canvas
+  useEffect(() => {
+    if (!project?.id || !onLogView) return;
+    const timer = setTimeout(() => onLogView(project.id), 10_000);
+    return () => clearTimeout(timer);
+  }, [project?.id, onLogView]);
 
   // Hooks
   const { transform, setTransform, canvasBg, cycleBg, animateZoom, onWheel, screenToCanvas } =

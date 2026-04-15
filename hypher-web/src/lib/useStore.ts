@@ -82,6 +82,7 @@ export function useStore() {
   const putConnectionMut = useMutation(api.connections.put);
   const removeConnectionMut = useMutation(api.connections.remove);
   const putActivityMut = useMutation(api.activity.put);
+  const touchLastActivityMut = useMutation(api.objects.touchLastActivity);
 
   /* ── Position overrides for smooth drag ───────────────────────── */
   const [positionOverrides, setPositionOverrides] = useState<
@@ -188,8 +189,12 @@ export function useStore() {
   const logActivity = async (
     action: ActivityEntry["action"],
     obj: AnyObject,
-    target?: AnyObject
+    target?: AnyObject,
+    activityType?: string,
   ) => {
+    const now = Date.now();
+    const projectId = obj.kind === "project" ? obj.id : obj.projectId ?? undefined;
+
     await putActivityMut({
       action,
       objectId: obj.id,
@@ -198,8 +203,32 @@ export function useStore() {
       targetId: target?.id,
       targetKind: target?.kind,
       targetName: target ? getDisplayName(target) : undefined,
-      timestamp: Date.now(),
+      timestamp: now,
+      projectId: projectId ?? undefined,
+      activityType: activityType ?? action,
+      summary: undefined,
     });
+
+    // Update project's lastActivity timestamp
+    if (projectId) {
+      touchLastActivityMut({ id: projectId as Id<"objects">, timestamp: now });
+    }
+  };
+
+  const logProjectView = async (projectId: string) => {
+    const project = objects.find((o) => o.id === projectId);
+    if (!project) return;
+    const now = Date.now();
+    await putActivityMut({
+      action: "updated",
+      objectId: projectId,
+      objectKind: "project",
+      objectName: getDisplayName(project),
+      timestamp: now,
+      projectId,
+      activityType: "view",
+    });
+    touchLastActivityMut({ id: projectId as Id<"objects">, timestamp: now });
   };
 
   /* ── Suggestion helper ────────────────────────────────────────── */
@@ -229,7 +258,7 @@ export function useStore() {
       const convexId = await putObjectMut(convexInsertArgs(obj));
       const saved = { ...obj, id: convexId as string } as AnyObject;
 
-      await logActivity("created", saved);
+      await logActivity("created", saved, undefined, "capture");
 
       // Generate embedding and update the object
       const embedded = await generateEmbedding(saved);
@@ -280,7 +309,7 @@ export function useStore() {
         projectId: projectId ?? null,
       };
 
-      await logActivity("created", note);
+      await logActivity("created", note, undefined, "capture");
 
       // Generate embedding and update
       const embedded = await generateEmbedding(note);
@@ -329,7 +358,7 @@ export function useStore() {
   const updateObject = async (obj: AnyObject) => {
     setIsProcessing(true);
     try {
-      await logActivity("updated", obj);
+      await logActivity("updated", obj, undefined, "edit");
 
       // Generate embedding and update
       const embedded = await generateEmbedding(obj);
@@ -376,7 +405,7 @@ export function useStore() {
 
     const source = objects.find((o) => o.id === conn.sourceId);
     const target = objects.find((o) => o.id === conn.targetId);
-    if (source && target) await logActivity("connected", source, target);
+    if (source && target) await logActivity("connected", source, target, "connection");
   };
 
   const dismissConnection = async (connId: string) => {
@@ -659,5 +688,6 @@ export function useStore() {
     duplicateObjects,
     restoreObjects,
     restoreConnections,
+    logProjectView,
   };
 }
