@@ -239,9 +239,15 @@ export default function Home() {
       <div className="capture-root" onDrop={handleDrop} onDragOver={handleDragOver} onDragLeave={handleDragLeave}>
         <CaptureHome
           projects={store.projects}
+          allObjects={store.objects}
           onCapture={handleCapture}
           onCreateProjectAndCapture={handleCreateProjectAndCapture}
           onNavigateToWorkspace={() => setAppMode("workspace")}
+          onProjectClick={(id) => {
+            setSelectedProjectId(id);
+            store.setSelectedId(id);
+            setAppMode("workspace");
+          }}
           onClipboardCapture={store.captureFromClipboard}
           onNotionImport={notionImported ? undefined : handleNotionImport}
         />

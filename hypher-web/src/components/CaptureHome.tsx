@@ -1,14 +1,17 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import type { Project } from "@/types";
+import type { Project, AnyObject } from "@/types";
 import { ProjectAssignPopup } from "./ProjectAssignPopup";
+import { FloatingClusters } from "./FloatingClusters";
 
 interface Props {
   projects: Project[];
+  allObjects: AnyObject[];
   onCapture: (text: string, projectId?: string | null) => Promise<{ projectId: string; projectName: string; confidence: number }[]>;
   onCreateProjectAndCapture: (projectName: string, noteText: string) => void;
   onNavigateToWorkspace: () => void;
+  onProjectClick: (projectId: string) => void;
   onClipboardCapture?: () => void;
   onNotionImport?: () => void;
 }
@@ -24,7 +27,7 @@ function getGreeting(): string {
   return "Late night";
 }
 
-export function CaptureHome({ projects, onCapture, onCreateProjectAndCapture, onNavigateToWorkspace, onClipboardCapture, onNotionImport }: Props) {
+export function CaptureHome({ projects, allObjects, onCapture, onCreateProjectAndCapture, onNavigateToWorkspace, onProjectClick, onClipboardCapture, onNotionImport }: Props) {
   const [text, setText] = useState("");
   const [step, setStep] = useState<CaptureStep>("idle");
   const [aiSuggestions, setAiSuggestions] = useState<{ projectId: string; projectName: string; confidence: number }[]>([]);
@@ -183,6 +186,13 @@ export function CaptureHome({ projects, onCapture, onCreateProjectAndCapture, on
 
   return (
     <div className="capture-home">
+      <FloatingClusters
+        projects={projects}
+        allObjects={allObjects}
+        inputText={text}
+        onProjectClick={onProjectClick}
+      />
+
       {/* Header */}
       <div className="capture-header">
         <span className="capture-logo">hypher</span>
