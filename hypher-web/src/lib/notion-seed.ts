@@ -24,7 +24,7 @@ const notionData: NotionItem[] = [
   {
     title: "Marque",
     content: "Vector creation tool — add ability to create vectors like Vecteezy. Visual asset creation product. Animate logos with animation magic. Add perspective.",
-    stage: "seed",
+    stage: "active",
     timestamp: "2026-04-02T18:54:00.000Z",
     isProject: true,
   },
@@ -38,7 +38,7 @@ const notionData: NotionItem[] = [
   {
     title: "Ergon",
     content: "Project page created in Notes OS.",
-    stage: "seed",
+    stage: "active",
     timestamp: "2026-04-02T07:29:00.000Z",
     isProject: true,
   },
@@ -52,7 +52,7 @@ const notionData: NotionItem[] = [
   {
     title: "Colossal Projects",
     content: "Loading page black canvas with red acrylic contrasts.",
-    stage: "dormant",
+    stage: "paused",
     timestamp: "2026-01-02T00:09:00.000Z",
     isProject: true,
   },
@@ -190,7 +190,7 @@ export function generateSeedData(): AnyObject[] {
       kind: "project",
       name: item.title,
       description: item.content,
-      status: (item.stage as any) ?? "seed",
+      status: (item.stage as any) ?? "active",
       createdAt: new Date(item.timestamp).getTime(),
       modifiedAt: new Date(item.timestamp).getTime(),
     } as Project);

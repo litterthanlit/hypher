@@ -193,7 +193,7 @@ export default function Home() {
 
   const handleCreateProjectAndCapture = useCallback(async (projectName: string, noteText: string) => {
     const now = Date.now();
-    const convexProjectId = await store.addObject({ id: crypto.randomUUID(), kind: "project", name: projectName, description: "", status: "seed", createdAt: now, modifiedAt: now });
+    const convexProjectId = await store.addObject({ id: crypto.randomUUID(), kind: "project", name: projectName, description: "", status: "active", createdAt: now, modifiedAt: now });
     const recentNote = store.inboxItems.find((o) => o.kind === "note" && (o as any).content === noteText);
     if (recentNote) store.assignToProject(recentNote.id, convexProjectId);
   }, [store]);
@@ -289,6 +289,7 @@ export default function Home() {
           </div>
         ) : contentMode === "canvas" ? (
           <SpatialCanvas
+            project={store.projects.find((p) => p.id === selectedProjectId)}
             items={projectItems}
             connections={projectConnections}
             onSelect={store.setSelectedId}

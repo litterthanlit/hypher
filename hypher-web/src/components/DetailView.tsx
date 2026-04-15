@@ -88,7 +88,7 @@ export function DetailView({
 
   const title = object.kind === "project" ? object.name : object.kind === "artifact" ? object.name : "Note";
   const statusOptions = object.kind === "project"
-    ? ["seed", "growing", "active", "shipped", "dormant", "archived"]
+    ? ["active", "paused", "shipped", "archived"]
     : object.kind === "note"
     ? ["fleeting", "developing", "structured", "reference"]
     : ["image", "video", "code", "document", "font", "audio", "other"];

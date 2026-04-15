@@ -11,6 +11,9 @@ export default defineSchema({
     name: v.optional(v.string()),
     description: v.optional(v.string()),
     status: v.optional(v.string()),
+    priority: v.optional(v.number()),
+    blockers: v.optional(v.string()),
+    lastActivity: v.optional(v.number()),
 
     // Note fields
     content: v.optional(v.string()),

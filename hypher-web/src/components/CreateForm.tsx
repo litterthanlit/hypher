@@ -13,7 +13,7 @@ export function CreateForm({ kind, onSubmit, onCancel }: Props) {
   const [name, setName] = useState("");
   const [desc, setDesc] = useState("");
   const [content, setContent] = useState("");
-  const [status, setStatus] = useState<ProjectStatus>("seed");
+  const [status, setStatus] = useState<ProjectStatus>("active");
   const [maturity, setMaturity] = useState<NoteMaturity>("fleeting");
   const [artType, setArtType] = useState<ArtifactType>("other");
 
@@ -42,7 +42,7 @@ export function CreateForm({ kind, onSubmit, onCancel }: Props) {
             <label>Description<textarea value={desc} onChange={(e) => setDesc(e.target.value)} placeholder="What is this project about?" rows={3} /></label>
             <label>Status
               <select value={status} onChange={(e) => setStatus(e.target.value as ProjectStatus)}>
-                {["seed", "growing", "active", "shipped", "dormant", "archived"].map((s) => (
+                {["active", "paused", "shipped", "archived"].map((s) => (
                   <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>
                 ))}
               </select>

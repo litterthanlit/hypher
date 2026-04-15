@@ -1,7 +1,6 @@
 import type { AnyObject, Connection } from "@/types";
 import { getEmbeddingText, getDisplayName } from "@/types";
 import { embed, cosineSimilarity } from "./embeddings";
-import { getAllObjects, getAllConnections, putObject, putConnection } from "./db";
 
 const SIMILARITY_THRESHOLD = 0.45; // MiniLM scores are lower than Apple NLEmbedding
 
@@ -14,19 +13,22 @@ export async function generateEmbedding(obj: AnyObject): Promise<AnyObject> {
   return { ...obj, embedding: vector, embeddingText: text, modifiedAt: Date.now() };
 }
 
-export async function computeSuggestions(): Promise<Connection[]> {
-  const allObjects = await getAllObjects();
-  const existingConnections = await getAllConnections();
-
+/**
+ * Pure computation: given all objects and existing connections,
+ * returns NEW connection data to be saved (without IDs — caller assigns them).
+ */
+export function computeSuggestionsFromData(
+  allObjects: AnyObject[],
+  existingConnections: Connection[]
+): Omit<Connection, "id">[] {
   const embedded = allObjects.filter((o) => o.embedding && o.embedding.length > 0);
 
-  // Build set of existing pairs (canonical key)
   const existingPairs = new Set<string>();
   for (const conn of existingConnections) {
     existingPairs.add(pairKey(conn.sourceId, conn.targetId));
   }
 
-  const newConnections: Connection[] = [];
+  const newConnections: Omit<Connection, "id">[] = [];
 
   for (let i = 0; i < embedded.length; i++) {
     for (let j = i + 1; j < embedded.length; j++) {
@@ -38,8 +40,7 @@ export async function computeSuggestions(): Promise<Connection[]> {
 
       const similarity = cosineSimilarity(a.embedding!, b.embedding!);
       if (similarity >= SIMILARITY_THRESHOLD) {
-        const conn: Connection = {
-          id: crypto.randomUUID(),
+        newConnections.push({
           sourceId: a.id,
           targetId: b.id,
           sourceKind: a.kind,
@@ -48,9 +49,7 @@ export async function computeSuggestions(): Promise<Connection[]> {
           confidence: similarity,
           reason: `Similarity: ${Math.round(similarity * 100)}% — related themes between "${getDisplayName(a)}" and "${getDisplayName(b)}"`,
           createdAt: Date.now(),
-        };
-        await putConnection(conn);
-        newConnections.push(conn);
+        });
         existingPairs.add(key);
       }
     }
@@ -59,17 +58,13 @@ export async function computeSuggestions(): Promise<Connection[]> {
   return newConnections;
 }
 
-export async function generateAndSuggest(obj: AnyObject): Promise<AnyObject> {
-  const updated = await generateEmbedding(obj);
-  await putObject(updated);
-  await computeSuggestions();
-  return updated;
-}
-
-export async function suggestProjectForObject(
-  obj: AnyObject
-): Promise<{ projectId: string; projectName: string; confidence: number }[]> {
-  const allObjects = await getAllObjects();
+/**
+ * Pure computation: suggest projects for an object based on embedding similarity.
+ */
+export function suggestProjectFromData(
+  obj: AnyObject,
+  allObjects: AnyObject[]
+): { projectId: string; projectName: string; confidence: number }[] {
   const projects = allObjects.filter(
     (o) => o.kind === "project" && o.embedding && o.embedding.length > 0
   );

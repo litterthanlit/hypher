@@ -551,6 +551,47 @@ body {
   border-top: 1px solid var(--border-default);
 }
 
+/* ─── Project Settings ─── */
+
+.project-settings-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.project-settings-header h3 {
+  margin-bottom: 0;
+}
+
+.project-settings-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-sm);
+  border: none;
+  background: none;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  transition: background var(--transition), color var(--transition);
+}
+
+.project-settings-close:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.project-settings-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  margin-bottom: 18px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--border-default);
+}
+
 /* ─── Loading Bar ─── */
 
 .loading-bar {

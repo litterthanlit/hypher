@@ -1,4 +1,4 @@
-export type ProjectStatus = "seed" | "growing" | "active" | "shipped" | "dormant" | "archived";
+export type ProjectStatus = "active" | "paused" | "shipped" | "archived";
 export type NoteMaturity = "fleeting" | "developing" | "structured" | "reference";
 export type ArtifactType = "image" | "video" | "code" | "document" | "font" | "audio" | "other";
 export type ConnectionType = "manual" | "ai_suggested" | "ai_confirmed" | "dismissed";
@@ -24,11 +24,16 @@ export interface HypherObject {
   canvasSize?: { w: number; h: number };
 }
 
+export type ProjectPriority = 1 | 2 | 3 | 4 | 5;
+
 export interface Project extends HypherObject {
   kind: "project";
   name: string;
   description: string;
   status: ProjectStatus;
+  priority?: ProjectPriority;
+  blockers?: string;
+  lastActivity?: number;
 }
 
 export interface Note extends HypherObject {
