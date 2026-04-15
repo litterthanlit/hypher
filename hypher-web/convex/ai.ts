@@ -12,6 +12,8 @@ function formatProjects(
     blockers?: string;
     lastActivity?: number;
     itemCount: number;
+    githubRepo?: string;
+    githubSummary?: string;
   }>
 ): string {
   return projects
@@ -31,6 +33,12 @@ function formatProjects(
       if (p.blockers) {
         lines.push(`  Blocker: ${p.blockers}`);
       }
+      if (p.githubRepo) {
+        lines.push(`  GitHub: ${p.githubRepo}`);
+      }
+      if (p.githubSummary) {
+        lines.push(`  GitHub activity: ${p.githubSummary}`);
+      }
       return lines.join("\n");
     })
     .join("\n\n");
@@ -46,6 +54,8 @@ export const generateDigest = action({
         blockers: v.optional(v.string()),
         lastActivity: v.optional(v.number()),
         itemCount: v.number(),
+        githubRepo: v.optional(v.string()),
+        githubSummary: v.optional(v.string()),
       })
     ),
   },
@@ -65,7 +75,7 @@ export const generateDigest = action({
       messages: [
         {
           role: "user",
-          content: `Here are my active projects:\n\n${formatProjects(projects)}\n\nGenerate a brief daily digest with:\n1. What's ready to ship or close to done\n2. What needs attention (blockers, stale high-priority)\n3. Suggested focus for today (1-2 items max)\n\nKeep it under 200 words.`,
+          content: `Here are my active projects:\n\n${formatProjects(projects)}\n\nGenerate a brief daily digest with:\n1. What's ready to ship or close to done\n2. What needs attention (blockers, stale high-priority, GitHub issues)\n3. Suggested focus for today (1-2 items max)\n4. Any GitHub blockers that need immediate action (failing CI, stale PRs)\n\nKeep it under 200 words.`,
         },
       ],
     });

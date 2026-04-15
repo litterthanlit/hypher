@@ -11,6 +11,9 @@
 import type * as activity from "../activity.js";
 import type * as ai from "../ai.js";
 import type * as connections from "../connections.js";
+import type * as crons from "../crons.js";
+import type * as github from "../github.js";
+import type * as githubInternal from "../githubInternal.js";
 import type * as objects from "../objects.js";
 
 import type {
@@ -23,6 +26,9 @@ declare const fullApi: ApiFromModules<{
   activity: typeof activity;
   ai: typeof ai;
   connections: typeof connections;
+  crons: typeof crons;
+  github: typeof github;
+  githubInternal: typeof githubInternal;
   objects: typeof objects;
 }>;
 

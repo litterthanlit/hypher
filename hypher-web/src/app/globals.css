@@ -592,6 +592,243 @@ body {
   border-bottom: 1px solid var(--border-default);
 }
 
+/* ─── GitHub Integration (Project Settings) ─── */
+
+.settings-divider {
+  height: 1px;
+  background: var(--border-default);
+  margin: 18px 0 14px;
+}
+
+.settings-section-label {
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-tertiary);
+  margin-bottom: 10px;
+}
+
+.settings-github-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 14px;
+  font-size: 13px;
+  font-family: var(--font-sans);
+  color: var(--text-secondary);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all var(--transition);
+}
+
+.settings-github-btn:hover {
+  background: var(--bg-hover);
+  border-color: var(--border-hover);
+  color: var(--text-primary);
+}
+
+.settings-github-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.settings-github-input {
+  width: 100%;
+  padding: 8px 12px;
+  font-size: 13px;
+  font-family: var(--font-mono);
+  color: var(--text-primary);
+  background: var(--bg-primary);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  outline: none;
+  transition: border-color var(--transition);
+}
+
+.settings-github-input:focus {
+  border-color: var(--border-focus);
+}
+
+.settings-github-input::placeholder {
+  color: var(--text-quaternary);
+  font-family: var(--font-sans);
+}
+
+.settings-github-hint {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  margin: 2px 0;
+}
+
+.settings-github-hint code {
+  font-family: var(--font-mono);
+  background: var(--bg-tertiary);
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: 10px;
+}
+
+.settings-github-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.settings-github-connect,
+.settings-github-action {
+  padding: 7px 14px;
+  font-size: 12px;
+  font-family: var(--font-sans);
+  font-weight: 500;
+  color: var(--bg-primary);
+  background: var(--accent);
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background var(--transition);
+}
+
+.settings-github-connect:hover,
+.settings-github-action:hover {
+  background: var(--accent-hover);
+}
+
+.settings-github-action:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.settings-github-cancel,
+.settings-github-disconnect {
+  padding: 7px 14px;
+  font-size: 12px;
+  font-family: var(--font-sans);
+  color: var(--text-tertiary);
+  background: none;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all var(--transition);
+}
+
+.settings-github-cancel:hover {
+  color: var(--text-secondary);
+  border-color: var(--border-hover);
+}
+
+.settings-github-disconnect:hover {
+  color: var(--red);
+  border-color: var(--red);
+}
+
+.settings-github-status {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  padding: 10px 0;
+}
+
+.settings-github-connected {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.settings-github-repo-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-family: var(--font-mono);
+  color: var(--text-primary);
+}
+
+.settings-github-sync-time {
+  font-size: 11px;
+  font-family: var(--font-sans);
+  color: var(--text-tertiary);
+  margin-left: auto;
+}
+
+.settings-github-token-prompt {
+  margin-bottom: 4px;
+}
+
+.settings-github-error {
+  font-size: 12px;
+  color: var(--red);
+  margin-top: 6px;
+}
+
+.settings-github-sync-result {
+  font-size: 12px;
+  color: var(--text-secondary);
+  padding: 8px 12px;
+  background: var(--bg-secondary);
+  border-radius: var(--radius-sm);
+}
+
+.settings-github-blockers {
+  margin-top: 6px;
+}
+
+.settings-github-blockers-label {
+  font-weight: 500;
+  color: var(--amber);
+  margin-bottom: 4px;
+}
+
+.settings-github-blockers ul {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.settings-github-blockers li {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-bottom: 2px;
+}
+
+.settings-github-docs {
+  font-size: 12px;
+}
+
+.settings-github-docs-label {
+  font-weight: 500;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+}
+
+.settings-github-docs details {
+  margin-bottom: 6px;
+}
+
+.settings-github-docs summary {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--accent);
+  cursor: pointer;
+  padding: 4px 0;
+}
+
+.settings-github-docs pre {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-secondary);
+  background: var(--bg-secondary);
+  padding: 12px;
+  border-radius: var(--radius-sm);
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
 /* ─── Project Dashboard ─── */
 
 .dashboard {
