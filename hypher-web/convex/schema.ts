@@ -75,6 +75,15 @@ export default defineSchema({
     lastUsed: v.optional(v.number()),
   }).index("by_key", ["key"]),
 
+  tags: defineTable({
+    userId: v.string(),
+    name: v.string(),
+    objectIds: v.array(v.string()),
+    createdAt: v.number(),
+  })
+    .index("by_user", ["userId"])
+    .index("by_name", ["userId", "name"]),
+
   activity: defineTable({
     action: v.string(),
     objectId: v.string(),

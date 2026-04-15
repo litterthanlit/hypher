@@ -84,3 +84,32 @@ export const generateDigest = action({
     return block.type === "text" ? block.text : "Could not generate digest.";
   },
 });
+
+export const generateTags = action({
+  args: { content: v.string() },
+  handler: async (_ctx, { content }) => {
+    if (content.length < 10) return [];
+
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+    if (!apiKey) return [];
+
+    const anthropic = new Anthropic({ apiKey });
+
+    const response = await anthropic.messages.create({
+      model: "claude-haiku-4-5-20251001",
+      max_tokens: 100,
+      system:
+        'Generate 2-5 tags for the following content. Return ONLY a JSON array of lowercase strings, no explanation. Tags should be specific and useful for organization. Examples: ["ui-pattern", "react", "animation"] or ["meeting-notes", "q2-planning"]',
+      messages: [{ role: "user", content }],
+    });
+
+    try {
+      const text = response.content[0].type === "text" ? response.content[0].text : "[]";
+      const parsed = JSON.parse(text);
+      if (Array.isArray(parsed)) return parsed.filter((t: unknown) => typeof t === "string");
+      return [];
+    } catch {
+      return [];
+    }
+  },
+});
