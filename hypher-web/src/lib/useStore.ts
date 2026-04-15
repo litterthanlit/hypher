@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useMemo, useRef, useEffect } from "react";
-import { useQuery, useMutation } from "convex/react";
+import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
 import type { AnyObject, Connection, Project, Note, Artifact, ActivityEntry } from "@/types";
@@ -83,6 +83,7 @@ export function useStore() {
   const removeConnectionMut = useMutation(api.connections.remove);
   const putActivityMut = useMutation(api.activity.put);
   const touchLastActivityMut = useMutation(api.objects.touchLastActivity);
+  const generateTagsAction = useAction(api.ai.generateTags);
 
   /* ── Position overrides for smooth drag ───────────────────────── */
   const [positionOverrides, setPositionOverrides] = useState<
@@ -270,6 +271,17 @@ export function useStore() {
         embedded,
       ];
       await saveSuggestionsAndToast(allObjs, connections);
+
+      // Non-blocking: generate AI tags
+      const tagContent = obj.kind === "note" ? (obj as Note).content : obj.kind === "artifact" ? (obj as Artifact).name : "";
+      if (tagContent && !obj.tags?.length) {
+        generateTagsAction({ content: tagContent }).then((tags) => {
+          if (tags.length > 0) {
+            putObjectMut({ id: convexId as Id<"objects">, ...convexInsertArgs({ ...embedded, tags } as AnyObject) } as any);
+          }
+        }).catch(() => {});
+      }
+
       return convexId as string;
     } finally {
       setIsProcessing(false);
@@ -331,6 +343,15 @@ export function useStore() {
 
       // Connection suggestions
       await saveSuggestionsAndToast(allObjs, connections);
+
+      // Non-blocking: generate AI tags
+      if (text.length >= 10) {
+        generateTagsAction({ content: text }).then((tags) => {
+          if (tags.length > 0) {
+            putObjectMut({ id: convexId as Id<"objects">, ...convexInsertArgs({ ...embedded, tags } as AnyObject) } as any);
+          }
+        }).catch(() => {});
+      }
 
       return suggestions;
     } finally {
@@ -636,6 +657,8 @@ export function useStore() {
     if (!query.trim()) return [];
     const q = query.toLowerCase();
     return objects.filter((obj) => {
+      // Search tags on any object
+      if (obj.tags?.some((t) => t.toLowerCase().includes(q))) return true;
       if (obj.kind === "project")
         return (
           obj.name.toLowerCase().includes(q) ||

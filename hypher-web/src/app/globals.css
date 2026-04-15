@@ -1591,6 +1591,56 @@ body {
   font-size: 12px;
 }
 
+.search-results-grouped {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.search-section {
+  padding: 4px 0;
+}
+
+.search-section-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-quaternary);
+  padding: 8px 16px 4px;
+}
+
+.search-result-tags {
+  display: flex;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.search-tag-pill {
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 9999px;
+  background: var(--accent-subtle);
+  color: var(--accent);
+}
+
+.search-footer {
+  display: flex;
+  gap: 16px;
+  padding: 10px 16px;
+  border-top: 1px solid var(--border-default);
+  font-size: 11px;
+  color: var(--text-quaternary);
+}
+
+.search-footer kbd {
+  font-size: 10px;
+  font-family: var(--font-mono);
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: var(--bg-tertiary);
+  margin-right: 4px;
+}
+
 /* ─── Spatial Canvas ─── */
 
 .spatial-canvas {
@@ -1846,6 +1896,28 @@ body {
   -webkit-box-orient: vertical;
   overflow: hidden;
   margin-bottom: 10px;
+}
+
+.card-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 8px;
+}
+
+.tag-pill {
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  background: var(--accent-subtle);
+  color: var(--text-secondary);
+  font-family: var(--font-sans);
+}
+
+.tag-more {
+  font-size: 10px;
+  color: var(--text-tertiary);
+  padding: 2px 4px;
 }
 
 .spatial-card-footer {

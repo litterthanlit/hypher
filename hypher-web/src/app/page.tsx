@@ -1,7 +1,9 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useStore } from "@/lib/useStore";
+import { useQuery } from "convex/react";
+import { api } from "../../convex/_generated/api";
 import { CaptureHome } from "@/components/CaptureHome";
 import { Sidebar } from "@/components/Sidebar";
 import { SpatialCanvas } from "@/components/SpatialCanvas";
@@ -30,6 +32,8 @@ type ContentMode = "canvas" | "list" | "dashboard";
 
 export default function Home() {
   const store = useStore();
+  const tagsList = useQuery(api.tags.listWithCounts, { userId: "default" });
+  const tags = useMemo(() => tagsList ?? [], [tagsList]);
   const [appMode, setAppMode] = useState<AppMode>("capture");
   const [contentMode, setContentMode] = useState<ContentMode>("canvas");
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
@@ -368,6 +372,12 @@ export default function Home() {
           search={store.search}
           onSelect={(id) => { store.setSelectedId(id); setShowSearch(false); }}
           onClose={() => setShowSearch(false)}
+          tags={tags}
+          onSelectTag={(tag) => {
+            // Search for the tag to show matching items
+            store.setSelectedId(null);
+            setShowSearch(false);
+          }}
         />
       )}
 
