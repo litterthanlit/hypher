@@ -6,6 +6,7 @@ import { CaptureHome } from "@/components/CaptureHome";
 import { Sidebar } from "@/components/Sidebar";
 import { SpatialCanvas } from "@/components/SpatialCanvas";
 import { ListView } from "@/components/ListView";
+import { ProjectDashboard } from "@/components/ProjectDashboard";
 import { SearchDialog } from "@/components/SearchDialog";
 import { ToastContainer } from "@/components/Toast";
 import { generateSeedData } from "@/lib/notion-seed";
@@ -23,7 +24,7 @@ function guessArtifactType(filename: string): ArtifactType {
 }
 
 type AppMode = "capture" | "workspace";
-type ContentMode = "canvas" | "list";
+type ContentMode = "canvas" | "list" | "dashboard";
 
 export default function Home() {
   const store = useStore();
@@ -63,6 +64,12 @@ export default function Home() {
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === "V") {
         e.preventDefault();
         store.captureFromClipboard();
+      }
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === "p" || e.key === "P")) {
+        e.preventDefault();
+        setContentMode("dashboard");
+        setSelectedProjectId(null);
+        if (appMode !== "workspace") setAppMode("workspace");
       }
       if (e.key === "Escape" && showSearch) {
         setShowSearch(false);
@@ -254,6 +261,7 @@ export default function Home() {
         onSelectRecent={(id) => { store.setSelectedId(id); }}
         onAdd={store.addObject}
         onGoHome={() => setAppMode("capture")}
+        onDashboard={() => { setContentMode("dashboard"); setSelectedProjectId(null); }}
       />
 
       <div className="main-panel">
@@ -282,7 +290,17 @@ export default function Home() {
           </button>
         </div>
 
-        {!selectedProjectId ? (
+        {contentMode === "dashboard" ? (
+          <ProjectDashboard
+            projects={store.projects}
+            allObjects={store.objects}
+            onSelectProject={(id) => {
+              setSelectedProjectId(id);
+              store.setSelectedId(id);
+              setContentMode("canvas");
+            }}
+          />
+        ) : !selectedProjectId ? (
           <div className="workspace-empty">
             <p>Select a project from the sidebar</p>
             <p className="workspace-empty-sub">or press Cmd+N to capture a new thought</p>
