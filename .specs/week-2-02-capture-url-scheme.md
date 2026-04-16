@@ -2,14 +2,28 @@
 
 ## Goal
 
-Support deep links into capture flow: `GET /capture?text=...` redirects signed-in users to `/app` with query params so the capture screen opens with prefilled text (for `hypher://capture` style handlers that map to HTTPS).
+One-shot capture for Raycast, Shortcuts, curl, and browser deep links: authenticated users create a note **server-side** without relying on client prefill.
 
-## Implementation
+## Route
 
-- `src/app/capture/page.tsx` — server redirect to `/app?capture=1&...` preserving query string.
-- `src/app/app/page.tsx` — on load, if `capture=1`, switch to capture mode, read `text` or `q`, strip params from URL with `history.replaceState`.
-- `CaptureHome` — optional `initialPrefillText` prop.
+- **`hypher-web/src/app/capture/route.ts`** — `GET` and `POST` (same handler).
+- **Auth:** Clerk `auth()`. Signed-out → **302** to `/sign-in?redirect_url=…` (full path + query preserved).
+- **Validation:**
+  - **content** required (also accepts `text` / `q`); max **10,000** characters.
+  - **project** optional; must match `^[a-zA-Z0-9_-]{6,64}$` (Convex object id segment); must be a **project** the user owns (`api.objects.getIfOwner`).
+  - **tags** optional, comma-separated, max **10** tags.
+- **Write:** `fetchMutation(api.objects.put, …)` with Clerk **convex** JWT (`getToken({ template: "convex" })`).
+- **Content negotiation:** `Accept: application/json` → `{ success: true, id }`. Otherwise **302** to `/app?toast=captured` or `/app/p/<projectId>?toast=captured` when `project` is valid.
+
+## App shell
+
+- **`/app/p/[projectId]`** redirects to `/app?project=…&…` so the main client can select the project and show a toast.
+- **`/app`** reads `project` + `toast=captured` once, then strips query params.
+
+## Removed
+
+- **`app/capture/page.tsx`** — deleted; the Route Handler fully replaces the old redirect + client prefill flow.
 
 ## Middleware
 
-`/capture` is a public route (no auth required for redirect; Clerk still applies to `/app`).
+`/capture` stays public (Clerk runs inside the route). `/app/p/*` is public for the redirect page only.

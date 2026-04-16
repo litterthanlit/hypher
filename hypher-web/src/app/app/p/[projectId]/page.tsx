@@ -1,16 +1,17 @@
 import { redirect } from "next/navigation";
 
-/**
- * Deep link entry for capture (e.g. hypher://capture → https://app/capture?text=…).
- * Forwards query string into the signed-in app shell.
- */
-export default async function CapturePage({
+/** Deep link helper: /app/p/:projectId?toast=captured → canonical /app with project + toast in query. */
+export default async function ProjectDeepLinkPage({
+  params,
   searchParams,
 }: {
+  params: Promise<{ projectId: string }>;
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  const { projectId } = await params;
   const sp = await searchParams;
   const q = new URLSearchParams();
+  q.set("project", projectId);
   for (const [key, val] of Object.entries(sp)) {
     if (val === undefined) continue;
     if (Array.isArray(val)) {
@@ -19,7 +20,5 @@ export default async function CapturePage({
       q.set(key, val);
     }
   }
-  q.set("capture", "1");
-  const suffix = q.toString();
-  redirect(`/app?${suffix}`);
+  redirect(`/app?${q.toString()}`);
 }

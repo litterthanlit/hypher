@@ -15,6 +15,7 @@ import { DailyDigest } from "@/components/DailyDigest";
 import { AppErrorBoundary } from "@/components/AppErrorBoundary";
 import { SearchDialog } from "@/components/SearchDialog";
 import { generateSeedData } from "@/lib/notion-seed";
+import { toast } from "sonner";
 import type { ArtifactType, ObjectKind } from "@/types";
 
 function guessArtifactType(filename: string): ArtifactType {
@@ -43,21 +44,27 @@ export default function AppHome() {
   const [showSearch, setShowSearch] = useState(false);
   const [showDigest, setShowDigest] = useState(false);
   const [dragOver, setDragOver] = useState(false);
-  const [capturePrefill, setCapturePrefill] = useState("");
 
-  // /capture → /app?capture=1&text=… (URL scheme handler)
+  // Server /capture route redirects here with ?project=…&toast=captured (or /app/p/:id → /app?project=…)
   useEffect(() => {
     if (typeof window === "undefined" || !store.clerkLoaded) return;
     const params = new URLSearchParams(window.location.search);
-    if (params.get("capture") !== "1") return;
-    setAppMode("capture");
-    const raw = params.get("text") ?? params.get("q") ?? "";
-    if (raw) setCapturePrefill(raw);
-    params.delete("capture");
-    params.delete("text");
-    params.delete("q");
-    const next = params.toString();
-    window.history.replaceState({}, "", next ? `/app?${next}` : "/app");
+    const pid = params.get("project");
+    if (pid) {
+      setSelectedProjectId(pid);
+      store.setSelectedId(pid);
+      setAppMode("workspace");
+      setContentMode("canvas");
+    }
+    if (params.get("toast") === "captured") {
+      toast.success("Captured");
+    }
+    if (pid || params.get("toast")) {
+      params.delete("project");
+      params.delete("toast");
+      const next = params.toString();
+      window.history.replaceState({}, "", next ? `/app?${next}` : "/app");
+    }
   }, [store.clerkLoaded]);
 
   if (!store.clerkLoaded) {
@@ -297,7 +304,6 @@ export default function AppHome() {
           }}
           onClipboardCapture={store.captureFromClipboard}
           onNotionImport={notionImported ? undefined : handleNotionImport}
-          initialPrefillText={capturePrefill || undefined}
         />
         {dragOver && (
           <div className="drop-overlay">
