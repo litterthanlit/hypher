@@ -36,7 +36,6 @@
     ".next/dev/types/**/*.ts"
   ],
   "exclude": [
-    "node_modules",
-    "src/components/GraphView.tsx"
+    "node_modules"
   ]
 }

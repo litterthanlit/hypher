@@ -2,6 +2,11 @@ import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 
 export default defineSchema({
+  userMeta: defineTable({
+    userId: v.string(),
+    legacyClaimed: v.boolean(),
+  }).index("by_user", ["userId"]),
+
   objects: defineTable({
     userId: v.optional(v.string()),
     kind: v.union(v.literal("project"), v.literal("note"), v.literal("artifact")),

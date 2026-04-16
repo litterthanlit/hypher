@@ -63,17 +63,13 @@ export function useStore() {
   const skipConvex = !clerkLoaded || !isSignedIn;
 
   const claimLegacyData = useMutation(api.legacy.claimLegacyData);
-  const legacyClaimedRef = useRef(false);
+  const legacyStatus = useQuery(api.legacy.getLegacyStatus, skipConvex ? "skip" : {});
 
   useEffect(() => {
-    if (!isSignedIn) legacyClaimedRef.current = false;
-  }, [isSignedIn]);
-
-  useEffect(() => {
-    if (!clerkLoaded || !isSignedIn || legacyClaimedRef.current) return;
-    legacyClaimedRef.current = true;
+    if (!clerkLoaded || !isSignedIn || legacyStatus === undefined) return;
+    if (legacyStatus.legacyClaimed) return;
     void claimLegacyData();
-  }, [clerkLoaded, isSignedIn, claimLegacyData]);
+  }, [clerkLoaded, isSignedIn, legacyStatus, claimLegacyData]);
 
   /* ── Reactive queries (replaces reload()) ─────────────────────── */
   const rawObjects = useQuery(api.objects.list, skipConvex ? "skip" : {});
