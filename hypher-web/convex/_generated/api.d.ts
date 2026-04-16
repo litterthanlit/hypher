@@ -17,6 +17,7 @@ import type * as github from "../github.js";
 import type * as githubIntegrations from "../githubIntegrations.js";
 import type * as githubInternal from "../githubInternal.js";
 import type * as githubPat from "../githubPat.js";
+import type * as githubProjectActions from "../githubProjectActions.js";
 import type * as githubTokens from "../githubTokens.js";
 import type * as http from "../http.js";
 import type * as legacy from "../legacy.js";
@@ -39,6 +40,7 @@ declare const fullApi: ApiFromModules<{
   github: typeof github;
   githubIntegrations: typeof githubIntegrations;
   githubInternal: typeof githubInternal;
+  githubProjectActions: typeof githubProjectActions;
   githubPat: typeof githubPat;
   githubTokens: typeof githubTokens;
   http: typeof http;

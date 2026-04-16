@@ -127,6 +127,19 @@ export const listForApiUser = internalQuery({
   },
 });
 
+export const getProjectForUser = internalQuery({
+  args: { projectId: v.id("objects"), userId: v.string() },
+  handler: async (ctx, { projectId, userId }) => {
+    const doc = await ctx.db.get(projectId);
+    if (!doc || doc.userId !== userId || doc.kind !== "project") return null;
+    return {
+      name: doc.name ?? "Project",
+      githubRepo: doc.githubRepo,
+      blockers: doc.blockers,
+    };
+  },
+});
+
 export const patchGithubFields = internalMutation({
   args: {
     projectId: v.id("objects"),
@@ -144,5 +157,32 @@ export const patchGithubFields = internalMutation({
       githubLastSync: githubLastSync ?? Date.now(),
       modifiedAt: Date.now(),
     });
+  },
+});
+
+export const applyGithubSyncToProject = internalMutation({
+  args: {
+    projectId: v.id("objects"),
+    userId: v.string(),
+    githubLastSync: v.number(),
+    lastActivity: v.optional(v.number()),
+    syncBlockers: v.array(v.string()),
+  },
+  handler: async (ctx, { projectId, userId, githubLastSync, lastActivity, syncBlockers }) => {
+    const doc = await ctx.db.get(projectId);
+    if (!doc || doc.userId !== userId || doc.kind !== "project") {
+      throw new Error("Unauthorized");
+    }
+    const patch: Record<string, unknown> = {
+      githubLastSync,
+      modifiedAt: Date.now(),
+    };
+    if (lastActivity) patch.lastActivity = lastActivity;
+    if (syncBlockers.length > 0) {
+      const manualBlockers = (doc.blockers ?? "").replace(/\[GitHub\][\s\S]*$/, "").trim();
+      const ghSection = `[GitHub] ${syncBlockers.join("; ")}`;
+      patch.blockers = manualBlockers ? `${manualBlockers}\n${ghSection}` : ghSection;
+    }
+    await ctx.db.patch(projectId, patch);
   },
 });

@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { useAction } from "convex/react";
+import { useAction, useQuery } from "convex/react";
 import { toast } from "sonner";
 import { api } from "../../convex/_generated/api";
+import type { Id } from "../../convex/_generated/dataModel";
 import type { Project, ProjectStatus, ProjectPriority } from "@/types";
 
 interface Props {
@@ -35,37 +36,22 @@ export function ProjectSettings({ project, onUpdate, onClose }: Props) {
   const [blockers, setBlockers] = useState(project.blockers ?? "");
   const [tags, setTags] = useState(project.tags?.join(", ") ?? "");
 
-  // GitHub state
+  const integrationStatus = useQuery(api.githubTokens.getStatus);
+
   const [ghStep, setGhStep] = useState<GitHubStep>(project.githubRepo ? "connected" : "idle");
   const [ghRepo, setGhRepo] = useState(project.githubRepo ?? "");
-  const [ghToken, setGhToken] = useState("");
+  /** Optional one-time override; never loaded from server */
+  const [pastedTokenOverride, setPastedTokenOverride] = useState("");
   const [ghDocs, setGhDocs] = useState<{ claude: string; roadmap: string; handoff: string } | null>(null);
   const [ghSync, setGhSync] = useState<{ openPRCount: number; openIssueCount: number; blockers: string[] } | null>(null);
 
-  const validateRepo = useAction(api.github.validateRepo);
-  const generateDocs = useAction(api.github.generateDocs);
-  const syncRepo = useAction(api.github.syncRepo);
-  const getStoredToken = useAction(api.githubPat.getTokenForCurrentUser);
-
-  useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      try {
-        const t = await getStoredToken({});
-        if (!cancelled && t) setGhToken(t);
-      } catch {
-        /* optional */
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [getStoredToken]);
+  const validateAndConnectRepo = useAction(api.githubProjectActions.validateAndConnectRepo);
+  const generateProjectDocs = useAction(api.githubProjectActions.generateProjectDocs);
+  const syncProjectRepo = useAction(api.githubProjectActions.syncProjectRepo);
 
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const latestValues = useRef({ status, priority, blockers, tags });
 
-  // Keep ref in sync
   useEffect(() => {
     latestValues.current = { status, priority, blockers, tags };
   }, [status, priority, blockers, tags]);
@@ -92,7 +78,6 @@ export function ProjectSettings({ project, onUpdate, onClose }: Props) {
     saveTimer.current = setTimeout(flush, 500);
   }, [flush]);
 
-  // Flush on unmount
   useEffect(() => {
     return () => {
       if (saveTimer.current) {
@@ -102,69 +87,81 @@ export function ProjectSettings({ project, onUpdate, onClose }: Props) {
     };
   }, [flush]);
 
-  // GitHub: connect repo
+  const projectConvexId = project.id as Id<"objects">;
+  const hasServerToken = integrationStatus?.connected === true;
+  const canUseGithubActions =
+    hasServerToken || pastedTokenOverride.trim().length > 0;
+
   const handleConnectGitHub = useCallback(async () => {
-    if (!ghRepo.trim() || !ghToken.trim()) {
-      toast.error("Enter both a repo (owner/name) and a personal access token.");
+    if (!ghRepo.trim()) {
+      toast.error("Enter owner/repo.");
+      return;
+    }
+    if (!canUseGithubActions) {
+      toast.error("Save a token in Settings → Integrations or paste one below.");
       return;
     }
     setGhStep("validating");
     try {
-      const result = await validateRepo({ repo: ghRepo.trim(), token: ghToken.trim() });
-      if (!result.valid) {
-        toast.error(result.error || "Repository not found. Check the name and token permissions.");
+      const result = await validateAndConnectRepo({
+        projectId: projectConvexId,
+        repo: ghRepo.trim(),
+        pastedToken: pastedTokenOverride.trim() || undefined,
+      });
+      if (!result.ok) {
+        toast.error(result.error);
         setGhStep("input");
         return;
       }
-      // Save repo to project
       onUpdate({
         ...project,
         githubRepo: ghRepo.trim(),
         modifiedAt: Date.now(),
       });
       setGhStep("connected");
+      setPastedTokenOverride("");
+      toast.success("Repository connected.");
     } catch (e) {
-      const msg = e instanceof Error ? e.message : "Connection failed";
-      toast.error(msg);
+      toast.error(e instanceof Error ? e.message : "Connection failed");
       setGhStep("input");
     }
-  }, [ghRepo, ghToken, project, onUpdate, validateRepo]);
+  }, [ghRepo, canUseGithubActions, project, onUpdate, validateAndConnectRepo, projectConvexId, pastedTokenOverride]);
 
-  // GitHub: generate docs
   const handleGenerateDocs = useCallback(async () => {
-    if (!ghToken.trim()) {
-      toast.error("Add a token under Settings → Integrations or paste it here.");
+    if (!canUseGithubActions) {
+      toast.error("Save a token in Settings → Integrations or paste an override below.");
       setGhStep("input");
       return;
     }
     setGhStep("generating");
     try {
-      const docs = await generateDocs({ repo: project.githubRepo!, token: ghToken.trim() });
+      const docs = await generateProjectDocs({
+        projectId: projectConvexId,
+        pastedToken: pastedTokenOverride.trim() || undefined,
+      });
       setGhDocs(docs);
       setGhStep("connected");
+      setPastedTokenOverride("");
+      toast.success("Documentation generated.");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Doc generation failed");
       setGhStep("connected");
     }
-  }, [ghToken, project.githubRepo, generateDocs]);
+  }, [canUseGithubActions, generateProjectDocs, projectConvexId, pastedTokenOverride]);
 
-  // GitHub: sync now
   const handleSyncNow = useCallback(async () => {
-    if (!ghToken.trim()) {
-      toast.error("Add a token under Settings → Integrations or paste it here.");
+    if (!canUseGithubActions) {
+      toast.error("Save a token in Settings → Integrations or paste an override below.");
       setGhStep("input");
       return;
     }
     setGhStep("syncing");
     try {
-      const result = await syncRepo({
-        repo: project.githubRepo!,
-        token: ghToken.trim(),
-        projectId: project.id,
-        projectName: project.name,
+      const result = await syncProjectRepo({
+        projectId: projectConvexId,
+        pastedToken: pastedTokenOverride.trim() || undefined,
       });
       setGhSync(result);
-      // Update lastActivity and blockers
       const updates: Partial<Project> = { modifiedAt: Date.now(), githubLastSync: Date.now() };
       if (result.latestCommitDate) updates.lastActivity = result.latestCommitDate;
       if (result.blockers.length > 0) {
@@ -174,13 +171,14 @@ export function ProjectSettings({ project, onUpdate, onClose }: Props) {
       }
       onUpdate({ ...project, ...updates } as Project);
       setGhStep("connected");
+      setPastedTokenOverride("");
+      toast.success("GitHub sync complete.");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Sync failed");
       setGhStep("connected");
     }
-  }, [ghToken, project, onUpdate, syncRepo]);
+  }, [canUseGithubActions, syncProjectRepo, projectConvexId, pastedTokenOverride, project, onUpdate]);
 
-  // GitHub: disconnect
   const handleDisconnectGitHub = useCallback(() => {
     onUpdate({
       ...project,
@@ -194,7 +192,6 @@ export function ProjectSettings({ project, onUpdate, onClose }: Props) {
     setGhDocs(null);
   }, [project, onUpdate]);
 
-  // Close on Escape
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
@@ -273,9 +270,11 @@ export function ProjectSettings({ project, onUpdate, onClose }: Props) {
           />
         </label>
 
-        {/* ── GitHub Integration ── */}
         <div className="settings-divider" />
         <div className="settings-section-label">GitHub</div>
+        <p className="settings-github-hint">
+          Tokens stay on the server. Save your PAT under <strong>Settings → Integrations</strong>, or paste a one-time override below for this session only.
+        </p>
 
         {ghStep === "idle" && (
           <button className="settings-github-btn" onClick={() => setGhStep("input")}>
@@ -297,14 +296,12 @@ export function ProjectSettings({ project, onUpdate, onClose }: Props) {
             />
             <input
               type="password"
-              value={ghToken}
-              onChange={(e) => setGhToken(e.target.value)}
-              placeholder="GitHub personal access token"
+              value={pastedTokenOverride}
+              onChange={(e) => setPastedTokenOverride(e.target.value)}
+              placeholder={hasServerToken ? "Optional: override token for this action" : "Paste PAT (or save under Integrations first)"}
               className="settings-github-input"
+              autoComplete="off"
             />
-            <p className="settings-github-hint">
-              Create a token at github.com/settings/tokens with <code>repo</code> scope.
-            </p>
             <div className="settings-github-actions">
               <button className="settings-github-connect" onClick={handleConnectGitHub}>Connect</button>
               <button className="settings-github-cancel" onClick={() => { setGhStep("idle"); }}>Cancel</button>
@@ -338,23 +335,22 @@ export function ProjectSettings({ project, onUpdate, onClose }: Props) {
               )}
             </div>
 
-            {!ghToken && (
-              <div className="settings-github-token-prompt">
-                <input
-                  type="password"
-                  value={ghToken}
-                  onChange={(e) => setGhToken(e.target.value)}
-                  placeholder="Enter token for actions"
-                  className="settings-github-input"
-                />
-              </div>
-            )}
+            <div className="settings-github-token-prompt">
+              <input
+                type="password"
+                value={pastedTokenOverride}
+                onChange={(e) => setPastedTokenOverride(e.target.value)}
+                placeholder="Optional: one-time token override (cleared after each action)"
+                className="settings-github-input"
+                autoComplete="off"
+              />
+            </div>
 
             <div className="settings-github-actions">
-              <button className="settings-github-action" onClick={handleGenerateDocs} disabled={!ghToken}>
+              <button className="settings-github-action" onClick={handleGenerateDocs} disabled={!canUseGithubActions}>
                 Generate Docs
               </button>
-              <button className="settings-github-action" onClick={handleSyncNow} disabled={!ghToken}>
+              <button className="settings-github-action" onClick={handleSyncNow} disabled={!canUseGithubActions}>
                 Sync Now
               </button>
               <button className="settings-github-disconnect" onClick={handleDisconnectGitHub}>

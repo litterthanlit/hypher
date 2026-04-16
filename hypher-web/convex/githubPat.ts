@@ -47,18 +47,6 @@ async function ghFetchUser(token: string): Promise<{ login: string }> {
 }
 
 /** Save PAT after validating with GET /user. Stores AES-256-GCM ciphertext only. */
-/** Returns stored PAT for the current user (for client-side GitHub actions). */
-export const getTokenForCurrentUser = action({
-  args: {},
-  handler: async (ctx): Promise<string | null> => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) return null;
-    return await ctx.runAction(internal.githubPat.decryptTokenForUser, {
-      userId: identity.subject,
-    });
-  },
-});
-
 export const savePersonalAccessToken = action({
   args: { token: v.string() },
   handler: async (ctx, { token }) => {
