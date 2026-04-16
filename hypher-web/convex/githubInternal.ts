@@ -1,5 +1,6 @@
 import { internalQuery, internalMutation } from "./_generated/server";
 import { v } from "convex/values";
+import type { Id } from "./_generated/dataModel";
 
 export const listGitHubProjects = internalQuery({
   handler: async (ctx) => {
@@ -45,7 +46,10 @@ export const logGitHubActivity = internalMutation({
     summary: v.string(),
   },
   handler: async (ctx, { projectId, projectName, summary }) => {
+    const project = await ctx.db.get(projectId as Id<"objects">);
+    const userId = project?.userId;
     await ctx.db.insert("activity", {
+      ...(userId !== undefined ? { userId } : {}),
       action: "updated",
       objectId: projectId,
       objectKind: "project",

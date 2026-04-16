@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
+import { UserButton } from "@clerk/nextjs";
 import { useStore } from "@/lib/useStore";
 import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
@@ -32,7 +33,8 @@ type ContentMode = "canvas" | "list" | "dashboard";
 
 export default function Home() {
   const store = useStore();
-  const tagsList = useQuery(api.tags.listWithCounts, { userId: "default" });
+  const skipTags = !store.clerkLoaded || !store.isSignedIn;
+  const tagsList = useQuery(api.tags.listWithCounts, skipTags ? "skip" : {});
   const tags = useMemo(() => tagsList ?? [], [tagsList]);
   const [appMode, setAppMode] = useState<AppMode>("capture");
   const [contentMode, setContentMode] = useState<ContentMode>("canvas");
@@ -41,6 +43,14 @@ export default function Home() {
   const [showDigest, setShowDigest] = useState(false);
   const [showApiKeys, setShowApiKeys] = useState(false);
   const [dragOver, setDragOver] = useState(false);
+
+  if (!store.clerkLoaded) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[#fafafa] text-[#444]">
+        <p className="text-sm tracking-wide">Loading…</p>
+      </div>
+    );
+  }
 
   // Auto-show digest on first open of the day
   useEffect(() => {
@@ -243,6 +253,9 @@ export default function Home() {
   if (appMode === "capture") {
     return (
       <div className="capture-root" onDrop={handleDrop} onDragOver={handleDragOver} onDragLeave={handleDragLeave}>
+        <div className="capture-user-nav">
+          <UserButton />
+        </div>
         <CaptureHome
           projects={store.projects}
           allObjects={store.objects}
@@ -310,6 +323,8 @@ export default function Home() {
           </button>
 
           <div className="toolbar-spacer" />
+
+          <UserButton />
 
           <button className="btn-search" onClick={() => setShowSearch(true)}>
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" width={14} height={14}>

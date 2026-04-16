@@ -2499,6 +2499,13 @@ body {
   background: var(--bg-root);
 }
 
+.capture-user-nav {
+  position: fixed;
+  top: 12px;
+  right: 16px;
+  z-index: 20;
+}
+
 .capture-home {
   position: relative;
   width: 100%;

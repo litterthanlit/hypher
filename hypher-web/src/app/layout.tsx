@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { ClerkProvider } from "@clerk/nextjs";
 import { ConvexProviderWrapper } from "@/components/ConvexProvider";
 
 export const metadata: Metadata = {
@@ -11,7 +12,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <body>
-        <ConvexProviderWrapper>{children}</ConvexProviderWrapper>
+        <ClerkProvider>
+          <ConvexProviderWrapper>{children}</ConvexProviderWrapper>
+        </ClerkProvider>
       </body>
     </html>
   );

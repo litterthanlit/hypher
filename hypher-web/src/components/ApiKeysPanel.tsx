@@ -5,10 +5,8 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
 
-const USER_ID = "default";
-
 export function ApiKeysPanel({ onClose }: { onClose: () => void }) {
-  const keys = useQuery(api.apiKeys.list, { userId: USER_ID });
+  const keys = useQuery(api.apiKeys.list);
   const createKey = useMutation(api.apiKeys.create);
   const revokeKey = useMutation(api.apiKeys.revoke);
 
@@ -18,7 +16,7 @@ export function ApiKeysPanel({ onClose }: { onClose: () => void }) {
 
   const handleCreate = useCallback(async () => {
     if (!newKeyName.trim()) return;
-    const plainKey = await createKey({ userId: USER_ID, name: newKeyName.trim() });
+    const plainKey = await createKey({ name: newKeyName.trim() });
     setRevealedKey(plainKey);
     setNewKeyName("");
     setCopied(false);

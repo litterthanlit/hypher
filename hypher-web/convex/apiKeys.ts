@@ -1,5 +1,6 @@
 import { query, mutation, internalQuery, internalMutation } from "./_generated/server";
 import { v } from "convex/values";
+import { requireUserId } from "./lib/auth";
 
 function hashKey(key: string): string {
   let hash = 0;
@@ -20,8 +21,9 @@ function generateKey(): string {
 }
 
 export const create = mutation({
-  args: { userId: v.string(), name: v.string() },
-  handler: async (ctx, { userId, name }) => {
+  args: { name: v.string() },
+  handler: async (ctx, { name }) => {
+    const userId = await requireUserId(ctx);
     const plainKey = generateKey();
     const hashed = hashKey(plainKey);
     await ctx.db.insert("apiKeys", {
@@ -30,14 +32,13 @@ export const create = mutation({
       name,
       createdAt: Date.now(),
     });
-    // Return the plain key — only time it's visible
     return plainKey;
   },
 });
 
 export const list = query({
-  args: { userId: v.string() },
-  handler: async (ctx, { userId }) => {
+  handler: async (ctx) => {
+    const userId = await requireUserId(ctx);
     const keys = await ctx.db.query("apiKeys").collect();
     return keys
       .filter((k) => k.userId === userId)
@@ -46,7 +47,6 @@ export const list = query({
         name: k.name,
         createdAt: k.createdAt,
         lastUsed: k.lastUsed,
-        // Don't expose the hash
       }));
   },
 });
@@ -54,11 +54,15 @@ export const list = query({
 export const revoke = mutation({
   args: { keyId: v.id("apiKeys") },
   handler: async (ctx, { keyId }) => {
+    const userId = await requireUserId(ctx);
+    const row = await ctx.db.get(keyId);
+    if (!row || row.userId !== userId) {
+      throw new Error("Unauthorized");
+    }
     await ctx.db.delete(keyId);
   },
 });
 
-// Internal: validate a plain key, return userId if valid
 export const validate = internalQuery({
   args: { key: v.string() },
   handler: async (ctx, { key }) => {
@@ -71,7 +75,6 @@ export const validate = internalQuery({
   },
 });
 
-// Internal: update lastUsed timestamp
 export const touch = internalMutation({
   args: { key: v.string() },
   handler: async (ctx, { key }) => {

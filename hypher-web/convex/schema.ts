@@ -3,6 +3,7 @@ import { v } from "convex/values";
 
 export default defineSchema({
   objects: defineTable({
+    userId: v.optional(v.string()),
     kind: v.union(v.literal("project"), v.literal("note"), v.literal("artifact")),
     createdAt: v.number(),
     modifiedAt: v.number(),
@@ -39,9 +40,11 @@ export default defineSchema({
     canvasSize: v.optional(v.object({ w: v.number(), h: v.number() })),
   })
     .index("by_kind", ["kind"])
-    .index("by_projectId", ["projectId"]),
+    .index("by_projectId", ["projectId"])
+    .index("by_user", ["userId"]),
 
   connections: defineTable({
+    userId: v.optional(v.string()),
     sourceId: v.string(),
     targetId: v.string(),
     sourceKind: v.string(),
@@ -58,7 +61,8 @@ export default defineSchema({
   })
     .index("by_source", ["sourceId"])
     .index("by_target", ["targetId"])
-    .index("by_type", ["type"]),
+    .index("by_type", ["type"])
+    .index("by_user", ["userId"]),
 
   githubTokens: defineTable({
     userId: v.string(),
@@ -85,6 +89,7 @@ export default defineSchema({
     .index("by_name", ["userId", "name"]),
 
   activity: defineTable({
+    userId: v.optional(v.string()),
     action: v.string(),
     objectId: v.string(),
     objectKind: v.string(),
@@ -99,5 +104,6 @@ export default defineSchema({
     summary: v.optional(v.string()),
   })
     .index("by_timestamp", ["timestamp"])
-    .index("by_project", ["projectId"]),
+    .index("by_project", ["projectId"])
+    .index("by_user_time", ["userId", "timestamp"]),
 });
