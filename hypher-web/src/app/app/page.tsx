@@ -14,7 +14,6 @@ import { ProjectDashboard } from "@/components/ProjectDashboard";
 import { DailyDigest } from "@/components/DailyDigest";
 import { AppErrorBoundary } from "@/components/AppErrorBoundary";
 import { SearchDialog } from "@/components/SearchDialog";
-import { ToastContainer } from "@/components/Toast";
 import { generateSeedData } from "@/lib/notion-seed";
 import type { ArtifactType, ObjectKind } from "@/types";
 
@@ -276,7 +275,6 @@ export default function AppHome() {
           onClipboardCapture={store.captureFromClipboard}
           onNotionImport={notionImported ? undefined : handleNotionImport}
         />
-        <ToastContainer messages={store.toasts} onDismiss={store.dismissToast} />
         {dragOver && (
           <div className="drop-overlay">
             <div className="drop-content">
@@ -393,8 +391,6 @@ export default function AppHome() {
           />
         )}
       </div>
-
-      <ToastContainer messages={store.toasts} onDismiss={store.dismissToast} />
 
       {showSearch && (
         <SearchDialog

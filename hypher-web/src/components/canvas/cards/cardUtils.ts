@@ -28,6 +28,7 @@ export function getCardRotation(id: string): number {
 
 export function getPreview(obj: AnyObject): string {
   if (obj.kind === "note") return obj.content.slice(0, 120);
+  if (obj.kind === "project") return obj.description.slice(0, 120);
   if (obj.kind === "artifact") return obj.fileReference || obj.type;
   return "";
 }

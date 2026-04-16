@@ -7,13 +7,8 @@ import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
 import type { AnyObject, Connection, Project, Note, Artifact, ActivityEntry } from "@/types";
 import { getDisplayName } from "@/types";
+import { toast } from "sonner";
 import { generateEmbedding, computeSuggestionsFromData, suggestProjectFromData } from "./engine";
-
-export interface ToastMessage {
-  id: string;
-  text: string;
-  action?: { label: string; onClick: () => void };
-}
 
 /* ── Convex doc → app type mappers ──────────────────────────────── */
 
@@ -137,24 +132,20 @@ export function useStore() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [modelLoading, setModelLoading] = useState(false);
-  const [toasts, setToasts] = useState<ToastMessage[]>([]);
-
-  /* ── Toasts ───────────────────────────────────────────────────── */
+  /* ── Toasts (Sonner, root layout) ─────────────────────────────── */
   const addToast = useCallback(
-    (text: string, action?: ToastMessage["action"]) => {
-      const id = crypto.randomUUID();
-      setToasts((prev) => [...prev, { id, text, action }]);
-      // Auto-dismiss after 4 seconds
-      setTimeout(() => {
-        setToasts((prev) => prev.filter((t) => t.id !== id));
-      }, 4000);
+    (text: string, action?: { label: string; onClick: () => void }) => {
+      if (action) {
+        toast(text, {
+          duration: 8000,
+          action: { label: action.label, onClick: action.onClick },
+        });
+      } else {
+        toast(text, { duration: 4000 });
+      }
     },
     []
   );
-
-  const dismissToast = useCallback((id: string) => {
-    setToasts((prev) => prev.filter((t) => t.id !== id));
-  }, []);
 
   /* ── Derived data ─────────────────────────────────────────────── */
   const selected = objects.find((o) => o.id === selectedId) ?? null;
@@ -716,9 +707,7 @@ export function useStore() {
     resolveObject,
     isProcessing,
     modelLoading,
-    toasts,
     addToast,
-    dismissToast,
     getRediscovery,
     markSurfaced,
     captureFromClipboard,

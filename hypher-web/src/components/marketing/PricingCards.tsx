@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { SignUpButton } from "@clerk/nextjs";
+import { toast } from "sonner";
 
 type Variant = "compact" | "expanded";
 
@@ -19,6 +20,13 @@ export function PricingCards({ variant }: { variant: Variant }) {
       const data = await res.json();
       if (!res.ok) {
         console.error(data);
+        const msg =
+          typeof data?.error === "string"
+            ? data.error
+            : res.status === 401
+              ? "Sign in to continue to checkout."
+              : "Checkout could not start. Try again or check billing settings.";
+        toast.error(msg);
         setLoading(null);
         return;
       }

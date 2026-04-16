@@ -2,9 +2,15 @@ import { fetchMutation } from "convex/nextjs";
 import { api } from "../../../../../convex/_generated/api";
 import Stripe from "stripe";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY ?? "", {
-  apiVersion: "2025-02-24.acacia",
-});
+function getStripe(): Stripe {
+  const key = process.env.STRIPE_SECRET_KEY;
+  if (!key) {
+    throw new Error("STRIPE_SECRET_KEY not set");
+  }
+  return new Stripe(key, {
+    apiVersion: "2025-02-24.acacia",
+  });
+}
 
 function getSharedSecret(): string {
   const s = process.env.STRIPE_CONVEX_SHARED_SECRET;
@@ -39,6 +45,7 @@ export async function POST(req: Request) {
 
   const raw = await req.text();
   let event: Stripe.Event;
+  const stripe = getStripe();
   try {
     event = stripe.webhooks.constructEvent(raw, sig, whSecret);
   } catch {
