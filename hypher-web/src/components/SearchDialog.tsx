@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useMemo } from "react";
+import { useState, useRef, useEffect, useMemo, useDeferredValue } from "react";
 import type { AnyObject, Project } from "@/types";
 import { getDisplayName } from "@/types";
 import { KindIcon } from "./Icons";
@@ -24,32 +24,34 @@ type ResultItem =
 
 export function SearchDialog({ search, onSelect, onClose, tags = [], onSelectTag }: Props) {
   const [query, setQuery] = useState("");
+  const deferredQuery = useDeferredValue(query);
+  const isFiltering = query.trim() !== "" && query !== deferredQuery;
   const [highlightIndex, setHighlightIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const objectResults = search(query);
+  const objectResults = search(deferredQuery);
 
   // Match tags
   const tagResults = useMemo(() => {
-    if (!query.trim()) return tags.slice(0, 5);
-    const q = query.toLowerCase();
+    if (!deferredQuery.trim()) return tags.slice(0, 5);
+    const q = deferredQuery.toLowerCase();
     return tags.filter((t) => t.name.toLowerCase().includes(q)).slice(0, 5);
-  }, [query, tags]);
+  }, [deferredQuery, tags]);
 
   // Flatten for keyboard nav
   const flat = useMemo<ResultItem[]>(() => {
     const items: ResultItem[] = [];
     // Tags first when searching
-    if (query.trim() && tagResults.length > 0) {
+    if (deferredQuery.trim() && tagResults.length > 0) {
       for (const t of tagResults) items.push({ type: "tag", item: t });
     }
     for (const o of objectResults.slice(0, 10)) items.push({ type: "object", item: o });
     // Show tags at bottom when empty query
-    if (!query.trim() && tagResults.length > 0) {
+    if (!deferredQuery.trim() && tagResults.length > 0) {
       for (const t of tagResults) items.push({ type: "tag", item: t });
     }
     return items;
-  }, [query, objectResults, tagResults]);
+  }, [deferredQuery, objectResults, tagResults]);
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -57,7 +59,7 @@ export function SearchDialog({ search, onSelect, onClose, tags = [], onSelectTag
 
   useEffect(() => {
     setHighlightIndex(0);
-  }, [query]);
+  }, [deferredQuery]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Escape") {
@@ -110,11 +112,22 @@ export function SearchDialog({ search, onSelect, onClose, tags = [], onSelectTag
           <kbd className="search-kbd">esc</kbd>
         </div>
 
-        {query && flat.length === 0 && (
-          <div className="search-empty">No results for &ldquo;{query}&rdquo;</div>
+        {isFiltering && (
+          <div className="search-filtering-skeleton tw-animate-pulse" aria-busy="true">
+            {[0, 1, 2, 3].map((i) => (
+              <div key={i} className="search-skeleton-row">
+                <span className="search-skeleton-icon" />
+                <span className="search-skeleton-line" />
+              </div>
+            ))}
+          </div>
         )}
 
-        {flat.length > 0 && (
+        {deferredQuery && !isFiltering && flat.length === 0 && (
+          <div className="search-empty">No results for &ldquo;{deferredQuery}&rdquo;</div>
+        )}
+
+        {!isFiltering && flat.length > 0 && (
           <div className="search-results-grouped">
             {/* Tags section */}
             {tagSection.length > 0 && (
@@ -177,7 +190,7 @@ export function SearchDialog({ search, onSelect, onClose, tags = [], onSelectTag
           </div>
         )}
 
-        {!query && flat.length === 0 && (
+        {!deferredQuery && flat.length === 0 && (
           <div className="search-hints">
             <span>Type to search across all projects, notes, and tags</span>
           </div>

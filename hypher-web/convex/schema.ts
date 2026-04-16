@@ -5,6 +5,9 @@ export default defineSchema({
   userMeta: defineTable({
     userId: v.string(),
     legacyClaimed: v.boolean(),
+    demoSeeded: v.optional(v.boolean()),
+    /** Pre-rendered digest copy for the demo workspace (Try Hypher). */
+    demoDigestText: v.optional(v.string()),
   }).index("by_user", ["userId"]),
 
   subscriptions: defineTable({
