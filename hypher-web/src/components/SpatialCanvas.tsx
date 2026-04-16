@@ -31,6 +31,8 @@ import { ArtifactCard } from "./canvas/cards/ArtifactCard";
 
 interface Props {
   project?: Project;
+  /** True while Convex subscription data is still loading. */
+  convexLoading?: boolean;
   items: AnyObject[];
   connections: Connection[];
   onSelect: (id: string) => void;
@@ -57,7 +59,11 @@ interface InlineCreate {
 }
 
 export function SpatialCanvas({
-  project, items, connections, onSelect,
+  project,
+  convexLoading = false,
+  items,
+  connections,
+  onSelect,
   onUpdatePosition, onCreateAtPosition, onConfirmConnection, onDismissConnection,
   onUpdateObject, onDeleteObjects, onDuplicateObjects,
   onRestoreObjects, onRestoreConnections, onCreateManualConnection, onLogView,
@@ -469,7 +475,7 @@ export function SpatialCanvas({
   }, []);
 
   const canvasClassName = [
-    "spatial-canvas",
+    "spatial-canvas tw-relative",
     canvasMode === "text" ? "text-mode" : "",
     canvasMode === "pan" ? "pan-mode" : "",
     canvasMode === "select" && !spaceHeld ? "select-mode" : "",
@@ -494,6 +500,16 @@ export function SpatialCanvas({
         contextMenu.openCanvasMenu(e, pos.x, pos.y, rect);
       }}
     >
+      {convexLoading && (
+        <div className="canvas-convex-loading tw-absolute tw-inset-0 tw-z-20 tw-flex tw-flex-wrap tw-content-start tw-gap-4 tw-p-8 tw-bg-[#fafafa]/85 tw-backdrop-blur-[1px]" aria-busy="true">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <div
+              key={i}
+              className="tw-w-52 tw-h-28 tw-rounded-lg tw-border tw-border-slate-200/80 tw-bg-white/90 tw-shadow-sm tw-animate-pulse"
+            />
+          ))}
+        </div>
+      )}
       <div className="spatial-grid" data-bg={canvasBg} style={{
         backgroundPosition: `${transform.x}px ${transform.y}px`,
         backgroundSize: `${24 * transform.k}px ${24 * transform.k}px`,

@@ -10,6 +10,8 @@ import type { Project, AnyObject } from "@/types";
 interface Props {
   projects: Project[];
   allObjects: AnyObject[];
+  /** Pre-seeded demo digest (server); skips AI when set. */
+  demoDigestText?: string | null;
   onDismiss: () => void;
   onSelectProject: (id: string) => void;
 }
@@ -21,13 +23,24 @@ function getGreeting(): string {
   return "Good evening";
 }
 
-export function DailyDigest({ projects, allObjects, onDismiss, onSelectProject }: Props) {
+export function DailyDigest({
+  projects,
+  allObjects,
+  demoDigestText,
+  onDismiss,
+  onSelectProject,
+}: Props) {
   const [digestText, setDigestText] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   const generateDigest = useAction(api.ai.generateDigest);
 
   const fetchDigest = useCallback(async () => {
+    if (demoDigestText) {
+      setDigestText(demoDigestText);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
       // Count items per project
@@ -63,7 +76,7 @@ export function DailyDigest({ projects, allObjects, onDismiss, onSelectProject }
     } finally {
       setLoading(false);
     }
-  }, [projects, allObjects, generateDigest]);
+  }, [projects, allObjects, generateDigest, demoDigestText]);
 
   useEffect(() => {
     fetchDigest();
@@ -112,11 +125,14 @@ export function DailyDigest({ projects, allObjects, onDismiss, onSelectProject }
 
           <div className="digest-body">
             {loading && (
-              <div className="digest-loading">
-                <div className="digest-loading-dots">
-                  <span /><span /><span />
+              <div className="digest-loading tw-animate-pulse" aria-busy="true">
+                <div className="tw-space-y-3 tw-w-full tw-max-w-md">
+                  <div className="tw-h-3 tw-rounded tw-bg-slate-200/80 tw-w-[92%]" />
+                  <div className="tw-h-3 tw-rounded tw-bg-slate-200/80 tw-w-full" />
+                  <div className="tw-h-3 tw-rounded tw-bg-slate-200/80 tw-w-[85%]" />
+                  <div className="tw-h-3 tw-rounded tw-bg-slate-200/80 tw-w-[70%]" />
                 </div>
-                <p className="digest-loading-text">Thinking about your projects...</p>
+                <p className="digest-loading-text tw-mt-4">Thinking about your projects...</p>
               </div>
             )}
 

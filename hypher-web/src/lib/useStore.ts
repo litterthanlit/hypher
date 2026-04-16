@@ -9,6 +9,7 @@ import type { AnyObject, Connection, Project, Note, Artifact, ActivityEntry } fr
 import { getDisplayName } from "@/types";
 import { toast } from "sonner";
 import { generateEmbedding, computeSuggestionsFromData, suggestProjectFromData } from "./engine";
+import { reportConvexActionFailed } from "./convexActionFailed";
 
 /* ── Convex doc → app type mappers ──────────────────────────────── */
 
@@ -58,13 +59,19 @@ export function useStore() {
   const skipConvex = !clerkLoaded || !isSignedIn;
 
   const claimLegacyData = useMutation(api.legacy.claimLegacyData);
+  const ensureDemoForUser = useMutation(api.seed.ensureDemoForUser);
   const legacyStatus = useQuery(api.legacy.getLegacyStatus, skipConvex ? "skip" : {});
 
   useEffect(() => {
     if (!clerkLoaded || !isSignedIn || legacyStatus === undefined) return;
-    if (legacyStatus.legacyClaimed) return;
-    void claimLegacyData();
-  }, [clerkLoaded, isSignedIn, legacyStatus, claimLegacyData]);
+    const run = async () => {
+      if (!legacyStatus.legacyClaimed) {
+        await claimLegacyData();
+      }
+      await ensureDemoForUser();
+    };
+    void run();
+  }, [clerkLoaded, isSignedIn, legacyStatus?.legacyClaimed, claimLegacyData, ensureDemoForUser]);
 
   /* ── Reactive queries (replaces reload()) ─────────────────────── */
   const rawObjects = useQuery(api.objects.list, skipConvex ? "skip" : {});
@@ -283,7 +290,7 @@ export function useStore() {
           if (tags.length > 0) {
             putObjectMut({ id: convexId as Id<"objects">, ...convexInsertArgs({ ...embedded, tags } as AnyObject) } as any);
           }
-        }).catch(() => {});
+        }).catch((e) => reportConvexActionFailed("ai.generateTags", e));
       }
 
       return convexId as string;
@@ -354,7 +361,7 @@ export function useStore() {
           if (tags.length > 0) {
             putObjectMut({ id: convexId as Id<"objects">, ...convexInsertArgs({ ...embedded, tags } as AnyObject) } as any);
           }
-        }).catch(() => {});
+        }).catch((e) => reportConvexActionFailed("ai.generateTags", e));
       }
 
       return suggestions;
@@ -674,9 +681,16 @@ export function useStore() {
     });
   };
 
+  const convexDataLoading =
+    !skipConvex &&
+    (rawObjects === undefined ||
+      rawConnections === undefined ||
+      rawActivity === undefined);
+
   return {
     clerkLoaded,
     isSignedIn: isSignedIn ?? false,
+    convexDataLoading,
     objects,
     projects,
     notes,

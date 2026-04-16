@@ -35,6 +35,7 @@ export default function AppHome() {
   const store = useStore();
   const skipTags = !store.clerkLoaded || !store.isSignedIn;
   const tagsList = useQuery(api.tags.listWithCounts, skipTags ? "skip" : {});
+  const demoDigestText = useQuery(api.seed.getDemoDigest, skipTags ? "skip" : {});
   const tags = useMemo(() => tagsList ?? [], [tagsList]);
   const [appMode, setAppMode] = useState<AppMode>("capture");
   const [contentMode, setContentMode] = useState<ContentMode>("canvas");
@@ -364,6 +365,7 @@ export default function AppHome() {
           <AppErrorBoundary label="Canvas">
             <SpatialCanvas
               project={store.projects.find((p) => p.id === selectedProjectId)}
+              convexLoading={store.convexDataLoading}
               items={projectItems}
               connections={projectConnections}
               onSelect={store.setSelectedId}
@@ -411,6 +413,7 @@ export default function AppHome() {
           <DailyDigest
             projects={store.projects}
             allObjects={store.objects}
+            demoDigestText={demoDigestText}
             onDismiss={() => {
               setShowDigest(false);
               localStorage.setItem("hypher-last-digest-date", new Date().toISOString().slice(0, 10));
