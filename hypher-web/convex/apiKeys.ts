@@ -9,7 +9,12 @@ import { requireUserId } from "./lib/auth";
 import type { Id } from "./_generated/dataModel";
 import bcrypt from "bcryptjs";
 
-/** 30-day sunset for legacy salt-less hashes (manual enforcement). */
+/**
+ * 30-day sunset for legacy salt-less hashes (manual enforcement).
+ *
+ * TODO: After sunset, remove legacy validation branches in `validate` and drop the
+ * `by_legacy_full` schema index (only used for that fallback).
+ */
 export const LEGACY_HASH_SUNSET_MS = 30 * 24 * 60 * 60 * 1000;
 
 const BCRYPT_COST = 10;
@@ -41,6 +46,16 @@ function splitKey(plain: string): { prefix: string; remainder: string } | null {
     prefix: plain.slice(0, PREFIX_LEN),
     remainder: plain.slice(PREFIX_LEN),
   };
+}
+
+/** Constant-time compare for equal-length ASCII strings (Convex V8 — no Node `crypto`). */
+function timingSafeEqualStr(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) {
+    diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return diff === 0;
 }
 
 export const create = mutation({
@@ -134,7 +149,12 @@ export const validate = internalQuery({
       .query("apiKeys")
       .withIndex("by_legacy_full", (q) => q.eq("legacyFullKeyHash", legacyFp))
       .first();
-    if (byLegacyIndex && byLegacyIndex.revokedAt === undefined) {
+    if (
+      byLegacyIndex &&
+      byLegacyIndex.revokedAt === undefined &&
+      byLegacyIndex.legacyFullKeyHash !== undefined &&
+      timingSafeEqualStr(legacyFp, byLegacyIndex.legacyFullKeyHash)
+    ) {
       return {
         userId: byLegacyIndex.userId,
         keyId: byLegacyIndex._id,
@@ -147,7 +167,12 @@ export const validate = internalQuery({
       .query("apiKeys")
       .withIndex("by_key", (q) => q.eq("key", legacyFp))
       .first();
-    if (byOldKey && byOldKey.revokedAt === undefined) {
+    if (
+      byOldKey &&
+      byOldKey.revokedAt === undefined &&
+      byOldKey.key !== undefined &&
+      timingSafeEqualStr(legacyFp, byOldKey.key)
+    ) {
       return {
         userId: byOldKey.userId,
         keyId: byOldKey._id,
@@ -171,6 +196,7 @@ export const touch = internalMutation({
 
 /**
  * One-shot migration: cannot rehash without plaintext — mark rotation + legacy hash path.
+ * Idempotent: rows already having `legacyFullKeyHash` or `remainderBcrypt` are skipped.
  */
 export const migrateApiKeyHashes = internalMutation({
   handler: async (ctx) => {
