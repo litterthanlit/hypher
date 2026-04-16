@@ -1,33 +1,54 @@
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
+import Link from "next/link";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
 
-export function ApiKeysPanel({ onClose }: { onClose: () => void }) {
-  const keys = useQuery(api.apiKeys.list);
+type Variant = "modal" | "page";
+
+interface Props {
+  onClose?: () => void;
+  variant?: Variant;
+}
+
+export function ApiKeysPanel({ onClose, variant = "modal" }: Props) {
+  const [includeRevoked, setIncludeRevoked] = useState(false);
+  const keys = useQuery(api.apiKeys.list, { includeRevoked });
   const createKey = useMutation(api.apiKeys.create);
   const revokeKey = useMutation(api.apiKeys.revoke);
 
+  const [showNameModal, setShowNameModal] = useState(false);
   const [newKeyName, setNewKeyName] = useState("");
   const [revealedKey, setRevealedKey] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
+  const handleOpenCreate = useCallback(() => {
+    setNewKeyName("");
+    setShowNameModal(true);
+  }, []);
+
   const handleCreate = useCallback(async () => {
     if (!newKeyName.trim()) return;
     const plainKey = await createKey({ name: newKeyName.trim() });
-    setRevealedKey(plainKey);
+    setShowNameModal(false);
     setNewKeyName("");
+    setRevealedKey(plainKey);
     setCopied(false);
   }, [newKeyName, createKey]);
 
   const handleCopy = useCallback(() => {
     if (revealedKey) {
-      navigator.clipboard.writeText(revealedKey);
+      void navigator.clipboard.writeText(revealedKey);
       setCopied(true);
     }
   }, [revealedKey]);
+
+  const dismissReveal = useCallback(() => {
+    setRevealedKey(null);
+    setCopied(false);
+  }, []);
 
   const handleRevoke = useCallback(
     async (keyId: string) => {
@@ -37,91 +58,173 @@ export function ApiKeysPanel({ onClose }: { onClose: () => void }) {
   );
 
   useEffect(() => {
+    if (variant !== "modal" || !onClose) return;
     const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape" && !revealedKey && !showNameModal) onClose();
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [onClose]);
+  }, [onClose, variant, revealedKey, showNameModal]);
 
-  return (
-    <div className="modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="modal api-keys-panel" onClick={(e) => e.stopPropagation()}>
-        <div className="project-settings-header">
-          <h3>API Keys</h3>
+  const inner = (
+    <>
+      <div className="project-settings-header">
+        <h3>API Keys</h3>
+        {variant === "modal" && onClose && (
           <button className="project-settings-close" onClick={onClose} aria-label="Close">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" width={18} height={18}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
             </svg>
           </button>
-        </div>
-
-        <p className="api-keys-desc">
-          API keys let you capture into Hypher from external apps using <code>@hypher/core</code>.
-        </p>
-
-        {/* Revealed key warning */}
-        {revealedKey && (
-          <div className="api-key-revealed">
-            <p className="api-key-revealed-warning">
-              This key will only be shown once. Copy it now.
-            </p>
-            <div className="api-key-revealed-value">
-              <code>{revealedKey}</code>
-              <button className="api-key-copy-btn" onClick={handleCopy}>
-                {copied ? "Copied" : "Copy"}
-              </button>
-            </div>
-            <button className="api-key-dismiss-btn" onClick={() => setRevealedKey(null)}>
-              Done
-            </button>
-          </div>
         )}
+        {variant === "page" && (
+          <Link href="/app" className="api-keys-back-link">
+            ← Back to app
+          </Link>
+        )}
+      </div>
 
-        {/* Create new key */}
-        {!revealedKey && (
-          <div className="api-key-create">
+      <p className="api-keys-desc">
+        API keys let you capture into Hypher from external apps using <code>@hypher/core</code>.
+      </p>
+
+      <div className="api-keys-toolbar">
+        <button
+          type="button"
+          className="settings-github-connect"
+          onClick={handleOpenCreate}
+        >
+          Create new key
+        </button>
+        <label className="api-keys-toggle">
+          <input
+            type="checkbox"
+            checked={includeRevoked}
+            onChange={(e) => setIncludeRevoked(e.target.checked)}
+          />
+          Show revoked
+        </label>
+      </div>
+
+      {showNameModal && (
+        <div className="modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) setShowNameModal(false); }}>
+          <div className="modal api-keys-name-modal" onClick={(e) => e.stopPropagation()}>
+            <h4 className="api-keys-modal-title">Name this key</h4>
             <input
               type="text"
               value={newKeyName}
               onChange={(e) => setNewKeyName(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleCreate()}
-              placeholder="Key name (e.g. My App, CLI)"
+              placeholder="e.g. CLI, My App"
               className="settings-github-input"
+              autoFocus
             />
-            <button
-              className="settings-github-connect"
-              onClick={handleCreate}
-              disabled={!newKeyName.trim()}
-            >
-              Create Key
-            </button>
-          </div>
-        )}
-
-        {/* List existing keys */}
-        <div className="api-keys-list">
-          {keys?.length === 0 && (
-            <p className="api-keys-empty">No API keys yet.</p>
-          )}
-          {keys?.map((k) => (
-            <div key={k.id} className="api-key-row">
-              <div className="api-key-info">
-                <span className="api-key-name">{k.name}</span>
-                <span className="api-key-meta">
-                  Created {new Date(k.createdAt).toLocaleDateString()}
-                  {k.lastUsed && ` · Last used ${new Date(k.lastUsed).toLocaleDateString()}`}
-                </span>
-              </div>
+            <div className="api-keys-modal-actions">
+              <button type="button" className="api-key-dismiss-btn" onClick={() => setShowNameModal(false)}>
+                Cancel
+              </button>
               <button
-                className="api-key-revoke"
-                onClick={() => handleRevoke(k.id)}
+                type="button"
+                className="settings-github-connect"
+                onClick={() => void handleCreate()}
+                disabled={!newKeyName.trim()}
               >
-                Revoke
+                Generate key
               </button>
             </div>
-          ))}
+          </div>
         </div>
+      )}
+
+      {revealedKey && (
+        <div className="modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) dismissReveal(); }}>
+          <div className="modal api-keys-panel" onClick={(e) => e.stopPropagation()}>
+            <div className="api-key-revealed">
+              <p className="api-key-revealed-warning">
+                Copy this now — you won&apos;t see it again.
+              </p>
+              <div className="api-key-revealed-value">
+                <code>{revealedKey}</code>
+                <button type="button" className="api-key-copy-btn" onClick={handleCopy}>
+                  {copied ? "Copied" : "Copy"}
+                </button>
+              </div>
+              <button type="button" className="api-key-dismiss-btn" onClick={dismissReveal}>
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="api-keys-table-wrap">
+        <table className="api-keys-table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Prefix</th>
+              <th>Created</th>
+              <th>Last used</th>
+              <th />
+            </tr>
+          </thead>
+          <tbody>
+            {keys?.length === 0 && (
+              <tr>
+                <td colSpan={5} className="api-keys-empty-cell">No API keys yet.</td>
+              </tr>
+            )}
+            {keys?.map((k) => (
+              <tr key={k.id} className={k.revokedAt ? "api-key-row-revoked" : ""}>
+                <td>
+                  <span className="api-key-name">{k.name}</span>
+                  {k.needsRotation && (
+                    <span className="api-key-badge">Rotation suggested</span>
+                  )}
+                  {k.revokedAt && (
+                    <span className="api-key-badge api-key-badge-revoked">Revoked</span>
+                  )}
+                </td>
+                <td>
+                  <code className="api-key-prefix">{k.prefix}</code>
+                </td>
+                <td>{new Date(k.createdAt).toLocaleString()}</td>
+                <td>{k.lastUsed ? new Date(k.lastUsed).toLocaleString() : "—"}</td>
+                <td>
+                  {!k.revokedAt ? (
+                    <button
+                      type="button"
+                      className="api-key-revoke"
+                      onClick={() => void handleRevoke(k.id)}
+                    >
+                      Revoke
+                    </button>
+                  ) : (
+                    <span className="api-key-meta">—</span>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </>
+  );
+
+  if (variant === "page") {
+    return (
+      <div className="settings-api-keys-page">
+        <div className="modal api-keys-panel api-keys-panel--page">
+          {inner}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="modal-overlay" onClick={(e) => { if (e.target === e.currentTarget && onClose) onClose(); }}>
+      <div className="modal api-keys-panel" onClick={(e) => e.stopPropagation()}>
+        {inner}
       </div>
     </div>
   );

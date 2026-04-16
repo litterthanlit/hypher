@@ -90,11 +90,23 @@ export default defineSchema({
 
   apiKeys: defineTable({
     userId: v.string(),
-    key: v.string(),
+    /** @deprecated Legacy full-key fingerprint (hk_…); use prefix + remainderBcrypt for new keys */
+    key: v.optional(v.string()),
     name: v.string(),
     createdAt: v.number(),
     lastUsed: v.optional(v.number()),
-  }).index("by_key", ["key"]),
+    revokedAt: v.optional(v.number()),
+    /** First 8 characters of the plaintext key (display + lookup) */
+    prefix: v.optional(v.string()),
+    /** bcrypt hash of the remainder (after prefix), cost 10 */
+    remainderBcrypt: v.optional(v.string()),
+    /** Old salt-less hash of the full key — accepted until rotated (see LEGACY_HASH_SUNSET_MS) */
+    legacyFullKeyHash: v.optional(v.string()),
+    needsRotation: v.optional(v.boolean()),
+  })
+    .index("by_key", ["key"])
+    .index("by_prefix", ["prefix"])
+    .index("by_legacy_full", ["legacyFullKeyHash"]),
 
   tags: defineTable({
     userId: v.string(),

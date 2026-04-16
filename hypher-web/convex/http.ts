@@ -1,14 +1,19 @@
 import { httpRouter } from "convex/server";
 import { httpAction } from "./_generated/server";
 import { internal } from "./_generated/api";
+import { enforceApiKeyRateLimit } from "./httpRateLimit";
 
 const http = httpRouter();
 
-const CORS_HEADERS = {
+const CORS_HEADERS: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
   "Access-Control-Allow-Headers": "Authorization, Content-Type",
 };
+
+function withCors(headers: Record<string, string>): Record<string, string> {
+  return { ...headers, ...CORS_HEADERS };
+}
 
 // CORS preflight
 http.route({
@@ -36,22 +41,37 @@ http.route({
     if (!apiKey) {
       return new Response(
         JSON.stringify({ error: "Missing API key" }),
-        { status: 401, headers: { "Content-Type": "application/json", ...CORS_HEADERS } }
+        {
+          status: 401,
+          headers: withCors({ "Content-Type": "application/json" }),
+        }
       );
     }
 
-    const userId = await ctx.runQuery(internal.apiKeys.validate, { key: apiKey });
-    if (!userId) {
+    const validated = await ctx.runQuery(internal.apiKeys.validate, {
+      key: apiKey,
+    });
+    if (!validated) {
       return new Response(
         JSON.stringify({ error: "Invalid API key" }),
-        { status: 401, headers: { "Content-Type": "application/json", ...CORS_HEADERS } }
+        {
+          status: 401,
+          headers: withCors({ "Content-Type": "application/json" }),
+        }
       );
+    }
+
+    const limited = await enforceApiKeyRateLimit(validated.rateLimitKey);
+    if (limited) {
+      const h = new Headers(limited.headers);
+      for (const [k, v] of Object.entries(CORS_HEADERS)) h.set(k, v);
+      return new Response(limited.body, { status: limited.status, headers: h });
     }
 
     const body = await request.json();
     const now = Date.now();
     const id = await ctx.runMutation(internal.objects.putForApiUser, {
-      userId,
+      userId: validated.userId,
       kind: body.kind || "note",
       content: body.content,
       maturity: "fleeting",
@@ -61,12 +81,14 @@ http.route({
       tags: body.tags,
     });
 
-    // Update lastUsed on API key
-    await ctx.runMutation(internal.apiKeys.touch, { key: apiKey });
+    await ctx.runMutation(internal.apiKeys.touch, { keyId: validated.keyId });
 
     return new Response(
       JSON.stringify({ id, success: true }),
-      { status: 200, headers: { "Content-Type": "application/json", ...CORS_HEADERS } }
+      {
+        status: 200,
+        headers: withCors({ "Content-Type": "application/json" }),
+      }
     );
   }),
 });
@@ -80,19 +102,36 @@ http.route({
     if (!apiKey) {
       return new Response(
         JSON.stringify({ error: "Missing API key" }),
-        { status: 401, headers: { "Content-Type": "application/json", ...CORS_HEADERS } }
+        {
+          status: 401,
+          headers: withCors({ "Content-Type": "application/json" }),
+        }
       );
     }
 
-    const userId = await ctx.runQuery(internal.apiKeys.validate, { key: apiKey });
-    if (!userId) {
+    const validated = await ctx.runQuery(internal.apiKeys.validate, {
+      key: apiKey,
+    });
+    if (!validated) {
       return new Response(
         JSON.stringify({ error: "Unauthorized" }),
-        { status: 401, headers: { "Content-Type": "application/json", ...CORS_HEADERS } }
+        {
+          status: 401,
+          headers: withCors({ "Content-Type": "application/json" }),
+        }
       );
     }
 
-    const allObjects = await ctx.runQuery(internal.objects.listForApiUser, { userId });
+    const limited = await enforceApiKeyRateLimit(validated.rateLimitKey);
+    if (limited) {
+      const h = new Headers(limited.headers);
+      for (const [k, v] of Object.entries(CORS_HEADERS)) h.set(k, v);
+      return new Response(limited.body, { status: limited.status, headers: h });
+    }
+
+    const allObjects = await ctx.runQuery(internal.objects.listForApiUser, {
+      userId: validated.userId,
+    });
     const projects = allObjects
       .filter((o: { kind: string }) => o.kind === "project")
       .map((o: { _id: string; name?: string; status?: string; priority?: number }) => ({
@@ -104,7 +143,10 @@ http.route({
 
     return new Response(
       JSON.stringify({ projects }),
-      { status: 200, headers: { "Content-Type": "application/json", ...CORS_HEADERS } }
+      {
+        status: 200,
+        headers: withCors({ "Content-Type": "application/json" }),
+      }
     );
   }),
 });
