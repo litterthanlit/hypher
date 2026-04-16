@@ -112,77 +112,105 @@ export const getByPublicSlug = query({
 3. Fetch all confirmed connections (`type === "ai_confirmed"` or `type === "manual"`) whose both endpoints exist in the filtered items list. Drop anything referencing a dropped item.
 4. Return a **sanitized** payload using an explicit allowlist of fields (see next section). **Never** spread the Convex doc — always pick.
 
-### Sanitization rules
+### Sanitization rules — explicit, exhaustive allowlist
 
-Define in `sharing.ts`:
+This is the most security-sensitive part of the spec. The implementer must **copy the allowlist below verbatim**, field by field, and never use object spread or `Object.assign` on a Convex doc inside `sharing.ts`. Every field the public payload returns is explicitly picked — no exceptions.
 
-```ts
-type PublicProject = {
-  id: string;
-  name: string;
-  description: string;
-  createdAt: number;
-  modifiedAt: number;
-};
+#### `PublicProject` — allowlist (exactly these 5 fields):
 
-type PublicNote = {
-  id: string;
-  kind: "note";
-  content: string;
-  maturity: string | undefined;
-  tags: string[] | undefined;
-  canvasPosition: { x: number; y: number } | undefined;
-  canvasColor: string | undefined;
-  canvasSize: { w: number; h: number } | undefined;
-};
+| Field | Source | Why safe |
+|---|---|---|
+| `id` | Convex `_id` | Opaque identifier, already exposed by the slug path. |
+| `name` | `name` | The user-chosen project name — the thing they're sharing. |
+| `description` | `description` | User-chosen project description. |
+| `createdAt` | `createdAt` | Timestamp only, no PII. |
+| `modifiedAt` | `modifiedAt` | Timestamp only, no PII. |
 
-type PublicArtifact = {
-  id: string;
-  kind: "artifact";
-  name: string;
-  type: string | undefined;
-  thumbnailDataUrl: string | undefined; // only if it's a data URL; never a file path
-  tags: string[] | undefined;
-  canvasPosition: { x: number; y: number } | undefined;
-  canvasColor: string | undefined;
-};
+#### `PublicNote` — allowlist (exactly these 8 fields):
 
-type PublicConnection = {
-  id: string;
-  sourceId: string;
-  targetId: string;
-  type: "manual" | "ai_confirmed";
-  reason: string;
-};
-```
+| Field | Source | Why safe |
+|---|---|---|
+| `id` | `_id` | Opaque. |
+| `kind` | Literal `"note"` | Type discriminator. |
+| `content` | `content` | User-written note body — the point of sharing. |
+| `maturity` | `maturity` | UI hint (`fleeting`/`developing`/etc.), no PII. |
+| `tags` | `tags` | User-chosen tags. Tag *names* only; never the `tags` table rows, which carry `userId`. |
+| `canvasPosition` | `canvasPosition` | Coordinates on the canvas. |
+| `canvasColor` | `canvasColor` | Styling. |
+| `canvasSize` | `canvasSize` | Styling. |
 
-Fields that **must never** leave via the public query:
+#### `PublicArtifact` — allowlist (exactly these 7 fields):
 
-- `userId` (PII link to Clerk).
-- `githubRepo`, `githubLastSync`, `blockers`, `priority`, `status` — admin metadata.
-- `embedding`, `embeddingText` — large vectors, leaks semantic fingerprints, not useful to viewers.
-- `isDemo`, `isPublic`, `publicSlug`, `publicSharedAt`, `privateOnShare` — internal sharing state.
-- `fileReference` — server-side file path.
-- Connections with `type === "dismissed"` or `type === "ai_suggested"` — drop these entirely, they represent unconfirmed AI noise.
+| Field | Source | Why safe |
+|---|---|---|
+| `id` | `_id` | Opaque. |
+| `kind` | Literal `"artifact"` | Type discriminator. |
+| `name` | `name` | User-chosen filename / display name. |
+| `type` | `type` | Media kind (`image`/`code`/etc.). |
+| `thumbnailDataUrl` | `thumbnailDataUrl` | Base64 data URL stored inline. Safe because it's self-contained and already user-intended content. **Never** expose `fileReference`. |
+| `tags` | `tags` | Same reasoning as notes. |
+| `canvasPosition` | `canvasPosition` | Coordinates. |
+| `canvasColor` | `canvasColor` | Styling. |
 
-The `apiKeys`, `githubTokens`, `tags`, and `activity` tables are never touched by the public query. That is the structural guarantee; do not change it.
+#### `PublicConnection` — allowlist (exactly these 5 fields):
 
-### Slug generation
+| Field | Source | Why safe |
+|---|---|---|
+| `id` | `_id` | Opaque. |
+| `sourceId` | `sourceId` | References an item already in the public payload. |
+| `targetId` | `targetId` | References an item already in the public payload. |
+| `type` | `type` | One of `"manual"` or `"ai_confirmed"` only — filter out everything else before projecting. |
+| `reason` | `reason` | AI-generated explanation string, safe to show. |
+
+#### Fields that **must never** leave via the public query (exhaustive denylist):
+
+**On `objects` rows:**
+- `userId` — PII link to Clerk identity.
+- `embedding`, `embeddingText` — semantic fingerprints of the full content; large, and could leak information about neighbouring private items.
+- `githubRepo`, `githubLastSync` — reveals private repo names, potential for enumeration attacks against GitHub.
+- `blockers`, `priority`, `status` — internal workflow metadata the owner never intended to share.
+- `lastActivity`, `lastSurfacedAt` — usage fingerprint.
+- `isDemo`, `isPublic`, `publicSlug`, `publicSharedAt`, `privateOnShare` — internal sharing state. Returning `publicSlug` would be a trivial enumeration surface.
+- `fileReference` — server-side file path; exposure could aid directory traversal or bucket probing.
+
+**On `connections` rows:**
+- Anything with `type === "dismissed"` or `type === "ai_suggested"` — filtered out before the shape step.
+- `confidence` — an AI score the owner has not chosen to publish.
+- `createdAt` — unused downstream.
+
+**Entire tables the public query must never read from** (structural guarantee — add a comment at the top of `sharing.ts` asserting this):
+- `apiKeys` — contains hashed API keys.
+- `githubTokens` — contains GitHub OAuth/PATs.
+- `tags` — tag-index rows are keyed by `userId`; the tag *names* are already surfaced in the `objects.tags` array.
+- `activity` — per-user audit log.
+
+If a future change wants to surface any of the above (e.g., "show public view-count"), it must introduce a **new** sanitized query; it must not modify the allowlist in `getByPublicSlug` to grow.
+
+### Slug generation — random, never sequential
+
+**Must be random, not sequential.** A sequential slug (`/c/1`, `/c/2`, …) lets anyone enumerate every public canvas in the system. A random, high-entropy slug makes the URL itself the capability — you need the link to load the canvas.
 
 New file `hypher-web/convex/lib/slug.ts` (tiny module):
 
 ```ts
+// base36 alphabet — URL-safe, no ambiguous chars, no underscores/hyphens
 const ALPHABET = "abcdefghijklmnopqrstuvwxyz0123456789";
+
 export function generateSlug(): string {
+  // Use crypto.getRandomValues for cryptographic randomness.
+  // Math.random() is banned here — it's predictable enough for an attacker
+  // to narrow the search space if they observe a handful of issued slugs.
+  const bytes = new Uint8Array(8);
+  crypto.getRandomValues(bytes);
   let s = "";
   for (let i = 0; i < 8; i++) {
-    s += ALPHABET[Math.floor(Math.random() * ALPHABET.length)];
+    s += ALPHABET[bytes[i] % ALPHABET.length];
   }
   return s;
 }
 ```
 
-8-char slugs give ~2.8 trillion combinations — collision is effectively impossible for this user base. The retry loop in `togglePublic` handles it regardless.
+8-char base36 slugs give ~2.8 trillion combinations. Collision is effectively impossible for the projected user base; the retry loop in `togglePublic` (5 attempts against the `by_publicSlug` index) handles any edge case. If slug length needs changing later, bump the loop constant; do not replace the entropy source.
 
 ### New route: `hypher-web/src/app/c/[slug]/page.tsx`
 
@@ -218,7 +246,15 @@ export default async function Page({ params }) {
   } catch {
     notFound();
   }
-  return <PublicCanvas data={data} />;
+  // Watermark is rendered as a sibling of PublicCanvas — NOT inside it.
+  // This is a server component tree; the watermark lands in the initial
+  // HTML and cannot be removed by toggling a client React state.
+  return (
+    <>
+      <PublicCanvas data={data} />
+      <ShareWatermark />
+    </>
+  );
 }
 ```
 
@@ -234,8 +270,9 @@ Thin wrapper that:
 
 1. Accepts the sanitized `{ project, items, connections }` payload.
 2. Renders the existing `SpatialCanvas` with `readOnly: true` (new prop — see below).
-3. Overlays `<ShareWatermark />` in the bottom-right.
-4. Renders the project title + description in a header strip.
+3. Renders the project title + description in a header strip.
+
+**The watermark is not rendered from this client component.** It is server-rendered in `page.tsx` (see below) so it cannot be trivially stripped via DevTools by toggling React state or deleting a component from the tree.
 
 ### Modify: `hypher-web/src/components/SpatialCanvas.tsx`
 
@@ -249,10 +286,14 @@ Add a `readOnly?: boolean` prop. When true:
 
 Keep the prop narrow — everything else flows through the same render tree. Do not fork the component.
 
-### New component: `hypher-web/src/components/ShareWatermark.tsx`
+### New component: `hypher-web/src/components/ShareWatermark.tsx` — server component
 
 ```tsx
-"use client";
+// NOTE: no "use client" directive — this is a Server Component so the
+// watermark renders into the initial HTML before any JavaScript executes.
+// Stripping it in DevTools requires editing the live DOM by hand every
+// load, which is substantially more friction than deleting a React
+// component from the tree.
 export function ShareWatermark() {
   return (
     <a href="https://hypher.app/" className="share-watermark" rel="noreferrer">
@@ -263,7 +304,9 @@ export function ShareWatermark() {
 }
 ```
 
-Styles added to `hypher-web/src/app/globals.css` under `.share-watermark` — bottom-right, ~36px tall, translucent background, subtle shadow, never covers important UI (z-index below toasts).
+**Rendered by `app/c/[slug]/page.tsx` (a Server Component) as a sibling of `<PublicCanvas />`, not as a child of it.** This matters: a client-side `<PublicCanvas />` that renders the watermark inside its own tree can be nuked by a DevTools "Delete node" click. Rendering it from the server route, outside the client island, means it survives as long as the page's initial HTML is intact. Users *can* still remove it by editing the DOM each visit, which is acceptable — the goal is to make stripping it a conscious effort, not a one-toggle React state change.
+
+Styles added to `hypher-web/src/app/globals.css` under `.share-watermark` — bottom-right, ~36px tall, translucent background, subtle shadow, never covers important UI (z-index below toasts). Use `position: fixed` so it stays in the viewport during canvas pan/zoom.
 
 ### Modify: `hypher-web/src/components/ProjectSettings.tsx`
 

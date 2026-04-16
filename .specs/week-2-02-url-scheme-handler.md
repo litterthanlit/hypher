@@ -22,12 +22,13 @@ Raycast, Alfred, iOS Shortcuts, and shell scripts all expose "open a URL" as the
 - A Next.js Route Handler at `hypher-web/src/app/capture/route.ts` that:
   - Accepts `GET /capture?content=<urlencoded-text>&project=<projectId-or-slug>&title=<optional>&tags=<comma-separated>` and `POST /capture` with the same fields in a JSON body.
   - Authenticates via the Clerk session cookie (`auth()` from `@clerk/nextjs/server`).
-  - If unauthenticated → 302 redirect to `/sign-in?redirect_url=<the-original-capture-url>` so the user lands back on the capture after sign-in.
+  - If unauthenticated → **payload-preserving sign-in flow (critical)**: the handler serializes the validated capture payload (`content`, `project`, `tags`, `title`) into a short-lived signed, HTTP-only cookie (`hypher_pending_capture`, 10-minute TTL, signed with `CAPTURE_STATE_SECRET`), then 302-redirects to `/sign-in?redirect_url=/capture/resume`. After successful Clerk sign-in, the user lands on `/capture/resume`, which re-reads the cookie, performs the capture, clears the cookie, and 302-redirects to the destination as if the user had been authed all along. The payload must never pass back through the URL during the sign-in bounce (prevents Clerk-hosted sign-in page logging it, prevents `Referer` leakage, and survives the cookie-domain redirect even if the URL is long). Signed-cookie approach is mandatory — do not serialize into the `redirect_url` query string.
   - Creates a new `note` object via the existing `api.objects.put` Convex mutation, with `userId`, `kind: "note"`, `content`, `maturity: "fleeting"`, and optional `tags` / `projectId`.
-  - On success → 302 redirect to `/app?toast=captured` (or `/app/p/<projectId>?toast=captured` if `project` was supplied).
+  - On success → **always** 302 redirect to `/app?toast=captured` (or `/app/p/<projectId>?toast=captured` if `project` was supplied). The 302 is not optional — it is the mechanism that clears the capture URL (with the user's content in the query string) out of the address bar, browser history, and any downstream HTTP access logs that only record the final URL. The landing toast component (see below) also calls `history.replaceState` to strip the `?toast=...` param within one tick.
 - A `toast=captured` query-param reader in `hypher-web/src/app/page.tsx` (or `/app/page.tsx` after the Week 1 move) that fires a toast via the existing `store.addToast` API on mount and strips the param from the URL.
 - Progressive `navigator.registerProtocolHandler('web+hypher', '/capture?%s')` call in a small client component inside the app layout so signed-in users can register `web+hypher://` once and have it invoke the handler thereafter. This is best-effort and silently no-ops on browsers that reject it.
 - Input validation: `content` must be present and ≤10,000 chars. `project` if supplied must match `^[a-zA-Z0-9_-]{6,64}$` (Convex ID pattern). `tags` if supplied is split on commas, trimmed, deduplicated, capped at 10, each tag ≤32 chars.
+- **HTTP method choice and its privacy implications.** Both `GET` and `POST` are supported because Raycast Quicklinks, shell `open`, and iOS Shortcuts' "Open URL" action only reliably speak GET. **Explicit tradeoff (documented here so there is no surprise in review):** a GET capture URL places the user's `content` in the browser's address bar, global history (`chrome://history`), the `Referer` header of any subsequently-loaded resource, and any server access log that records request URLs. The 302-after-processing pattern (below) partly mitigates this by ensuring the final URL in the history is `/app?toast=captured`, not the raw capture URL — but the capture URL itself is still logged at the edge/web-server layer. Mitigations: (a) the handler's 302 is mandatory — it gets the capture URL out of the browser address bar; (b) the Vercel/Convex access-log retention window is short and the URL is not indexable; (c) power users who want stronger privacy should use POST or the API-key `POST /api/capture` endpoint instead. This is called out in the cookbook under a "privacy note" heading.
 - Response semantics documented in a short `README.md` note under `.specs/` (not a top-level `README.md`).
 
 ### Out of scope
@@ -58,32 +59,34 @@ Pseudocode:
 export async function GET(req: NextRequest) {
   const { userId } = await auth();
   const params = Object.fromEntries(req.nextUrl.searchParams);
-  if (!userId) {
-    const redirectUrl = new URL(req.url);
-    return NextResponse.redirect(
-      new URL(`/sign-in?redirect_url=${encodeURIComponent(redirectUrl.toString())}`, req.url)
-    );
-  }
   const parsed = validate(params);
   if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 });
 
-  const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
-  const now = Date.now();
-  const id = await convex.mutation(api.objects.put, {
-    kind: "note",
-    content: parsed.content,
-    maturity: "fleeting",
-    createdAt: now,
-    modifiedAt: now,
-    projectId: parsed.projectId ?? null,
-    tags: parsed.tags,
-    userId, // from Clerk
-  });
+  if (!userId) {
+    // Stash the payload in a signed, HTTP-only cookie and bounce through sign-in.
+    // DO NOT put the payload into redirect_url — it would leak into the Clerk-
+    // hosted sign-in page's URL, the Referer header, and any logs in between.
+    const signed = await signCapturePayload(parsed, process.env.CAPTURE_STATE_SECRET!);
+    const res = NextResponse.redirect(new URL(`/sign-in?redirect_url=/capture/resume`, req.url));
+    res.cookies.set("hypher_pending_capture", signed, {
+      httpOnly: true, secure: true, sameSite: "lax", maxAge: 600, path: "/",
+    });
+    return res;
+  }
 
+  const id = await createCapture({ userId, payload: parsed });
   const dest = parsed.projectId ? `/app/p/${parsed.projectId}` : "/app";
   return NextResponse.redirect(new URL(`${dest}?toast=captured`, req.url));
 }
 ```
+
+### New file: `hypher-web/src/app/capture/resume/route.ts`
+
+Handles the post-sign-in bounce. Reads the `hypher_pending_capture` cookie, verifies the signature, performs the capture, clears the cookie, redirects as normal. If the cookie is missing, expired, or bad signature → redirect to `/app?toast=capture-expired` with a short explanatory toast. The implementation can reuse the `createCapture` helper from `route.ts`.
+
+### New file: `hypher-web/src/app/capture/state.ts`
+
+Small crypto helper: `signCapturePayload(payload, secret)` and `verifyCapturePayload(cookie, secret)` using Node's built-in `crypto.createHmac("sha256", secret)` over a JSON-serialized payload (no external dep). Payload includes a 10-minute-from-now expiry timestamp; verification rejects expired blobs. Add `CAPTURE_STATE_SECRET` to `hypher-web/.env.local` documentation and Vercel env.
 
 `POST` is identical except it reads the JSON body.
 
@@ -166,7 +169,9 @@ Mount inside `hypher-web/src/app/layout.tsx` (or inside the signed-in layout onc
 
 | File | Change |
 |---|---|
-| `hypher-web/src/app/capture/route.ts` | **NEW** — GET + POST handler. |
+| `hypher-web/src/app/capture/route.ts` | **NEW** — GET + POST handler; signed-cookie + redirect-to-/capture/resume for signed-out callers. |
+| `hypher-web/src/app/capture/resume/route.ts` | **NEW** — post-sign-in resume handler that reads the signed cookie, performs the capture, clears the cookie, redirects to `/app`. |
+| `hypher-web/src/app/capture/state.ts` | **NEW** — HMAC-SHA-256 sign/verify helpers for the pending-capture cookie. |
 | `hypher-web/src/app/capture/validate.ts` | **NEW** — input validation. |
 | `hypher-web/src/components/ProtocolHandlerRegistration.tsx` | **NEW** — `registerProtocolHandler` call. |
 | `hypher-web/src/app/layout.tsx` | Mount `<ProtocolHandlerRegistration />`. |

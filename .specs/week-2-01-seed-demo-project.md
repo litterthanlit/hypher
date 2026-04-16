@@ -29,7 +29,7 @@ A brand-new account today lands on an empty canvas with no digest, no connection
   - Handles only the `user.created` event.
   - Calls `internal.seed.createDemoProject({ userId, displayName })`.
   - Returns 200 on duplicate/idempotent replays.
-- Idempotency: the internal mutation short-circuits if the user already has a project with `isDemo: true`.
+- **Idempotency (critical — Clerk/Svix retries for 24h on any non-2xx).** The internal mutation's *first* action is a query: "does a project with `userId === <this-user>` AND `kind === "project"` AND `isDemo === true` already exist?" If yes, return `{ skipped: true, projectId }` and write nothing — no counters, no timestamps, no inserts. This is the sole idempotency mechanism and must not be replaced with event-id dedup, TTL caches, or anything else. Because Convex mutations are serialized per document, two concurrent deliveries of the same `user.created` event cannot both pass the check: one wins, the other hits the early-return on its retry. The check must run at the top of the handler, inside the same Convex mutation transaction as the inserts — never in a separate pre-flight query.
 - A new `isDemo: v.optional(v.boolean())` field on the `objects` table so the demo project and its items are identifiable. Used to show a "Demo" pill on the project card and enable the "Archive demo" shortcut.
 - A small UI affordance in `hypher-web/src/components/Sidebar.tsx` or the project card: a muted "Demo" pill next to the project name, and a right-click / "⋯" menu item "Archive demo project". Archiving = setting `status: "archived"` (existing field). Deletion uses the existing `store.removeObject` flow.
 
@@ -70,6 +70,7 @@ Notes on implementation:
 - Use `Date.now()` once at the top of the handler for `createdAt` / `modifiedAt` so all 14 inserts share a consistent timestamp.
 - Do not compute embeddings here; embeddings are generated client-side in `hypher-web/src/lib/embeddings.ts` on first view. Leave `embedding` unset.
 - Do not call `generateTags` (`convex/ai.ts`) — tags are hand-curated in the seed payload so the demo is identical for every user.
+- **The digest copy is static and must stay static.** It does not reference notes by ID, by name, by index, or by count computed from the inserted rows. It is a hand-written paragraph (see "Demo content" below) baked into `seedContent.ts`. Because the seed notes are also hard-coded in the same file, the digest's references ("10 notes and 2 recent commits", "explore one connection and one GitHub card") stay coherent for every seeded user without any template interpolation. If anyone changes the note count, change the digest copy in the same PR.
 
 ### New file: `hypher-web/convex/seedContent.ts`
 
