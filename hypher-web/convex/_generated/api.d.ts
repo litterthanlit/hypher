@@ -18,6 +18,7 @@ import type * as githubInternal from "../githubInternal.js";
 import type * as http from "../http.js";
 import type * as legacy from "../legacy.js";
 import type * as objects from "../objects.js";
+import type * as subscriptions from "../subscriptions.js";
 import type * as tags from "../tags.js";
 
 import type {
@@ -37,6 +38,7 @@ declare const fullApi: ApiFromModules<{
   http: typeof http;
   legacy: typeof legacy;
   objects: typeof objects;
+  subscriptions: typeof subscriptions;
   tags: typeof tags;
 }>;
 

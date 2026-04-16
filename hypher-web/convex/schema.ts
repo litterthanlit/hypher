@@ -7,6 +7,18 @@ export default defineSchema({
     legacyClaimed: v.boolean(),
   }).index("by_user", ["userId"]),
 
+  subscriptions: defineTable({
+    userId: v.string(),
+    stripeCustomerId: v.string(),
+    stripeSubscriptionId: v.optional(v.string()),
+    status: v.string(),
+    plan: v.optional(v.union(v.literal("pro_monthly"), v.literal("lifetime"))),
+    currentPeriodEnd: v.optional(v.number()),
+    updatedAt: v.number(),
+  })
+    .index("by_user", ["userId"])
+    .index("by_stripe_customer", ["stripeCustomerId"]),
+
   objects: defineTable({
     userId: v.optional(v.string()),
     kind: v.union(v.literal("project"), v.literal("note"), v.literal("artifact")),
