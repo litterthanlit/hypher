@@ -47,6 +47,8 @@ interface Props {
   onRestoreConnections: (from: Connection[], to: Connection[]) => Promise<void>;
   onCreateManualConnection: (sourceId: string, targetId: string) => Promise<void>;
   onLogView?: (projectId: string) => void;
+  /** Public snapshot: pan/zoom only; no edits, drag, or keyboard shortcuts */
+  readOnly?: boolean;
 }
 
 interface InlineCreate {
@@ -67,6 +69,7 @@ export function SpatialCanvas({
   onUpdatePosition, onCreateAtPosition, onConfirmConnection, onDismissConnection,
   onUpdateObject, onDeleteObjects, onDuplicateObjects,
   onRestoreObjects, onRestoreConnections, onCreateManualConnection, onLogView,
+  readOnly = false,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [inlineCreate, setInlineCreate] = useState<InlineCreate | null>(null);
@@ -80,10 +83,10 @@ export function SpatialCanvas({
 
   // Log view activity after 10 seconds on canvas
   useEffect(() => {
-    if (!project?.id || !onLogView) return;
+    if (readOnly || !project?.id || !onLogView) return;
     const timer = setTimeout(() => onLogView(project.id), 10_000);
     return () => clearTimeout(timer);
-  }, [project?.id, onLogView]);
+  }, [readOnly, project?.id, onLogView]);
 
   // Hooks
   const { transform, setTransform, canvasBg, cycleBg, animateZoom, onWheel, screenToCanvas } =
@@ -92,8 +95,8 @@ export function SpatialCanvas({
   const selection = useSelectionState();
 
   const undoRedo = useUndoRedo({
-    restoreObjects: onRestoreObjects,
-    restoreConnections: onRestoreConnections,
+    restoreObjects: readOnly ? async () => {} : onRestoreObjects,
+    restoreConnections: readOnly ? async () => {} : onRestoreConnections,
   });
 
   const contextMenu = useContextMenu();
@@ -130,6 +133,7 @@ export function SpatialCanvas({
     selectedIds: selection.selectedIds,
     onUpdatePosition,
     getPositionedItems,
+    readOnly,
   });
 
   // Stub handlers (will be implemented in later tasks)
@@ -198,13 +202,14 @@ export function SpatialCanvas({
   }, [editingId, positioned, onUpdateObject, undoRedo]);
 
   const onCardDoubleClick = useCallback((e: React.MouseEvent, obj: AnyObject) => {
+    if (readOnly) return;
     e.stopPropagation();
     if (selection.selectionCount > 1) {
       selection.select(obj.id);
     }
     editStartSnapshot.current = { ...obj };
     setEditingId(obj.id);
-  }, [selection]);
+  }, [readOnly, selection]);
 
   const rubberBand = useRubberBand({
     onSelectIds: (ids) => selection.selectAll(ids),
@@ -224,6 +229,7 @@ export function SpatialCanvas({
   }, [positioned, onUpdateObject]);
 
   const { canvasMode, setCanvasMode, spaceHeld } = useKeyboardShortcuts({
+    enabled: !readOnly,
     selectedIds: selection.selectedIds,
     clearSelection: selection.clearSelection,
     selectAll: (ids) => selection.selectAll(ids),
@@ -250,6 +256,7 @@ export function SpatialCanvas({
   const anchorDrag = useAnchorDrag({
     onConnect: onCreateManualConnection,
     zoomLevel: transform.k,
+    readOnly,
   });
 
   const allRects = useMemo(() => {
@@ -268,8 +275,9 @@ export function SpatialCanvas({
 
   // Notify parent when primary selection changes
   useEffect(() => {
+    if (readOnly) return;
     onSelect(selection.primarySelectedId ?? "");
-  }, [selection.primarySelectedId, onSelect]);
+  }, [readOnly, selection.primarySelectedId, onSelect]);
 
   // Filter connections to only those between items in our list
   const itemIds = new Set(items.map((o) => o.id));
@@ -285,6 +293,11 @@ export function SpatialCanvas({
     if ((e.target as HTMLElement).closest(".spatial-card, .inline-create, .conn-popover, .spatial-controls, .canvas-toolbar")) return;
     setPopover(null);
 
+    if (readOnly) {
+      drag.startPan(e);
+      return;
+    }
+
     if (spaceHeld || canvasMode === "pan") {
       drag.startPan(e);
     } else if (canvasMode === "select") {
@@ -292,7 +305,7 @@ export function SpatialCanvas({
     } else {
       drag.startPan(e);
     }
-  }, [drag, rubberBand, spaceHeld, canvasMode, contextMenu]);
+  }, [readOnly, drag, rubberBand, spaceHeld, canvasMode, contextMenu]);
 
   const onMouseMove = useCallback((e: React.MouseEvent) => {
     if (anchorDrag.isDraggingAnchor) {
@@ -337,7 +350,7 @@ export function SpatialCanvas({
         }
       }
     }
-  }, [drag, rubberBand, resize, transform.k, transform.x, transform.y, positioned, computeSnap, anchorDrag]);
+  }, [readOnly, drag, rubberBand, resize, transform.k, transform.x, transform.y, positioned, computeSnap, anchorDrag]);
 
   const onMouseUp = useCallback(() => {
     if (anchorDrag.isDraggingAnchor) {
@@ -426,6 +439,7 @@ export function SpatialCanvas({
 
   // Click on empty space — behavior depends on mode
   const onCanvasClick = useCallback((e: React.MouseEvent) => {
+    if (readOnly) return;
     if ((e.target as HTMLElement).closest(".spatial-card, .inline-create, .spatial-controls, .conn-popover, .canvas-toolbar")) return;
     if (inlineCreate) return;
     // Only if we didn't pan (< 5px movement)
@@ -448,11 +462,12 @@ export function SpatialCanvas({
     if (canvasMode === "select") {
       selection.clearSelection();
     }
-  }, [drag, inlineCreate, canvasMode, screenToCanvas, selection]);
+  }, [readOnly, drag, inlineCreate, canvasMode, screenToCanvas, selection]);
 
   useEffect(() => {
-    if (inlineCreate?.step === "typing") setTimeout(() => inputRef.current?.focus(), 50);
-  }, [inlineCreate?.step]);
+    if (readOnly || !inlineCreate) return;
+    if (inlineCreate.step === "typing") setTimeout(() => inputRef.current?.focus(), 50);
+  }, [readOnly, inlineCreate]);
 
   const handleInlineKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && inlineCreate?.text.trim()) { e.preventDefault(); setInlineCreate({ ...inlineCreate, step: "picking" }); }
@@ -468,14 +483,16 @@ export function SpatialCanvas({
 
   // Connection line click
   const handleConnectionClick = useCallback((e: React.MouseEvent, conn: Connection) => {
+    if (readOnly) return;
     if (conn.type !== "ai_suggested") return;
     const rect = containerRef.current?.getBoundingClientRect();
     if (!rect) return;
     setPopover({ connection: conn, x: e.clientX - rect.left, y: e.clientY - rect.top });
-  }, []);
+  }, [readOnly]);
 
   const canvasClassName = [
     "spatial-canvas tw-relative",
+    readOnly ? "read-only" : "",
     canvasMode === "text" ? "text-mode" : "",
     canvasMode === "pan" ? "pan-mode" : "",
     canvasMode === "select" && !spaceHeld ? "select-mode" : "",
@@ -493,6 +510,10 @@ export function SpatialCanvas({
       onWheel={onWheel}
       onClick={onCanvasClick}
       onContextMenu={(e) => {
+        if (readOnly) {
+          e.preventDefault();
+          return;
+        }
         if ((e.target as HTMLElement).closest(".spatial-card, .canvas-toolbar, .conn-popover, .context-menu")) return;
         const rect = containerRef.current?.getBoundingClientRect();
         if (!rect) return;
@@ -592,7 +613,7 @@ export function SpatialCanvas({
                 scale: 1,
               }}
               transition={{ type: "spring", stiffness: 500, damping: 25 }}
-              onMouseEnter={() => setHoveredCardId(obj.id)}
+              onMouseEnter={() => { if (!readOnly) setHoveredCardId(obj.id); }}
               onMouseLeave={() => setHoveredCardId(null)}
               onMouseUp={() => {
                 if (anchorDrag.isDraggingAnchor) {
@@ -603,6 +624,10 @@ export function SpatialCanvas({
               onClick={(e) => onCardClick(e, obj.id)}
               onDoubleClick={(e) => onCardDoubleClick(e, obj)}
               onContextMenu={(e) => {
+                if (readOnly) {
+                  e.preventDefault();
+                  return;
+                }
                 const rect = containerRef.current?.getBoundingClientRect();
                 if (rect) {
                   if (!selection.isSelected(obj.id)) {
@@ -615,7 +640,7 @@ export function SpatialCanvas({
               {obj.kind === "note" && <StickyNote obj={obj as Note} />}
               {obj.kind === "project" && <ProjectCard obj={obj as Project} />}
               {obj.kind === "artifact" && <ArtifactCard obj={obj as Artifact} />}
-              {selection.selectionCount === 1 && isSelected && !isDragging && editingId !== obj.id && (
+              {!readOnly && selection.selectionCount === 1 && isSelected && !isDragging && editingId !== obj.id && (
                 <ResizeHandles
                   kind={obj.kind}
                   onStartResize={(e, handle) => {
@@ -657,7 +682,7 @@ export function SpatialCanvas({
       </div>
 
       {/* Connection popover */}
-      {popover && (
+      {!readOnly && popover && (
         <ConnectionPopover
           connection={popover.connection}
           position={{ x: popover.x, y: popover.y }}
@@ -667,12 +692,12 @@ export function SpatialCanvas({
         />
       )}
 
-      {rubberBand.isActive && (
+      {!readOnly && rubberBand.isActive && (
         <RubberBandSelect rect={rubberBand.getBandRect(containerRef.current?.getBoundingClientRect() ?? new DOMRect())} />
       )}
 
       {/* Inline create */}
-      {inlineCreate && (
+      {!readOnly && inlineCreate && (
         <div className="inline-create" style={{ left: inlineCreate.screenX, top: inlineCreate.screenY }}>
           {inlineCreate.step === "typing" && (
             <div className="inline-create-input-wrap">
@@ -702,6 +727,7 @@ export function SpatialCanvas({
 
       {/* Bottom toolbar: mode switcher + zoom */}
       <div className="canvas-toolbar">
+        {!readOnly && (
         <div className="canvas-mode-switcher">
           <button
             className={`canvas-mode-btn ${canvasMode === "select" ? "active" : ""}`}
@@ -731,12 +757,13 @@ export function SpatialCanvas({
             </svg>
           </button>
         </div>
+        )}
 
-        {selection.selectionCount >= 2 && (
+        {!readOnly && selection.selectionCount >= 2 && (
           <span className="selection-count">{selection.selectionCount} selected</span>
         )}
 
-        {project && (
+        {!readOnly && project && (
           <button
             className="canvas-mode-btn"
             onClick={() => setShowSettings(true)}
@@ -749,6 +776,7 @@ export function SpatialCanvas({
           </button>
         )}
 
+        {!readOnly && (
         <button
           className="canvas-mode-btn"
           onClick={cycleBg}
@@ -758,6 +786,7 @@ export function SpatialCanvas({
             <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6A2.25 2.25 0 0 1 6 3.75h2.25A2.25 2.25 0 0 1 10.5 6v2.25a2.25 2.25 0 0 1-2.25 2.25H6a2.25 2.25 0 0 1-2.25-2.25V6ZM3.75 15.75A2.25 2.25 0 0 1 6 13.5h2.25a2.25 2.25 0 0 1 2.25 2.25V18a2.25 2.25 0 0 1-2.25 2.25H6A2.25 2.25 0 0 1 3.75 18v-2.25ZM13.5 6a2.25 2.25 0 0 1 2.25-2.25H18A2.25 2.25 0 0 1 20.25 6v2.25A2.25 2.25 0 0 1 18 10.5h-2.25a2.25 2.25 0 0 1-2.25-2.25V6ZM13.5 15.75a2.25 2.25 0 0 1 2.25-2.25H18a2.25 2.25 0 0 1 2.25 2.25V18A2.25 2.25 0 0 1 18 20.25h-2.25a2.25 2.25 0 0 1-2.25-2.25v-2.25Z" />
           </svg>
         </button>
+        )}
 
         <div className="spatial-controls">
           <button className="btn-icon" onClick={() => animateZoom(Math.min(3, transform.k * 1.25))} title="Zoom in">+</button>
@@ -773,7 +802,7 @@ export function SpatialCanvas({
         </div>
       )}
 
-      {contextMenu.menu && contextMenu.menu.target.type === "card" && (
+      {!readOnly && contextMenu.menu && contextMenu.menu.target.type === "card" && (
         <CardContextMenu
           position={contextMenu.menu.position}
           target={contextMenu.menu.target}
@@ -790,7 +819,7 @@ export function SpatialCanvas({
           onClose={contextMenu.close}
         />
       )}
-      {contextMenu.menu && contextMenu.menu.target.type === "canvas" && (
+      {!readOnly && contextMenu.menu && contextMenu.menu.target.type === "canvas" && (
         <CanvasContextMenu
           position={contextMenu.menu.position}
           target={contextMenu.menu.target}
@@ -810,7 +839,7 @@ export function SpatialCanvas({
         />
       )}
 
-      {showSettings && project && (
+      {!readOnly && showSettings && project && (
         <ProjectSettings
           project={project}
           onUpdate={onUpdateObject}

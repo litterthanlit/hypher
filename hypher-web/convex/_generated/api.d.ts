@@ -11,6 +11,7 @@
 import type * as activity from "../activity.js";
 import type * as ai from "../ai.js";
 import type * as apiKeys from "../apiKeys.js";
+import type * as canvasShares from "../canvasShares.js";
 import type * as connections from "../connections.js";
 import type * as crons from "../crons.js";
 import type * as github from "../github.js";
@@ -36,6 +37,7 @@ declare const fullApi: ApiFromModules<{
   activity: typeof activity;
   ai: typeof ai;
   apiKeys: typeof apiKeys;
+  canvasShares: typeof canvasShares;
   connections: typeof connections;
   crons: typeof crons;
   github: typeof github;

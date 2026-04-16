@@ -14,6 +14,8 @@ interface Props {
   onProjectClick: (projectId: string) => void;
   onClipboardCapture?: () => void;
   onNotionImport?: () => void;
+  /** Prefill from URL scheme handler (/capture → /app?capture=1&text=…) */
+  initialPrefillText?: string;
 }
 
 type CaptureStep = "idle" | "assigning";
@@ -27,8 +29,8 @@ function getGreeting(): string {
   return "Late night";
 }
 
-export function CaptureHome({ projects, allObjects, onCapture, onCreateProjectAndCapture, onNavigateToWorkspace, onProjectClick, onClipboardCapture, onNotionImport }: Props) {
-  const [text, setText] = useState("");
+export function CaptureHome({ projects, allObjects, onCapture, onCreateProjectAndCapture, onNavigateToWorkspace, onProjectClick, onClipboardCapture, onNotionImport, initialPrefillText }: Props) {
+  const [text, setText] = useState(initialPrefillText ?? "");
   const [step, setStep] = useState<CaptureStep>("idle");
   const [aiSuggestions, setAiSuggestions] = useState<{ projectId: string; projectName: string; confidence: number }[]>([]);
   const [capturedText, setCapturedText] = useState("");
@@ -54,6 +56,10 @@ export function CaptureHome({ projects, allObjects, onCapture, onCreateProjectAn
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
+
+  useEffect(() => {
+    if (initialPrefillText) setText(initialPrefillText);
+  }, [initialPrefillText]);
 
   // One rhythm: 3200ms cycle.
   // At 0ms: cursor on, text visible

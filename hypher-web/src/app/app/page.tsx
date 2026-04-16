@@ -43,6 +43,22 @@ export default function AppHome() {
   const [showSearch, setShowSearch] = useState(false);
   const [showDigest, setShowDigest] = useState(false);
   const [dragOver, setDragOver] = useState(false);
+  const [capturePrefill, setCapturePrefill] = useState("");
+
+  // /capture → /app?capture=1&text=… (URL scheme handler)
+  useEffect(() => {
+    if (typeof window === "undefined" || !store.clerkLoaded) return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("capture") !== "1") return;
+    setAppMode("capture");
+    const raw = params.get("text") ?? params.get("q") ?? "";
+    if (raw) setCapturePrefill(raw);
+    params.delete("capture");
+    params.delete("text");
+    params.delete("q");
+    const next = params.toString();
+    window.history.replaceState({}, "", next ? `/app?${next}` : "/app");
+  }, [store.clerkLoaded]);
 
   if (!store.clerkLoaded) {
     return (
@@ -246,7 +262,13 @@ export default function AppHome() {
   }, [store, selectedProjectId]);
 
   // Get items for selected project
-  const projectItems = selectedProjectId ? store.objectsForProject(selectedProjectId) : [];
+  const projectItems = selectedProjectId
+    ? (() => {
+        const proj = store.projects.find((p) => p.id === selectedProjectId);
+        const children = store.objectsForProject(selectedProjectId);
+        return proj ? [proj, ...children] : children;
+      })()
+    : [];
   const projectConnections = store.connections.filter((c) => c.type !== "dismissed");
 
   // ── CAPTURE MODE ──
@@ -275,6 +297,7 @@ export default function AppHome() {
           }}
           onClipboardCapture={store.captureFromClipboard}
           onNotionImport={notionImported ? undefined : handleNotionImport}
+          initialPrefillText={capturePrefill || undefined}
         />
         {dragOver && (
           <div className="drop-overlay">
