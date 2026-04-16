@@ -5,7 +5,10 @@ import { ConvexProviderWithClerk } from "convex/react-clerk";
 import { useAuth } from "@clerk/nextjs";
 import { type ReactNode } from "react";
 
-const convex = new ConvexReactClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
+// Placeholder URL allows `next build` when env is unset (e.g. CI); real deployments must set NEXT_PUBLIC_CONVEX_URL.
+const convex = new ConvexReactClient(
+  process.env.NEXT_PUBLIC_CONVEX_URL ?? "https://build-placeholder.convex.cloud"
+);
 
 export function ConvexProviderWrapper({ children }: { children: ReactNode }) {
   return (

@@ -3,9 +3,15 @@ import { fetchQuery } from "convex/nextjs";
 import { api } from "../../../../../convex/_generated/api";
 import Stripe from "stripe";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY ?? "", {
-  apiVersion: "2025-02-24.acacia",
-});
+function getStripe(): Stripe {
+  const key = process.env.STRIPE_SECRET_KEY;
+  if (!key) {
+    throw new Error("STRIPE_SECRET_KEY not set");
+  }
+  return new Stripe(key, {
+    apiVersion: "2025-02-24.acacia",
+  });
+}
 
 export async function POST(req: Request) {
   if (!process.env.STRIPE_SECRET_KEY) {
@@ -71,7 +77,7 @@ export async function POST(req: Request) {
     sessionParams.customer_email = email;
   }
 
-  const session = await stripe.checkout.sessions.create(sessionParams);
+  const session = await getStripe().checkout.sessions.create(sessionParams);
 
   if (!session.url) {
     return Response.json({ error: "No checkout URL" }, { status: 500 });
