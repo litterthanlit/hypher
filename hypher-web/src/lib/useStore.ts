@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback, useMemo, useRef, useEffect } from "react";
+import { useAuth } from "@clerk/nextjs";
 import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
@@ -58,10 +59,26 @@ function convexUpdateArgs(obj: AnyObject): any {
 }
 
 export function useStore() {
+  const { isLoaded: clerkLoaded, isSignedIn } = useAuth();
+  const skipConvex = !clerkLoaded || !isSignedIn;
+
+  const claimLegacyData = useMutation(api.legacy.claimLegacyData);
+  const legacyClaimedRef = useRef(false);
+
+  useEffect(() => {
+    if (!isSignedIn) legacyClaimedRef.current = false;
+  }, [isSignedIn]);
+
+  useEffect(() => {
+    if (!clerkLoaded || !isSignedIn || legacyClaimedRef.current) return;
+    legacyClaimedRef.current = true;
+    void claimLegacyData();
+  }, [clerkLoaded, isSignedIn, claimLegacyData]);
+
   /* ── Reactive queries (replaces reload()) ─────────────────────── */
-  const rawObjects = useQuery(api.objects.list);
-  const rawConnections = useQuery(api.connections.list);
-  const rawActivity = useQuery(api.activity.list);
+  const rawObjects = useQuery(api.objects.list, skipConvex ? "skip" : {});
+  const rawConnections = useQuery(api.connections.list, skipConvex ? "skip" : {});
+  const rawActivity = useQuery(api.activity.list, skipConvex ? "skip" : {});
 
   const rawMappedObjects = useMemo(
     () => (rawObjects ?? []).map(mapObject),
@@ -671,6 +688,8 @@ export function useStore() {
   };
 
   return {
+    clerkLoaded,
+    isSignedIn: isSignedIn ?? false,
     objects,
     projects,
     notes,

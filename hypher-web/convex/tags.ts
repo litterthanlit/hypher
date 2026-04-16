@@ -1,16 +1,17 @@
 import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
+import { requireUserId } from "./lib/auth";
 
 export const syncObjectTags = mutation({
   args: {
-    userId: v.string(),
     objectId: v.string(),
     oldTags: v.array(v.string()),
     newTags: v.array(v.string()),
   },
-  handler: async (ctx, { userId, objectId, oldTags, newTags }) => {
-    // Remove objectId from old tags no longer present
+  handler: async (ctx, { objectId, oldTags, newTags }) => {
+    const userId = await requireUserId(ctx);
+
     for (const tag of oldTags) {
       if (!newTags.includes(tag)) {
         const existing = await ctx.db
@@ -28,7 +29,6 @@ export const syncObjectTags = mutation({
       }
     }
 
-    // Add objectId to new tags
     for (const tag of newTags) {
       if (!oldTags.includes(tag)) {
         const existing = await ctx.db
@@ -55,8 +55,8 @@ export const syncObjectTags = mutation({
 });
 
 export const listWithCounts = query({
-  args: { userId: v.string() },
-  handler: async (ctx, { userId }) => {
+  handler: async (ctx) => {
+    const userId = await requireUserId(ctx);
     const tags = await ctx.db
       .query("tags")
       .withIndex("by_user", (q) => q.eq("userId", userId))
@@ -72,8 +72,9 @@ export const listWithCounts = query({
 });
 
 export const getObjectsByTag = query({
-  args: { userId: v.string(), tag: v.string() },
-  handler: async (ctx, { userId, tag }) => {
+  args: { tag: v.string() },
+  handler: async (ctx, { tag }) => {
+    const userId = await requireUserId(ctx);
     const tagDoc = await ctx.db
       .query("tags")
       .withIndex("by_name", (q) => q.eq("userId", userId).eq("name", tag))
@@ -85,6 +86,6 @@ export const getObjectsByTag = query({
       tagDoc.objectIds.map((id) => ctx.db.get(id as Id<"objects">))
     );
 
-    return objects.filter(Boolean);
+    return objects.filter((o) => o && o.userId === userId);
   },
 });

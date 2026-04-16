@@ -16,7 +16,9 @@ import type * as crons from "../crons.js";
 import type * as github from "../github.js";
 import type * as githubInternal from "../githubInternal.js";
 import type * as http from "../http.js";
+import type * as legacy from "../legacy.js";
 import type * as objects from "../objects.js";
+import type * as tags from "../tags.js";
 
 import type {
   ApiFromModules,
@@ -33,7 +35,9 @@ declare const fullApi: ApiFromModules<{
   github: typeof github;
   githubInternal: typeof githubInternal;
   http: typeof http;
+  legacy: typeof legacy;
   objects: typeof objects;
+  tags: typeof tags;
 }>;
 
 /**

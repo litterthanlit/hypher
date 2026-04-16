@@ -1,6 +1,6 @@
 import { httpRouter } from "convex/server";
 import { httpAction } from "./_generated/server";
-import { internal, api } from "./_generated/api";
+import { internal } from "./_generated/api";
 
 const http = httpRouter();
 
@@ -50,7 +50,8 @@ http.route({
 
     const body = await request.json();
     const now = Date.now();
-    const id = await ctx.runMutation(api.objects.put, {
+    const id = await ctx.runMutation(internal.objects.putForApiUser, {
+      userId,
       kind: body.kind || "note",
       content: body.content,
       maturity: "fleeting",
@@ -91,7 +92,7 @@ http.route({
       );
     }
 
-    const allObjects = await ctx.runQuery(api.objects.list);
+    const allObjects = await ctx.runQuery(internal.objects.listForApiUser, { userId });
     const projects = allObjects
       .filter((o: { kind: string }) => o.kind === "project")
       .map((o: { _id: string; name?: string; status?: string; priority?: number }) => ({

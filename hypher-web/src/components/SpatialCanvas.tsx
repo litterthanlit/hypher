@@ -70,7 +70,7 @@ export function SpatialCanvas({
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Derive projectId from items
-  const projectId = items.find(i => i.kind === "project")?.id ?? "default";
+  const projectId = items.find(i => i.kind === "project")?.id ?? project?.id ?? "__no_project__";
 
   // Log view activity after 10 seconds on canvas
   useEffect(() => {
