@@ -13,6 +13,7 @@ import { DailyDigest } from "@/components/DailyDigest";
 import { SearchDialog } from "@/components/SearchDialog";
 import { ToastContainer } from "@/components/Toast";
 import { ApiKeysPanel } from "@/components/ApiKeysPanel";
+import { MarketingSite } from "@/components/MarketingSite";
 import { generateSeedData } from "@/lib/notion-seed";
 import type { ArtifactType, ObjectKind } from "@/types";
 
@@ -27,14 +28,14 @@ function guessArtifactType(filename: string): ArtifactType {
   return "other";
 }
 
-type AppMode = "capture" | "workspace";
+type AppMode = "marketing" | "capture" | "workspace";
 type ContentMode = "canvas" | "list" | "dashboard";
 
 export default function Home() {
   const store = useStore();
   const tagsList = useQuery(api.tags.listWithCounts, { userId: "default" });
   const tags = useMemo(() => tagsList ?? [], [tagsList]);
-  const [appMode, setAppMode] = useState<AppMode>("capture");
+  const [appMode, setAppMode] = useState<AppMode>("marketing");
   const [contentMode, setContentMode] = useState<ContentMode>("canvas");
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [showSearch, setShowSearch] = useState(false);
@@ -238,6 +239,16 @@ export default function Home() {
   // Get items for selected project
   const projectItems = selectedProjectId ? store.objectsForProject(selectedProjectId) : [];
   const projectConnections = store.connections.filter((c) => c.type !== "dismissed");
+
+  // ── MARKETING MODE ──
+  if (appMode === "marketing") {
+    return (
+      <MarketingSite
+        onGetStarted={() => setAppMode("capture")}
+        onOpenWorkspace={() => setAppMode("workspace")}
+      />
+    );
+  }
 
   // ── CAPTURE MODE ──
   if (appMode === "capture") {
