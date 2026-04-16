@@ -557,6 +557,108 @@ body {
 
 /* ─── Project Settings ─── */
 
+.app-error-boundary {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 240px;
+  padding: 32px;
+  text-align: center;
+  color: var(--text-secondary);
+}
+
+.app-error-boundary-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+}
+
+.app-error-boundary-desc {
+  font-size: 13px;
+  max-width: 320px;
+  margin-bottom: 16px;
+}
+
+.app-error-boundary-retry {
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-default);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.app-error-boundary-retry:hover {
+  border-color: var(--border-hover);
+}
+
+.integrations-page .integrations-section {
+  margin-top: 24px;
+}
+
+.integrations-section-title {
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 8px;
+  color: var(--text-primary);
+}
+
+.integrations-status {
+  font-size: 12px;
+  margin-bottom: 12px;
+}
+
+.integrations-pat-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.integrations-project-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 12px;
+}
+
+.integrations-project-row {
+  padding: 12px;
+  background: var(--bg-secondary);
+  border-radius: var(--radius-sm);
+}
+
+.integrations-project-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 13px;
+  font-weight: 500;
+  margin-bottom: 8px;
+}
+
+.integrations-repo-badge {
+  font-size: 11px;
+  padding: 2px 6px;
+  background: var(--bg-tertiary);
+  border-radius: 4px;
+}
+
+.integrations-repo-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.integrations-docs-link {
+  color: var(--accent);
+}
+
 .project-settings-header {
   display: flex;
   align-items: center;

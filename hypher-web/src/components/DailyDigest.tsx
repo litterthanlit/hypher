@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { toast } from "sonner";
 import { useAction } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { motion, AnimatePresence } from "framer-motion";
@@ -23,13 +24,11 @@ function getGreeting(): string {
 export function DailyDigest({ projects, allObjects, onDismiss, onSelectProject }: Props) {
   const [digestText, setDigestText] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
   const generateDigest = useAction(api.ai.generateDigest);
 
   const fetchDigest = useCallback(async () => {
     setLoading(true);
-    setError(null);
     try {
       // Count items per project
       const itemCounts: Record<string, number> = {};
@@ -57,9 +56,9 @@ export function DailyDigest({ projects, allObjects, onDismiss, onSelectProject }
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Unknown error";
       if (msg.includes("ANTHROPIC_API_KEY") || msg.includes("api_key")) {
-        setError("Add ANTHROPIC_API_KEY to your Convex environment to enable AI digests.");
+        toast.error("Add ANTHROPIC_API_KEY to your Convex environment to enable AI digests.");
       } else {
-        setError("Could not generate digest. Check your Convex logs for details.");
+        toast.error("Could not generate digest. Check your Convex logs for details.");
       }
     } finally {
       setLoading(false);
@@ -118,12 +117,6 @@ export function DailyDigest({ projects, allObjects, onDismiss, onSelectProject }
                   <span /><span /><span />
                 </div>
                 <p className="digest-loading-text">Thinking about your projects...</p>
-              </div>
-            )}
-
-            {error && (
-              <div className="digest-error">
-                <p>{error}</p>
               </div>
             )}
 

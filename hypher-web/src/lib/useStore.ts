@@ -77,15 +77,15 @@ export function useStore() {
   const rawActivity = useQuery(api.activity.list, skipConvex ? "skip" : {});
 
   const rawMappedObjects = useMemo(
-    () => (rawObjects ?? []).map(mapObject),
+    (): AnyObject[] => (rawObjects ?? []).map(mapObject),
     [rawObjects]
   );
   const connections = useMemo(
-    () => (rawConnections ?? []).map(mapConnection),
+    (): Connection[] => (rawConnections ?? []).map(mapConnection),
     [rawConnections]
   );
   const activity = useMemo(
-    () => (rawActivity ?? []).map(mapActivity),
+    (): ActivityEntry[] => (rawActivity ?? []).map(mapActivity),
     [rawActivity]
   );
 

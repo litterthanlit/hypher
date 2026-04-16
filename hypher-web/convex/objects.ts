@@ -126,3 +126,23 @@ export const listForApiUser = internalQuery({
       .collect();
   },
 });
+
+export const patchGithubFields = internalMutation({
+  args: {
+    projectId: v.id("objects"),
+    userId: v.string(),
+    githubRepo: v.string(),
+    githubLastSync: v.optional(v.number()),
+  },
+  handler: async (ctx, { projectId, userId, githubRepo, githubLastSync }) => {
+    const doc = await ctx.db.get(projectId);
+    if (!doc || doc.userId !== userId || doc.kind !== "project") {
+      throw new Error("Unauthorized");
+    }
+    await ctx.db.patch(projectId, {
+      githubRepo,
+      githubLastSync: githubLastSync ?? Date.now(),
+      modifiedAt: Date.now(),
+    });
+  },
+});

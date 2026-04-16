@@ -12,6 +12,7 @@ import { SpatialCanvas } from "@/components/SpatialCanvas";
 import { ListView } from "@/components/ListView";
 import { ProjectDashboard } from "@/components/ProjectDashboard";
 import { DailyDigest } from "@/components/DailyDigest";
+import { AppErrorBoundary } from "@/components/AppErrorBoundary";
 import { SearchDialog } from "@/components/SearchDialog";
 import { ToastContainer } from "@/components/Toast";
 import { generateSeedData } from "@/lib/notion-seed";
@@ -254,7 +255,10 @@ export default function AppHome() {
       <div className="capture-root" onDrop={handleDrop} onDragOver={handleDragOver} onDragLeave={handleDragLeave}>
         <div className="capture-user-nav">
           <Link href="/app/settings/api-keys" className="capture-settings-link">
-            Settings
+            API keys
+          </Link>
+          <Link href="/app/settings/integrations" className="capture-settings-link">
+            Integrations
           </Link>
           <UserButton />
         </div>
@@ -326,7 +330,10 @@ export default function AppHome() {
           <div className="toolbar-spacer" />
 
           <Link href="/app/settings/api-keys" className="main-toolbar-settings">
-            Settings
+            API keys
+          </Link>
+          <Link href="/app/settings/integrations" className="main-toolbar-settings">
+            Integrations
           </Link>
 
           <UserButton />
@@ -356,23 +363,25 @@ export default function AppHome() {
             <p className="workspace-empty-sub">or press Cmd+N to capture a new thought</p>
           </div>
         ) : contentMode === "canvas" ? (
-          <SpatialCanvas
-            project={store.projects.find((p) => p.id === selectedProjectId)}
-            items={projectItems}
-            connections={projectConnections}
-            onSelect={store.setSelectedId}
-            onUpdatePosition={store.updatePosition}
-            onCreateAtPosition={handleCreateAtPosition}
-            onConfirmConnection={store.confirmConnection}
-            onDismissConnection={store.dismissConnection}
-            onUpdateObject={store.updateObject}
-            onDeleteObjects={async (ids) => { for (const id of ids) await store.removeObject(id); }}
-            onDuplicateObjects={store.duplicateObjects}
-            onRestoreObjects={store.restoreObjects}
-            onRestoreConnections={store.restoreConnections}
-            onCreateManualConnection={store.createManualConnection}
-            onLogView={store.logProjectView}
-          />
+          <AppErrorBoundary label="Canvas">
+            <SpatialCanvas
+              project={store.projects.find((p) => p.id === selectedProjectId)}
+              items={projectItems}
+              connections={projectConnections}
+              onSelect={store.setSelectedId}
+              onUpdatePosition={store.updatePosition}
+              onCreateAtPosition={handleCreateAtPosition}
+              onConfirmConnection={store.confirmConnection}
+              onDismissConnection={store.dismissConnection}
+              onUpdateObject={store.updateObject}
+              onDeleteObjects={async (ids) => { for (const id of ids) await store.removeObject(id); }}
+              onDuplicateObjects={store.duplicateObjects}
+              onRestoreObjects={store.restoreObjects}
+              onRestoreConnections={store.restoreConnections}
+              onCreateManualConnection={store.createManualConnection}
+              onLogView={store.logProjectView}
+            />
+          </AppErrorBoundary>
         ) : (
           <ListView
             items={projectItems}
@@ -402,20 +411,22 @@ export default function AppHome() {
       )}
 
       {showDigest && (
-        <DailyDigest
-          projects={store.projects}
-          allObjects={store.objects}
-          onDismiss={() => {
-            setShowDigest(false);
-            localStorage.setItem("hypher-last-digest-date", new Date().toISOString().slice(0, 10));
-          }}
-          onSelectProject={(id) => {
-            setSelectedProjectId(id);
-            store.setSelectedId(id);
-            setContentMode("canvas");
-            if (appMode !== "workspace") setAppMode("workspace");
-          }}
-        />
+        <AppErrorBoundary label="Digest">
+          <DailyDigest
+            projects={store.projects}
+            allObjects={store.objects}
+            onDismiss={() => {
+              setShowDigest(false);
+              localStorage.setItem("hypher-last-digest-date", new Date().toISOString().slice(0, 10));
+            }}
+            onSelectProject={(id) => {
+              setSelectedProjectId(id);
+              store.setSelectedId(id);
+              setContentMode("canvas");
+              if (appMode !== "workspace") setAppMode("workspace");
+            }}
+          />
+        </AppErrorBoundary>
       )}
 
       {dragOver && (

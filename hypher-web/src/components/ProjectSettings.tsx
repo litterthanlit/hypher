@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useAction } from "convex/react";
+import { toast } from "sonner";
 import { api } from "../../convex/_generated/api";
 import type { Project, ProjectStatus, ProjectPriority } from "@/types";
 
@@ -38,13 +39,28 @@ export function ProjectSettings({ project, onUpdate, onClose }: Props) {
   const [ghStep, setGhStep] = useState<GitHubStep>(project.githubRepo ? "connected" : "idle");
   const [ghRepo, setGhRepo] = useState(project.githubRepo ?? "");
   const [ghToken, setGhToken] = useState("");
-  const [ghError, setGhError] = useState("");
   const [ghDocs, setGhDocs] = useState<{ claude: string; roadmap: string; handoff: string } | null>(null);
   const [ghSync, setGhSync] = useState<{ openPRCount: number; openIssueCount: number; blockers: string[] } | null>(null);
 
   const validateRepo = useAction(api.github.validateRepo);
   const generateDocs = useAction(api.github.generateDocs);
   const syncRepo = useAction(api.github.syncRepo);
+  const getStoredToken = useAction(api.githubPat.getTokenForCurrentUser);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const t = await getStoredToken({});
+        if (!cancelled && t) setGhToken(t);
+      } catch {
+        /* optional */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [getStoredToken]);
 
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const latestValues = useRef({ status, priority, blockers, tags });
@@ -89,15 +105,14 @@ export function ProjectSettings({ project, onUpdate, onClose }: Props) {
   // GitHub: connect repo
   const handleConnectGitHub = useCallback(async () => {
     if (!ghRepo.trim() || !ghToken.trim()) {
-      setGhError("Enter both a repo (owner/name) and a personal access token.");
+      toast.error("Enter both a repo (owner/name) and a personal access token.");
       return;
     }
     setGhStep("validating");
-    setGhError("");
     try {
       const result = await validateRepo({ repo: ghRepo.trim(), token: ghToken.trim() });
       if (!result.valid) {
-        setGhError(result.error || "Repository not found. Check the name and token permissions.");
+        toast.error(result.error || "Repository not found. Check the name and token permissions.");
         setGhStep("input");
         return;
       }
@@ -109,7 +124,8 @@ export function ProjectSettings({ project, onUpdate, onClose }: Props) {
       });
       setGhStep("connected");
     } catch (e) {
-      setGhError(e instanceof Error ? e.message : "Connection failed");
+      const msg = e instanceof Error ? e.message : "Connection failed";
+      toast.error(msg);
       setGhStep("input");
     }
   }, [ghRepo, ghToken, project, onUpdate, validateRepo]);
@@ -117,18 +133,17 @@ export function ProjectSettings({ project, onUpdate, onClose }: Props) {
   // GitHub: generate docs
   const handleGenerateDocs = useCallback(async () => {
     if (!ghToken.trim()) {
-      setGhError("Enter your GitHub token to generate docs.");
+      toast.error("Add a token under Settings → Integrations or paste it here.");
       setGhStep("input");
       return;
     }
     setGhStep("generating");
-    setGhError("");
     try {
       const docs = await generateDocs({ repo: project.githubRepo!, token: ghToken.trim() });
       setGhDocs(docs);
       setGhStep("connected");
     } catch (e) {
-      setGhError(e instanceof Error ? e.message : "Doc generation failed");
+      toast.error(e instanceof Error ? e.message : "Doc generation failed");
       setGhStep("connected");
     }
   }, [ghToken, project.githubRepo, generateDocs]);
@@ -136,12 +151,11 @@ export function ProjectSettings({ project, onUpdate, onClose }: Props) {
   // GitHub: sync now
   const handleSyncNow = useCallback(async () => {
     if (!ghToken.trim()) {
-      setGhError("Enter your GitHub token to sync.");
+      toast.error("Add a token under Settings → Integrations or paste it here.");
       setGhStep("input");
       return;
     }
     setGhStep("syncing");
-    setGhError("");
     try {
       const result = await syncRepo({
         repo: project.githubRepo!,
@@ -161,7 +175,7 @@ export function ProjectSettings({ project, onUpdate, onClose }: Props) {
       onUpdate({ ...project, ...updates } as Project);
       setGhStep("connected");
     } catch (e) {
-      setGhError(e instanceof Error ? e.message : "Sync failed");
+      toast.error(e instanceof Error ? e.message : "Sync failed");
       setGhStep("connected");
     }
   }, [ghToken, project, onUpdate, syncRepo]);
@@ -293,7 +307,7 @@ export function ProjectSettings({ project, onUpdate, onClose }: Props) {
             </p>
             <div className="settings-github-actions">
               <button className="settings-github-connect" onClick={handleConnectGitHub}>Connect</button>
-              <button className="settings-github-cancel" onClick={() => { setGhStep("idle"); setGhError(""); }}>Cancel</button>
+              <button className="settings-github-cancel" onClick={() => { setGhStep("idle"); }}>Cancel</button>
             </div>
           </div>
         )}
@@ -382,7 +396,6 @@ export function ProjectSettings({ project, onUpdate, onClose }: Props) {
           </div>
         )}
 
-        {ghError && <div className="settings-github-error">{ghError}</div>}
       </div>
     </div>
   );

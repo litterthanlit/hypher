@@ -83,6 +83,24 @@ export const validateRepo = action({
   },
 });
 
+export const validateRepoInternal = internalAction({
+  args: { repo: v.string(), token: v.string() },
+  handler: async (
+    _ctx,
+    { repo, token }
+  ): Promise<
+    | { valid: true; name: string; description?: string }
+    | { valid: false; error: string }
+  > => {
+    try {
+      const data = await ghFetch<GitHubRepo>(`/repos/${repo}`, token);
+      return { valid: true, name: data.full_name, description: data.description ?? undefined };
+    } catch (e) {
+      return { valid: false, error: e instanceof Error ? e.message : "Unknown error" };
+    }
+  },
+});
+
 /* ── Fetch repo context for doc generation ──────────────────────── */
 
 async function fetchRepoContext(repo: string, token: string) {
