@@ -30,6 +30,19 @@ type AppMode = "marketing" | "capture" | "workspace";
 type ContentMode = "canvas" | "list" | "dashboard";
 
 export default function Home() {
+  const hasConvexUrl = Boolean(process.env.NEXT_PUBLIC_CONVEX_URL);
+  if (!hasConvexUrl) {
+    return (
+      <MarketingSite
+        onStartCapture={() => {}}
+        onOpenWorkspace={() => {}}
+      />
+    );
+  }
+  return <ConvexBackedHome />;
+}
+
+function ConvexBackedHome() {
   const store = useStore();
   const [appMode, setAppMode] = useState<AppMode>("marketing");
   const [contentMode, setContentMode] = useState<ContentMode>("canvas");
