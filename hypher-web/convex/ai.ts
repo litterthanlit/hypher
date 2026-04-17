@@ -4,6 +4,11 @@ import { action } from "./_generated/server";
 import { v } from "convex/values";
 import Anthropic from "@anthropic-ai/sdk";
 
+/* MIRROR of the other copy — keep in sync. See .specs/week-2-04-streaming-ai-tokens.md
+ * The canonical source is hypher-web/src/app/api/digest/formatPrompt.ts
+ * Convex cannot import files outside the convex/ directory at runtime,
+ * so this is an intentional inline duplicate.
+ */
 function formatProjects(
   projects: Array<{
     name: string;
@@ -62,7 +67,7 @@ export const generateDigest = action({
   handler: async (_ctx, { projects }) => {
     const apiKey = process.env.ANTHROPIC_API_KEY;
     if (!apiKey) {
-      return "Daily digest unavailable — ANTHROPIC_API_KEY not configured.";
+      return "Add ANTHROPIC_API_KEY to your Vercel environment to enable AI digests.";
     }
 
     const anthropic = new Anthropic({ apiKey });
