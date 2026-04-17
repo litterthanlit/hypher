@@ -2,7 +2,11 @@
 
 import { useRef, useState, useCallback, useEffect, useMemo } from "react";
 import { motion } from "framer-motion";
+import { useQuery } from "convex/react";
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+import { api } from "../../convex/_generated/api";
 import type { AnyObject, Connection, ObjectKind, Note, Project, Artifact } from "@/types";
+import { computeHealthScore } from "@/lib/health";
 import { ProjectSettings } from "./ProjectSettings";
 import { ConnectionPopover } from "./ConnectionPopover";
 import { NoteIcon, ArtifactIcon } from "./Icons";
@@ -77,6 +81,20 @@ export function SpatialCanvas({
   const [hoveredCardId, setHoveredCardId] = useState<string | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Health scores — reactive via Convex. Convex deduplicates identical subscriptions
+  // so this is only one network channel even when ProjectDashboard is also mounted.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const healthInputsList = useQuery((api as any).projects.healthInputs);
+  const healthScoreMap = useMemo<Record<string, number>>(() => {
+    if (!healthInputsList) return {};
+    const now = Date.now();
+    const map: Record<string, number> = {};
+    for (const input of healthInputsList) {
+      map[input.projectId] = computeHealthScore(input, now).score;
+    }
+    return map;
+  }, [healthInputsList]);
 
   // Derive projectId from items
   const projectId = items.find(i => i.kind === "project")?.id ?? project?.id ?? "__no_project__";
@@ -638,7 +656,12 @@ export function SpatialCanvas({
               }}
             >
               {obj.kind === "note" && <StickyNote obj={obj as Note} />}
-              {obj.kind === "project" && <ProjectCard obj={obj as Project} />}
+              {obj.kind === "project" && (
+                <ProjectCard
+                  obj={obj as Project}
+                  score={healthScoreMap[obj.id]}
+                />
+              )}
               {obj.kind === "artifact" && <ArtifactCard obj={obj as Artifact} />}
               {!readOnly && selection.selectionCount === 1 && isSelected && !isDragging && editingId !== obj.id && (
                 <ResizeHandles

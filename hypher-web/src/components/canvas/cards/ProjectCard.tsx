@@ -4,12 +4,14 @@ import type { Project } from "@/types";
 import { getDisplayName } from "@/types";
 import { KindIcon } from "../../Icons";
 import { KIND_ACCENT, getPreview, getStatus } from "./cardUtils";
+import { HealthRing } from "../../HealthRing";
 
 interface Props {
   obj: Project;
+  score?: number;
 }
 
-export function ProjectCard({ obj }: Props) {
+export function ProjectCard({ obj, score }: Props) {
   return (
     <>
       <div className="spatial-card-accent-bar" />
@@ -17,6 +19,9 @@ export function ProjectCard({ obj }: Props) {
         <div className="spatial-card-header">
           <KindIcon kind={obj.kind} className="kind-icon" />
           <span className="spatial-card-title">{getDisplayName(obj)}</span>
+          {score !== undefined && (
+            <HealthRing size={20} score={score} />
+          )}
         </div>
         {getPreview(obj) && <p className="spatial-card-preview">{getPreview(obj)}</p>}
         {obj.tags && obj.tags.length > 0 && (
