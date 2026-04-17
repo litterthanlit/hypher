@@ -3,6 +3,7 @@
 import { useState, useCallback, useEffect } from "react";
 import Link from "next/link";
 import { useQuery, useMutation } from "convex/react";
+import { toast } from "sonner";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
 
@@ -18,6 +19,32 @@ export function ApiKeysPanel({ onClose, variant = "modal" }: Props) {
   const keys = useQuery(api.apiKeys.list, { includeRevoked });
   const createKey = useMutation(api.apiKeys.create);
   const revokeKey = useMutation(api.apiKeys.revoke);
+
+  // ── Daily email digest ────────────────────────────────────────────────────
+  // typegen pending convex dev
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const savePrefs = useMutation((api as any).digestEmail.savePrefs);
+  const [digestEnabled, setDigestEnabled] = useState(true);
+  const [digestHour, setDigestHour] = useState(8);
+  const digestTimezone =
+    typeof Intl !== "undefined"
+      ? Intl.DateTimeFormat().resolvedOptions().timeZone
+      : "UTC";
+
+  const handleSaveDigest = useCallback(
+    async (enabled: boolean, localHour: number) => {
+      await savePrefs({ enabled, localHour, timezone: digestTimezone });
+      toast.success("Saved.");
+    },
+    [savePrefs, digestTimezone]
+  );
+
+  const handleUnsubscribe = useCallback(async () => {
+    setDigestEnabled(false);
+    await savePrefs({ enabled: false, localHour: digestHour, timezone: digestTimezone });
+    toast.success("Saved.");
+  }, [savePrefs, digestHour, digestTimezone]);
+  // ─────────────────────────────────────────────────────────────────────────
 
   const [showNameModal, setShowNameModal] = useState(false);
   const [newKeyName, setNewKeyName] = useState("");
@@ -207,6 +234,65 @@ export function ApiKeysPanel({ onClose, variant = "modal" }: Props) {
             ))}
           </tbody>
         </table>
+      </div>
+
+      {/* ── Daily email digest ──────────────────────────────────────────── */}
+      <div className="api-keys-digest-section">
+        <h4 className="api-keys-section-title">Daily email digest</h4>
+        <p className="api-keys-desc">
+          Receive a morning summary of your projects by email. Reply to add a thought to your inbox.
+        </p>
+
+        <div className="api-keys-digest-row">
+          <label className="api-keys-toggle">
+            <input
+              type="checkbox"
+              checked={digestEnabled}
+              onChange={(e) => {
+                setDigestEnabled(e.target.checked);
+                void handleSaveDigest(e.target.checked, digestHour);
+              }}
+            />
+            Enable daily digest
+          </label>
+        </div>
+
+        <div className="api-keys-digest-row">
+          <label className="api-keys-digest-label" htmlFor="digest-hour">
+            Send hour (local time)
+          </label>
+          <select
+            id="digest-hour"
+            className="api-keys-digest-select"
+            value={digestHour}
+            onChange={(e) => {
+              const h = Number(e.target.value);
+              setDigestHour(h);
+              void handleSaveDigest(digestEnabled, h);
+            }}
+          >
+            {Array.from({ length: 24 }, (_, i) => (
+              <option key={i} value={i}>
+                {String(i).padStart(2, "0")}:00
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="api-keys-digest-row">
+          <span className="api-keys-digest-label">Timezone</span>
+          <span className="api-keys-digest-tz">{digestTimezone}</span>
+        </div>
+
+        <div className="api-keys-digest-row">
+          <button
+            type="button"
+            className="api-key-revoke"
+            onClick={() => void handleUnsubscribe()}
+          >
+            Unsubscribe from digest
+          </button>
+        </div>
       </div>
     </>
   );

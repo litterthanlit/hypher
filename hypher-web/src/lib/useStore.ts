@@ -60,6 +60,9 @@ export function useStore() {
 
   const claimLegacyData = useMutation(api.legacy.claimLegacyData);
   const ensureDemoForUser = useMutation(api.seed.ensureDemoForUser);
+  // typegen pending convex dev
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const ensureDefaultPrefs = useMutation((api as any).digestEmail.ensureDefaultPrefs);
   const legacyStatus = useQuery(api.legacy.getLegacyStatus, skipConvex ? "skip" : {});
 
   useEffect(() => {
@@ -69,9 +72,16 @@ export function useStore() {
         await claimLegacyData();
       }
       await ensureDemoForUser();
+      // Bootstrap digestPrefs row for new users (idempotent — no-op if row exists)
+      const timezone =
+        typeof Intl !== "undefined"
+          ? Intl.DateTimeFormat().resolvedOptions().timeZone
+          : "UTC";
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (ensureDefaultPrefs as any)({ timezone });
     };
     void run();
-  }, [clerkLoaded, isSignedIn, legacyStatus?.legacyClaimed, claimLegacyData, ensureDemoForUser]);
+  }, [clerkLoaded, isSignedIn, legacyStatus?.legacyClaimed, claimLegacyData, ensureDemoForUser, ensureDefaultPrefs]);
 
   /* ── Reactive queries (replaces reload()) ─────────────────────── */
   const rawObjects = useQuery(api.objects.list, skipConvex ? "skip" : {});

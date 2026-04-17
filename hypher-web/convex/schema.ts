@@ -152,4 +152,21 @@ export default defineSchema({
     .index("by_timestamp", ["timestamp"])
     .index("by_project", ["projectId"])
     .index("by_user_time", ["userId", "timestamp"]),
+
+  // Spec #07: daily digest email preferences
+  digestPrefs: defineTable({
+    userId: v.string(),
+    enabled: v.boolean(),
+    localHour: v.number(),     // 0–23, default 8
+    timezone: v.string(),      // IANA e.g. "America/Los_Angeles"
+    lastSentAt: v.optional(v.number()),
+  }).index("by_user", ["userId"]),
+
+  // Spec #07: per-send reply tokens for inbound email capture
+  digestReplyTokens: defineTable({
+    token: v.string(),
+    userId: v.string(),
+    createdAt: v.number(),
+    consumedAt: v.optional(v.number()),
+  }).index("by_token", ["token"]),
 });
