@@ -26,7 +26,9 @@ import { useUndoRedo } from "./canvas/hooks/useUndoRedo";
 import { useContextMenu } from "./canvas/features/useContextMenu";
 import { CardContextMenu, CanvasContextMenu } from "./canvas/features/ContextMenu";
 import { AmbientAskPanel } from "./AmbientAskPanel";
+import { SuggestionChip } from "./SuggestionChip";
 import { computeNearby } from "@/lib/spatial";
+import { suggestRelatedOnDrop } from "@/lib/engine";
 import { ConnectionLines } from "./canvas/features/ConnectionLines";
 import { useAnchorDrag } from "./canvas/features/useAnchorDrag";
 import { AnchorPoints } from "./canvas/features/AnchorPoints";
@@ -92,6 +94,57 @@ export function SpatialCanvas({
     screenY: number;
     nearby: { kind: string; name: string; content?: string; tags: string[] }[];
   } | null>(null);
+
+  // Drop-to-suggest chip state — null when no chip is visible.
+  const [chip, setChip] = useState<{
+    ownerId: string;
+    candidates: string[];
+    reason: string;
+    position: { x: number; y: number };
+  } | null>(null);
+
+  // Track which note ids have already been processed for drop-to-suggest,
+  // so the effect fires exactly once per newly-embedded note.
+  const processedForSuggest = useRef<Set<string>>(new Set());
+
+  // Watch `items` for notes whose embedding just became populated.
+  // Embedding is computed async (client-side, ~1.5s warm / ~5s cold),
+  // so the chip can lag the drop by a noticeable beat — that's intentional.
+  useEffect(() => {
+    if (readOnly) return;
+    for (const item of items) {
+      if (
+        item.kind !== "note" ||
+        !item.embedding ||
+        item.embedding.length === 0 ||
+        processedForSuggest.current.has(item.id)
+      ) {
+        continue;
+      }
+      // Mark before running so a subsequent render doesn't double-fire.
+      processedForSuggest.current.add(item.id);
+
+      const result = suggestRelatedOnDrop(item, items);
+      if (result.candidateIds.length >= 2) {
+        // Anchor the chip below the dropped card using screen-space rect.
+        // Falls back to a sensible default if the card DOM element isn't mounted yet.
+        const el = document.getElementById(`card-${item.id}`);
+        let chipX = 100;
+        let chipY = 100;
+        if (el) {
+          const r = el.getBoundingClientRect();
+          chipX = r.left + r.width / 2 - 100; // roughly centred under card
+          chipY = r.bottom + 8;
+        }
+        setChip({
+          ownerId: item.id,
+          candidates: result.candidateIds,
+          reason: result.topReason,
+          position: { x: chipX, y: chipY },
+        });
+      }
+    }
+  }, [items, readOnly]);
 
   // Health scores — reactive via Convex. Convex deduplicates identical subscriptions
   // so this is only one network channel even when ProjectDashboard is also mounted.
@@ -510,6 +563,15 @@ export function SpatialCanvas({
   };
 
 
+  // "Connect all" from the suggestion chip: fan out manual connections.
+  const handleChipConnectAll = useCallback(async () => {
+    if (!chip) return;
+    for (const targetId of chip.candidates) {
+      await onCreateManualConnection(chip.ownerId, targetId);
+    }
+    setChip(null);
+  }, [chip, onCreateManualConnection]);
+
   // Connection line click
   const handleConnectionClick = useCallback((e: React.MouseEvent, conn: Connection) => {
     if (readOnly) return;
@@ -916,6 +978,19 @@ export function SpatialCanvas({
           screenY={ambientPanel.screenY}
           nearby={ambientPanel.nearby}
           onClose={() => setAmbientPanel(null)}
+        />
+      )}
+
+      {/* Drop-to-suggest chip — rendered outside the transformed div so it doesn't
+          zoom/pan with the canvas. Uses position:fixed anchored below the dropped card. */}
+      {!readOnly && chip && (
+        <SuggestionChip
+          ownerId={chip.ownerId}
+          candidates={chip.candidates}
+          reason={chip.reason}
+          position={chip.position}
+          onConnectAll={handleChipConnectAll}
+          onDismiss={() => setChip(null)}
         />
       )}
     </div>
