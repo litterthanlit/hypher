@@ -1,0 +1,49 @@
+{
+  "manifest_version": 3,
+  "name": "Hypher",
+  "version": "0.1.0",
+  "description": "Capture highlights, links, and ideas to your Hypher project brain.",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA2a4MSLeHWQ4xtA7j0WnD+DsipFpCL+4W9bBi4SiACwdEzq6gRq8SFi9H9aSuaJeHVD+w3L7dFVPJkN7q2T+kbFk4Ew7N6N/nwP3bKvS+qyPD4TsZB2o2x9z8aGsPpK5wt4n7Z1cQ2J6lHN9bMeD0jS3v7N6P7iBpMmE8fGhQJ2V7e5N3oH8P6r1A7R8pC9wB6S5mJF7yB9D8K6L2T4N1R5Q3M9P2H7K8D5oF1B9C4G2L6R8T3P7N1A5Q9M7B2K4F6H8D0J3C5E7I9L1N3P5R7T9V1X3Z5==",
+  "permissions": [
+    "activeTab",
+    "contextMenus",
+    "storage",
+    "scripting",
+    "notifications",
+    "alarms"
+  ],
+  "host_permissions": [
+    "https://hypher.app/*",
+    "https://*.convex.cloud/*"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/16.png",
+      "32": "icons/32.png",
+      "48": "icons/48.png",
+      "128": "icons/128.png"
+    },
+    "default_title": "Hypher"
+  },
+  "commands": {
+    "capture-highlight": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+H",
+        "mac": "Command+Shift+H"
+      },
+      "description": "Capture highlighted text to Hypher"
+    }
+  },
+  "options_page": "options.html",
+  "icons": {
+    "16": "icons/16.png",
+    "32": "icons/32.png",
+    "48": "icons/48.png",
+    "128": "icons/128.png"
+  }
+}
