@@ -1538,6 +1538,7 @@ body {
 
 .digest-body {
   padding: 20px 28px 28px;
+  min-height: 240px;
 }
 
 .digest-loading {
@@ -1572,6 +1573,23 @@ body {
 @keyframes digestPulse {
   0%, 80%, 100% { opacity: 0.2; transform: scale(0.8); }
   40% { opacity: 1; transform: scale(1); }
+}
+
+.digest-caret {
+  display: inline-block;
+  width: 2px;
+  margin-left: 1px;
+  vertical-align: text-bottom;
+  color: var(--accent);
+  animation: digestCaretBlink 1s steps(2) infinite;
+}
+
+@keyframes digestCaretBlink {
+  to { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .digest-caret { animation: none; opacity: 0.6; }
 }
 
 .digest-loading-text {
