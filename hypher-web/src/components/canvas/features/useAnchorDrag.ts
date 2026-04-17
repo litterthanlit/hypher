@@ -11,9 +11,10 @@ interface AnchorDragState {
 interface UseAnchorDragOptions {
   onConnect: (sourceId: string, targetId: string) => void;
   zoomLevel: number;
+  readOnly?: boolean;
 }
 
-export function useAnchorDrag({ onConnect, zoomLevel }: UseAnchorDragOptions) {
+export function useAnchorDrag({ onConnect, zoomLevel, readOnly = false }: UseAnchorDragOptions) {
   const [dragState, setDragState] = useState<AnchorDragState | null>(null);
 
   const startAnchorDrag = useCallback((
@@ -22,6 +23,7 @@ export function useAnchorDrag({ onConnect, zoomLevel }: UseAnchorDragOptions) {
     anchorX: number,
     anchorY: number,
   ) => {
+    if (readOnly) return;
     e.stopPropagation();
     e.preventDefault();
     setDragState({

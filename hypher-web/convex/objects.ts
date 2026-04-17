@@ -61,6 +61,17 @@ export const get = query({
   },
 });
 
+/** Resolve an object by id when it belongs to the current user (for capture / HTTP). */
+export const getIfOwner = query({
+  args: { id: v.id("objects") },
+  handler: async (ctx, { id }) => {
+    const userId = await requireUserId(ctx);
+    const doc = await ctx.db.get(id);
+    if (!doc || doc.userId !== userId) return null;
+    return doc;
+  },
+});
+
 export const put = mutation({
   args: {
     id: v.optional(v.id("objects")),

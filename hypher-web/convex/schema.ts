@@ -120,6 +120,20 @@ export default defineSchema({
     .index("by_user", ["userId"])
     .index("by_name", ["userId", "name"]),
 
+  /** Public read-only canvas snapshots; token hash stored, never the raw secret */
+  canvasShares: defineTable({
+    userId: v.string(),
+    projectId: v.string(),
+    /** Opaque URL segment (not secret); secret is separate query param */
+    publicSlug: v.string(),
+    tokenHash: v.string(),
+    label: v.optional(v.string()),
+    createdAt: v.number(),
+    revokedAt: v.optional(v.number()),
+  })
+    .index("by_publicSlug", ["publicSlug"])
+    .index("by_user_project", ["userId", "projectId"]),
+
   activity: defineTable({
     userId: v.optional(v.string()),
     action: v.string(),

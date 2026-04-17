@@ -25,10 +25,13 @@ interface UseDragInteractionOptions {
   selectedIds: Set<string>;
   onUpdatePosition: (id: string, x: number, y: number) => void;
   getPositionedItems: () => AnyObject[];
+  /** When true, card drag is disabled (public view); pan/zoom still work */
+  readOnly?: boolean;
 }
 
 export function useDragInteraction({
   transform, setTransform, selectedIds, onUpdatePosition, getPositionedItems,
+  readOnly = false,
 }: UseDragInteractionOptions) {
   const [dragging, setDragging] = useState<DragState | null>(null);
   const [panning, setPanning] = useState<PanState | null>(null);
@@ -44,6 +47,7 @@ export function useDragInteraction({
   }, [transform]);
 
   const startDrag = useCallback((e: React.MouseEvent, obj: AnyObject) => {
+    if (readOnly) return;
     e.stopPropagation();
     const pos = obj.canvasPosition ?? { x: 0, y: 0 };
     setDragging({ id: obj.id, startX: e.clientX, startY: e.clientY, objX: pos.x, objY: pos.y });
@@ -62,7 +66,7 @@ export function useDragInteraction({
     } else {
       groupStartPositions.current = new Map();
     }
-  }, [selectedIds, getPositionedItems]);
+  }, [readOnly, selectedIds, getPositionedItems]);
 
   const onMouseMove = useCallback((e: React.MouseEvent) => {
     if (dragging) {

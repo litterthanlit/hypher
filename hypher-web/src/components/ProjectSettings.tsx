@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { useAction, useQuery } from "convex/react";
+import { useAction, useMutation, useQuery } from "convex/react";
 import { toast } from "sonner";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
@@ -37,6 +37,9 @@ export function ProjectSettings({ project, onUpdate, onClose }: Props) {
   const [tags, setTags] = useState(project.tags?.join(", ") ?? "");
 
   const integrationStatus = useQuery(api.githubTokens.getStatus);
+  const shareLinks = useQuery(api.canvasShares.listForProject, { projectId: project.id });
+  const createShare = useMutation(api.canvasShares.create);
+  const revokeShare = useMutation(api.canvasShares.revoke);
 
   const [ghStep, setGhStep] = useState<GitHubStep>(project.githubRepo ? "connected" : "idle");
   const [ghRepo, setGhRepo] = useState(project.githubRepo ?? "");
@@ -44,6 +47,37 @@ export function ProjectSettings({ project, onUpdate, onClose }: Props) {
   const [pastedTokenOverride, setPastedTokenOverride] = useState("");
   const [ghDocs, setGhDocs] = useState<{ claude: string; roadmap: string; handoff: string } | null>(null);
   const [ghSync, setGhSync] = useState<{ openPRCount: number; openIssueCount: number; blockers: string[] } | null>(null);
+  const [shareBusy, setShareBusy] = useState(false);
+
+  const handleCreateShareLink = useCallback(async () => {
+    setShareBusy(true);
+    try {
+      const base =
+        typeof window !== "undefined"
+          ? `${window.location.origin}`
+          : "";
+      const result = await createShare({ projectId: project.id });
+      const url = `${base}/share/s/${result.publicSlug}?t=${encodeURIComponent(result.secret)}`;
+      await navigator.clipboard.writeText(url);
+      toast.success("Share link copied to clipboard");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not create share link");
+    } finally {
+      setShareBusy(false);
+    }
+  }, [createShare, project.id]);
+
+  const handleRevokeShare = useCallback(
+    async (shareId: Id<"canvasShares">) => {
+      try {
+        await revokeShare({ shareId });
+        toast.success("Share link revoked");
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "Could not revoke");
+      }
+    },
+    [revokeShare]
+  );
 
   const validateAndConnectRepo = useAction(api.githubProjectActions.validateAndConnectRepo);
   const generateProjectDocs = useAction(api.githubProjectActions.generateProjectDocs);
@@ -269,6 +303,36 @@ export function ProjectSettings({ project, onUpdate, onClose }: Props) {
             placeholder="design, frontend, v2 (comma-separated)"
           />
         </label>
+
+        <div className="settings-divider" />
+        <div className="settings-section-label">Public share</div>
+        <p className="settings-github-hint">
+          Anyone with the link can view a read-only snapshot of this canvas (no embeddings). Revoke anytime.
+        </p>
+        <button
+          type="button"
+          className="settings-github-btn"
+          onClick={() => void handleCreateShareLink()}
+          disabled={shareBusy}
+        >
+          {shareBusy ? "Creating…" : "Create share link & copy"}
+        </button>
+        {shareLinks && shareLinks.length > 0 && (
+          <ul className="settings-share-list">
+            {shareLinks.map((s) => (
+              <li key={s.id} className="settings-share-row">
+                <code className="settings-share-url">{typeof window !== "undefined" ? `${window.location.origin}${s.previewUrl}` : s.previewUrl}</code>
+                <button
+                  type="button"
+                  className="settings-github-cancel"
+                  onClick={() => void handleRevokeShare(s.id)}
+                >
+                  Revoke
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
 
         <div className="settings-divider" />
         <div className="settings-section-label">GitHub</div>

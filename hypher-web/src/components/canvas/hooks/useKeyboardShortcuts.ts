@@ -5,6 +5,8 @@ import { useState, useEffect } from "react";
 export type CanvasMode = "select" | "pan" | "text";
 
 interface UseKeyboardShortcutsOptions {
+  /** When false (e.g. read-only public canvas), no shortcuts are registered */
+  enabled?: boolean;
   selectedIds: Set<string>;
   clearSelection: () => void;
   selectAll: (ids: string[]) => void;
@@ -23,6 +25,7 @@ interface UseKeyboardShortcutsOptions {
 }
 
 export function useKeyboardShortcuts({
+  enabled = true,
   selectedIds, clearSelection, selectAll, allItemIds,
   onDeleteSelected, onDuplicateSelected, onNudge,
   onEnterEdit, editingId, onExitEdit,
@@ -32,6 +35,7 @@ export function useKeyboardShortcuts({
   const [spaceHeld, setSpaceHeld] = useState(false);
 
   useEffect(() => {
+    if (!enabled) return;
     const onKeyDown = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement).tagName;
       const isInput = tag === "INPUT" || tag === "TEXTAREA";
@@ -145,7 +149,7 @@ export function useKeyboardShortcuts({
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("keyup", onKeyUp);
     };
-  }, [selectedIds, clearSelection, selectAll, allItemIds, onDeleteSelected, onDuplicateSelected, onNudge, editingId, onExitEdit, onEnterEdit, onUndo, onRedo, onZoomIn, onZoomOut, onResetZoom]);
+  }, [enabled, selectedIds, clearSelection, selectAll, allItemIds, onDeleteSelected, onDuplicateSelected, onNudge, editingId, onExitEdit, onEnterEdit, onUndo, onRedo, onZoomIn, onZoomOut, onResetZoom]);
 
   return { canvasMode, setCanvasMode, spaceHeld };
 }

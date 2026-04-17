@@ -15,6 +15,7 @@ import { DailyDigest } from "@/components/DailyDigest";
 import { AppErrorBoundary } from "@/components/AppErrorBoundary";
 import { SearchDialog } from "@/components/SearchDialog";
 import { generateSeedData } from "@/lib/notion-seed";
+import { toast } from "sonner";
 import type { ArtifactType, ObjectKind } from "@/types";
 
 function guessArtifactType(filename: string): ArtifactType {
@@ -43,6 +44,28 @@ export default function AppHome() {
   const [showSearch, setShowSearch] = useState(false);
   const [showDigest, setShowDigest] = useState(false);
   const [dragOver, setDragOver] = useState(false);
+
+  // Server /capture route redirects here with ?project=…&toast=captured (or /app/p/:id → /app?project=…)
+  useEffect(() => {
+    if (typeof window === "undefined" || !store.clerkLoaded) return;
+    const params = new URLSearchParams(window.location.search);
+    const pid = params.get("project");
+    if (pid) {
+      setSelectedProjectId(pid);
+      store.setSelectedId(pid);
+      setAppMode("workspace");
+      setContentMode("canvas");
+    }
+    if (params.get("toast") === "captured") {
+      toast.success("Captured");
+    }
+    if (pid || params.get("toast")) {
+      params.delete("project");
+      params.delete("toast");
+      const next = params.toString();
+      window.history.replaceState({}, "", next ? `/app?${next}` : "/app");
+    }
+  }, [store.clerkLoaded]);
 
   if (!store.clerkLoaded) {
     return (
@@ -246,7 +269,13 @@ export default function AppHome() {
   }, [store, selectedProjectId]);
 
   // Get items for selected project
-  const projectItems = selectedProjectId ? store.objectsForProject(selectedProjectId) : [];
+  const projectItems = selectedProjectId
+    ? (() => {
+        const proj = store.projects.find((p) => p.id === selectedProjectId);
+        const children = store.objectsForProject(selectedProjectId);
+        return proj ? [proj, ...children] : children;
+      })()
+    : [];
   const projectConnections = store.connections.filter((c) => c.type !== "dismissed");
 
   // ── CAPTURE MODE ──
