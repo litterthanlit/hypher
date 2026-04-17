@@ -329,6 +329,24 @@ export const ensureDefaultPrefs = mutation({
   },
 });
 
+export const logDeliveryActivity = internalMutation({
+  args: {
+    userId: v.string(),
+    replyToken: v.string(),
+  },
+  handler: async (ctx, { userId, replyToken }) => {
+    await ctx.db.insert("activity", {
+      userId,
+      action: "updated",
+      objectKind: "system",
+      objectId: replyToken,
+      objectName: "Daily digest",
+      timestamp: Date.now(),
+      summary: "Daily digest emailed",
+    });
+  },
+});
+
 export const pruneOldTokens = internalMutation({
   args: {},
   handler: async (ctx) => {
@@ -453,5 +471,14 @@ export const sendForUser = internalAction({
         "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
       },
     });
+
+    try {
+      await ctx.runMutation(_internal.digestEmail.logDeliveryActivity, {
+        userId,
+        replyToken,
+      });
+    } catch (err) {
+      console.warn("[hypher/digestEmail] Failed to log delivery activity:", err);
+    }
   },
 });
