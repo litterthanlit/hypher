@@ -6,9 +6,9 @@ import { PricingCards } from "./PricingCards";
 
 export function LandingPage() {
   return (
-    <div className="tw-min-h-screen tw-bg-[var(--bg-root)] tw-text-[var(--text-primary)]">
+    <div className="marketing-root tw-min-h-screen tw-text-[var(--text-primary)]">
       <header className="tw-mx-auto tw-flex tw-max-w-5xl tw-items-center tw-justify-between tw-px-6 tw-py-8 md:tw-px-10">
-        <span className="tw-font-mono tw-text-sm tw-tracking-tight">Hypher</span>
+        <span className="logo">hypher</span>
         <nav className="tw-flex tw-items-center tw-gap-6">
           <Link
             href="/pricing"
@@ -17,7 +17,7 @@ export function LandingPage() {
             Pricing
           </Link>
           <SignInButton mode="modal">
-            <button type="button" className="tw-text-sm tw-text-[var(--text-secondary)] tw-transition hover:tw-text-[var(--text-primary)]">
+            <button type="button" className="tw-border-0 tw-bg-transparent tw-px-3 tw-py-2 tw-text-sm tw-text-[var(--text-secondary)] tw-transition tw-cursor-pointer hover:tw-text-[var(--text-primary)]">
               Sign in
             </button>
           </SignInButton>

@@ -247,6 +247,29 @@ export function CaptureHome({ projects, allObjects, onCapture, onCreateProjectAn
         </div>
 
 
+        {step === "idle" && !text && (
+          <div className="capture-hints">
+            <span className="capture-hint">
+              <kbd className="hint-kbd">⌘</kbd>
+              <kbd className="hint-kbd">↵</kbd>
+              <span>capture</span>
+            </span>
+            <span className="capture-hint-sep" />
+            <span className="capture-hint">
+              <kbd className="hint-kbd">⌘</kbd>
+              <kbd className="hint-kbd">⇧</kbd>
+              <kbd className="hint-kbd">V</kbd>
+              <span>paste</span>
+            </span>
+            <span className="capture-hint-sep" />
+            <span className="capture-hint">
+              <kbd className="hint-kbd">⌘</kbd>
+              <kbd className="hint-kbd">K</kbd>
+              <span>search</span>
+            </span>
+          </div>
+        )}
+
         {step === "assigning" && (
           <ProjectAssignPopup
             text={capturedText}

@@ -14,8 +14,8 @@ export default {
     extend: {
       colors: {
         electric: {
-          DEFAULT: "#2563eb",
-          dim: "#1d4ed8",
+          DEFAULT: "#2d9d6a",
+          dim: "#268a5c",
         },
       },
       fontFamily: {
