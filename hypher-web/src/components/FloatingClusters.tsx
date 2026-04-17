@@ -164,7 +164,7 @@ export function FloatingClusters({ projects, allObjects, inputText, onProjectCli
       el.style.top = `${finalY}%`;
 
       // Opacity & scale
-      const baseOpacity = rel > 0 ? 0.4 : 0.2;
+      const baseOpacity = rel > 0 ? 0.52 : 0.36;
       const opacity = isHovered ? 1 : baseOpacity;
       const scale = isHovered ? 1.1 : 1;
       el.style.opacity = String(opacity);
@@ -201,7 +201,7 @@ export function FloatingClusters({ projects, allObjects, inputText, onProjectCli
         if (el) {
           el.style.left = `${cluster.cx}%`;
           el.style.top = `${cluster.cy}%`;
-          el.style.opacity = "0.2";
+          el.style.opacity = "0.34";
           el.style.transform = "translate(-50%, -50%)";
         }
       }

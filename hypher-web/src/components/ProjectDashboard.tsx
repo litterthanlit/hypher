@@ -141,7 +141,7 @@ export function ProjectDashboard({ projects, allObjects, onSelectProject }: Prop
       <div className="dashboard">
         <div className="dashboard-empty">
           <p className="dashboard-empty-title">No projects yet</p>
-          <p className="dashboard-empty-sub">Capture something to get started.</p>
+          <p className="dashboard-empty-sub">Press Cmd+N to capture a thought, or use the + button in the sidebar to create a project.</p>
         </div>
       </div>
     );

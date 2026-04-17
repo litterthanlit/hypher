@@ -1,8 +1,6 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
-import Link from "next/link";
-import { UserButton } from "@clerk/nextjs";
 import { useStore } from "@/lib/useStore";
 import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
@@ -14,6 +12,7 @@ import { ProjectDashboard } from "@/components/ProjectDashboard";
 import { DailyDigest } from "@/components/DailyDigest";
 import { AppErrorBoundary } from "@/components/AppErrorBoundary";
 import { SearchDialog } from "@/components/SearchDialog";
+import { AppChromeNav } from "@/components/AppChromeNav";
 import { generateSeedData } from "@/lib/notion-seed";
 import { toast } from "sonner";
 import type { ArtifactType, ObjectKind } from "@/types";
@@ -44,6 +43,7 @@ export default function AppHome() {
   const [showSearch, setShowSearch] = useState(false);
   const [showDigest, setShowDigest] = useState(false);
   const [dragOver, setDragOver] = useState(false);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
   // Server /capture route redirects here with ?project=…&toast=captured (or /app/p/:id → /app?project=…)
   useEffect(() => {
@@ -282,15 +282,7 @@ export default function AppHome() {
   if (appMode === "capture") {
     return (
       <div className="capture-root" onDrop={handleDrop} onDragOver={handleDragOver} onDragLeave={handleDragLeave}>
-        <div className="capture-user-nav">
-          <Link href="/app/settings/api-keys" className="capture-settings-link">
-            API keys
-          </Link>
-          <Link href="/app/settings/integrations" className="capture-settings-link">
-            Integrations
-          </Link>
-          <UserButton />
-        </div>
+        <AppChromeNav layout="floating" />
         <CaptureHome
           projects={store.projects}
           allObjects={store.objects}
@@ -325,6 +317,14 @@ export default function AppHome() {
   // ── WORKSPACE MODE ──
   return (
     <main className="app-layout-simple" onDrop={handleDrop} onDragOver={handleDragOver} onDragLeave={handleDragLeave}>
+      {mobileSidebarOpen ? (
+        <button
+          type="button"
+          className="app-sidebar-backdrop"
+          aria-label="Close menu"
+          onClick={() => setMobileSidebarOpen(false)}
+        />
+      ) : null}
       <Sidebar
         projects={store.projects}
         inboxItems={store.inboxItems}
@@ -335,44 +335,44 @@ export default function AppHome() {
         onSelectInboxItem={(id) => { store.setSelectedId(id); }}
         onSelectRecent={(id) => { store.setSelectedId(id); }}
         onAdd={store.addObject}
-        onGoHome={() => setAppMode("capture")}
+        onGoHome={() => { setMobileSidebarOpen(false); setAppMode("capture"); }}
         onDashboard={() => { setContentMode("dashboard"); setSelectedProjectId(null); }}
         onDigest={() => setShowDigest(true)}
+        className={mobileSidebarOpen ? "sidebar--drawer-open" : undefined}
+        onMobileSidebarClose={() => setMobileSidebarOpen(false)}
       />
 
       <div className="main-panel">
         <div className="main-toolbar">
-          {/* Canvas / List toggle */}
-          <button className="mode-toggle" onClick={toggleContentMode} title={`Switch to ${contentMode === "canvas" ? "list" : "canvas"} (Tab)`}>
-            {contentMode === "canvas" ? (
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" width={16} height={16}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25H12" />
+          <div className="main-toolbar__start">
+            <button
+              type="button"
+              className="main-toolbar__menu-btn"
+              aria-label={mobileSidebarOpen ? "Close projects menu" : "Open projects menu"}
+              aria-expanded={mobileSidebarOpen}
+              onClick={() => setMobileSidebarOpen((o) => !o)}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" width={18} height={18} aria-hidden>
+                {mobileSidebarOpen ? (
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+                ) : (
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+                )}
               </svg>
-            ) : (
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" width={16} height={16}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6A2.25 2.25 0 0 1 6 3.75h2.25A2.25 2.25 0 0 1 10.5 6v2.25a2.25 2.25 0 0 1-2.25 2.25H6a2.25 2.25 0 0 1-2.25-2.25V6ZM3.75 15.75A2.25 2.25 0 0 1 6 13.5h2.25a2.25 2.25 0 0 1 2.25 2.25V18a2.25 2.25 0 0 1-2.25 2.25H6A2.25 2.25 0 0 1 3.75 18v-2.25ZM13.5 6a2.25 2.25 0 0 1 2.25-2.25H18A2.25 2.25 0 0 1 20.25 6v2.25A2.25 2.25 0 0 1 18 10.5h-2.25a2.25 2.25 0 0 1-2.25-2.25V6ZM13.5 15.75a2.25 2.25 0 0 1 2.25-2.25H18a2.25 2.25 0 0 1 2.25 2.25V18A2.25 2.25 0 0 1 18 20.25h-2.25A2.25 2.25 0 0 1 13.5 18v-2.25Z" />
-              </svg>
-            )}
-          </button>
-
-          <div className="toolbar-spacer" />
-
-          <Link href="/app/settings/api-keys" className="main-toolbar-settings">
-            API keys
-          </Link>
-          <Link href="/app/settings/integrations" className="main-toolbar-settings">
-            Integrations
-          </Link>
-
-          <UserButton />
-
-          <button className="btn-search" onClick={() => setShowSearch(true)}>
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" width={14} height={14}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
-            </svg>
-            Search
-            <kbd className="toolbar-kbd">⌘K</kbd>
-          </button>
+            </button>
+            <button className="mode-toggle" onClick={toggleContentMode} title={`Switch to ${contentMode === "canvas" ? "list" : "canvas"} (Tab)`}>
+              {contentMode === "canvas" ? (
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" width={16} height={16}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25H12" />
+                </svg>
+              ) : (
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" width={16} height={16}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6A2.25 2.25 0 0 1 6 3.75h2.25A2.25 2.25 0 0 1 10.5 6v2.25a2.25 2.25 0 0 1-2.25 2.25H6a2.25 2.25 0 0 1-2.25-2.25V6ZM3.75 15.75A2.25 2.25 0 0 1 6 13.5h2.25a2.25 2.25 0 0 1 2.25 2.25V18a2.25 2.25 0 0 1-2.25 2.25H6A2.25 2.25 0 0 1 3.75 18v-2.25ZM13.5 6a2.25 2.25 0 0 1 2.25-2.25H18A2.25 2.25 0 0 1 20.25 6v2.25A2.25 2.25 0 0 1 18 10.5h-2.25a2.25 2.25 0 0 1-2.25-2.25V6ZM13.5 15.75a2.25 2.25 0 0 1 2.25-2.25H18a2.25 2.25 0 0 1 2.25 2.25V18A2.25 2.25 0 0 1 18 20.25h-2.25A2.25 2.25 0 0 1 13.5 18v-2.25Z" />
+                </svg>
+              )}
+            </button>
+          </div>
+          <AppChromeNav layout="toolbar" showSearch onSearchClick={() => setShowSearch(true)} />
         </div>
 
         {contentMode === "dashboard" ? (

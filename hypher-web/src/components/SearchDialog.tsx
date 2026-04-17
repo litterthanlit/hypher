@@ -113,14 +113,17 @@ export function SearchDialog({ search, onSelect, onClose, tags = [], onSelectTag
         </div>
 
         {isFiltering && (
-          <div className="search-filtering-skeleton tw-animate-pulse" aria-busy="true">
-            {[0, 1, 2, 3].map((i) => (
-              <div key={i} className="search-skeleton-row">
-                <span className="search-skeleton-icon" />
-                <span className="search-skeleton-line" />
-              </div>
-            ))}
-          </div>
+          <>
+            <div className="search-filtering-label" aria-live="polite">Searching…</div>
+            <div className="search-filtering-skeleton search-filtering--busy" aria-busy="true">
+              {[0, 1, 2, 3].map((i) => (
+                <div key={i} className="search-skeleton-row">
+                  <span className="search-skeleton-icon" />
+                  <span className="search-skeleton-line" />
+                </div>
+              ))}
+            </div>
+          </>
         )}
 
         {deferredQuery && !isFiltering && flat.length === 0 && (

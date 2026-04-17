@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef, useTransition } from "react";
 import { toast } from "sonner";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import type { Project, AnyObject } from "@/types";
 
 interface Props {
@@ -28,6 +28,7 @@ export function DailyDigest({
   onDismiss,
   onSelectProject,
 }: Props) {
+  const reduceMotion = useReducedMotion();
   const [digestText, setDigestText] = useState("");
   const [loading, setLoading] = useState(true);
   const [errored, setErrored] = useState(false);
@@ -148,18 +149,30 @@ export function DailyDigest({
     <AnimatePresence>
       <motion.div
         className="digest-overlay"
-        initial={{ opacity: 0 }}
+        initial={{ opacity: reduceMotion ? 1 : 0 }}
         animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        transition={{ duration: 0.2 }}
+        exit={{ opacity: reduceMotion ? 1 : 0 }}
+        transition={{ duration: reduceMotion ? 0 : 0.2 }}
         onClick={handleBackdropClick}
       >
         <motion.div
           className="digest-card"
-          initial={{ opacity: 0, y: -20, scale: 0.98 }}
+          initial={
+            reduceMotion
+              ? { opacity: 1, y: 0, scale: 1 }
+              : { opacity: 0, y: -20, scale: 0.98 }
+          }
           animate={{ opacity: 1, y: 0, scale: 1 }}
-          exit={{ opacity: 0, y: -20, scale: 0.98 }}
-          transition={{ type: "spring", stiffness: 400, damping: 30, delay: 0.05 }}
+          exit={
+            reduceMotion
+              ? { opacity: 1, y: 0, scale: 1 }
+              : { opacity: 0, y: -20, scale: 0.98 }
+          }
+          transition={
+            reduceMotion
+              ? { duration: 0 }
+              : { type: "spring", stiffness: 400, damping: 30, delay: 0.05 }
+          }
           onClick={(e) => e.stopPropagation()}
         >
           <div className="digest-header">
@@ -192,14 +205,13 @@ export function DailyDigest({
 
           <div className="digest-body">
             {loading && !digestText && (
-              <div className="digest-loading tw-animate-pulse" aria-busy="true">
-                <div className="tw-space-y-3 tw-w-full tw-max-w-md">
-                  <div className="tw-h-3 tw-rounded tw-bg-slate-200/80 tw-w-[92%]" />
-                  <div className="tw-h-3 tw-rounded tw-bg-slate-200/80 tw-w-full" />
-                  <div className="tw-h-3 tw-rounded tw-bg-slate-200/80 tw-w-[85%]" />
-                  <div className="tw-h-3 tw-rounded tw-bg-slate-200/80 tw-w-[70%]" />
+              <div className="digest-loading" aria-busy="true">
+                <div className="digest-skeleton-stack">
+                  {[0, 1, 2, 3].map((i) => (
+                    <div key={i} className="digest-skeleton-line" />
+                  ))}
                 </div>
-                <p className="digest-loading-text tw-mt-4">
+                <p className="digest-loading-text">
                   Thinking about your projects...
                 </p>
               </div>

@@ -33,8 +33,8 @@ export function ListView({ items, connections, onUpdate, onDelete, selectedId, o
   if (items.length === 0) {
     return (
       <div className="list-empty">
-        <p>No items in this project yet.</p>
-        <p className="list-empty-sub">Capture a thought from the home screen and assign it here.</p>
+        <p>No items in this project yet</p>
+        <p className="list-empty-sub">Press Cmd+N to capture, then assign here — or add notes from the canvas.</p>
       </div>
     );
   }

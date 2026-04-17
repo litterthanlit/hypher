@@ -103,6 +103,15 @@ export function SpatialCanvas({
     position: { x: number; y: number };
   } | null>(null);
 
+  const [narrowViewport, setNarrowViewport] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 768px)");
+    const sync = () => setNarrowViewport(mq.matches);
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
+
   // Track which note ids have already been processed for drop-to-suggest,
   // so the effect fires exactly once per newly-embedded note.
   const processedForSuggest = useRef<Set<string>>(new Set());
@@ -992,6 +1001,12 @@ export function SpatialCanvas({
           onConnectAll={handleChipConnectAll}
           onDismiss={() => setChip(null)}
         />
+      )}
+
+      {narrowViewport && !readOnly && (
+        <div className="canvas-mobile-hint" role="note">
+          Pan and zoom work on this screen. For comfortable editing and precise placement, use a larger display.
+        </div>
       )}
     </div>
   );

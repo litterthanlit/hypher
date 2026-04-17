@@ -79,6 +79,7 @@ export function ApiKeysPanel({ onClose, variant = "modal" }: Props) {
 
   const handleRevoke = useCallback(
     async (keyId: string) => {
+      if (!window.confirm("Revoke this API key? Apps using it will stop working.")) return;
       await revokeKey({ keyId: keyId as Id<"apiKeys"> });
     },
     [revokeKey]

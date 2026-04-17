@@ -22,7 +22,7 @@ export function ConnectionLines({ connections, objectMap, onConnectionClick }: C
           markerHeight="8"
           orient="auto-start-reverse"
         >
-          <path d="M 0 0 L 10 4 L 0 8 Z" fill="var(--accent)" opacity={0.6} />
+          <path d="M 0 0 L 10 4 L 0 8 Z" fill="var(--canvas-conn-confirmed)" opacity={0.75} />
         </marker>
 
         {/* Open arrowhead for suggested connections */}
@@ -35,7 +35,7 @@ export function ConnectionLines({ connections, objectMap, onConnectionClick }: C
           markerHeight="8"
           orient="auto-start-reverse"
         >
-          <path d="M 0 0 L 10 4 L 0 8" fill="none" stroke="var(--accent)" strokeWidth={1.5} opacity={0.4} />
+          <path d="M 0 0 L 10 4 L 0 8" fill="none" stroke="var(--canvas-conn-suggested-stroke)" strokeWidth={1.5} opacity={0.85} />
         </marker>
       </defs>
 
@@ -66,10 +66,10 @@ export function ConnectionLines({ connections, objectMap, onConnectionClick }: C
 
         // Line style per type
         const style = isSuggested
-          ? { strokeWidth: 1, dasharray: "6 4", opacity: 0.25, marker: "url(#arrow-open)" }
+          ? { strokeWidth: 1, dasharray: "6 4", opacity: 0.55, marker: "url(#arrow-open)", stroke: "var(--canvas-conn-suggested-stroke)" }
           : isManual
-            ? { strokeWidth: 2, dasharray: "none", opacity: 0.6, marker: "url(#arrow-solid)" }
-            : { strokeWidth: 1.5, dasharray: "none", opacity: 0.4, marker: "url(#arrow-solid)" };
+            ? { strokeWidth: 2, dasharray: "none", opacity: 0.72, marker: "url(#arrow-solid)", stroke: "var(--canvas-conn-manual)" }
+            : { strokeWidth: 1.5, dasharray: "none", opacity: 0.52, marker: "url(#arrow-solid)", stroke: "var(--canvas-conn-ai)" };
 
         return (
           <g key={conn.id} className="connection-line-group">
@@ -86,7 +86,7 @@ export function ConnectionLines({ connections, objectMap, onConnectionClick }: C
             <path
               d={pathD}
               fill="none"
-              stroke="var(--accent)"
+              stroke={style.stroke}
               strokeWidth={style.strokeWidth}
               strokeDasharray={style.dasharray}
               opacity={style.opacity}

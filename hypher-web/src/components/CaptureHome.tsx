@@ -231,16 +231,11 @@ export function CaptureHome({ projects, allObjects, onCapture, onCreateProjectAn
           )}
           {!text && step === "idle" && cursorVisible && <span className="capture-cursor" />}
           {!text && step === "idle" && (
-            <div className={`capture-drop-hint ${isDragNear ? "visible" : ""}`}>
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 28 24" width={28} height={24}>
-                {/* Dashed rectangle behind */}
-                <rect x="6" y="4" width="18" height="16" rx="3" stroke="currentColor" strokeWidth="1.5" strokeDasharray="3 2.5" opacity="0.5" />
-                {/* Solid rectangle in front */}
-                <rect x="2" y="2" width="18" height="16" rx="3" stroke="currentColor" strokeWidth="1.5" />
-                {/* Upload arrow */}
-                <path d="M11 13V8m0 0L8.5 10.5M11 8l2.5 2.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                {/* Tray */}
-                <path d="M7.5 12v1.5a1 1 0 001 1h5a1 1 0 001-1V12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            <div className={`capture-drop-hint ${isDragNear ? "visible" : ""}`} aria-hidden>
+              <svg xmlns="http://www.w3.org/2000/svg" width={22} height={22} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.65" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <path d="m17 8-5-5-5 5" />
+                <path d="M12 3v12" />
               </svg>
             </div>
           )}
@@ -286,6 +281,18 @@ export function CaptureHome({ projects, allObjects, onCapture, onCreateProjectAn
           <button className="notion-import-btn" onClick={onNotionImport}>
             Import from Notion
           </button>
+        )}
+
+        {projects.length === 0 && step === "idle" && !text && (
+          <div className="capture-clusters-empty">
+            <p className="capture-clusters-empty-title">Project constellations appear here</p>
+            <p className="capture-clusters-empty-sub">
+              Create a project from the workspace sidebar to see floating clusters around this field. They’re not missing — there’s nothing to orbit yet.
+            </p>
+            <button type="button" className="capture-clusters-empty-btn" onClick={onNavigateToWorkspace}>
+              Open workspace
+            </button>
+          </div>
         )}
       </div>
     </div>
