@@ -67,14 +67,6 @@ export default function AppHome() {
     }
   }, [store.clerkLoaded]);
 
-  if (!store.clerkLoaded) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-[#fafafa] text-[#444]">
-        <p className="text-sm tracking-wide">Loading…</p>
-      </div>
-    );
-  }
-
   // Auto-show digest on first open of the day
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -267,6 +259,14 @@ export default function AppHome() {
     if (kind === "note") store.addObject({ ...base, kind: "note", content: text, maturity: "fleeting" });
     else store.addObject({ ...base, kind: "artifact", name: text, type: "other" });
   }, [store, selectedProjectId]);
+
+  if (!store.clerkLoaded) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[#fafafa] text-[#444]">
+        <p className="text-sm tracking-wide">Loading…</p>
+      </div>
+    );
+  }
 
   // Get items for selected project
   const projectItems = selectedProjectId
