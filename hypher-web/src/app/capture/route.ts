@@ -3,6 +3,35 @@ import { fetchMutation, fetchQuery } from "convex/nextjs";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 
+// ── CORS helpers for Chrome extension ──────────────────────────────────────────
+// In dev, allow any chrome-extension:// origin.
+// In prod, echo only the published extension ID (set EXTENSION_ID env var).
+// TODO: tighten EXTENSION_ID after Chrome Web Store submission.
+function extensionCorsHeaders(req: Request): Record<string, string> {
+  const origin = req.headers.get("origin") ?? "";
+  const isDev = process.env.NODE_ENV !== "production";
+  const allowedOrigin = isDev
+    ? (origin.startsWith("chrome-extension://") ? origin : "")
+    : (origin === `chrome-extension://${process.env.EXTENSION_ID ?? ""}` ? origin : "");
+  if (!allowedOrigin) return {};
+  return {
+    "Access-Control-Allow-Origin": allowedOrigin,
+    "Access-Control-Allow-Credentials": "true",
+    "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, Accept, Authorization",
+    "Vary": "Origin",
+  };
+}
+
+export async function OPTIONS(req: Request) {
+  const headers = extensionCorsHeaders(req);
+  if (!headers["Access-Control-Allow-Origin"]) {
+    return new Response(null, { status: 403 });
+  }
+  return new Response(null, { status: 204, headers });
+}
+// ──────────────────────────────────────────────────────────────────────────────
+
 const MAX_CONTENT = 10_000;
 const PROJECT_RE = /^[a-zA-Z0-9_-]{6,64}$/;
 const MAX_TAGS = 10;
@@ -200,10 +229,18 @@ async function handleCapture(req: Request): Promise<Response> {
   }
 }
 
+function withCors(req: Request, res: Response): Response {
+  const corsHdrs = extensionCorsHeaders(req);
+  if (!corsHdrs["Access-Control-Allow-Origin"]) return res;
+  const next = new Response(res.body, res);
+  Object.entries(corsHdrs).forEach(([k, v]) => next.headers.set(k, v));
+  return next;
+}
+
 export async function GET(req: Request) {
-  return handleCapture(req);
+  return withCors(req, await handleCapture(req));
 }
 
 export async function POST(req: Request) {
-  return handleCapture(req);
+  return withCors(req, await handleCapture(req));
 }
