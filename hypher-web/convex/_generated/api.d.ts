@@ -22,6 +22,8 @@ import type * as githubProjectActions from "../githubProjectActions.js";
 import type * as githubTokens from "../githubTokens.js";
 import type * as http from "../http.js";
 import type * as legacy from "../legacy.js";
+import type * as notion from "../notion.js";
+import type * as onboarding from "../onboarding.js";
 import type * as seed from "../seed.js";
 import type * as objects from "../objects.js";
 import type * as subscriptions from "../subscriptions.js";
@@ -48,6 +50,8 @@ declare const fullApi: ApiFromModules<{
   githubTokens: typeof githubTokens;
   http: typeof http;
   legacy: typeof legacy;
+  notion: typeof notion;
+  onboarding: typeof onboarding;
   seed: typeof seed;
   objects: typeof objects;
   subscriptions: typeof subscriptions;

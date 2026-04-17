@@ -8,6 +8,25 @@ export default defineSchema({
     demoSeeded: v.optional(v.boolean()),
     /** Pre-rendered digest copy for the demo workspace (Try Hypher). */
     demoDigestText: v.optional(v.string()),
+    /** True once the new-user WelcomeDialog has been dismissed or completed. */
+    onboardingComplete: v.optional(v.boolean()),
+    /** Live progress counter for the Notion import action; subscribed to by the dialog. */
+    notionImportProgress: v.optional(
+      v.object({
+        imported: v.number(),
+        total: v.number(),
+        startedAt: v.number(),
+      })
+    ),
+  }).index("by_user", ["userId"]),
+
+  notionTokens: defineTable({
+    userId: v.string(),
+    accessToken: v.string(),
+    workspaceId: v.optional(v.string()),
+    workspaceName: v.optional(v.string()),
+    botId: v.optional(v.string()),
+    createdAt: v.number(),
   }).index("by_user", ["userId"]),
 
   subscriptions: defineTable({

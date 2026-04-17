@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import Link from "next/link";
 import { UserButton } from "@clerk/nextjs";
 import { useStore } from "@/lib/useStore";
-import { useQuery } from "convex/react";
+import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { CaptureHome } from "@/components/CaptureHome";
 import { Sidebar } from "@/components/Sidebar";
@@ -14,6 +14,7 @@ import { ProjectDashboard } from "@/components/ProjectDashboard";
 import { DailyDigest } from "@/components/DailyDigest";
 import { AppErrorBoundary } from "@/components/AppErrorBoundary";
 import { SearchDialog } from "@/components/SearchDialog";
+import { WelcomeDialog } from "@/components/WelcomeDialog";
 import { generateSeedData } from "@/lib/notion-seed";
 import { toast } from "sonner";
 import type { ArtifactType, ObjectKind } from "@/types";
@@ -37,6 +38,8 @@ export default function AppHome() {
   const skipTags = !store.clerkLoaded || !store.isSignedIn;
   const tagsList = useQuery(api.tags.listWithCounts, skipTags ? "skip" : {});
   const demoDigestText = useQuery(api.seed.getDemoDigest, skipTags ? "skip" : {});
+  const onboardingStatus = useQuery(api.onboarding.getOnboardingStatus, skipTags ? "skip" : {});
+  const setOnboardingComplete = useMutation(api.onboarding.setOnboardingComplete);
   const tags = useMemo(() => tagsList ?? [], [tagsList]);
   const [appMode, setAppMode] = useState<AppMode>("capture");
   const [contentMode, setContentMode] = useState<ContentMode>("canvas");
@@ -252,6 +255,23 @@ export default function AppHome() {
     if (recentNote) store.assignToProject(recentNote.id, convexProjectId);
   }, [store]);
 
+  // Onboarding — first-run WelcomeDialog
+  const [welcomeDismissed, setWelcomeDismissed] = useState(false);
+  const showWelcome =
+    store.clerkLoaded &&
+    store.isSignedIn &&
+    onboardingStatus !== undefined &&
+    !onboardingStatus.onboardingComplete &&
+    !welcomeDismissed;
+  const handleOnboardingComplete = useCallback(async () => {
+    setWelcomeDismissed(true);
+    try {
+      await setOnboardingComplete({});
+    } catch (e) {
+      console.error("[onboarding] setOnboardingComplete failed", e);
+    }
+  }, [setOnboardingComplete]);
+
   // Canvas create handler
   const handleCreateAtPosition = useCallback((kind: ObjectKind, text: string, x: number, y: number) => {
     const now = Date.now();
@@ -305,6 +325,7 @@ export default function AppHome() {
           onClipboardCapture={store.captureFromClipboard}
           onNotionImport={notionImported ? undefined : handleNotionImport}
         />
+        <WelcomeDialog open={showWelcome} onComplete={handleOnboardingComplete} />
         {dragOver && (
           <div className="drop-overlay">
             <div className="drop-content">
@@ -467,6 +488,8 @@ export default function AppHome() {
           </div>
         </div>
       )}
+
+      <WelcomeDialog open={showWelcome} onComplete={handleOnboardingComplete} />
 
       {store.modelLoading && (
         <div className="loading-bar"><span className="loading-dot" />Loading embedding model...</div>
