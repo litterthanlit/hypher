@@ -3890,3 +3890,70 @@ body {
     opacity: 1;
   }
 }
+
+/* ── Drop-to-suggest connection chip ──────────────────────────────────────── */
+.suggestion-chip {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 14px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-hover);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  max-width: 280px;
+  /* Framer Motion handles opacity/transform; pointer-events still needed */
+  pointer-events: auto;
+}
+
+.suggestion-chip-text {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+.suggestion-chip-actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.suggestion-chip-btn {
+  appearance: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 10px;
+  cursor: pointer;
+  transition: background var(--transition), color var(--transition);
+  white-space: nowrap;
+}
+
+.suggestion-chip-btn--primary {
+  background: var(--accent);
+  color: #fff;
+}
+
+.suggestion-chip-btn--primary:hover {
+  background: var(--accent-hover);
+}
+
+.suggestion-chip-btn--secondary {
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+}
+
+.suggestion-chip-btn--secondary:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+/* Respect prefers-reduced-motion — chip skips Framer Motion animation */
+@media (prefers-reduced-motion: reduce) {
+  .suggestion-chip {
+    transition: none !important;
+    animation: none !important;
+  }
+}

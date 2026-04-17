@@ -84,3 +84,56 @@ export function suggestProjectFromData(
 function pairKey(a: string, b: string): string {
   return [a, b].sort().join("|");
 }
+
+// ── Drop-to-suggest chip ──────────────────────────────────────────────────────
+// Higher threshold than SIMILARITY_THRESHOLD (0.45): "definitely related" vs
+// "could be related". Only note-to-note, spatial proximity required on both.
+const SPATIAL_RADIUS_PX = 600;
+const SEMANTIC_THRESHOLD = 0.7;
+
+/**
+ * Given a freshly-dropped note and all canvas objects, return nearby notes
+ * that are both within SPATIAL_RADIUS_PX **and** semantically similar
+ * (cosine similarity ≥ SEMANTIC_THRESHOLD). Used to drive the SuggestionChip.
+ *
+ * Requirements for both sides:
+ *  - kind === "note"
+ *  - embedding present and non-empty
+ *  - canvasPosition present
+ *  - candidate id !== dropped id
+ */
+export function suggestRelatedOnDrop(
+  dropped: AnyObject,
+  allObjects: AnyObject[],
+): { candidateIds: string[]; topReason: string } {
+  if (!dropped.embedding || !dropped.canvasPosition || dropped.kind !== "note") {
+    return { candidateIds: [], topReason: "" };
+  }
+  const dx = dropped.canvasPosition.x;
+  const dy = dropped.canvasPosition.y;
+  const r2 = SPATIAL_RADIUS_PX * SPATIAL_RADIUS_PX;
+
+  const matches: { id: string; sim: number; name: string }[] = [];
+
+  for (const o of allObjects) {
+    if (o.id === dropped.id) continue;
+    if (o.kind !== "note") continue;
+    if (!o.embedding || o.embedding.length === 0) continue;
+    if (!o.canvasPosition) continue;
+    const d2 = (o.canvasPosition.x - dx) ** 2 + (o.canvasPosition.y - dy) ** 2;
+    if (d2 > r2) continue;
+    const sim = cosineSimilarity(dropped.embedding, o.embedding);
+    if (sim >= SEMANTIC_THRESHOLD) {
+      matches.push({ id: o.id, sim, name: getDisplayName(o) });
+    }
+  }
+
+  matches.sort((a, b) => b.sim - a.sim);
+
+  return {
+    candidateIds: matches.map((m) => m.id),
+    topReason: matches[0]
+      ? `Closest match: "${matches[0].name}" (${Math.round(matches[0].sim * 100)}%)`
+      : "",
+  };
+}
