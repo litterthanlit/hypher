@@ -8,6 +8,8 @@ interface MenuItem {
   shortcut?: string;
   onClick: () => void;
   danger?: boolean;
+  /** When true: item is rendered greyed-out and clicks are suppressed. */
+  disabled?: boolean;
 }
 
 interface MenuSeparator {
@@ -36,6 +38,10 @@ interface CanvasMenuProps {
   onSelectAll: () => void;
   onResetView: () => void;
   onClose: () => void;
+  /** Called with canvas coordinates when the user picks "Ask about what's around me". */
+  onAskAround: (canvasX: number, canvasY: number) => void;
+  /** If true, the "Ask about what's around me" entry is disabled (no items in radius). */
+  askAroundDisabled?: boolean;
 }
 
 export function CardContextMenu({ position, onEdit, onDuplicate, onDelete, onClose }: CardMenuProps) {
@@ -49,8 +55,23 @@ export function CardContextMenu({ position, onEdit, onDuplicate, onDelete, onClo
   return <ContextMenuBase position={position} entries={entries} onClose={onClose} />;
 }
 
-export function CanvasContextMenu({ position, onAddNote, onSelectAll, onResetView, onClose }: CanvasMenuProps) {
+export function CanvasContextMenu({
+  position,
+  target,
+  onAddNote,
+  onSelectAll,
+  onResetView,
+  onClose,
+  onAskAround,
+  askAroundDisabled,
+}: CanvasMenuProps) {
   const entries: MenuEntry[] = [
+    {
+      label: "Ask about what's around me",
+      onClick: () => onAskAround(target.canvasX, target.canvasY),
+      disabled: askAroundDisabled,
+    },
+    { type: "separator" },
     { label: "Add Note", onClick: onAddNote },
     { type: "separator" },
     { label: "Select All", shortcut: "⌘A", onClick: onSelectAll },
@@ -101,8 +122,10 @@ function ContextMenuBase({
         ) : (
           <button
             key={i}
-            className={`context-menu-item ${entry.danger ? "danger" : ""}`}
+            className={`context-menu-item ${entry.danger ? "danger" : ""} ${entry.disabled ? "disabled" : ""}`}
+            disabled={entry.disabled}
             onClick={() => {
+              if (entry.disabled) return;
               entry.onClick();
               onClose();
             }}

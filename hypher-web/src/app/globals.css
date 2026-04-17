@@ -3691,3 +3691,202 @@ body {
     transition: none !important;
   }
 }
+
+/* ─── Ambient Ask Panel ─── */
+
+.ambient-ask-panel {
+  /* Dark surface matching the visual vocabulary of existing panels */
+  background: var(--bg-primary);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  /* Width / height constraints */
+  width: 420px;
+  max-width: calc(100vw - 24px);
+  max-height: 60vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  /* Stacks above canvas cards and popovers */
+  z-index: 200;
+}
+
+.ambient-ask-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px 8px;
+  border-bottom: 1px solid var(--border-default);
+  flex-shrink: 0;
+}
+
+.ambient-ask-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  letter-spacing: 0.01em;
+}
+
+.ambient-ask-close {
+  appearance: none;
+  background: transparent;
+  border: none;
+  color: var(--text-quaternary);
+  font-size: 14px;
+  cursor: pointer;
+  padding: 2px 4px;
+  line-height: 1;
+  border-radius: var(--radius-sm);
+  transition: color var(--transition), background var(--transition);
+}
+
+.ambient-ask-close:hover {
+  color: var(--text-secondary);
+  background: var(--bg-hover);
+}
+
+/* Nearby item chips */
+.ambient-ask-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border-default);
+  flex-shrink: 0;
+}
+
+.ambient-ask-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-pill);
+  padding: 2px 8px 2px 6px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  max-width: 160px;
+}
+
+.ambient-ask-chip-icon {
+  width: 11px;
+  height: 11px;
+  color: var(--text-tertiary);
+  flex-shrink: 0;
+}
+
+.ambient-ask-chip-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Prompt textarea */
+.ambient-ask-textarea {
+  font-family: var(--font-sans);
+  font-size: 13px;
+  color: var(--text-primary);
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--border-default);
+  padding: 10px 14px;
+  resize: none;
+  outline: none;
+  flex-shrink: 0;
+  line-height: 1.5;
+}
+
+.ambient-ask-textarea:focus {
+  background: var(--bg-hover);
+}
+
+.ambient-ask-textarea::placeholder {
+  color: var(--text-quaternary);
+}
+
+.ambient-ask-textarea:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Action row */
+.ambient-ask-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 12px;
+  flex-shrink: 0;
+}
+
+.ambient-ask-hint {
+  font-size: 10px;
+  color: var(--text-quaternary);
+}
+
+.ambient-ask-send {
+  appearance: none;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 12px;
+  cursor: pointer;
+  transition: background var(--transition);
+}
+
+.ambient-ask-send:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+
+.ambient-ask-send:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Streamed reply area */
+.ambient-ask-reply {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px 14px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text-primary);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* Blinking cursor shown while streaming starts */
+.ambient-ask-cursor {
+  display: inline-block;
+  width: 2px;
+  height: 13px;
+  background: var(--text-secondary);
+  vertical-align: middle;
+  animation: ambientCursorBlink 900ms step-end infinite;
+}
+
+@keyframes ambientCursorBlink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+/* Disabled context-menu-item style (used by CanvasContextMenu for askAroundDisabled) */
+.context-menu-item.disabled,
+.context-menu-item:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+/* Respect prefers-reduced-motion — zero all transitions and animations on the panel */
+@media (prefers-reduced-motion: reduce) {
+  .ambient-ask-panel {
+    transition: none !important;
+  }
+  .ambient-ask-cursor {
+    animation: none !important;
+    opacity: 1;
+  }
+}

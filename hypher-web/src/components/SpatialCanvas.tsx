@@ -25,6 +25,8 @@ import { SnapGuides } from "./canvas/features/SnapGuides";
 import { useUndoRedo } from "./canvas/hooks/useUndoRedo";
 import { useContextMenu } from "./canvas/features/useContextMenu";
 import { CardContextMenu, CanvasContextMenu } from "./canvas/features/ContextMenu";
+import { AmbientAskPanel } from "./AmbientAskPanel";
+import { computeNearby } from "@/lib/spatial";
 import { ConnectionLines } from "./canvas/features/ConnectionLines";
 import { useAnchorDrag } from "./canvas/features/useAnchorDrag";
 import { AnchorPoints } from "./canvas/features/AnchorPoints";
@@ -81,6 +83,15 @@ export function SpatialCanvas({
   const [hoveredCardId, setHoveredCardId] = useState<string | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Ambient Ask panel state — null when closed.
+  // screenX/screenY are viewport-relative coords from the right-click event (for panel positioning).
+  // nearby is the pre-computed list of items Claude will read.
+  const [ambientPanel, setAmbientPanel] = useState<{
+    screenX: number;
+    screenY: number;
+    nearby: { kind: string; name: string; content?: string; tags: string[] }[];
+  } | null>(null);
 
   // Health scores — reactive via Convex. Convex deduplicates identical subscriptions
   // so this is only one network channel even when ProjectDashboard is also mounted.
@@ -859,6 +870,33 @@ export function SpatialCanvas({
             animateZoom(1);
           }}
           onClose={contextMenu.close}
+          onAskAround={(canvasX, canvasY) => {
+            const nearby = computeNearby(positioned, canvasX, canvasY);
+            if (nearby.length === 0) return;
+            // screenX/screenY: contextMenu.menu.position is relative to the container;
+            // add containerRect.left/top to get viewport-relative coords for the panel.
+            const rect = containerRef.current?.getBoundingClientRect();
+            const screenX = (rect?.left ?? 0) + contextMenu.menu!.position.x;
+            const screenY = (rect?.top ?? 0) + contextMenu.menu!.position.y;
+            setAmbientPanel({
+              screenX,
+              screenY,
+              nearby: nearby.map((o) => ({
+                kind: o.kind,
+                name: o.kind === "note"
+                  ? (o as import("@/types").Note).content.slice(0, 200)
+                  : (o as import("@/types").Artifact | import("@/types").Project).name,
+                ...(o.kind === "note" ? { content: (o as import("@/types").Note).content } : {}),
+                tags: o.tags ?? [],
+              })),
+            });
+            contextMenu.close();
+          }}
+          askAroundDisabled={
+            contextMenu.menu.target.type === "canvas"
+              ? computeNearby(positioned, contextMenu.menu.target.canvasX, contextMenu.menu.target.canvasY).length === 0
+              : true
+          }
         />
       )}
 
@@ -867,6 +905,17 @@ export function SpatialCanvas({
           project={project}
           onUpdate={onUpdateObject}
           onClose={() => setShowSettings(false)}
+        />
+      )}
+
+      {/* Ambient Ask panel — rendered OUTSIDE the transformed canvas div so it doesn't
+          zoom/pan with the canvas. Uses position:fixed anchored to the right-click screen coords. */}
+      {!readOnly && ambientPanel && (
+        <AmbientAskPanel
+          screenX={ambientPanel.screenX}
+          screenY={ambientPanel.screenY}
+          nearby={ambientPanel.nearby}
+          onClose={() => setAmbientPanel(null)}
         />
       )}
     </div>
