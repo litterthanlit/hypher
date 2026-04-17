@@ -1,0 +1,804 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hypher — Home Screen Mockup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #fafafa;
+    --bg-subtle: #f4f4f3;
+    --text: #1a1a1a;
+    --text-muted: #666;
+    --text-dim: #999;
+    --border: #e8e8e6;
+    --border-hover: #d4d4d0;
+    --accent: #2d9d6a;
+    --card-bg: #ffffff;
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
+    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.06);
+    --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.08);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f0f0f;
+      --bg-subtle: #1a1a1a;
+      --text: #f2f2f2;
+      --text-muted: #999;
+      --text-dim: #666;
+      --border: #262626;
+      --border-hover: #3a3a3a;
+      --card-bg: #151515;
+    }
+  }
+
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+
+  html, body {
+    height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Geist', -apple-system, system-ui, sans-serif;
+    font-feature-settings: 'ss01', 'ss02', 'cv11';
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    overflow-x: hidden;
+  }
+
+  /* ===== Top chrome ===== */
+  .chrome {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 56px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 24px;
+    z-index: 10;
+    background: linear-gradient(to bottom, var(--bg) 0%, rgba(250,250,250,0) 100%);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    .chrome {
+      background: linear-gradient(to bottom, var(--bg) 0%, rgba(15,15,15,0) 100%);
+    }
+  }
+
+  .chrome-left, .chrome-right {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+
+  .icon-btn {
+    width: 32px;
+    height: 32px;
+    border: none;
+    background: transparent;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: var(--text-muted);
+    transition: background 150ms ease, color 150ms ease;
+  }
+
+  .icon-btn:hover {
+    background: var(--bg-subtle);
+    color: var(--text);
+  }
+
+  .wordmark {
+    font-family: 'Geist Mono', monospace;
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--text);
+    letter-spacing: -0.02em;
+  }
+
+  .chrome-right .icon-btn + .icon-btn { margin-left: 2px; }
+
+  .avatar {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #2d9d6a, #4fbd8a);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+  }
+
+  /* ===== Main container ===== */
+  .home {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    padding: 96px 48px 48px;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+
+  /* ===== Hero ===== */
+  .hero {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    margin: 48px auto 80px;
+    max-width: 640px;
+    width: 100%;
+  }
+
+  .greeting {
+    font-size: 13px;
+    font-weight: 400;
+    color: var(--text-dim);
+    letter-spacing: 0.02em;
+    margin-bottom: 8px;
+    text-transform: none;
+  }
+
+  .greeting-name {
+    color: var(--text-muted);
+  }
+
+  .hero-prompt {
+    font-size: 24px;
+    font-weight: 400;
+    color: var(--text);
+    letter-spacing: -0.02em;
+    margin-bottom: 32px;
+    line-height: 1.3;
+  }
+
+  .input-wrap {
+    position: relative;
+    width: 100%;
+    max-width: 560px;
+  }
+
+  .input {
+    width: 100%;
+    padding: 16px 56px 16px 20px;
+    font-family: inherit;
+    font-size: 15px;
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    color: var(--text);
+    outline: none;
+    transition: border-color 200ms ease, box-shadow 200ms ease;
+    box-shadow: var(--shadow-sm);
+  }
+
+  .input::placeholder {
+    color: var(--text-dim);
+  }
+
+  .input:focus {
+    border-color: var(--border-hover);
+    box-shadow: var(--shadow-md), 0 0 0 3px rgba(45, 157, 106, 0.08);
+  }
+
+  .input-action {
+    position: absolute;
+    right: 6px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 36px;
+    height: 36px;
+    border: none;
+    background: var(--bg-subtle);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: var(--text-muted);
+    transition: background 150ms ease, color 150ms ease;
+  }
+
+  .input-action:hover {
+    background: var(--accent);
+    color: white;
+  }
+
+  .quick-actions {
+    display: flex;
+    gap: 4px;
+    margin-top: 18px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .quick-action {
+    padding: 6px 12px;
+    font-size: 12.5px;
+    font-weight: 400;
+    color: var(--text-muted);
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 20px;
+    cursor: pointer;
+    transition: all 150ms ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .quick-action:hover {
+    color: var(--text);
+    background: var(--bg-subtle);
+    border-color: var(--border);
+  }
+
+  .quick-action svg {
+    opacity: 0.6;
+  }
+
+  /* ===== Section header ===== */
+  .section-header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: 20px;
+    padding: 0 4px;
+  }
+
+  .section-title {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-muted);
+    letter-spacing: 0.02em;
+    text-transform: none;
+  }
+
+  .section-meta {
+    font-size: 12px;
+    color: var(--text-dim);
+    font-family: 'Geist Mono', monospace;
+  }
+
+  /* ===== Projects grid ===== */
+  .projects {
+    display: grid;
+    grid-template-columns: 1.6fr 1fr 1fr;
+    grid-template-rows: auto auto;
+    gap: 16px;
+    margin-bottom: 64px;
+  }
+
+  .project {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 20px;
+    cursor: pointer;
+    transition: all 200ms ease;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .project:hover {
+    border-color: var(--border-hover);
+    box-shadow: var(--shadow-md);
+    transform: translateY(-1px);
+  }
+
+  /* Hero project — spans 2 rows, more prominent */
+  .project-primary {
+    grid-row: span 2;
+    min-height: 260px;
+    background: linear-gradient(135deg, var(--card-bg) 0%, rgba(45, 157, 106, 0.02) 100%);
+  }
+
+  .project-primary::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 3px;
+    height: 100%;
+    background: var(--accent);
+    opacity: 0.4;
+  }
+
+  .project-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
+  }
+
+  .project-title {
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--text);
+    letter-spacing: -0.01em;
+    line-height: 1.3;
+  }
+
+  .project-primary .project-title {
+    font-size: 18px;
+    font-weight: 500;
+  }
+
+  .project-meta {
+    font-size: 11.5px;
+    color: var(--text-dim);
+    font-family: 'Geist Mono', monospace;
+    white-space: nowrap;
+  }
+
+  .project-health {
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+  }
+
+  .project-health svg {
+    width: 100%;
+    height: 100%;
+    transform: rotate(-90deg);
+  }
+
+  .project-health-track {
+    stroke: var(--border);
+    fill: none;
+    stroke-width: 2;
+  }
+
+  .project-health-fill {
+    stroke: var(--accent);
+    fill: none;
+    stroke-width: 2;
+    stroke-linecap: round;
+  }
+
+  .project-summary {
+    font-size: 13px;
+    color: var(--text-muted);
+    line-height: 1.5;
+    margin-bottom: 16px;
+    flex-grow: 1;
+  }
+
+  .project-primary .project-summary {
+    font-size: 13.5px;
+    line-height: 1.55;
+  }
+
+  .project-items {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: auto;
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
+  }
+
+  .project-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+
+  .project-item-icon {
+    width: 14px;
+    height: 14px;
+    color: var(--text-dim);
+    flex-shrink: 0;
+  }
+
+  .project-item-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .project-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 14px;
+    font-size: 11.5px;
+    color: var(--text-dim);
+    font-family: 'Geist Mono', monospace;
+  }
+
+  .project-count {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  /* New project tile */
+  .project-new {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 8px;
+    background: transparent;
+    border: 1px dashed var(--border);
+    color: var(--text-dim);
+    min-height: 120px;
+  }
+
+  .project-new:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: rgba(45, 157, 106, 0.02);
+    transform: none;
+    box-shadow: none;
+  }
+
+  .project-new-label {
+    font-size: 12.5px;
+    font-weight: 400;
+  }
+
+  /* ===== Digest peek ===== */
+  .digest {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 20px 24px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 48px;
+    cursor: pointer;
+    transition: all 200ms ease;
+  }
+
+  .digest:hover {
+    border-color: var(--border-hover);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .digest-indicator {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--accent);
+    flex-shrink: 0;
+    animation: pulse 2.4s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+
+  .digest-text {
+    flex-grow: 1;
+    font-size: 13px;
+    color: var(--text-muted);
+    line-height: 1.5;
+  }
+
+  .digest-text strong {
+    color: var(--text);
+    font-weight: 500;
+  }
+
+  .digest-action {
+    font-size: 12px;
+    color: var(--text-dim);
+    font-family: 'Geist Mono', monospace;
+    white-space: nowrap;
+  }
+
+  /* ===== Reduced motion ===== */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+
+  /* ===== Mobile ===== */
+  @media (max-width: 720px) {
+    .home {
+      padding: 80px 20px 32px;
+    }
+
+    .hero {
+      margin: 24px auto 48px;
+    }
+
+    .hero-prompt {
+      font-size: 20px;
+    }
+
+    .projects {
+      grid-template-columns: 1fr;
+      gap: 12px;
+    }
+
+    .project-primary {
+      grid-row: auto;
+      min-height: 200px;
+    }
+
+    .digest {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 12px;
+    }
+  }
+
+  /* ===== Demo banner ===== */
+  .demo-banner {
+    position: fixed;
+    bottom: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--text);
+    color: var(--bg);
+    font-size: 12px;
+    font-family: 'Geist Mono', monospace;
+    padding: 8px 14px;
+    border-radius: 20px;
+    opacity: 0.85;
+    z-index: 20;
+  }
+</style>
+</head>
+<body>
+
+<!-- Top chrome -->
+<header class="chrome">
+  <div class="chrome-left">
+    <button class="icon-btn" aria-label="Menu">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+        <line x1="2" y1="4" x2="14" y2="4"/>
+        <line x1="2" y1="8" x2="14" y2="8"/>
+        <line x1="2" y1="12" x2="14" y2="12"/>
+      </svg>
+    </button>
+    <span class="wordmark">hypher</span>
+  </div>
+  <div class="chrome-right">
+    <button class="icon-btn" aria-label="Search">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+        <circle cx="7" cy="7" r="5"/>
+        <line x1="11" y1="11" x2="14" y2="14"/>
+      </svg>
+    </button>
+    <button class="icon-btn" aria-label="Notifications">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3.5 6a4.5 4.5 0 0 1 9 0v3l1.5 2.5H2L3.5 9V6z"/>
+        <path d="M6 12.5a2 2 0 0 0 4 0"/>
+      </svg>
+    </button>
+    <div class="avatar">NK</div>
+  </div>
+</header>
+
+<!-- Home -->
+<main class="home">
+
+  <!-- Hero -->
+  <section class="hero">
+    <p class="greeting">
+      Friday afternoon, <span class="greeting-name">Nick</span>
+    </p>
+    <h1 class="hero-prompt">what's on your mind?</h1>
+
+    <div class="input-wrap">
+      <input
+        type="text"
+        class="input"
+        placeholder="say it simply…"
+        autofocus
+      >
+      <button class="input-action" aria-label="Capture">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M8 3.5v9M3.5 8h9"/>
+        </svg>
+      </button>
+    </div>
+
+    <div class="quick-actions">
+      <button class="quick-action">
+        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="2" width="10" height="12" rx="1"/>
+          <path d="M6 5h4M6 8h4M6 11h2"/>
+        </svg>
+        paste from clipboard
+      </button>
+      <button class="quick-action">
+        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M8 2v8M5 7l3 3 3-3M3 13h10"/>
+        </svg>
+        upload file
+      </button>
+      <button class="quick-action">
+        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="2" y="2" width="5" height="5" rx="0.5"/>
+          <rect x="9" y="2" width="5" height="5" rx="0.5"/>
+          <rect x="2" y="9" width="5" height="5" rx="0.5"/>
+          <rect x="9" y="9" width="5" height="5" rx="0.5"/>
+        </svg>
+        import from notion
+      </button>
+    </div>
+  </section>
+
+  <!-- Digest peek -->
+  <div class="digest">
+    <div class="digest-indicator" aria-hidden="true"></div>
+    <div class="digest-text">
+      <strong>this morning's digest is ready.</strong>
+      3 new captures across 2 projects. Hypher is ready for beta polish.
+    </div>
+    <div class="digest-action">open →</div>
+  </div>
+
+  <!-- Projects -->
+  <section>
+    <div class="section-header">
+      <h2 class="section-title">projects</h2>
+      <span class="section-meta">4 active</span>
+    </div>
+
+    <div class="projects">
+
+      <!-- Primary: most recent / most active -->
+      <article class="project project-primary">
+        <div class="project-header">
+          <h3 class="project-title">hypher beta launch</h3>
+          <div class="project-health" title="Health 82%">
+            <svg viewBox="0 0 20 20">
+              <circle cx="10" cy="10" r="8" class="project-health-track"/>
+              <circle cx="10" cy="10" r="8" class="project-health-fill"
+                      stroke-dasharray="50.27"
+                      stroke-dashoffset="9.05"/>
+            </svg>
+          </div>
+        </div>
+        <p class="project-summary">
+          Env-var punch list in progress. Onboarding spec queued. Voice-capture decision pending. Chrome extension submitted for review.
+        </p>
+        <div class="project-items">
+          <div class="project-item">
+            <svg class="project-item-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+              <rect x="2" y="3" width="12" height="10" rx="1.5"/>
+              <path d="M5 7h6M5 10h4"/>
+            </svg>
+            <span class="project-item-text">05-onboarding-flow-spec.md</span>
+          </div>
+          <div class="project-item">
+            <svg class="project-item-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+              <circle cx="8" cy="8" r="6"/>
+              <path d="M8 5v3l2 2"/>
+            </svg>
+            <span class="project-item-text">PR #25 — Ambient Ask (merged)</span>
+          </div>
+          <div class="project-item">
+            <svg class="project-item-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+              <path d="M3 4l5 5 5-5M3 8l5 5 5-5"/>
+            </svg>
+            <span class="project-item-text">staggered launch timeline</span>
+          </div>
+        </div>
+        <div class="project-footer">
+          <span class="project-count">14 items</span>
+          <span>edited 12m ago</span>
+        </div>
+      </article>
+
+      <!-- Secondary 1 -->
+      <article class="project">
+        <div class="project-header">
+          <h3 class="project-title">marque — brand system</h3>
+          <div class="project-health" title="Health 64%">
+            <svg viewBox="0 0 20 20">
+              <circle cx="10" cy="10" r="8" class="project-health-track"/>
+              <circle cx="10" cy="10" r="8" class="project-health-fill"
+                      stroke-dasharray="50.27"
+                      stroke-dashoffset="18.1"/>
+            </svg>
+          </div>
+        </div>
+        <div class="project-footer">
+          <span class="project-count">28 items</span>
+          <span>2d ago</span>
+        </div>
+      </article>
+
+      <!-- Secondary 2 -->
+      <article class="project">
+        <div class="project-header">
+          <h3 class="project-title">studio site v3</h3>
+          <div class="project-health" title="Health 91%">
+            <svg viewBox="0 0 20 20">
+              <circle cx="10" cy="10" r="8" class="project-health-track"/>
+              <circle cx="10" cy="10" r="8" class="project-health-fill"
+                      stroke-dasharray="50.27"
+                      stroke-dashoffset="4.52"/>
+            </svg>
+          </div>
+        </div>
+        <div class="project-footer">
+          <span class="project-count">9 items</span>
+          <span>yesterday</span>
+        </div>
+      </article>
+
+      <!-- Secondary 3 -->
+      <article class="project">
+        <div class="project-header">
+          <h3 class="project-title">logo design principles</h3>
+          <div class="project-health" title="Health 48%">
+            <svg viewBox="0 0 20 20">
+              <circle cx="10" cy="10" r="8" class="project-health-track"/>
+              <circle cx="10" cy="10" r="8" class="project-health-fill"
+                      stroke-dasharray="50.27"
+                      stroke-dashoffset="26.14"/>
+            </svg>
+          </div>
+        </div>
+        <div class="project-footer">
+          <span class="project-count">16 items</span>
+          <span>6d ago</span>
+        </div>
+      </article>
+
+      <!-- New project tile -->
+      <button class="project project-new">
+        <svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+          <path d="M8 3v10M3 8h10"/>
+        </svg>
+        <span class="project-new-label">new project</span>
+      </button>
+
+    </div>
+  </section>
+
+</main>
+
+<!-- Demo banner -->
+<div class="demo-banner">mockup preview — not production</div>
+
+<script>
+  // Minor interaction: focus input, allow Cmd+K from anywhere
+  document.addEventListener('keydown', (e) => {
+    if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+      e.preventDefault();
+      document.querySelector('.input').focus();
+    }
+  });
+
+  // Simulated project click — logs for demo
+  document.querySelectorAll('.project').forEach(p => {
+    p.addEventListener('click', () => {
+      console.log('open project:', p.querySelector('.project-title')?.textContent);
+    });
+  });
+</script>
+
+</body>
+</html>
