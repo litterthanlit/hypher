@@ -1,205 +1,326 @@
 "use client";
 
+import type { ReactNode } from "react";
 import Link from "next/link";
-import { SignInButton, SignUpButton } from "@clerk/nextjs";
-import { PricingCards } from "./PricingCards";
-import { MarketingCanvasPreview } from "./MarketingCanvasPreview";
+import { MarketingProductVisual } from "./MarketingProductVisual";
 
-type ProofDot = { x: number; y: number; s: number; c: string };
-type ProofCard = { name: string; role: string; quote: string; dots: ProofDot[] };
+function BetaCta({ className }: { className?: string }) {
+  return (
+    <Link
+      href="/sign-up"
+      className={
+        className ??
+        "tw-inline-flex tw-items-center tw-justify-center tw-rounded-[var(--radius-sm)] tw-bg-electric tw-px-5 tw-py-2.5 tw-text-sm tw-font-medium tw-text-white tw-shadow-sm tw-transition tw-duration-150 hover:tw-bg-electric-dim active:tw-scale-[0.99]"
+      }
+    >
+      Request beta access
+    </Link>
+  );
+}
 
-const PROOF_CARDS: ProofCard[] = [
-  {
-    name: "Kasia M.",
-    role: "indie dev · 4 projects",
-    quote: "Finally stopped losing threads between my side quests.",
-    dots: [
-      { x: 20, y: 30, s: 12, c: "#3ecf8e" },
-      { x: 38, y: 42, s: 8, c: "#3ecf8e" },
-      { x: 28, y: 58, s: 10, c: "#3ecf8e" },
-      { x: 68, y: 34, s: 9, c: "#60a5fa" },
-      { x: 78, y: 52, s: 11, c: "#60a5fa" },
-      { x: 55, y: 72, s: 7, c: "#fbbf24" },
-    ],
-  },
-  {
-    name: "Theo R.",
-    role: "designer-engineer",
-    quote: "The digest is the only standup I actually read.",
-    dots: [
-      { x: 25, y: 25, s: 10, c: "#a78bfa" },
-      { x: 38, y: 48, s: 12, c: "#a78bfa" },
-      { x: 62, y: 32, s: 8, c: "#f472b6" },
-      { x: 72, y: 55, s: 9, c: "#f472b6" },
-      { x: 50, y: 70, s: 7, c: "#34d399" },
-    ],
-  },
-  {
-    name: "Prakash S.",
-    role: "shipping 3 betas",
-    quote: "Capture → canvas → PR. The whole loop.",
-    dots: [
-      { x: 22, y: 35, s: 9, c: "#fbbf24" },
-      { x: 35, y: 58, s: 11, c: "#fbbf24" },
-      { x: 60, y: 28, s: 10, c: "#3ecf8e" },
-      { x: 78, y: 42, s: 8, c: "#3ecf8e" },
-      { x: 68, y: 68, s: 7, c: "#60a5fa" },
-    ],
-  },
-  {
-    name: "Mireille D.",
-    role: "solo founder",
-    quote: "Ambient Claude has replaced three of my open tabs.",
-    dots: [
-      { x: 30, y: 30, s: 11, c: "#f472b6" },
-      { x: 50, y: 45, s: 9, c: "#f472b6" },
-      { x: 70, y: 35, s: 10, c: "#60a5fa" },
-      { x: 40, y: 65, s: 8, c: "#34d399" },
-      { x: 62, y: 70, s: 7, c: "#34d399" },
-    ],
-  },
-  {
-    name: "Yusuf A.",
-    role: "weekend hacker",
-    quote: "It noticed I hadn't touched a project in 3 weeks. Brutal. Useful.",
-    dots: [
-      { x: 24, y: 28, s: 10, c: "#60a5fa" },
-      { x: 40, y: 50, s: 12, c: "#60a5fa" },
-      { x: 32, y: 72, s: 8, c: "#60a5fa" },
-      { x: 66, y: 38, s: 9, c: "#fb923c" },
-      { x: 76, y: 62, s: 11, c: "#fb923c" },
-    ],
-  },
-];
+function InviteCta({ className }: { className?: string }) {
+  return (
+    <Link
+      href="/app"
+      className={
+        className ??
+        "tw-inline-flex tw-items-center tw-justify-center tw-rounded-[var(--radius-sm)] tw-border tw-border-[var(--border-default)] tw-bg-[var(--bg-primary)] tw-px-5 tw-py-2.5 tw-text-sm tw-font-medium tw-text-[var(--text-primary)] tw-transition tw-duration-150 hover:tw-border-[var(--border-hover)] hover:tw-bg-[var(--bg-secondary)]"
+      }
+    >
+      I have an invite
+    </Link>
+  );
+}
+
+const navLinkClass =
+  "tw-text-sm tw-text-[var(--text-secondary)] tw-transition tw-duration-150 hover:tw-text-[var(--text-primary)]";
 
 export function LandingPage() {
   return (
     <div className="marketing-root tw-min-h-screen tw-text-[var(--text-primary)]">
-      <header className="tw-mx-auto tw-flex tw-max-w-5xl tw-items-center tw-justify-between tw-px-6 tw-py-8 md:tw-px-10">
-        <span className="logo">hypher</span>
-        <nav className="tw-flex tw-items-center tw-gap-6">
-          <Link
-            href="/pricing"
-            className="tw-text-sm tw-text-[var(--text-secondary)] tw-transition hover:tw-text-electric"
+      <header className="tw-sticky tw-top-0 tw-z-50 tw-border-b tw-border-[var(--border-default)] tw-bg-[var(--bg-primary)] tw-backdrop-blur-sm">
+        <div className="tw-mx-auto tw-max-w-6xl tw-px-4 tw-py-4 sm:tw-px-6 lg:tw-px-8">
+          <div className="tw-flex tw-items-center tw-justify-between tw-gap-4">
+            <Link href="/" className="logo tw-shrink-0 tw-no-underline">
+              hypher
+            </Link>
+            <BetaCta className="tw-inline-flex md:tw-hidden tw-items-center tw-justify-center tw-rounded-[var(--radius-sm)] tw-bg-electric tw-px-3 tw-py-2 tw-text-xs tw-font-medium tw-text-white tw-shadow-sm tw-transition tw-duration-150 hover:tw-bg-electric-dim" />
+            <div className="tw-hidden tw-items-center tw-gap-8 md:tw-flex">
+              <nav className="tw-flex tw-items-center tw-gap-6" aria-label="Primary">
+                <a href="#product" className={navLinkClass}>
+                  Product
+                </a>
+                <a href="#beta" className={navLinkClass}>
+                  Beta
+                </a>
+                <Link href="/pricing" className={navLinkClass}>
+                  Pricing
+                </Link>
+                <Link href="/sign-in" className={navLinkClass}>
+                  Sign in
+                </Link>
+              </nav>
+              <BetaCta className="tw-inline-flex tw-items-center tw-justify-center tw-rounded-[var(--radius-sm)] tw-bg-electric tw-px-4 tw-py-2 tw-text-sm tw-font-medium tw-text-white tw-shadow-sm tw-transition tw-duration-150 hover:tw-bg-electric-dim" />
+            </div>
+          </div>
+          <nav
+            className="tw-mt-3 tw-flex tw-items-center tw-justify-between tw-gap-2 tw-border-t tw-border-[var(--border-default)] tw-pt-3 md:tw-hidden"
+            aria-label="Primary mobile"
           >
-            Pricing
-          </Link>
-          <SignInButton mode="modal">
-            <button type="button" className="tw-border-0 tw-bg-transparent tw-px-3 tw-py-2 tw-text-sm tw-text-[var(--text-secondary)] tw-transition tw-cursor-pointer hover:tw-text-[var(--text-primary)]">
-              Sign in
-            </button>
-          </SignInButton>
-          <SignUpButton mode="modal">
-            <button
-              type="button"
-              className="tw-rounded-full tw-bg-electric tw-px-4 tw-py-2 tw-text-sm tw-font-medium tw-text-white tw-shadow-sm tw-transition hover:tw-bg-electric-dim"
-            >
-              Sign up
-            </button>
-          </SignUpButton>
-        </nav>
+            <div className="tw-flex tw-min-w-0 tw-flex-1 tw-justify-between tw-gap-3 tw-overflow-x-auto">
+              <a href="#product" className={`${navLinkClass} tw-shrink-0`}>
+                Product
+              </a>
+              <a href="#beta" className={`${navLinkClass} tw-shrink-0`}>
+                Beta
+              </a>
+              <Link href="/pricing" className={`${navLinkClass} tw-shrink-0`}>
+                Pricing
+              </Link>
+              <Link href="/sign-in" className={`${navLinkClass} tw-shrink-0`}>
+                Sign in
+              </Link>
+            </div>
+          </nav>
+        </div>
       </header>
 
-      <main className="tw-mx-auto tw-max-w-5xl tw-px-6 tw-pb-24 md:tw-px-10">
-        <section className="marketing-hero tw-relative tw-pt-8 tw-pb-20 md:tw-pt-16 md:tw-pb-28">
-          <MarketingCanvasPreview />
-          <div className="tw-relative tw-z-10">
-            <p className="tw-font-mono tw-text-xs tw-uppercase tw-tracking-[0.2em] tw-text-electric">Public beta</p>
-            <h1 className="tw-mt-6 tw-max-w-2xl tw-font-sans tw-text-4xl tw-font-medium tw-leading-[1.1] tw-tracking-tight md:tw-text-5xl">
-              Your projects, connected.
-            </h1>
-            <p className="tw-mt-6 tw-max-w-xl tw-text-lg tw-leading-relaxed tw-text-[var(--text-secondary)]">
-              Capture anywhere. See how your work connects. Ship what matters.
-            </p>
-            <div className="tw-mt-10 tw-flex tw-flex-wrap tw-items-center tw-gap-4">
-              <SignUpButton mode="modal">
-                <button
-                  type="button"
-                  className="tw-rounded-full tw-bg-electric tw-px-6 tw-py-3 tw-text-sm tw-font-medium tw-text-white tw-shadow-md tw-transition hover:tw-bg-electric-dim"
-                >
-                  Sign up free
-                </button>
-              </SignUpButton>
-              <Link
-                href="/pricing"
-                className="tw-text-sm tw-font-medium tw-text-[var(--text-secondary)] tw-underline tw-underline-offset-4 tw-transition hover:tw-text-electric"
-              >
-                View pricing
-              </Link>
+      <main>
+        {/* Hero */}
+        <section className="marketing-hero tw-border-b tw-border-[var(--border-default)]">
+          <div className="tw-mx-auto tw-grid tw-max-w-6xl tw-gap-10 tw-px-4 tw-py-12 sm:tw-px-6 sm:tw-py-16 lg:tw-grid-cols-[minmax(0,1.02fr)_minmax(0,1fr)] lg:tw-items-center lg:tw-gap-14 lg:tw-px-8 lg:tw-py-20">
+            <div className="tw-min-w-0">
+              <p className="tw-font-mono tw-text-[11px] tw-uppercase tw-tracking-[0.18em] tw-text-[var(--text-tertiary)]">
+                Private beta for solo builders
+              </p>
+              <h1 className="tw-mt-4 tw-text-balance tw-font-sans tw-text-[2rem] tw-font-medium tw-leading-[1.12] tw-tracking-[-0.03em] sm:tw-text-4xl lg:tw-text-[2.75rem] lg:tw-leading-[1.08]">
+                Capture first. Hypher sorts the rest.
+              </h1>
+              <p className="tw-mt-5 tw-max-w-xl tw-text-pretty tw-text-base tw-leading-relaxed tw-text-[var(--text-secondary)] sm:tw-text-[17px]">
+                Drop ideas, notes, files, and half-formed plans into one calm workspace. Hypher suggests
+                where they belong, remembers project context, and helps you decide what to do next.
+              </p>
+              <div className="tw-mt-8 tw-flex tw-flex-col tw-gap-3 sm:tw-flex-row sm:tw-flex-wrap sm:tw-items-center">
+                <BetaCta />
+                <InviteCta />
+              </div>
+            </div>
+            <div className="tw-min-w-0 tw-w-full">
+              <MarketingProductVisual />
             </div>
           </div>
         </section>
 
-        <section className="tw-grid tw-gap-10 tw-border-t tw-border-black/[0.06] tw-pt-16 md:tw-grid-cols-3 md:tw-gap-12 md:tw-pt-20">
-          <div>
-            <h2 className="tw-font-mono tw-text-sm tw-font-medium tw-tracking-wide tw-text-electric">Capture</h2>
-            <p className="tw-mt-4 tw-leading-relaxed tw-text-[var(--text-secondary)]">
-              Drop thoughts, files, and clips into an inbox that stays out of the way until you are ready to organize.
-            </p>
+        {/* Core loop */}
+        <section
+          id="the-loop"
+          className="tw-scroll-mt-20 tw-border-b tw-border-[var(--border-default)] tw-bg-[var(--bg-primary)]"
+          aria-labelledby="loop-heading"
+        >
+          <div className="tw-mx-auto tw-max-w-6xl tw-px-4 tw-py-14 sm:tw-px-6 sm:tw-py-20 lg:tw-px-8">
+            <h2
+              id="loop-heading"
+              className="tw-text-balance tw-font-sans tw-text-2xl tw-font-medium tw-tracking-[-0.02em] sm:tw-text-3xl"
+            >
+              The loop that keeps projects alive.
+            </h2>
+            <div className="tw-mt-12 tw-grid tw-gap-8 md:tw-grid-cols-3 md:tw-gap-6 lg:tw-gap-10">
+              <LoopStep
+                step="01"
+                title="Capture anything"
+                body="Voice memos, screenshots, paragraphs, links — one inbox, no filing tax before you think."
+                visual={<LoopVisualCapture />}
+              />
+              <LoopStep
+                step="02"
+                title="Sort with suggestions"
+                body="Hypher proposes a project, shows its reasoning, and you stay in control of every move."
+                visual={<LoopVisualSort />}
+              />
+              <LoopStep
+                step="03"
+                title="Return with memory and next actions"
+                body="Each visit surfaces direction, open questions, and one concrete next step — not a blank canvas."
+                visual={<LoopVisualReturn />}
+              />
+            </div>
           </div>
-          <div>
-            <h2 className="tw-font-mono tw-text-sm tw-font-medium tw-tracking-wide tw-text-electric">Connect</h2>
-            <p className="tw-mt-4 tw-leading-relaxed tw-text-[var(--text-secondary)]">
-              See notes and artifacts on a canvas with suggestions that link ideas across projects without losing the thread.
-            </p>
+        </section>
+
+        {/* Features */}
+        <section id="product" className="tw-scroll-mt-20" aria-labelledby="product-heading">
+          <div className="tw-mx-auto tw-max-w-6xl tw-px-4 tw-py-14 sm:tw-px-6 sm:tw-py-20 lg:tw-px-8">
+            <h2 id="product-heading" className="tw-sr-only">
+              Product
+            </h2>
+            <div className="tw-grid tw-gap-10 lg:tw-grid-cols-3 lg:tw-gap-8">
+              <FeatureBlock
+                title="Self-sorting capture"
+                body="Hypher suggests the right project, explains why, and lets you decide."
+                detail="Suggestions stay visible with confidence you can override — control without busywork."
+              />
+              <FeatureBlock
+                title="Project memory"
+                body="Each project gets a living snapshot: direction, open questions, recent changes, and suggested next actions."
+                detail="Assembled from captures and edits you already made — not another doc to curate."
+              />
+              <FeatureBlock
+                title="Daily digest"
+                body="A daily resurfacing loop keeps neglected work from disappearing."
+                detail="Short enough to scan between meetings; concrete enough to pick one next move."
+              />
+            </div>
           </div>
-          <div>
-            <h2 className="tw-font-mono tw-text-sm tw-font-medium tw-tracking-wide tw-text-electric">Ship</h2>
-            <p className="tw-mt-4 tw-leading-relaxed tw-text-[var(--text-secondary)]">
-              Ground decisions in what is actually moving: digest, activity, and repo context when you wire GitHub in.
+        </section>
+
+        {/* Beta */}
+        <section
+          id="beta"
+          className="tw-scroll-mt-20 tw-border-y tw-border-[var(--border-default)] tw-bg-[var(--bg-secondary)]"
+          aria-labelledby="beta-heading"
+        >
+          <div className="tw-mx-auto tw-max-w-6xl tw-px-4 tw-py-14 sm:tw-px-6 sm:tw-py-20 lg:tw-px-8">
+            <h2
+              id="beta-heading"
+              className="tw-text-balance tw-font-sans tw-text-2xl tw-font-medium tw-tracking-[-0.02em] sm:tw-text-3xl"
+            >
+              Built for people carrying too many threads.
+            </h2>
+            <p className="tw-mt-5 tw-max-w-2xl tw-text-pretty tw-text-base tw-leading-relaxed tw-text-[var(--text-secondary)] sm:tw-text-[17px]">
+              For solo builders, indie hackers, researchers, designers, and engineers juggling projects that
+              do not fit neatly inside a task manager.
+            </p>
+            <p className="tw-mt-6 tw-max-w-2xl tw-border-l-2 tw-border-[var(--accent)] tw-pl-4 tw-text-sm tw-leading-relaxed tw-text-[var(--text-tertiary)]">
+              Hypher is invite-gated while the core workflow is shaped with early users. Expect rough edges,
+              fast iteration, and a product that gets calmer as it learns your patterns.
             </p>
           </div>
         </section>
 
-        <section className="tw-mt-24 tw-border-t tw-border-black/[0.06] tw-pt-20">
-          <p className="tw-font-mono tw-text-xs tw-uppercase tw-tracking-[0.2em] tw-text-[var(--text-tertiary)]">
-            From the beta
-          </p>
-          <h2 className="tw-mt-4 tw-max-w-xl tw-font-sans tw-text-2xl tw-font-medium tw-tracking-tight md:tw-text-3xl">
-            Canvases from solo builders using Hypher today.
-          </h2>
-          <div className="marketing-proof-row">
-            {PROOF_CARDS.map((card, i) => (
-              <article key={card.name} className={`proof-card proof-card-${i % 4}`}>
-                <div className="proof-canvas" aria-hidden>
-                  {card.dots.map((d, j) => (
-                    <span
-                      key={j}
-                      className="proof-dot"
-                      style={{
-                        left: `${d.x}%`,
-                        top: `${d.y}%`,
-                        width: d.s,
-                        height: d.s,
-                        background: d.c,
-                      }}
-                    />
-                  ))}
-                </div>
-                <blockquote className="proof-quote">"{card.quote}"</blockquote>
-                <footer className="proof-meta">
-                  <span className="proof-name">{card.name}</span>
-                  <span className="proof-role">{card.role}</span>
-                </footer>
-              </article>
-            ))}
+        {/* Native teaser */}
+        <section className="tw-border-b tw-border-[var(--border-default)]" aria-labelledby="native-heading">
+          <div className="tw-mx-auto tw-max-w-6xl tw-px-4 tw-py-14 sm:tw-px-6 sm:tw-py-16 lg:tw-px-8">
+            <p className="tw-font-mono tw-text-[11px] tw-uppercase tw-tracking-[0.18em] tw-text-[var(--text-tertiary)]">
+              Native capture is next.
+            </p>
+            <h2 id="native-heading" className="tw-mt-3 tw-text-xl tw-font-medium tw-tracking-tight sm:tw-text-2xl">
+              The web workspace is the cockpit.
+            </h2>
+            <p className="tw-mt-4 tw-max-w-2xl tw-text-pretty tw-text-sm tw-leading-relaxed tw-text-[var(--text-secondary)] sm:tw-text-base">
+              Hypher&apos;s web workspace is the cockpit. The upcoming Mac app will make capture instant from
+              anywhere — without replacing the place where projects stay coherent.
+            </p>
           </div>
         </section>
 
-        <section className="tw-mt-24 tw-border-t tw-border-black/[0.06] tw-pt-20">
-          <h2 className="tw-font-sans tw-text-2xl tw-font-medium tw-tracking-tight">Pricing</h2>
-          <p className="tw-mt-2 tw-max-w-xl tw-text-[var(--text-secondary)]">
-            Start free, upgrade when Hypher is part of your daily loop.
-          </p>
-          <div className="tw-mt-12">
-            <PricingCards variant="compact" />
+        {/* Final CTA */}
+        <section className="tw-pb-20 tw-pt-16 sm:tw-pb-28 sm:tw-pt-20" aria-labelledby="final-cta-heading">
+          <div className="tw-mx-auto tw-max-w-6xl tw-px-4 sm:tw-px-6 lg:tw-px-8">
+            <div className="tw-rounded-[var(--radius-md)] tw-border tw-border-[var(--border-default)] tw-bg-[var(--bg-primary)] tw-px-6 tw-py-10 tw-shadow-[var(--shadow-sm)] sm:tw-px-10 sm:tw-py-12">
+              <h2
+                id="final-cta-heading"
+                className="tw-text-balance tw-text-center tw-font-sans tw-text-2xl tw-font-medium tw-tracking-[-0.02em] sm:tw-text-3xl"
+              >
+                Bring your messiest project brain.
+              </h2>
+              <div className="tw-mt-8 tw-flex tw-flex-col tw-items-stretch tw-justify-center tw-gap-3 sm:tw-flex-row sm:tw-items-center sm:tw-justify-center">
+                <BetaCta className="tw-inline-flex tw-items-center tw-justify-center tw-rounded-[var(--radius-sm)] tw-bg-electric tw-px-6 tw-py-3 tw-text-sm tw-font-medium tw-text-white tw-shadow-sm tw-transition tw-duration-150 hover:tw-bg-electric-dim" />
+                <InviteCta className="tw-inline-flex tw-items-center tw-justify-center tw-rounded-[var(--radius-sm)] tw-border tw-border-[var(--border-default)] tw-bg-[var(--bg-root)] tw-px-6 tw-py-3 tw-text-sm tw-font-medium tw-text-[var(--text-primary)] tw-transition tw-duration-150 hover:tw-border-[var(--border-hover)]" />
+              </div>
+            </div>
           </div>
         </section>
       </main>
 
-      <footer className="tw-border-t tw-border-black/[0.06] tw-py-10 tw-text-center tw-text-sm tw-text-[var(--text-tertiary)]">
-        Hypher — the workspace that knows what you are working on.
+      <footer className="tw-border-t tw-border-[var(--border-default)] tw-py-8 tw-text-center tw-text-xs tw-text-[var(--text-quaternary)] sm:tw-text-sm">
+        <span className="tw-text-[var(--text-tertiary)]">Hypher</span> — capture-first workspace for solo
+        builders.
       </footer>
+    </div>
+  );
+}
+
+function LoopStep({
+  step,
+  title,
+  body,
+  visual,
+}: {
+  step: string;
+  title: string;
+  body: string;
+  visual: ReactNode;
+}) {
+  return (
+    <article className="tw-group tw-flex tw-flex-col tw-rounded-[var(--radius-md)] tw-border tw-border-[var(--border-default)] tw-bg-[var(--bg-primary)] tw-p-5 tw-transition tw-duration-200 hover:tw-border-[var(--border-hover)]">
+      <div className="tw-mb-5 tw-min-h-[100px] tw-rounded-[var(--radius-sm)] tw-border tw-border-[var(--border-default)] tw-bg-[var(--bg-secondary)] tw-p-3">{visual}</div>
+      <p className="tw-font-mono tw-text-[10px] tw-uppercase tw-tracking-wider tw-text-[var(--text-quaternary)]">
+        {step}
+      </p>
+      <h3 className="tw-mt-2 tw-text-base tw-font-medium tw-tracking-tight tw-text-[var(--text-primary)]">
+        {title}
+      </h3>
+      <p className="tw-mt-2 tw-text-sm tw-leading-relaxed tw-text-[var(--text-secondary)]">{body}</p>
+    </article>
+  );
+}
+
+function FeatureBlock({ title, body, detail }: { title: string; body: string; detail: string }) {
+  return (
+    <article className="tw-flex tw-flex-col tw-rounded-[var(--radius-md)] tw-border tw-border-[var(--border-default)] tw-bg-[var(--bg-primary)] tw-p-6 tw-transition tw-duration-200 hover:tw-border-[var(--border-hover)]">
+      <h3 className="tw-text-lg tw-font-medium tw-tracking-tight tw-text-[var(--text-primary)]">{title}</h3>
+      <p className="tw-mt-3 tw-flex-1 tw-text-sm tw-leading-relaxed tw-text-[var(--text-secondary)]">{body}</p>
+      <p className="tw-mt-5 tw-border-t tw-border-[var(--border-default)] tw-pt-4 tw-text-xs tw-leading-relaxed tw-text-[var(--text-tertiary)]">
+        {detail}
+      </p>
+    </article>
+  );
+}
+
+function LoopVisualCapture() {
+  return (
+    <div className="tw-flex tw-h-full tw-flex-col tw-justify-center tw-gap-2">
+      <div className="tw-h-2 tw-w-12 tw-rounded tw-bg-[var(--text-quaternary)]/40" />
+      <div className="tw-h-2 tw-w-full tw-max-w-[180px] tw-rounded tw-bg-[var(--text-tertiary)]/35" />
+      <div className="tw-h-2 tw-w-[72%] tw-max-w-[140px] tw-rounded tw-bg-[var(--text-tertiary)]/25" />
+      <div className="tw-mt-1 tw-flex tw-gap-1.5">
+        <span className="tw-h-6 tw-w-6 tw-rounded-[4px] tw-bg-[var(--capture-blue-soft)] tw-ring-1 tw-ring-[var(--capture-blue-border)]" />
+        <span className="tw-h-6 tw-w-14 tw-rounded-[4px] tw-bg-[var(--bg-tertiary)]" />
+      </div>
+    </div>
+  );
+}
+
+function LoopVisualSort() {
+  return (
+    <div className="tw-flex tw-h-full tw-flex-col tw-justify-center tw-gap-2.5 tw-text-[10px]">
+      <div className="tw-flex tw-items-center tw-gap-2">
+        <span className="tw-rounded-[4px] tw-bg-[var(--accent-subtle)] tw-px-2 tw-py-1 tw-font-medium tw-text-[var(--accent)]">
+          Essays
+        </span>
+        <span className="tw-text-[var(--text-quaternary)]">82%</span>
+      </div>
+      <div className="tw-flex tw-items-center tw-gap-2 tw-text-[var(--text-tertiary)]">
+        <span className="tw-rounded-[4px] tw-bg-[var(--bg-tertiary)] tw-px-2 tw-py-1 tw-text-[var(--text-secondary)]">
+          Ship v1
+        </span>
+        <span>14%</span>
+      </div>
+      <p className="tw-leading-snug tw-text-[var(--text-quaternary)]">Why: shared keywords + last 3 captures.</p>
+    </div>
+  );
+}
+
+function LoopVisualReturn() {
+  return (
+    <div className="tw-flex tw-h-full tw-flex-col tw-justify-center tw-gap-2 tw-text-[10px]">
+      <div className="tw-rounded-[4px] tw-border tw-border-[var(--border-default)] tw-bg-[var(--bg-primary)] tw-p-2">
+        <p className="tw-font-medium tw-text-[var(--text-primary)]">Direction</p>
+        <p className="tw-mt-1 tw-leading-snug tw-text-[var(--text-tertiary)]">Close export thread this week.</p>
+      </div>
+      <div className="tw-rounded-[4px] tw-border tw-border-[var(--accent-muted)] tw-bg-[var(--accent-subtle)] tw-px-2 tw-py-1.5 tw-font-medium tw-text-[var(--text-primary)]">
+        Next · Ship digest empty state
+      </div>
     </div>
   );
 }

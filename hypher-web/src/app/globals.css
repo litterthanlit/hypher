@@ -4491,7 +4491,28 @@ body:has(.capture-root) {
 }
 
 .marketing-hero {
-  min-height: 520px;
+  min-height: 0;
+}
+
+.marketing-product-visual {
+  transition: border-color 200ms ease, box-shadow 200ms ease;
+}
+
+@media (hover: hover) {
+  .marketing-product-visual:hover {
+    border-color: var(--border-hover);
+    box-shadow: var(--shadow-md);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .marketing-product-visual {
+    transition: none;
+  }
+
+  .marketing-product-visual:hover {
+    box-shadow: var(--shadow-card);
+  }
 }
 
 .marketing-canvas-preview {
