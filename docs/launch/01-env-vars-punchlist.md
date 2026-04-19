@@ -102,12 +102,12 @@ CONVEX_DEPLOY_KEY=prod:adamant-pheasant-663|<generated>
 
 **Where to put it:**
 
-`.env.local` AND Vercel prod:
+`.env.local`, Vercel prod, and Convex env:
 ```
 ANTHROPIC_API_KEY=sk-ant-...
 ```
 
-**Do not** put in Convex env — AI calls go through Next.js route handlers, not Convex.
+Project memory and streaming UI calls go through Next.js route handlers. Some existing Convex AI/GitHub actions also read `ANTHROPIC_API_KEY`, so keep Convex env in parity until those older actions are retired.
 
 **Verify:**
 - [ ] Restart `npm run dev` → open a project canvas → trigger Ambient Ask → response streams token-by-token
@@ -168,21 +168,21 @@ RESEND_FROM_EMAIL=digest@hypher.app
 
 ---
 
-## Section 6 — Svix (inbound digest reply)
+## Section 6 — Resend inbound / Svix signature (digest reply)
 
 **Blocks:** Spec #07 reply-to-add flow
 
-- [ ] `SVIX_WEBHOOK_SECRET`
+- [ ] `RESEND_INBOUND_SECRET`
 
 **Where to get it:**
-1. Resend dashboard → **Webhooks** → **Add endpoint** → URL: `https://your-convex-deployment.convex.site/resend-inbound`
+1. Resend dashboard → **Webhooks** → **Add endpoint** → URL: `https://your-convex-deployment.convex.site/api/email/inbound`
 2. Copy the signing secret
 
 **Where to put it:**
 
 Convex env (verification happens server-side):
 ```bash
-npx convex env set SVIX_WEBHOOK_SECRET whsec_...
+npx convex env set RESEND_INBOUND_SECRET whsec_...
 ```
 
 **Verify:**
@@ -197,11 +197,14 @@ npx convex env set SVIX_WEBHOOK_SECRET whsec_...
 - [ ] `STRIPE_SECRET_KEY`
 - [ ] `STRIPE_WEBHOOK_SECRET`
 - [ ] `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`
+- [ ] `STRIPE_CONVEX_SHARED_SECRET`
+- [ ] `STRIPE_PRICE_PRO_MONTHLY`
+- [ ] `STRIPE_PRICE_LIFETIME`
 
 **Where to get them:**
 1. Clerk dashboard → **Billing** → Stripe is integrated via Clerk's Stripe app (you're using Clerk Stripe integration per playbook)
 2. Stripe dashboard → **Developers** → **API keys** → copy publishable + secret
-3. Stripe dashboard → **Webhooks** → **Add endpoint** → URL: `https://yourdomain.com/api/stripe-webhook` → copy signing secret
+3. Stripe dashboard → **Webhooks** → **Add endpoint** → URL: `https://yourdomain.com/api/stripe/webhook` → copy signing secret
 
 **Where to put them:**
 
@@ -210,6 +213,14 @@ npx convex env set SVIX_WEBHOOK_SECRET whsec_...
 NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_... (or pk_live_... for prod)
 STRIPE_SECRET_KEY=sk_test_... (or sk_live_...)
 STRIPE_WEBHOOK_SECRET=whsec_...
+STRIPE_CONVEX_SHARED_SECRET=<generated-shared-secret>
+STRIPE_PRICE_PRO_MONTHLY=price_...
+STRIPE_PRICE_LIFETIME=price_...
+```
+
+Set the same shared secret in Convex env:
+```bash
+npx convex env set STRIPE_CONVEX_SHARED_SECRET <generated-shared-secret>
 ```
 
 **Verify:**
@@ -279,27 +290,28 @@ Or if the implementation uses a different pattern, check `convex/http.ts` and `c
 
 ## Section 10 — GitHub (connect flow)
 
-**Blocks:** Connect-to-GitHub feature (per playbook: "GitHub connect flow + server-only PAT handling")
+**Blocks:** Connect-to-GitHub feature with encrypted personal access token storage.
 
-- [ ] `GITHUB_CLIENT_ID`
-- [ ] `GITHUB_CLIENT_SECRET`
+- [ ] `GITHUB_TOKEN_ENCRYPTION_KEY`
+- [ ] `GITHUB_TOKEN` (optional fallback for server-side repo reads)
 
 **Where to get them:**
-1. github.com/settings/developers → **OAuth Apps** → **New**
-2. Homepage: `https://hypher.app`
-3. Authorization callback: `https://hypher.app/api/github/callback`
-4. Copy client ID + generate client secret
+1. Generate an encryption key locally:
+   ```bash
+   openssl rand -hex 32
+   ```
+2. Optional: create a least-privilege GitHub token if you want a global server-side fallback.
 
 **Where to put them:**
 
-`.env.local` AND Vercel prod:
+Convex env:
 ```
-GITHUB_CLIENT_ID=Iv1....
-GITHUB_CLIENT_SECRET=...
+npx convex env set GITHUB_TOKEN_ENCRYPTION_KEY <generated-value>
+npx convex env set GITHUB_TOKEN github_pat_...
 ```
 
 **Verify:**
-- [ ] `/app/settings/integrations` → "Connect GitHub" → OAuth consent screen appears → grant → repos list loads
+- [ ] `/app/settings/integrations` → save a PAT → connect a repo to a project → first sync completes
 
 ---
 
@@ -314,7 +326,7 @@ GITHUB_CLIENT_SECRET=...
 - [ ] Stripe test checkout completes
 - [ ] Sentry receives a test error
 - [ ] New signup auto-provisions seed project
-- [ ] GitHub OAuth completes
+- [ ] GitHub PAT save and repo sync completes
 
 **When all 10 are checked, you're cleared for tech-debt cleanup (next doc) and beta launch prep.**
 

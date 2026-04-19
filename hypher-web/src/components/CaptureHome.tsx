@@ -324,24 +324,29 @@ export function CaptureHome({
 
           {step === "idle" && (
             <div className="home-kbd-hints-mock">
-              <span>
-                <kbd className="hint-kbd">⌘</kbd>
-                <kbd className="hint-kbd">↵</kbd> capture
+              <span className="home-kbd-hint-group-mock">
+                <span className="home-kbd-hint-keys-mock">
+                  <kbd className="hint-kbd hint-kbd--mock">⌘</kbd>
+                  <kbd className="hint-kbd hint-kbd--mock">↵</kbd>
+                </span>
+                <span className="home-kbd-hint-label-mock">capture</span>
               </span>
-              <span className="capture-hint-sep" />
-              <span>
-                <kbd className="hint-kbd">⌘</kbd>
-                <kbd className="hint-kbd">⇧</kbd>
-                <kbd className="hint-kbd">V</kbd> paste
+              <span className="home-kbd-hint-group-mock">
+                <span className="home-kbd-hint-keys-mock">
+                  <kbd className="hint-kbd hint-kbd--mock">⌘</kbd>
+                  <kbd className="hint-kbd hint-kbd--mock">⇧</kbd>
+                  <kbd className="hint-kbd hint-kbd--mock">V</kbd>
+                </span>
+                <span className="home-kbd-hint-label-mock">paste</span>
               </span>
               {onSearchClick ? (
-                <>
-                  <span className="capture-hint-sep" />
-                  <span>
-                    <kbd className="hint-kbd">⌘</kbd>
-                    <kbd className="hint-kbd">K</kbd> search
+                <span className="home-kbd-hint-group-mock">
+                  <span className="home-kbd-hint-keys-mock">
+                    <kbd className="hint-kbd hint-kbd--mock">⌘</kbd>
+                    <kbd className="hint-kbd hint-kbd--mock">K</kbd>
                   </span>
-                </>
+                  <span className="home-kbd-hint-label-mock">search</span>
+                </span>
               ) : null}
             </div>
           )}
@@ -479,6 +484,10 @@ export function CaptureHome({
             ·
           </span>
           <Link href="/app/settings/integrations">Integrations</Link>
+          <span aria-hidden className="capture-home-links-sep">
+            ·
+          </span>
+          <Link href="/app/settings/launch-readiness">Launch</Link>
         </footer>
       </main>
     </div>

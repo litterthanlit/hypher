@@ -21,6 +21,9 @@ export function AppChromeNav({ layout, showSearch, onSearchClick }: Props) {
       <Link href="/app/settings/integrations" className="main-toolbar-settings">
         Integrations
       </Link>
+      <Link href="/app/settings/launch-readiness" className="main-toolbar-settings">
+        Launch
+      </Link>
       <UserButton />
       {showSearch && onSearchClick ? (
         <button type="button" className="btn-search" onClick={onSearchClick} aria-label="Search">
