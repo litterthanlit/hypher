@@ -1,15 +1,16 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import type { Project } from "@/types";
+import type { FormEvent } from "react";
+import type { Project, ProjectSuggestion } from "@/types";
 
 interface Props {
   text: string;
   projects: Project[];
-  aiSuggestions?: { projectId: string; projectName: string; confidence: number }[];
-  onAssign: (projectId: string) => void;
-  onInbox: () => void;
-  onNewProject: (name: string) => void;
+  aiSuggestions?: ProjectSuggestion[];
+  onAssign: (projectId: string) => void | Promise<void>;
+  onInbox: () => void | Promise<void>;
+  onNewProject: (name: string) => void | Promise<void>;
   onDismiss: () => void;
 }
 
@@ -34,7 +35,7 @@ export function ProjectAssignPopup({
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
-        onInbox();
+        onDismiss();
         return;
       }
       if (creatingProject) return;
@@ -51,18 +52,20 @@ export function ProjectAssignPopup({
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [creatingProject, projects, aiSuggestions]);
+  }, [creatingProject, projects, aiSuggestions, onAssign, onDismiss]);
 
   const buildOptions = () => {
-    const options: { label: string; sub?: string; action: () => void; accent?: boolean }[] = [];
+    const options: { key: string; label: string; sub?: string; reason?: string; action: () => void; accent?: boolean }[] = [];
 
     // AI-suggested projects first
     for (const s of aiSuggestions) {
       const project = projects.find((p) => p.id === s.projectId);
       if (project) {
         options.push({
+          key: project.id,
           label: project.name,
           sub: `${Math.round(s.confidence * 100)}%`,
+          reason: s.reason,
           action: () => onAssign(project.id),
           accent: true,
         });
@@ -77,6 +80,7 @@ export function ProjectAssignPopup({
 
     for (const p of remaining) {
       options.push({
+        key: p.id,
         label: p.name,
         action: () => onAssign(p.id),
       });
@@ -87,10 +91,10 @@ export function ProjectAssignPopup({
 
   const options = buildOptions();
 
-  const handleNewProjectSubmit = (e: React.FormEvent) => {
+  const handleNewProjectSubmit = (e: FormEvent) => {
     e.preventDefault();
     if (newName.trim()) {
-      onNewProject(newName.trim());
+      void onNewProject(newName.trim());
       setNewName("");
       setCreatingProject(false);
     }
@@ -99,22 +103,29 @@ export function ProjectAssignPopup({
   return (
     <div className="assign-popup" ref={containerRef}>
       <div className="assign-label">Add to</div>
+      <p className="assign-captured-preview">{text}</p>
       <div className="assign-options">
         {options.map((opt, i) => (
           <button
-            key={i}
+            key={opt.key}
             className={`assign-pill ${opt.accent ? "ai-suggested" : ""}`}
+            title={opt.reason}
             onClick={opt.action}
           >
             {opt.accent && <span className="assign-sparkle">*</span>}
             <span>{opt.label}</span>
             {opt.sub && <span className="assign-confidence">{opt.sub}</span>}
+            {opt.reason && <span className="assign-reason">{opt.reason}</span>}
             <kbd className="assign-kbd">{i + 1}</kbd>
           </button>
         ))}
 
         <button className="assign-pill inbox" onClick={onInbox}>
-          Inbox
+          Keep in inbox
+        </button>
+
+        <button className="assign-pill later" onClick={onDismiss}>
+          Decide later
         </button>
 
         {!creatingProject ? (
@@ -134,7 +145,7 @@ export function ProjectAssignPopup({
           </form>
         )}
       </div>
-      <div className="assign-hint">Press number to select, Esc for inbox</div>
+      <div className="assign-hint">Press number to select, Esc to decide later</div>
     </div>
   );
 }

@@ -13,6 +13,7 @@ import { DailyDigest } from "@/components/DailyDigest";
 import { AppErrorBoundary } from "@/components/AppErrorBoundary";
 import { SearchDialog } from "@/components/SearchDialog";
 import { AppChromeNav } from "@/components/AppChromeNav";
+import { InboxReviewPanel } from "@/components/InboxReviewPanel";
 import { generateSeedData } from "@/lib/notion-seed";
 import { toast } from "sonner";
 import type { ArtifactType, ObjectKind } from "@/types";
@@ -29,7 +30,7 @@ function guessArtifactType(filename: string): ArtifactType {
 }
 
 type AppMode = "capture" | "workspace";
-type ContentMode = "canvas" | "list" | "dashboard";
+type ContentMode = "canvas" | "list" | "dashboard" | "inbox";
 
 export default function AppHome() {
   const store = useStore();
@@ -88,6 +89,7 @@ export default function AppHome() {
 
   // Save content mode to localStorage
   const toggleContentMode = useCallback(() => {
+    if (!selectedProjectId) return;
     const next = contentMode === "canvas" ? "list" : "canvas";
     setContentMode(next);
     if (selectedProjectId) localStorage.setItem(`hypher-view-mode-${selectedProjectId}`, next);
@@ -245,11 +247,22 @@ export default function AppHome() {
     [store]
   );
 
-  const handleCreateProjectAndCapture = useCallback(async (projectName: string, noteText: string) => {
+  const handleAssignCaptured = useCallback(async (noteId: string, projectId: string) => {
+    await store.assignToProject(noteId, projectId);
+    const project = store.projects.find((p) => p.id === projectId);
+    store.addToast(project ? `Sorted into ${project.name}` : "Sorted into project");
+  }, [store]);
+
+  const handleKeepInInbox = useCallback(async (noteId: string) => {
+    await store.markReviewed(noteId);
+    store.addToast("Kept in inbox");
+  }, [store]);
+
+  const handleCreateProjectAndCapture = useCallback(async (projectName: string, noteId: string) => {
     const now = Date.now();
     const convexProjectId = await store.addObject({ id: crypto.randomUUID(), kind: "project", name: projectName, description: "", status: "active", createdAt: now, modifiedAt: now });
-    const recentNote = store.inboxItems.find((o) => o.kind === "note" && (o as any).content === noteText);
-    if (recentNote) store.assignToProject(recentNote.id, convexProjectId);
+    await store.assignToProject(noteId, convexProjectId);
+    store.addToast(`Sorted into ${projectName}`);
   }, [store]);
 
   // Canvas create handler
@@ -287,6 +300,8 @@ export default function AppHome() {
           projects={store.projects}
           allObjects={store.objects}
           onCapture={handleCapture}
+          onAssignCaptured={handleAssignCaptured}
+          onKeepInInbox={handleKeepInInbox}
           onCreateProjectAndCapture={handleCreateProjectAndCapture}
           onNavigateToWorkspace={() => setAppMode("workspace")}
           onProjectClick={(id) => {
@@ -332,7 +347,7 @@ export default function AppHome() {
         selectedProjectId={selectedProjectId}
         selectedObjectId={store.selectedId}
         onSelectProject={(id) => { setSelectedProjectId(id); store.setSelectedId(id); }}
-        onSelectInboxItem={(id) => { store.setSelectedId(id); }}
+        onSelectInboxItem={(id) => { store.setSelectedId(id); setSelectedProjectId(null); setContentMode("inbox"); }}
         onSelectRecent={(id) => { store.setSelectedId(id); }}
         onAdd={store.addObject}
         onGoHome={() => { setMobileSidebarOpen(false); setAppMode("capture"); }}
@@ -360,7 +375,7 @@ export default function AppHome() {
                 )}
               </svg>
             </button>
-            <button className="mode-toggle" onClick={toggleContentMode} title={`Switch to ${contentMode === "canvas" ? "list" : "canvas"} (Tab)`}>
+            <button className="mode-toggle" onClick={toggleContentMode} disabled={!selectedProjectId} title={`Switch to ${contentMode === "canvas" ? "list" : "canvas"} (Tab)`}>
               {contentMode === "canvas" ? (
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" width={16} height={16}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25H12" />
@@ -383,6 +398,38 @@ export default function AppHome() {
               setSelectedProjectId(id);
               store.setSelectedId(id);
               setContentMode("canvas");
+            }}
+          />
+        ) : contentMode === "inbox" ? (
+          <InboxReviewPanel
+            items={store.inboxItems}
+            reviewItems={store.reviewItems}
+            projects={store.projects}
+            selectedId={store.selectedId}
+            getSuggestions={store.projectSuggestionsFor}
+            onSelect={store.setSelectedId}
+            onAssign={async (objectId, projectId) => {
+              await store.assignToProject(objectId, projectId);
+              const project = store.projects.find((p) => p.id === projectId);
+              store.addToast(project ? `Sorted into ${project.name}` : "Sorted into project");
+            }}
+            onKeepInInbox={async (objectId) => {
+              await store.markReviewed(objectId);
+              store.addToast("Kept in inbox");
+            }}
+            onCreateProject={async (objectId, projectName) => {
+              const now = Date.now();
+              const projectId = await store.addObject({
+                id: crypto.randomUUID(),
+                kind: "project",
+                name: projectName,
+                description: "",
+                status: "active",
+                createdAt: now,
+                modifiedAt: now,
+              });
+              await store.assignToProject(objectId, projectId);
+              store.addToast(`Sorted into ${projectName}`);
             }}
           />
         ) : !selectedProjectId ? (

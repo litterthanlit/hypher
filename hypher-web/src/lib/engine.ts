@@ -1,4 +1,4 @@
-import type { AnyObject, Connection } from "@/types";
+import type { AnyObject, Connection, ProjectSuggestion } from "@/types";
 import { getEmbeddingText, getDisplayName } from "@/types";
 import { embed, cosineSimilarity } from "./embeddings";
 
@@ -64,18 +64,44 @@ export function computeSuggestionsFromData(
 export function suggestProjectFromData(
   obj: AnyObject,
   allObjects: AnyObject[]
-): { projectId: string; projectName: string; confidence: number }[] {
+): ProjectSuggestion[] {
   const projects = allObjects.filter(
     (o) => o.kind === "project" && o.embedding && o.embedding.length > 0
   );
   if (!obj.embedding || projects.length === 0) return [];
 
   return projects
-    .map((p) => ({
-      projectId: p.id,
-      projectName: p.kind === "project" ? p.name : "",
-      confidence: cosineSimilarity(obj.embedding!, p.embedding!),
-    }))
+    .map((p) => {
+      const metadataSimilarity = cosineSimilarity(obj.embedding!, p.embedding!);
+      const childMatches = allObjects
+        .filter(
+          (candidate) =>
+            candidate.projectId === p.id &&
+            candidate.id !== obj.id &&
+            candidate.embedding &&
+            candidate.embedding.length > 0
+        )
+        .map((candidate) => ({
+          candidate,
+          similarity: cosineSimilarity(obj.embedding!, candidate.embedding!),
+        }))
+        .sort((a, b) => b.similarity - a.similarity);
+
+      const bestChild = childMatches[0];
+      const confidence = Math.max(metadataSimilarity, bestChild?.similarity ?? 0);
+      const projectName = p.kind === "project" ? p.name : "";
+      const reason =
+        bestChild && bestChild.similarity > metadataSimilarity
+          ? `Related to "${getDisplayName(bestChild.candidate)}" in ${projectName}`
+          : `Matches the project "${projectName}"`;
+
+      return {
+        projectId: p.id,
+        projectName,
+        confidence,
+        reason,
+      };
+    })
     .filter((s) => s.confidence >= 0.35)
     .sort((a, b) => b.confidence - a.confidence)
     .slice(0, 3);

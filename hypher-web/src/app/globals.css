@@ -3770,6 +3770,18 @@ body:has(.capture-root) {
   padding-left: 4px;
 }
 
+.assign-captured-preview {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  margin: 0 0 10px;
+  padding: 0 4px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
 .assign-options {
   display: flex;
   flex-wrap: wrap;
@@ -3791,6 +3803,7 @@ body:has(.capture-root) {
   align-items: center;
   gap: 6px;
   transition: all var(--transition);
+  max-width: 100%;
 }
 
 .assign-pill:hover {
@@ -3812,6 +3825,10 @@ body:has(.capture-root) {
   color: var(--text-tertiary);
 }
 
+.assign-pill.later {
+  color: var(--text-quaternary);
+}
+
 .assign-pill.new {
   color: var(--text-tertiary);
   border-style: dashed;
@@ -3826,6 +3843,15 @@ body:has(.capture-root) {
   font-family: var(--font-mono);
   font-size: 10px;
   opacity: 0.7;
+}
+
+.assign-reason {
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-tertiary);
+  font-size: 11px;
 }
 
 .assign-kbd {
@@ -3904,6 +3930,210 @@ body:has(.capture-root) {
 .item-sub.unassigned {
   color: var(--amber);
   font-style: italic;
+}
+
+/* ─── Inbox Review ─── */
+
+.inbox-review-panel {
+  height: 100%;
+  overflow: auto;
+  padding: 40px;
+  background: var(--bg-primary);
+}
+
+.inbox-review-titlebar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 28px;
+}
+
+.inbox-review-titlebar h2 {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 500;
+  color: var(--text-primary);
+  letter-spacing: 0;
+}
+
+.inbox-review-titlebar p {
+  margin: 8px 0 0;
+  color: var(--text-tertiary);
+  font-size: 14px;
+}
+
+.inbox-review-count {
+  flex-shrink: 0;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  padding: 6px 10px;
+  color: var(--amber);
+  background: rgba(212, 136, 43, 0.08);
+  font-size: 12px;
+  font-family: var(--font-mono);
+}
+
+.inbox-review-section {
+  display: grid;
+  gap: 12px;
+}
+
+.inbox-review-card {
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--bg-secondary);
+  padding: 14px;
+  transition: border-color var(--transition), background var(--transition);
+}
+
+.inbox-review-card.selected {
+  border-color: var(--accent-muted);
+  background: var(--accent-subtle);
+}
+
+.inbox-review-main {
+  appearance: none;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.inbox-review-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.inbox-review-name {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.inbox-review-time {
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-quaternary);
+}
+
+.inbox-review-preview {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  font-size: 13px;
+}
+
+.inbox-review-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.inbox-review-done,
+.inbox-review-empty {
+  border: 1px dashed var(--border-default);
+  border-radius: var(--radius-md);
+  padding: 28px;
+  color: var(--text-tertiary);
+  background: var(--bg-secondary);
+  text-align: center;
+}
+
+.inbox-review-done p,
+.inbox-review-empty p {
+  margin: 0;
+}
+
+.inbox-review-done p + p,
+.inbox-review-empty-sub {
+  margin-top: 6px;
+  color: var(--text-quaternary);
+  font-size: 13px;
+}
+
+.inbox-review-empty-title {
+  color: var(--text-primary);
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.inbox-history-section {
+  margin-top: 32px;
+}
+
+.inbox-history-section h3 {
+  margin: 0 0 10px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-quaternary);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.inbox-history-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.inbox-history-item {
+  appearance: none;
+  width: 100%;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-secondary);
+  padding: 8px 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.inbox-history-item:hover,
+.inbox-history-item.selected {
+  background: var(--bg-hover);
+  border-color: var(--border-default);
+}
+
+.inbox-history-item span:nth-child(2) {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 768px) {
+  .inbox-review-panel {
+    padding: 24px 16px;
+  }
+
+  .inbox-review-titlebar {
+    flex-direction: column;
+  }
 }
 
 /* ─── File Drop Overlay ─── */

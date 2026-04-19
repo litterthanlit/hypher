@@ -24,6 +24,7 @@ const objectFields = {
   tags: v.optional(v.array(v.string())),
   projectId: v.optional(v.union(v.string(), v.null())),
   lastSurfacedAt: v.optional(v.number()),
+  reviewedAt: v.optional(v.number()),
   canvasPosition: v.optional(v.object({ x: v.number(), y: v.number() })),
   canvasColor: v.optional(v.string()),
   canvasSize: v.optional(v.object({ w: v.number(), h: v.number() })),
@@ -101,6 +102,41 @@ export const touchLastActivity = mutation({
       throw new Error("Unauthorized");
     }
     await ctx.db.patch(id, { lastActivity: timestamp });
+  },
+});
+
+export const assignToProject = mutation({
+  args: { id: v.id("objects"), projectId: v.id("objects"), timestamp: v.number() },
+  handler: async (ctx, { id, projectId, timestamp }) => {
+    const userId = await requireUserId(ctx);
+    const existing = await ctx.db.get(id);
+    if (!existing || existing.userId !== userId || existing.kind === "project") {
+      throw new Error("Unauthorized");
+    }
+    const project = await ctx.db.get(projectId);
+    if (!project || project.userId !== userId || project.kind !== "project") {
+      throw new Error("Invalid project");
+    }
+    await ctx.db.patch(id, {
+      projectId: projectId as string,
+      reviewedAt: timestamp,
+      modifiedAt: timestamp,
+    });
+  },
+});
+
+export const markReviewed = mutation({
+  args: { id: v.id("objects"), timestamp: v.number() },
+  handler: async (ctx, { id, timestamp }) => {
+    const userId = await requireUserId(ctx);
+    const existing = await ctx.db.get(id);
+    if (!existing || existing.userId !== userId || existing.kind === "project") {
+      throw new Error("Unauthorized");
+    }
+    await ctx.db.patch(id, {
+      reviewedAt: timestamp,
+      modifiedAt: timestamp,
+    });
   },
 });
 

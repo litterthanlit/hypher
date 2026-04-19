@@ -19,7 +19,7 @@ vi.mock("./embeddings", () => ({
   },
 }));
 
-import { suggestRelatedOnDrop } from "./engine";
+import { suggestProjectFromData, suggestRelatedOnDrop } from "./engine";
 import type { AnyObject, Note, Project } from "@/types";
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
@@ -77,6 +77,19 @@ function makeProject(id: string, x: number, y: number): Project {
     modifiedAt: 0,
     canvasPosition: { x, y },
     embedding: unitVec(), // has embedding — but kind===project so must be skipped
+  } as Project;
+}
+
+function makeProjectWithEmbedding(id: string, embedding: number[]): Project {
+  return {
+    id,
+    kind: "project",
+    name: id,
+    description: "",
+    status: "active",
+    createdAt: 0,
+    modifiedAt: 0,
+    embedding,
   } as Project;
 }
 
@@ -175,5 +188,99 @@ describe("suggestRelatedOnDrop", () => {
     const best = makeNote("Best note content here", 50, 0, unitVec());
     const result = suggestRelatedOnDrop(dropped, [dropped, best]);
     expect(result.topReason).toMatch(/100%/);
+  });
+});
+
+describe("suggestProjectFromData", () => {
+  it("suggests a project when the captured note matches project metadata", () => {
+    const captured = makeNote("captured", 0, 0, unitVec());
+    const project = makeProjectWithEmbedding("Launch Site", unitVec());
+
+    const result = suggestProjectFromData(captured, [captured, project]);
+
+    expect(result[0]).toMatchObject({
+      projectId: "Launch Site",
+      projectName: "Launch Site",
+      confidence: 1,
+    });
+    expect(result[0]?.reason).toMatch(/Matches the project/);
+  });
+
+  it("suggests a project when the captured note matches an existing child note", () => {
+    const captured = makeNote("captured", 0, 0, unitVec());
+    const project = makeProjectWithEmbedding("Onboarding", orthogonalVec());
+    const child = {
+      ...makeNote("Welcome flow", 0, 0, unitVec()),
+      projectId: project.id,
+    };
+
+    const result = suggestProjectFromData(captured, [captured, project, child]);
+
+    expect(result[0]?.projectId).toBe("Onboarding");
+    expect(result[0]?.confidence).toBe(1);
+    expect(result[0]?.reason).toMatch(/Related to/);
+    expect(result[0]?.reason).toMatch(/Welcome flow/);
+  });
+
+  it("lets a strong child match outrank weak project metadata", () => {
+    const captured = makeNote("captured", 0, 0, unitVec());
+    const strongChildProject = makeProjectWithEmbedding("Weak metadata", midVec());
+    const strongChild = {
+      ...makeNote("Strong child", 0, 0, unitVec()),
+      projectId: strongChildProject.id,
+    };
+    const metadataProject = makeProjectWithEmbedding("Metadata only", midVec());
+
+    const result = suggestProjectFromData(captured, [
+      captured,
+      strongChildProject,
+      strongChild,
+      metadataProject,
+    ]);
+
+    expect(result[0]?.projectId).toBe("Weak metadata");
+    expect(result[0]?.confidence).toBe(1);
+    expect(result[1]?.projectId).toBe("Metadata only");
+  });
+
+  it("returns the top 3 project suggestions sorted by confidence", () => {
+    const captured = makeNote("captured", 0, 0, unitVec());
+    const first = makeProjectWithEmbedding("first", unitVec());
+    const second = makeProjectWithEmbedding("second", midVec());
+    const third = makeProjectWithEmbedding("third", [0.5, Math.sqrt(0.75), 0, 0]);
+    const fourth = makeProjectWithEmbedding("fourth", [0.4, Math.sqrt(0.84), 0, 0]);
+
+    const result = suggestProjectFromData(captured, [
+      captured,
+      fourth,
+      third,
+      first,
+      second,
+    ]);
+
+    expect(result.map((r) => r.projectId)).toEqual(["first", "second", "third"]);
+  });
+
+  it("uses metadata and child reason text for the winning source", () => {
+    const captured = makeNote("captured", 0, 0, unitVec());
+    const metadataProject = makeProjectWithEmbedding("Metadata", unitVec());
+    const childProject = makeProjectWithEmbedding("Child", orthogonalVec());
+    const child = {
+      ...makeNote("Specific child", 0, 0, unitVec()),
+      projectId: childProject.id,
+    };
+
+    const result = suggestProjectFromData(captured, [
+      captured,
+      metadataProject,
+      childProject,
+      child,
+    ]);
+
+    const metadataSuggestion = result.find((r) => r.projectId === "Metadata");
+    const childSuggestion = result.find((r) => r.projectId === "Child");
+
+    expect(metadataSuggestion?.reason).toMatch(/Matches the project/);
+    expect(childSuggestion?.reason).toMatch(/Related to/);
   });
 });

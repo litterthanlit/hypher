@@ -55,6 +55,7 @@ export default defineSchema({
     tags: v.optional(v.array(v.string())),
     projectId: v.optional(v.union(v.string(), v.null())),
     lastSurfacedAt: v.optional(v.number()),
+    reviewedAt: v.optional(v.number()),
     canvasPosition: v.optional(v.object({ x: v.number(), y: v.number() })),
     canvasColor: v.optional(v.string()),
     canvasSize: v.optional(v.object({ w: v.number(), h: v.number() })),

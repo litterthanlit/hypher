@@ -20,6 +20,7 @@ export interface HypherObject {
   canvasPosition?: CanvasPosition;
   projectId?: string | null;
   lastSurfacedAt?: number;
+  reviewedAt?: number;
   canvasColor?: string;
   canvasSize?: { w: number; h: number };
 }
@@ -79,6 +80,18 @@ export interface ActivityEntry {
 }
 
 export type AnyObject = Project | Note | Artifact;
+
+export interface ProjectSuggestion {
+  projectId: string;
+  projectName: string;
+  confidence: number;
+  reason: string;
+}
+
+export interface CaptureResult {
+  noteId: string;
+  suggestions: ProjectSuggestion[];
+}
 
 export function getDisplayName(obj: AnyObject): string {
   switch (obj.kind) {

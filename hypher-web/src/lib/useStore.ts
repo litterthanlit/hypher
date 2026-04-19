@@ -5,7 +5,7 @@ import { useAuth } from "@clerk/nextjs";
 import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
-import type { AnyObject, Connection, Project, Note, Artifact, ActivityEntry } from "@/types";
+import type { AnyObject, CaptureResult, Connection, Project, ProjectSuggestion, Note, Artifact, ActivityEntry } from "@/types";
 import { getDisplayName } from "@/types";
 import { toast } from "sonner";
 import { generateEmbedding, computeSuggestionsFromData, suggestProjectFromData } from "./engine";
@@ -104,6 +104,11 @@ export function useStore() {
   /* ── Convex mutations ─────────────────────────────────────────── */
   const putObjectMut = useMutation(api.objects.put);
   const removeObjectMut = useMutation(api.objects.remove);
+  // typegen pending convex dev
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const assignToProjectMut = useMutation((api.objects as any).assignToProject);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const markReviewedMut = useMutation((api.objects as any).markReviewed);
   const putConnectionMut = useMutation(api.connections.put);
   const removeConnectionMut = useMutation(api.connections.remove);
   const putActivityMut = useMutation(api.activity.put);
@@ -173,6 +178,11 @@ export function useStore() {
   const inboxItems = useMemo(
     () => objects.filter((o) => o.kind !== "project" && !o.projectId),
     [objects]
+  );
+
+  const reviewItems = useMemo(
+    () => inboxItems.filter((o) => !o.reviewedAt),
+    [inboxItems]
   );
 
   const recentItems = useMemo(
@@ -313,9 +323,7 @@ export function useStore() {
   const addQuickCapture = async (
     text: string,
     projectId?: string | null
-  ): Promise<
-    { projectId: string; projectName: string; confidence: number }[]
-  > => {
+  ): Promise<CaptureResult> => {
     const now = Date.now();
     setIsProcessing(true);
     setModelLoading(true);
@@ -330,6 +338,7 @@ export function useStore() {
         createdAt: now,
         modifiedAt: now,
         projectId: projectId ?? null,
+        ...(projectId ? { reviewedAt: now } : {}),
       } as any);
 
       const note: Note = {
@@ -340,6 +349,7 @@ export function useStore() {
         createdAt: now,
         modifiedAt: now,
         projectId: projectId ?? null,
+        ...(projectId ? { reviewedAt: now } : {}),
       };
 
       await logActivity("created", note, undefined, "capture");
@@ -353,6 +363,7 @@ export function useStore() {
         projectId: string;
         projectName: string;
         confidence: number;
+        reason: string;
       }[] = [];
       const allObjs = [
         ...objects.filter((o) => o.id !== (convexId as string)),
@@ -374,7 +385,7 @@ export function useStore() {
         }).catch((e) => reportConvexActionFailed("ai.generateTags", e));
       }
 
-      return suggestions;
+      return { noteId: convexId as string, suggestions };
     } finally {
       setIsProcessing(false);
       setModelLoading(false);
@@ -382,12 +393,28 @@ export function useStore() {
   };
 
   const assignToProject = async (objectId: string, projectId: string) => {
-    const obj = objects.find((o) => o.id === objectId);
-    if (!obj) return;
-    await putObjectMut(
-      convexUpdateArgs({ ...obj, projectId, modifiedAt: Date.now() })
-    );
+    await assignToProjectMut({
+      id: objectId as Id<"objects">,
+      projectId: projectId as Id<"objects">,
+      timestamp: Date.now(),
+    });
   };
+
+  const markReviewed = async (objectId: string) => {
+    await markReviewedMut({
+      id: objectId as Id<"objects">,
+      timestamp: Date.now(),
+    });
+  };
+
+  const projectSuggestionsFor = useCallback(
+    (objectId: string): ProjectSuggestion[] => {
+      const obj = objects.find((o) => o.id === objectId);
+      if (!obj || obj.kind === "project") return [];
+      return suggestProjectFromData(obj, objects);
+    },
+    [objects]
+  );
 
   const unassignFromProject = async (objectId: string) => {
     const obj = objects.find((o) => o.id === objectId);
@@ -708,6 +735,7 @@ export function useStore() {
     connections,
     activity,
     inboxItems,
+    reviewItems,
     recentItems,
     objectsForProject,
     selected,
@@ -721,7 +749,9 @@ export function useStore() {
     updateObject,
     removeObject,
     assignToProject,
+    markReviewed,
     unassignFromProject,
+    projectSuggestionsFor,
     confirmConnection,
     dismissConnection,
     refreshSuggestions,

@@ -1,15 +1,17 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import type { Project, AnyObject } from "@/types";
+import type { CaptureResult, Project, ProjectSuggestion, AnyObject } from "@/types";
 import { ProjectAssignPopup } from "./ProjectAssignPopup";
 import { FloatingClusters } from "./FloatingClusters";
 
 interface Props {
   projects: Project[];
   allObjects: AnyObject[];
-  onCapture: (text: string, projectId?: string | null) => Promise<{ projectId: string; projectName: string; confidence: number }[]>;
-  onCreateProjectAndCapture: (projectName: string, noteText: string) => void;
+  onCapture: (text: string, projectId?: string | null) => Promise<CaptureResult>;
+  onAssignCaptured: (noteId: string, projectId: string) => Promise<void>;
+  onKeepInInbox: (noteId: string) => Promise<void>;
+  onCreateProjectAndCapture: (projectName: string, noteId: string) => Promise<void>;
   onNavigateToWorkspace: () => void;
   onProjectClick: (projectId: string) => void;
   onClipboardCapture?: () => void;
@@ -27,11 +29,23 @@ function getGreeting(): string {
   return "Late night";
 }
 
-export function CaptureHome({ projects, allObjects, onCapture, onCreateProjectAndCapture, onNavigateToWorkspace, onProjectClick, onClipboardCapture, onNotionImport }: Props) {
+export function CaptureHome({
+  projects,
+  allObjects,
+  onCapture,
+  onAssignCaptured,
+  onKeepInInbox,
+  onCreateProjectAndCapture,
+  onNavigateToWorkspace,
+  onProjectClick,
+  onClipboardCapture,
+  onNotionImport,
+}: Props) {
   const [text, setText] = useState("");
   const [step, setStep] = useState<CaptureStep>("idle");
-  const [aiSuggestions, setAiSuggestions] = useState<{ projectId: string; projectName: string; confidence: number }[]>([]);
+  const [aiSuggestions, setAiSuggestions] = useState<ProjectSuggestion[]>([]);
   const [capturedText, setCapturedText] = useState("");
+  const [capturedNoteId, setCapturedNoteId] = useState<string | null>(null);
   const [greeting] = useState(getGreeting);
   const [placeholderIndex, setPlaceholderIndex] = useState(0);
   const [cursorVisible, setCursorVisible] = useState(true);
@@ -138,17 +152,9 @@ export function CaptureHome({ projects, allObjects, onCapture, onCreateProjectAn
 
     setCapturedText(trimmed);
 
-    if (projects.length === 0) {
-      // No projects exist — go straight to inbox
-      await onCapture(trimmed, null);
-      setText("");
-      setStep("idle");
-      return;
-    }
-
-    // Create note without project, get AI suggestions
-    const suggestions = await onCapture(trimmed, null);
-    setAiSuggestions(suggestions);
+    const result = await onCapture(trimmed, null);
+    setCapturedNoteId(result.noteId);
+    setAiSuggestions(result.suggestions);
     setText("");
     setStep("assigning");
   }, [text, projects, onCapture]);
@@ -160,28 +166,32 @@ export function CaptureHome({ projects, allObjects, onCapture, onCreateProjectAn
     }
   };
 
+  const resetAssignState = () => {
+    setStep("idle");
+    setCapturedText("");
+    setCapturedNoteId(null);
+    setAiSuggestions([]);
+  };
+
   const handleAssign = async (projectId: string) => {
-    // Find the note we just created (most recent fleeting note matching text)
-    // The store already created it in onCapture — now just assign it
-    // We need the parent to handle this since we don't have the note ID
-    // For now, the parent will handle reassignment in onCapture flow
-    setStep("idle");
-    setCapturedText("");
-    setAiSuggestions([]);
+    if (!capturedNoteId) return;
+    await onAssignCaptured(capturedNoteId, projectId);
+    resetAssignState();
   };
 
-  const handleInbox = () => {
-    // Already in inbox from onCapture(text, null)
-    setStep("idle");
-    setCapturedText("");
-    setAiSuggestions([]);
+  const handleInbox = async () => {
+    if (capturedNoteId) await onKeepInInbox(capturedNoteId);
+    resetAssignState();
   };
 
-  const handleNewProject = (name: string) => {
-    onCreateProjectAndCapture(name, capturedText);
-    setStep("idle");
-    setCapturedText("");
-    setAiSuggestions([]);
+  const handleDismiss = () => {
+    resetAssignState();
+  };
+
+  const handleNewProject = async (name: string) => {
+    if (!capturedNoteId) return;
+    await onCreateProjectAndCapture(name, capturedNoteId);
+    resetAssignState();
   };
 
   return (
@@ -273,7 +283,7 @@ export function CaptureHome({ projects, allObjects, onCapture, onCreateProjectAn
             onAssign={handleAssign}
             onInbox={handleInbox}
             onNewProject={handleNewProject}
-            onDismiss={handleInbox}
+            onDismiss={handleDismiss}
           />
         )}
 
