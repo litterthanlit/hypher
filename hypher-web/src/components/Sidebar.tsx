@@ -21,6 +21,8 @@ interface Props {
   onGoHome: () => void;
   onDashboard: () => void;
   onDigest: () => void;
+  onFeedback?: () => void;
+  showBetaAdmin?: boolean;
   /** Merged onto `<aside>` (e.g. `sidebar--drawer-open` on narrow screens). */
   className?: string;
   /** Called after a navigation action so mobile drawer can close. */
@@ -40,6 +42,8 @@ function timeAgo(ts: number): string {
 export function Sidebar({
   projects, inboxItems, recentItems, selectedProjectId, selectedObjectId,
   onSelectProject, onSelectInboxItem, onSelectRecent, onAdd, onGoHome, onDashboard, onDigest,
+  onFeedback,
+  showBetaAdmin,
   className,
   onMobileSidebarClose,
 }: Props) {
@@ -163,6 +167,22 @@ export function Sidebar({
             </svg>
             Launch
           </Link>
+          {showBetaAdmin ? (
+            <Link href="/app/settings/beta" className="sidebar-digest-btn sidebar-settings-link" onClick={closeMobile}>
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" width={14} height={14}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.5 20.25a8.25 8.25 0 0 1 15 0" />
+              </svg>
+              Beta
+            </Link>
+          ) : null}
+          {onFeedback ? (
+            <button className="sidebar-digest-btn" onClick={() => { closeMobile(); onFeedback(); }}>
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" width={14} height={14}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 8.25h9m-9 3.75h5.25M21 12c0 4.142-4.03 7.5-9 7.5a10.7 10.7 0 0 1-2.93-.402L3 21l1.902-5.07A6.85 6.85 0 0 1 3 12c0-4.142 4.03-7.5 9-7.5s9 3.358 9 7.5Z" />
+              </svg>
+              Feedback
+            </button>
+          ) : null}
         </div>
       </nav>
 

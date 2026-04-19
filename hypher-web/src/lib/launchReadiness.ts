@@ -92,6 +92,30 @@ const nextGroupSpecs: GroupSpec[] = [
     ],
   },
   {
+    id: "beta-gate",
+    label: "Beta gate",
+    items: [
+      {
+        id: "beta-admins-next",
+        label: "Beta admin user IDs",
+        vars: ["BETA_ADMIN_USER_IDS"],
+        required: false,
+        note: "Convex also needs this env var; admins bypass the invite gate and manage beta invites.",
+      },
+      {
+        id: "beta-gate-enabled",
+        label: "Invite gate enabled",
+        vars: ["BETA_INVITE_GATE_ENABLED"],
+        required: (env) => env.NODE_ENV === "production",
+        invalid: (_name, value, env) => env.NODE_ENV === "production" && value !== "true",
+        note: (env) =>
+          env.NODE_ENV === "production"
+            ? "Set BETA_INVITE_GATE_ENABLED=true before a controlled beta launch."
+            : "Local development stays open unless this is explicitly set to true.",
+      },
+    ],
+  },
+  {
     id: "ai",
     label: "AI",
     items: [

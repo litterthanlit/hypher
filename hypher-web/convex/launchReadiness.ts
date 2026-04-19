@@ -119,6 +119,20 @@ export const getStatus = query({
         required: false,
         note: "Must match the Next.js env value used by the Clerk webhook route.",
       }),
+      item({
+        id: "convex-beta-admins",
+        label: "Beta admin user IDs",
+        vars: ["BETA_ADMIN_USER_IDS"],
+        required: false,
+        note: "Comma-separated Clerk user IDs allowed to create invites and read feedback.",
+      }),
+      item({
+        id: "convex-beta-gate",
+        label: "Beta invite gate flag",
+        vars: ["BETA_INVITE_GATE_ENABLED"],
+        required: false,
+        note: "Set to true in Convex env to enforce invite redemption before app access.",
+      }),
     ];
 
     const group = {

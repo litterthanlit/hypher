@@ -26,6 +26,8 @@ const fullEnv = {
   EXTENSION_ID: "abcdefghijklmnopabcdefghijklmnop",
   NEXT_PUBLIC_SENTRY_DSN: "https://sentry-secret-value@sentry.io/1",
   SENTRY_AUTH_TOKEN: "sentry-secret-value",
+  BETA_INVITE_GATE_ENABLED: "true",
+  BETA_ADMIN_USER_IDS: "user_admin",
 };
 
 function findItem(response: ReturnType<typeof buildLaunchReadiness>, id: string) {
@@ -111,5 +113,17 @@ describe("launch readiness env and route mapping", () => {
       missing: ["UPSTASH_REDIS_REST_URL", "UPSTASH_REDIS_REST_TOKEN"],
     });
     expect(findItem(readiness, "upstash-next").note).toContain("rate limiting is intentionally disabled");
+  });
+
+  it("blocks production readiness when the beta gate is disabled", () => {
+    const readiness = buildLaunchReadiness({
+      ...fullEnv,
+      BETA_INVITE_GATE_ENABLED: "false",
+      NODE_ENV: "production",
+    }, 123);
+    expect(findItem(readiness, "beta-gate-enabled")).toMatchObject({
+      status: "blocked",
+      missing: ["BETA_INVITE_GATE_ENABLED"],
+    });
   });
 });

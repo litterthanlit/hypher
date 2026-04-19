@@ -24,6 +24,40 @@ export default defineSchema({
     .index("by_user", ["userId"])
     .index("by_stripe_customer", ["stripeCustomerId"]),
 
+  betaInvites: defineTable({
+    prefix: v.string(),
+    remainderBcrypt: v.string(),
+    label: v.string(),
+    maxRedemptions: v.number(),
+    redemptionCount: v.number(),
+    createdBy: v.string(),
+    createdAt: v.number(),
+    revokedAt: v.optional(v.number()),
+    expiresAt: v.optional(v.number()),
+  })
+    .index("by_prefix", ["prefix"])
+    .index("by_createdAt", ["createdAt"]),
+
+  betaAccess: defineTable({
+    userId: v.string(),
+    inviteId: v.optional(v.id("betaInvites")),
+    grantedBy: v.optional(v.string()),
+    grantedAt: v.number(),
+  }).index("by_user", ["userId"]),
+
+  betaFeedback: defineTable({
+    userId: v.string(),
+    category: v.union(v.literal("bug"), v.literal("friction"), v.literal("idea"), v.literal("praise")),
+    message: v.string(),
+    pagePath: v.optional(v.string()),
+    userAgent: v.optional(v.string()),
+    status: v.union(v.literal("new"), v.literal("reviewed"), v.literal("closed")),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_status", ["status"])
+    .index("by_createdAt", ["createdAt"]),
+
   objects: defineTable({
     userId: v.optional(v.string()),
     kind: v.union(v.literal("project"), v.literal("note"), v.literal("artifact")),

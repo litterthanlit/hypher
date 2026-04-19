@@ -17,6 +17,8 @@ import { SearchDialog } from "@/components/SearchDialog";
 import { AppChromeNav } from "@/components/AppChromeNav";
 import { HealthRing } from "@/components/HealthRing";
 import { InboxReviewPanel } from "@/components/InboxReviewPanel";
+import { BetaInviteGate } from "@/components/BetaInviteGate";
+import { BetaFeedbackModal } from "@/components/BetaFeedbackModal";
 import { generateSeedData } from "@/lib/notion-seed";
 import {
   ONBOARDING_TOUR_STEPS,
@@ -29,6 +31,7 @@ import {
 import { toast } from "sonner";
 import { computeHealthScore, type HealthInputs } from "@/lib/health";
 import type { ArtifactType, ObjectKind } from "@/types";
+import type { BetaGateState } from "@/lib/beta";
 
 function guessArtifactType(filename: string): ArtifactType {
   const ext = filename.split(".").pop()?.toLowerCase() ?? "";
@@ -45,6 +48,29 @@ type AppMode = "capture" | "workspace";
 type ContentMode = "canvas" | "list" | "dashboard" | "inbox";
 
 export default function AppHome() {
+  const gateState = useQuery(
+    // typegen pending convex dev/codegen for this new module
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (api as any).beta.getGateState,
+    {}
+  ) as BetaGateState | undefined;
+
+  if (gateState === undefined) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[#fafafa] text-[#444]">
+        <p className="text-sm tracking-wide">Loading beta access...</p>
+      </div>
+    );
+  }
+
+  if (!gateState.hasAccess) {
+    return <BetaInviteGate />;
+  }
+
+  return <HypherApp gateState={gateState} />;
+}
+
+function HypherApp({ gateState }: { gateState: BetaGateState }) {
   const store = useStore();
   const skipTags = !store.clerkLoaded || !store.isSignedIn;
   const tagsList = useQuery(api.tags.listWithCounts, skipTags ? "skip" : {});
@@ -90,6 +116,7 @@ export default function AppHome() {
   const [welcomeDismissedThisSession, setWelcomeDismissedThisSession] = useState(false);
   const [tourActive, setTourActive] = useState(false);
   const [tourStepIndex, setTourStepIndex] = useState(0);
+  const [showFeedback, setShowFeedback] = useState(false);
 
   const onboardingReady = skipTags || onboardingState !== undefined;
   const welcomeVisible =
@@ -498,6 +525,9 @@ export default function AppHome() {
           projectHealthScores={projectHealthScores}
           onAddFiles={handleAddCaptureFiles}
         />
+        <button type="button" className="beta-feedback-floating" onClick={() => setShowFeedback(true)}>
+          Feedback
+        </button>
         {dragOver && (
           <div className="drop-overlay">
             <div className="drop-content">
@@ -546,6 +576,7 @@ export default function AppHome() {
           </AppErrorBoundary>
         )}
         {onboardingUi}
+        <BetaFeedbackModal visible={showFeedback} onClose={() => setShowFeedback(false)} />
       </div>
     );
   }
@@ -574,6 +605,8 @@ export default function AppHome() {
         onGoHome={() => { setMobileSidebarOpen(false); setAppMode("capture"); }}
         onDashboard={() => { setContentMode("dashboard"); setSelectedProjectId(null); }}
         onDigest={() => setShowDigest(true)}
+        onFeedback={() => setShowFeedback(true)}
+        showBetaAdmin={gateState.isAdmin}
         className={mobileSidebarOpen ? "sidebar--drawer-open" : undefined}
         onMobileSidebarClose={() => setMobileSidebarOpen(false)}
       />
@@ -714,7 +747,13 @@ export default function AppHome() {
                 share
               </button>
             ) : null}
-            <AppChromeNav layout="toolbar" showSearch onSearchClick={() => setShowSearch(true)} />
+            <AppChromeNav
+              layout="toolbar"
+              showSearch
+              onSearchClick={() => setShowSearch(true)}
+              onFeedbackClick={() => setShowFeedback(true)}
+              showBetaAdmin={gateState.isAdmin}
+            />
           </div>
         </div>
 
@@ -849,6 +888,7 @@ export default function AppHome() {
         <div className="loading-bar"><span className="loading-dot" />Loading embedding model...</div>
       )}
       {onboardingUi}
+      <BetaFeedbackModal visible={showFeedback} onClose={() => setShowFeedback(false)} />
     </main>
   );
 }

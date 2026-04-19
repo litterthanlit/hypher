@@ -8,9 +8,11 @@ type Props = {
   layout: "floating" | "toolbar";
   showSearch?: boolean;
   onSearchClick?: () => void;
+  onFeedbackClick?: () => void;
+  showBetaAdmin?: boolean;
 };
 
-export function AppChromeNav({ layout, showSearch, onSearchClick }: Props) {
+export function AppChromeNav({ layout, showSearch, onSearchClick, onFeedbackClick, showBetaAdmin }: Props) {
   const navClass = layout === "floating" ? "app-chrome-nav app-chrome-nav--floating" : "main-toolbar__end";
 
   return (
@@ -24,6 +26,16 @@ export function AppChromeNav({ layout, showSearch, onSearchClick }: Props) {
       <Link href="/app/settings/launch-readiness" className="main-toolbar-settings">
         Launch
       </Link>
+      {showBetaAdmin ? (
+        <Link href="/app/settings/beta" className="main-toolbar-settings">
+          Beta
+        </Link>
+      ) : null}
+      {onFeedbackClick ? (
+        <button type="button" className="main-toolbar-settings main-toolbar-feedback" onClick={onFeedbackClick}>
+          Feedback
+        </button>
+      ) : null}
       <UserButton />
       {showSearch && onSearchClick ? (
         <button type="button" className="btn-search" onClick={onSearchClick} aria-label="Search">
