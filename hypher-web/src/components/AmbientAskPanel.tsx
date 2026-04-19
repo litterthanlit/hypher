@@ -13,9 +13,13 @@ interface NearbyItem {
 }
 
 interface Props {
+  /** Click-anchored panel vs fixed dock (project mockup). */
+  variant?: "floating" | "docked";
   screenX: number;
   screenY: number;
   nearby: NearbyItem[];
+  /** Shown in docked context row (e.g. project title). */
+  contextLabel?: string;
   onClose: () => void;
 }
 
@@ -58,7 +62,14 @@ function KindIcon({ kind }: { kind: string }) {
   return <span className="ambient-ask-chip-icon" aria-hidden="true">·</span>;
 }
 
-export function AmbientAskPanel({ screenX, screenY, nearby, onClose }: Props) {
+export function AmbientAskPanel({
+  variant = "floating",
+  screenX,
+  screenY,
+  nearby,
+  contextLabel,
+  onClose,
+}: Props) {
   const [prompt, setPrompt] = useState("What patterns do you see here?");
   const [reply, setReply] = useState("");
   const [streaming, setStreaming] = useState(false);
@@ -149,28 +160,39 @@ export function AmbientAskPanel({ screenX, screenY, nearby, onClose }: Props) {
     }
   };
 
-  const panelStyle = computePanelStyle(screenX, screenY);
+  const panelStyle = variant === "docked" ? undefined : computePanelStyle(screenX, screenY);
+  const uniqueTags = Array.from(
+    new Set(nearby.flatMap((n) => n.tags ?? []).filter(Boolean)),
+  ).slice(0, 6);
 
   return (
     <AnimatePresence>
       <motion.div
-        className="ambient-ask-panel"
+        className={`ambient-ask-panel${variant === "docked" ? " ambient-ask-panel--docked" : ""}`}
         style={panelStyle}
-        initial={{ opacity: 0, scale: 0.96 }}
+        initial={{ opacity: 0, scale: variant === "docked" ? 1 : 0.96 }}
         animate={{ opacity: 1, scale: 1 }}
-        exit={{ opacity: 0, scale: 0.96 }}
+        exit={{ opacity: 0, scale: variant === "docked" ? 1 : 0.96 }}
         transition={{ type: "spring", stiffness: 500, damping: 30 }}
-        // Stop mousedown from reaching the canvas (which would close context menus etc.)
         onMouseDown={(e) => e.stopPropagation()}
       >
-        {/* Header */}
         <div className="ambient-ask-header">
           <span className="ambient-ask-title">
-            Asking Claude about {nearby.length} nearby item{nearby.length !== 1 ? "s" : ""}
+            {variant === "docked" ? (
+              <>
+                <span className="ambient-ask-title-dot" aria-hidden />
+                ambient ask
+              </>
+            ) : (
+              <>
+                Asking Claude about {nearby.length} nearby item{nearby.length !== 1 ? "s" : ""}
+              </>
+            )}
           </span>
           <button
             className="ambient-ask-close"
             aria-label="Close panel"
+            type="button"
             onClick={() => {
               abortRef.current?.abort();
               onClose();
@@ -180,8 +202,21 @@ export function AmbientAskPanel({ screenX, screenY, nearby, onClose }: Props) {
           </button>
         </div>
 
-        {/* Nearby item chips */}
-        <div className="ambient-ask-chips" aria-label="Items Claude is reading">
+        {variant === "docked" && (
+          <div className="ambient-ask-context" aria-label="Ask context">
+            <span className="ambient-ask-context-label">context:</span>
+            <span className="ambient-ask-context-pill">{nearby.length} items</span>
+            {uniqueTags.length > 0 ? (
+              <span className="ambient-ask-context-pill">{uniqueTags.length} tags</span>
+            ) : null}
+            {contextLabel ? <span className="ambient-ask-context-pill">{contextLabel}</span> : null}
+          </div>
+        )}
+
+        <div
+          className={`ambient-ask-chips${variant === "docked" ? " ambient-ask-chips--docked" : ""}`}
+          aria-label="Items Claude is reading"
+        >
           {nearby.map((item, i) => (
             <span key={i} className="ambient-ask-chip">
               <KindIcon kind={item.kind} />
@@ -196,30 +231,40 @@ export function AmbientAskPanel({ screenX, screenY, nearby, onClose }: Props) {
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="Ask Claude something about these items…"
-          rows={2}
+          placeholder={
+            variant === "docked"
+              ? "ask about what's on this canvas…"
+              : "Ask Claude something about these items…"
+          }
+          rows={variant === "docked" ? 2 : 2}
           disabled={streaming}
           aria-label="Question for Claude"
         />
         <div className="ambient-ask-actions">
-          <span className="ambient-ask-hint">Enter to send · Shift+Enter for newline</span>
+          <span className="ambient-ask-hint">
+            {variant === "docked" ? (
+              <>
+                <kbd className="ambient-ask-kbd">↵</kbd> send · <kbd className="ambient-ask-kbd">esc</kbd> stop
+              </>
+            ) : (
+              <>Enter to send · Shift+Enter for newline</>
+            )}
+          </span>
           <button
+            type="button"
             className="ambient-ask-send"
             onClick={send}
             disabled={streaming || !prompt.trim()}
             aria-busy={streaming}
           >
-            {streaming ? "Streaming…" : "Send"}
+            {streaming ? "Streaming…" : variant === "docked" ? "Send" : "Send"}
           </button>
         </div>
 
-        {/* Streamed reply */}
         {(reply || streaming) && (
           <div className="ambient-ask-reply" ref={replyRef} aria-live="polite">
             {reply}
-            {streaming && !reply && (
-              <span className="ambient-ask-cursor" aria-hidden="true" />
-            )}
+            {streaming && !reply ? <span className="ambient-ask-cursor" aria-hidden="true" /> : null}
           </div>
         )}
       </motion.div>

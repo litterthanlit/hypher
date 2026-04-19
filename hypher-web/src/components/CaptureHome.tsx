@@ -1,10 +1,13 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import Link from "next/link";
+import { useUser } from "@clerk/nextjs";
+import { UserButton } from "@clerk/nextjs";
 import type { CaptureResult, Project, ProjectSuggestion, AnyObject } from "@/types";
 import { ProjectAssignPopup } from "./ProjectAssignPopup";
-import { FloatingClusters } from "./FloatingClusters";
 import { ONBOARDING_TARGETS } from "@/lib/onboarding";
+import { HealthRing } from "./HealthRing";
 
 interface Props {
   projects: Project[];
@@ -17,17 +20,49 @@ interface Props {
   onProjectClick: (projectId: string) => void;
   onClipboardCapture?: () => void;
   onNotionImport?: () => void;
+  onSearchClick?: () => void;
+  onDigestClick?: () => void;
+  digestPreviewText?: string | null;
+  /** Convex project id → health score 0–100 */
+  projectHealthScores?: Record<string, number>;
+  onAddFiles?: (files: File[]) => void | Promise<void>;
 }
 
 type CaptureStep = "idle" | "assigning";
 
-function getGreeting(): string {
+function weekdayPart(): string {
+  const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+  return days[new Date().getDay()];
+}
+
+function daypartLabel(): string {
   const hour = new Date().getHours();
-  if (hour < 5) return "Late night";
-  if (hour < 12) return "Good morning";
-  if (hour < 17) return "Good afternoon";
-  if (hour < 21) return "Good evening";
-  return "Late night";
+  if (hour < 5) return "night";
+  if (hour < 12) return "morning";
+  if (hour < 17) return "afternoon";
+  if (hour < 22) return "evening";
+  return "night";
+}
+
+function formatRelative(ms: number): string {
+  const s = Math.floor((Date.now() - ms) / 1000);
+  if (s < 60) return "just now";
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  const d = Math.floor(h / 24);
+  if (d === 1) return "yesterday";
+  if (d < 7) return `${d}d ago`;
+  const w = Math.floor(d / 7);
+  if (w < 5) return `${w}w ago`;
+  return `${Math.floor(d / 30)}mo ago`;
+}
+
+function itemLabel(o: AnyObject): string {
+  if (o.kind === "note") return (o as import("@/types").Note).content.slice(0, 48) || "Note";
+  if (o.kind === "artifact") return (o as import("@/types").Artifact).name || "File";
+  return "Item";
 }
 
 export function CaptureHome({
@@ -41,87 +76,35 @@ export function CaptureHome({
   onProjectClick,
   onClipboardCapture,
   onNotionImport,
+  onSearchClick,
+  onDigestClick,
+  digestPreviewText,
+  projectHealthScores = {},
+  onAddFiles,
 }: Props) {
+  const { user } = useUser();
+  const firstName = user?.firstName || user?.username || "there";
+
   const [text, setText] = useState("");
   const [step, setStep] = useState<CaptureStep>("idle");
   const [aiSuggestions, setAiSuggestions] = useState<ProjectSuggestion[]>([]);
   const [capturedText, setCapturedText] = useState("");
   const [capturedNoteId, setCapturedNoteId] = useState<string | null>(null);
-  const [greeting] = useState(getGreeting);
-  const [placeholderIndex, setPlaceholderIndex] = useState(0);
-  const [cursorVisible, setCursorVisible] = useState(true);
-  const [textVisible, setTextVisible] = useState(true);
   const [isDragNear, setIsDragNear] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
-  const blinkCount = useRef(0);
+  const fileRef = useRef<HTMLInputElement>(null);
 
-  const placeholders = [
-    "what's on your mind...",
-    "something you noticed...",
-    "the idea you keep circling...",
-    "before it fades...",
-    "what clicked today...",
-    "the thread worth pulling...",
-    "say it simply...",
-    "what's forming...",
-  ];
+  const sortedProjects = useMemo(
+    () => [...projects].sort((a, b) => b.modifiedAt - a.modifiedAt),
+    [projects]
+  );
+
+  const activeCount = projects.filter((p) => p.status === "active").length;
 
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
 
-  // One rhythm: 3200ms cycle.
-  // At 0ms: cursor on, text visible
-  // At 800ms: cursor off
-  // At 1600ms: cursor on
-  // At 2400ms: cursor off + text fades out
-  // At 2800ms: text swaps (while both hidden)
-  // At 3200ms: cursor on + text fades in (new cycle)
-  useEffect(() => {
-    if (text || step !== "idle") return;
-
-    const CYCLE = 3200;
-    const BLINK = 800;
-
-    const run = () => {
-      // Phase 0: cursor on, text in
-      setCursorVisible(true);
-      setTextVisible(true);
-
-      // Phase 1 (800ms): cursor off
-      const t1 = setTimeout(() => setCursorVisible(false), BLINK);
-
-      // Phase 2 (1600ms): cursor on
-      const t2 = setTimeout(() => setCursorVisible(true), BLINK * 2);
-
-      // Phase 3 (2400ms): cursor off + text out
-      const t3 = setTimeout(() => {
-        setCursorVisible(false);
-        setTextVisible(false);
-      }, BLINK * 3);
-
-      // Phase 3.5 (2800ms): swap text while both hidden
-      const t4 = setTimeout(() => {
-        setPlaceholderIndex((i) => (i + 1) % placeholders.length);
-      }, BLINK * 3 + 400);
-
-      return [t1, t2, t3, t4];
-    };
-
-    const timers = run();
-    const interval = setInterval(() => {
-      timers.forEach(clearTimeout);
-      timers.length = 0;
-      timers.push(...run());
-    }, CYCLE);
-
-    return () => {
-      timers.forEach(clearTimeout);
-      clearInterval(interval);
-    };
-  }, [text, step, placeholders.length]);
-
-  // Detect file drag near the window
   useEffect(() => {
     const onDragEnter = (e: DragEvent) => {
       if (e.dataTransfer?.types.includes("Files")) setIsDragNear(true);
@@ -140,30 +123,25 @@ export function CaptureHome({
     };
   }, []);
 
-  // Refocus after each capture cycle
   useEffect(() => {
-    if (step === "idle") {
-      inputRef.current?.focus();
-    }
+    if (step === "idle") inputRef.current?.focus();
   }, [step]);
 
   const handleSubmit = useCallback(async () => {
     const trimmed = text.trim();
     if (!trimmed) return;
-
     setCapturedText(trimmed);
-
     const result = await onCapture(trimmed, null);
     setCapturedNoteId(result.noteId);
     setAiSuggestions(result.suggestions);
     setText("");
     setStep("assigning");
-  }, [text, projects, onCapture]);
+  }, [text, onCapture]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      handleSubmit();
+      void handleSubmit();
     }
   };
 
@@ -195,120 +173,314 @@ export function CaptureHome({
     resetAssignState();
   };
 
+  const primary = sortedProjects[0];
+  const secondary = sortedProjects.slice(1, 4);
+
+  const previewForProject = (p: Project): string => {
+    if (p.description?.trim()) return p.description.trim();
+    const items = allObjects
+      .filter((o) => o.projectId === p.id && o.kind !== "project")
+      .sort((a, b) => b.modifiedAt - a.modifiedAt);
+    if (items.length === 0) return "No items yet — capture something to get started.";
+    return items
+      .slice(0, 3)
+      .map(itemLabel)
+      .join(" · ");
+  };
+
+  const recentLinesForProject = (p: Project): string[] => {
+    return allObjects
+      .filter((o) => o.projectId === p.id && o.kind !== "project")
+      .sort((a, b) => b.modifiedAt - a.modifiedAt)
+      .slice(0, 3)
+      .map(itemLabel);
+  };
+
+  const itemCount = (pid: string) =>
+    allObjects.filter((o) => o.projectId === pid && o.kind !== "project").length;
+
   return (
-    <div className="capture-home">
-      <FloatingClusters
-        projects={projects}
-        allObjects={allObjects}
-        inputText={text}
-        onProjectClick={onProjectClick}
+    <div className="capture-home capture-home-mock">
+      <input
+        ref={fileRef}
+        type="file"
+        className="sr-only"
+        multiple
+        aria-hidden
+        tabIndex={-1}
+        onChange={(e) => {
+          const list = e.target.files;
+          if (list?.length && onAddFiles) {
+            void onAddFiles(Array.from(list));
+          }
+          e.target.value = "";
+        }}
       />
 
-      {/* Header */}
-      <div className="capture-header">
-        <span className="capture-logo">hypher</span>
-        <div className="capture-header-actions">
-        {onClipboardCapture && (
-          <button className="capture-workspace-btn" onClick={onClipboardCapture} title="Paste from clipboard (Cmd+Shift+V)">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" width={18} height={18}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M15.666 3.888A2.25 2.25 0 0 0 13.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 0 1-.75.75H9.75a.75.75 0 0 1-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 0 1-2.25 2.25H6.75A2.25 2.25 0 0 1 4.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 0 1 1.927-.184" />
+      <header className="capture-chrome-mock">
+        <div className="capture-chrome-mock__left">
+          <button
+            type="button"
+            className="capture-icon-btn"
+            aria-label="Open workspace"
+            title="Workspace"
+            onClick={onNavigateToWorkspace}
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden>
+              <line x1="2" y1="4" x2="14" y2="4" />
+              <line x1="2" y1="8" x2="14" y2="8" />
+              <line x1="2" y1="12" x2="14" y2="12" />
             </svg>
           </button>
-        )}
-        <button className="capture-workspace-btn" onClick={onNavigateToWorkspace} title="Open workspace">
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" width={18} height={18}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6A2.25 2.25 0 0 1 6 3.75h2.25A2.25 2.25 0 0 1 10.5 6v2.25a2.25 2.25 0 0 1-2.25 2.25H6a2.25 2.25 0 0 1-2.25-2.25V6ZM3.75 15.75A2.25 2.25 0 0 1 6 13.5h2.25a2.25 2.25 0 0 1 2.25 2.25V18a2.25 2.25 0 0 1-2.25 2.25H6A2.25 2.25 0 0 1 3.75 18v-2.25ZM13.5 6a2.25 2.25 0 0 1 2.25-2.25H18A2.25 2.25 0 0 1 20.25 6v2.25A2.25 2.25 0 0 1 18 10.5h-2.25a2.25 2.25 0 0 1-2.25-2.25V6ZM13.5 15.75a2.25 2.25 0 0 1 2.25-2.25H18a2.25 2.25 0 0 1 2.25 2.25V18A2.25 2.25 0 0 1 18 20.25h-2.25A2.25 2.25 0 0 1 13.5 18v-2.25Z" />
-          </svg>
-        </button>
+          <span className="capture-wordmark-mock">hypher</span>
         </div>
-      </div>
-
-      {/* Center capture area */}
-      <div className="capture-center">
-        <div
-          className={`capture-input-wrap ${isDragNear ? "drag-glow" : ""}`}
-          data-onboarding-target={ONBOARDING_TARGETS.captureInput}
-        >
-          <input
-            ref={inputRef}
-            className={`capture-input ${text ? "has-text" : ""}`}
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder=""
-            disabled={step === "assigning"}
-          />
-          {!text && step === "idle" && (
-            <span className={`capture-placeholder ${textVisible ? "visible" : ""}`} key={placeholderIndex}>
-              {placeholders[placeholderIndex]}
-            </span>
-          )}
-          {!text && step === "idle" && cursorVisible && <span className="capture-cursor" />}
-          {!text && step === "idle" && (
-            <div className={`capture-drop-hint ${isDragNear ? "visible" : ""}`} aria-hidden>
-              <svg xmlns="http://www.w3.org/2000/svg" width={22} height={22} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.65" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                <path d="m17 8-5-5-5 5" />
-                <path d="M12 3v12" />
+        <div className="capture-chrome-mock__right">
+          {onSearchClick ? (
+            <button type="button" className="capture-icon-btn" aria-label="Search" title="Search (⌘K)" onClick={onSearchClick}>
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden>
+                <circle cx="7" cy="7" r="5" />
+                <line x1="11" y1="11" x2="14" y2="14" />
               </svg>
-            </div>
-          )}
+            </button>
+          ) : null}
+          {onDigestClick ? (
+            <button type="button" className="capture-icon-btn" aria-label="Daily digest" title="Digest (⌘D)" onClick={onDigestClick}>
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <path d="M3.5 6a4.5 4.5 0 0 1 9 0v3l1.5 2.5H2L3.5 9V6z" />
+                <path d="M6 12.5a2 2 0 0 0 4 0" />
+              </svg>
+            </button>
+          ) : null}
+          <UserButton />
         </div>
+      </header>
 
+      <main className="capture-home-mock__main">
+        <section className="home-hero-mock">
+          <p className="home-greeting-mock">
+            {weekdayPart()} {daypartLabel()}, <span className="home-greeting-name">{firstName}</span>
+          </p>
+          <h1 className="home-hero-title-mock">what&apos;s on your mind?</h1>
 
-        {step === "idle" && !text && (
-          <div className="capture-hints">
-            <span className="capture-hint">
-              <kbd className="hint-kbd">⌘</kbd>
-              <kbd className="hint-kbd">↵</kbd>
-              <span>capture</span>
-            </span>
-            <span className="capture-hint-sep" />
-            <span className="capture-hint">
-              <kbd className="hint-kbd">⌘</kbd>
-              <kbd className="hint-kbd">⇧</kbd>
-              <kbd className="hint-kbd">V</kbd>
-              <span>paste</span>
-            </span>
-            <span className="capture-hint-sep" />
-            <span className="capture-hint">
-              <kbd className="hint-kbd">⌘</kbd>
-              <kbd className="hint-kbd">K</kbd>
-              <span>search</span>
-            </span>
-          </div>
-        )}
-
-        {step === "assigning" && (
-          <ProjectAssignPopup
-            text={capturedText}
-            projects={projects}
-            aiSuggestions={aiSuggestions}
-            onAssign={handleAssign}
-            onInbox={handleInbox}
-            onNewProject={handleNewProject}
-            onDismiss={handleDismiss}
-          />
-        )}
-
-        {onNotionImport && step === "idle" && !text && (
-          <button className="notion-import-btn" onClick={onNotionImport}>
-            Import from Notion
-          </button>
-        )}
-
-        {projects.length === 0 && step === "idle" && !text && (
-          <div className="capture-clusters-empty">
-            <p className="capture-clusters-empty-title">Project constellations appear here</p>
-            <p className="capture-clusters-empty-sub">
-              Create a project from the workspace sidebar to see floating clusters around this field. They’re not missing — there’s nothing to orbit yet.
-            </p>
-            <button type="button" className="capture-clusters-empty-btn" onClick={onNavigateToWorkspace}>
-              Open workspace
+          <div
+            className={`home-input-shell-mock ${isDragNear ? "is-drag" : ""}`}
+            data-onboarding-target={ONBOARDING_TARGETS.captureInput}
+          >
+            <input
+              ref={inputRef}
+              className="home-input-mock"
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="say it simply…"
+              disabled={step === "assigning"}
+            />
+            <button
+              type="button"
+              className="home-input-submit-mock"
+              aria-label="Capture"
+              title="Capture"
+              disabled={step === "assigning"}
+              onClick={() => void handleSubmit()}
+            >
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <path d="M8 3.5v9M3.5 8h9" />
+              </svg>
             </button>
           </div>
-        )}
-      </div>
+
+          {step === "idle" && (
+            <div className="home-quick-row-mock">
+              {onClipboardCapture ? (
+                <button type="button" className="home-quick-mock" onClick={onClipboardCapture}>
+                  <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                    <rect x="3" y="2" width="10" height="12" rx="1" />
+                    <path d="M6 5h4M6 8h4M6 11h2" />
+                  </svg>
+                  paste from clipboard
+                </button>
+              ) : null}
+              {onAddFiles ? (
+                <button type="button" className="home-quick-mock" onClick={() => fileRef.current?.click()}>
+                  <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                    <path d="M8 2v8M5 7l3 3 3-3M3 13h10" />
+                  </svg>
+                  upload file
+                </button>
+              ) : null}
+              {onNotionImport ? (
+                <button type="button" className="home-quick-mock" onClick={onNotionImport}>
+                  <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden>
+                    <rect x="2" y="2" width="5" height="5" rx="0.5" />
+                    <rect x="9" y="2" width="5" height="5" rx="0.5" />
+                    <rect x="2" y="9" width="5" height="5" rx="0.5" />
+                    <rect x="9" y="9" width="5" height="5" rx="0.5" />
+                  </svg>
+                  import from notion
+                </button>
+              ) : null}
+            </div>
+          )}
+
+          {step === "idle" && (
+            <div className="home-kbd-hints-mock">
+              <span>
+                <kbd className="hint-kbd">⌘</kbd>
+                <kbd className="hint-kbd">↵</kbd> capture
+              </span>
+              <span className="capture-hint-sep" />
+              <span>
+                <kbd className="hint-kbd">⌘</kbd>
+                <kbd className="hint-kbd">⇧</kbd>
+                <kbd className="hint-kbd">V</kbd> paste
+              </span>
+              {onSearchClick ? (
+                <>
+                  <span className="capture-hint-sep" />
+                  <span>
+                    <kbd className="hint-kbd">⌘</kbd>
+                    <kbd className="hint-kbd">K</kbd> search
+                  </span>
+                </>
+              ) : null}
+            </div>
+          )}
+
+          {step === "assigning" && (
+            <ProjectAssignPopup
+              text={capturedText}
+              projects={projects}
+              aiSuggestions={aiSuggestions}
+              onAssign={handleAssign}
+              onInbox={handleInbox}
+              onNewProject={handleNewProject}
+              onDismiss={handleDismiss}
+            />
+          )}
+        </section>
+
+        {projects.length > 0 && onDigestClick && digestPreviewText ? (
+          <button type="button" className="home-digest-mock" onClick={onDigestClick}>
+            <span className="home-digest-dot" aria-hidden />
+            <span className="home-digest-text">{digestPreviewText}</span>
+            <span className="home-digest-action">open →</span>
+          </button>
+        ) : null}
+
+        <section className="home-projects-section-mock">
+          <div className="home-projects-head-mock">
+            <h2 className="home-projects-title-mock">projects</h2>
+            <span className="home-projects-meta-mock">{activeCount} active</span>
+          </div>
+
+          {projects.length === 0 && step === "idle" ? (
+            <div className="capture-clusters-empty">
+              <p className="capture-clusters-empty-title">No projects yet</p>
+              <p className="capture-clusters-empty-sub">
+                Capture a thought, then sort it into a new project — or open the workspace to create one from the sidebar.
+              </p>
+              <button type="button" className="capture-clusters-empty-btn" onClick={onNavigateToWorkspace}>
+                Open workspace
+              </button>
+            </div>
+          ) : (
+            <div className="home-projects-grid-mock">
+              {primary ? (
+                <article
+                  key={primary.id}
+                  className="home-project-card-mock home-project-card-mock--primary"
+                  onClick={() => onProjectClick(primary.id)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      onProjectClick(primary.id);
+                    }
+                  }}
+                  role="button"
+                  tabIndex={0}
+                >
+                  <div className="home-project-card-head-mock">
+                    <h3 className="home-project-name-mock">{primary.name}</h3>
+                    {projectHealthScores[primary.id] != null ? (
+                      <div
+                        className="home-project-health-wrap"
+                        onClick={(e) => e.stopPropagation()}
+                        onKeyDown={(e) => e.stopPropagation()}
+                      >
+                        <HealthRing score={projectHealthScores[primary.id]!} size={20} strokeWidth={2} />
+                      </div>
+                    ) : null}
+                  </div>
+                  <p className="home-project-summary-mock">{previewForProject(primary)}</p>
+                  <ul className="home-project-items-mock">
+                    {recentLinesForProject(primary).map((line, i) => (
+                      <li key={i} className="home-project-item-mock">
+                        <svg className="home-project-item-ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden>
+                          <rect x="2" y="3" width="12" height="10" rx="1.5" />
+                          <path d="M5 7h6M5 10h4" />
+                        </svg>
+                        <span className="home-project-item-text">{line}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  <div className="home-project-foot-mock">
+                    <span>{itemCount(primary.id)} items</span>
+                    <span>edited {formatRelative(primary.modifiedAt)}</span>
+                  </div>
+                </article>
+              ) : null}
+
+              {secondary.map((p) => (
+                <article
+                  key={p.id}
+                  className="home-project-card-mock"
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => onProjectClick(p.id)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      onProjectClick(p.id);
+                    }
+                  }}
+                >
+                  <div className="home-project-card-head-mock">
+                    <h3 className="home-project-name-mock">{p.name}</h3>
+                    {projectHealthScores[p.id] != null ? (
+                      <div
+                        className="home-project-health-wrap"
+                        onClick={(e) => e.stopPropagation()}
+                        onKeyDown={(e) => e.stopPropagation()}
+                      >
+                        <HealthRing score={projectHealthScores[p.id]!} size={20} strokeWidth={2} />
+                      </div>
+                    ) : null}
+                  </div>
+                  <div className="home-project-foot-mock">
+                    <span>{itemCount(p.id)} items</span>
+                    <span>{formatRelative(p.modifiedAt)}</span>
+                  </div>
+                </article>
+              ))}
+
+              <button type="button" className="home-project-new-mock" onClick={onNavigateToWorkspace}>
+                <svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden>
+                  <path d="M8 3v10M3 8h10" />
+                </svg>
+                <span>new project</span>
+              </button>
+            </div>
+          )}
+        </section>
+
+        <footer className="capture-home-links-mock">
+          <Link href="/app/settings/api-keys">API keys</Link>
+          <span aria-hidden className="capture-home-links-sep">
+            ·
+          </span>
+          <Link href="/app/settings/integrations">Integrations</Link>
+        </footer>
+      </main>
     </div>
   );
 }

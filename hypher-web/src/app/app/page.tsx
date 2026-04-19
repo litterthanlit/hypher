@@ -15,6 +15,7 @@ import { OnboardingTour } from "@/components/OnboardingTour";
 import { AppErrorBoundary } from "@/components/AppErrorBoundary";
 import { SearchDialog } from "@/components/SearchDialog";
 import { AppChromeNav } from "@/components/AppChromeNav";
+import { HealthRing } from "@/components/HealthRing";
 import { InboxReviewPanel } from "@/components/InboxReviewPanel";
 import { generateSeedData } from "@/lib/notion-seed";
 import {
@@ -26,6 +27,7 @@ import {
   type OnboardingState,
 } from "@/lib/onboarding";
 import { toast } from "sonner";
+import { computeHealthScore, type HealthInputs } from "@/lib/health";
 import type { ArtifactType, ObjectKind } from "@/types";
 
 function guessArtifactType(filename: string): ArtifactType {
@@ -47,6 +49,24 @@ export default function AppHome() {
   const skipTags = !store.clerkLoaded || !store.isSignedIn;
   const tagsList = useQuery(api.tags.listWithCounts, skipTags ? "skip" : {});
   const demoDigestText = useQuery(api.seed.getDemoDigest, skipTags ? "skip" : {});
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const healthInputsList = useQuery((api as any).projects.healthInputs, skipTags ? "skip" : {});
+  const projectHealthScores = useMemo(() => {
+    if (!healthInputsList) return {} as Record<string, number>;
+    const now = Date.now();
+    const m: Record<string, number> = {};
+    for (const row of healthInputsList as HealthInputs[]) {
+      m[row.projectId] = computeHealthScore(row, now).score;
+    }
+    return m;
+  }, [healthInputsList]);
+
+  const digestPreviewText = useMemo(() => {
+    const raw = demoDigestText;
+    if (typeof raw !== "string" || !raw.trim()) return null;
+    const oneLine = raw.replace(/\s+/g, " ").trim();
+    return oneLine.length > 160 ? `${oneLine.slice(0, 157)}…` : oneLine;
+  }, [demoDigestText]);
   const onboardingState = useQuery(
     // typegen pending convex dev/codegen for this new module
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -162,7 +182,7 @@ export default function AppHome() {
     const handler = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "k") {
         e.preventDefault();
-        if (appMode === "workspace") setShowSearch((s) => !s);
+        setShowSearch((s) => !s);
       }
       if ((e.metaKey || e.ctrlKey) && e.key === "n") {
         e.preventDefault();
@@ -218,57 +238,85 @@ export default function AppHome() {
     return () => { clearTimeout(initial); clearInterval(interval); };
   }, [store.objects.length > 0]);
 
-  // File drop — reads images as thumbnails
-  const handleDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setDragOver(false);
-    for (const file of Array.from(e.dataTransfer.files)) {
-      const artifactType = guessArtifactType(file.name);
-      const isImage = artifactType === "image";
-
-      if (isImage) {
-        const reader = new FileReader();
-        reader.onload = () => {
-          // Resize to thumbnail
-          const img = new Image();
-          img.onload = () => {
-            const canvas = document.createElement("canvas");
-            const maxSize = 400;
-            const scale = Math.min(maxSize / img.width, maxSize / img.height, 1);
-            canvas.width = img.width * scale;
-            canvas.height = img.height * scale;
-            const ctx = canvas.getContext("2d")!;
-            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-            const thumbnailDataUrl = canvas.toDataURL("image/jpeg", 0.7);
-            store.addObject({
-              id: crypto.randomUUID(),
-              kind: "artifact",
-              name: file.name.replace(/\.[^/.]+$/, ""),
-              type: artifactType,
-              fileReference: file.name,
-              thumbnailDataUrl,
-              createdAt: Date.now(),
-              modifiedAt: Date.now(),
-              projectId: selectedProjectId,
-            });
-          };
-          img.src = reader.result as string;
-        };
-        reader.readAsDataURL(file);
-      } else {
-        store.addObject({
+  const ingestLocalFiles = useCallback(
+    (
+      files: File[],
+      projectId: string | null,
+      opts?: { canvasAnchor?: { x: number; y: number } },
+    ) => {
+      const anchor = opts?.canvasAnchor;
+      files.forEach((file, index) => {
+        const canvasPosition = anchor
+          ? { x: anchor.x + index * 36, y: anchor.y + index * 28 }
+          : undefined;
+        const artifactType = guessArtifactType(file.name);
+        const isImage = artifactType === "image";
+        const baseArtifact = {
           id: crypto.randomUUID(),
-          kind: "artifact",
+          kind: "artifact" as const,
           name: file.name.replace(/\.[^/.]+$/, ""),
           type: artifactType,
           fileReference: file.name,
           createdAt: Date.now(),
           modifiedAt: Date.now(),
-          projectId: selectedProjectId,
-        });
-      }
-    }
-  }, [store, selectedProjectId]);
+          projectId,
+          ...(canvasPosition ? { canvasPosition } : {}),
+        };
+
+        if (isImage) {
+          const reader = new FileReader();
+          reader.onload = () => {
+            const img = new Image();
+            img.onload = () => {
+              const canvas = document.createElement("canvas");
+              const maxSize = 400;
+              const scale = Math.min(maxSize / img.width, maxSize / img.height, 1);
+              canvas.width = img.width * scale;
+              canvas.height = img.height * scale;
+              const ctx = canvas.getContext("2d")!;
+              ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+              const thumbnailDataUrl = canvas.toDataURL("image/jpeg", 0.7);
+              void store.addObject({
+                ...baseArtifact,
+                thumbnailDataUrl,
+              });
+            };
+            img.src = reader.result as string;
+          };
+          reader.readAsDataURL(file);
+        } else {
+          void store.addObject(baseArtifact);
+        }
+      });
+    },
+    [store],
+  );
+
+  const handleAddCaptureFiles = useCallback(
+    (files: File[]) => {
+      ingestLocalFiles(files, null);
+      toast.success(files.length === 1 ? "Added file to inbox" : `Added ${files.length} files to inbox`);
+    },
+    [ingestLocalFiles],
+  );
+
+  const handleCanvasFileImport = useCallback(
+    (files: File[], canvasX: number, canvasY: number) => {
+      if (!selectedProjectId) return;
+      ingestLocalFiles(files, selectedProjectId, { canvasAnchor: { x: canvasX, y: canvasY } });
+      toast.success(files.length === 1 ? "Added to canvas" : `Added ${files.length} files to canvas`);
+    },
+    [ingestLocalFiles, selectedProjectId],
+  );
+
+  const handleDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      setDragOver(false);
+      ingestLocalFiles(Array.from(e.dataTransfer.files), selectedProjectId);
+    },
+    [ingestLocalFiles, selectedProjectId]
+  );
 
   const handleDragOver = useCallback((e: React.DragEvent) => { e.preventDefault(); setDragOver(true); }, []);
   const handleDragLeave = useCallback(() => setDragOver(false), []);
@@ -402,6 +450,11 @@ export default function AppHome() {
       })()
     : [];
   const projectConnections = store.connections.filter((c) => c.type !== "dismissed");
+  const currentProject = selectedProjectId ? store.projects.find((p) => p.id === selectedProjectId) : null;
+  const toolbarHealthScore =
+    selectedProjectId && projectHealthScores[selectedProjectId] != null
+      ? projectHealthScores[selectedProjectId]!
+      : null;
   const onboardingUi = (
     <>
       <WelcomeOverlay
@@ -424,7 +477,6 @@ export default function AppHome() {
   if (appMode === "capture") {
     return (
       <div className="capture-root" onDrop={handleDrop} onDragOver={handleDragOver} onDragLeave={handleDragLeave}>
-        <AppChromeNav layout="floating" />
         <CaptureHome
           projects={store.projects}
           allObjects={store.objects}
@@ -440,6 +492,11 @@ export default function AppHome() {
           }}
           onClipboardCapture={store.captureFromClipboard}
           onNotionImport={notionImported ? undefined : handleNotionImport}
+          onSearchClick={() => setShowSearch(true)}
+          onDigestClick={() => setShowDigest(true)}
+          digestPreviewText={digestPreviewText}
+          projectHealthScores={projectHealthScores}
+          onAddFiles={handleAddCaptureFiles}
         />
         {dragOver && (
           <div className="drop-overlay">
@@ -453,6 +510,40 @@ export default function AppHome() {
         )}
         {store.modelLoading && (
           <div className="loading-bar"><span className="loading-dot" />Loading embedding model...</div>
+        )}
+        {showSearch && (
+          <SearchDialog
+            search={store.search}
+            onSelect={(id) => {
+              store.setSelectedId(id);
+              setShowSearch(false);
+            }}
+            onClose={() => setShowSearch(false)}
+            tags={tags}
+            onSelectTag={() => {
+              store.setSelectedId(null);
+              setShowSearch(false);
+            }}
+          />
+        )}
+        {showDigest && (
+          <AppErrorBoundary label="Digest">
+            <DailyDigest
+              projects={store.projects}
+              allObjects={store.objects}
+              demoDigestText={demoDigestText}
+              onDismiss={() => {
+                setShowDigest(false);
+                localStorage.setItem("hypher-last-digest-date", new Date().toISOString().slice(0, 10));
+              }}
+              onSelectProject={(id) => {
+                setSelectedProjectId(id);
+                store.setSelectedId(id);
+                setContentMode("canvas");
+                setAppMode("workspace");
+              }}
+            />
+          </AppErrorBoundary>
         )}
         {onboardingUi}
       </div>
@@ -488,8 +579,8 @@ export default function AppHome() {
       />
 
       <div className="main-panel">
-        <div className="main-toolbar">
-          <div className="main-toolbar__start">
+        <div className="main-toolbar workspace-chrome">
+          <div className="workspace-chrome__left">
             <button
               type="button"
               className="main-toolbar__menu-btn"
@@ -505,19 +596,126 @@ export default function AppHome() {
                 )}
               </svg>
             </button>
-            <button className="mode-toggle" onClick={toggleContentMode} disabled={!selectedProjectId} title={`Switch to ${contentMode === "canvas" ? "list" : "canvas"} (Tab)`}>
-              {contentMode === "canvas" ? (
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" width={16} height={16}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25H12" />
-                </svg>
-              ) : (
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" width={16} height={16}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6A2.25 2.25 0 0 1 6 3.75h2.25A2.25 2.25 0 0 1 10.5 6v2.25a2.25 2.25 0 0 1-2.25 2.25H6a2.25 2.25 0 0 1-2.25-2.25V6ZM3.75 15.75A2.25 2.25 0 0 1 6 13.5h2.25a2.25 2.25 0 0 1 2.25 2.25V18a2.25 2.25 0 0 1-2.25 2.25H6A2.25 2.25 0 0 1 3.75 18v-2.25ZM13.5 6a2.25 2.25 0 0 1 2.25-2.25H18A2.25 2.25 0 0 1 20.25 6v2.25A2.25 2.25 0 0 1 18 10.5h-2.25a2.25 2.25 0 0 1-2.25-2.25V6ZM13.5 15.75a2.25 2.25 0 0 1 2.25-2.25H18a2.25 2.25 0 0 1 2.25 2.25V18A2.25 2.25 0 0 1 18 20.25h-2.25A2.25 2.25 0 0 1 13.5 18v-2.25Z" />
-                </svg>
-              )}
+            <button
+              type="button"
+              className="workspace-chrome-back"
+              aria-label="Back to capture home"
+              title="Home (⌘N)"
+              onClick={() => {
+                setMobileSidebarOpen(false);
+                setAppMode("capture");
+              }}
+            >
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <path d="M10 3 5 8l5 5" />
+              </svg>
             </button>
+            <nav className="workspace-breadcrumb" aria-label="Breadcrumb">
+              <span className="workspace-breadcrumb__brand">hypher</span>
+              <span className="workspace-breadcrumb__sep">/</span>
+              <span className="workspace-breadcrumb__current">
+                {contentMode === "dashboard"
+                  ? "dashboard"
+                  : contentMode === "inbox"
+                    ? "inbox"
+                    : currentProject?.name ?? "workspace"}
+              </span>
+            </nav>
           </div>
-          <AppChromeNav layout="toolbar" showSearch onSearchClick={() => setShowSearch(true)} />
+
+          <div className="workspace-chrome__center">
+            <div className="workspace-view-toggle" role="tablist" aria-label="Content view">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={contentMode === "canvas"}
+                className={contentMode === "canvas" ? "is-active" : ""}
+                disabled={!selectedProjectId}
+                onClick={() => setContentMode("canvas")}
+              >
+                <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden>
+                  <circle cx="4" cy="4" r="1.5" />
+                  <circle cx="12" cy="6" r="1.5" />
+                  <circle cx="6" cy="12" r="1.5" />
+                  <circle cx="12" cy="12" r="1.5" />
+                </svg>
+                canvas
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={contentMode === "list"}
+                className={contentMode === "list" ? "is-active" : ""}
+                disabled={!selectedProjectId}
+                onClick={() => setContentMode("list")}
+              >
+                <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden>
+                  <line x1="3" y1="4" x2="13" y2="4" />
+                  <line x1="3" y1="8" x2="13" y2="8" />
+                  <line x1="3" y1="12" x2="13" y2="12" />
+                </svg>
+                list
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={contentMode === "dashboard"}
+                className={contentMode === "dashboard" ? "is-active" : ""}
+                onClick={() => {
+                  setSelectedProjectId(null);
+                  setContentMode("dashboard");
+                }}
+              >
+                <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden>
+                  <rect x="2" y="2" width="5" height="5" rx="0.5" />
+                  <rect x="9" y="2" width="5" height="5" rx="0.5" />
+                  <rect x="2" y="9" width="5" height="5" rx="0.5" />
+                  <rect x="9" y="9" width="5" height="5" rx="0.5" />
+                </svg>
+                dashboard
+              </button>
+            </div>
+          </div>
+
+          <div className="workspace-chrome__right">
+            {toolbarHealthScore != null && selectedProjectId ? (
+              <div className="workspace-health-pill">
+                <HealthRing score={toolbarHealthScore} size={18} strokeWidth={2} />
+                <span>{toolbarHealthScore}%</span>
+              </div>
+            ) : null}
+            <button type="button" className="workspace-chrome-icon" aria-label="Daily digest" title="Digest (⌘D)" onClick={() => setShowDigest(true)}>
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <rect x="2" y="3" width="12" height="10" rx="1.5" />
+                <path d="M2 5 8 9l6-4" />
+              </svg>
+            </button>
+            {selectedProjectId && contentMode === "canvas" ? (
+              <button
+                type="button"
+                className="workspace-chrome-icon workspace-chrome-icon--on"
+                aria-label="Ambient Ask"
+                title="Ambient Ask — uses items near the center of the canvas"
+                onClick={() => window.dispatchEvent(new Event("hypher-open-ambient-ask"))}
+              >
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <circle cx="8" cy="8" r="6" />
+                  <path d="M8 11v.01" />
+                  <path d="M6.5 6.5a1.5 1.5 0 0 1 3 0c0 1-1.5 1.5-1.5 2.5" />
+                </svg>
+              </button>
+            ) : null}
+            {selectedProjectId ? (
+              <button
+                type="button"
+                className="workspace-share-btn"
+                onClick={() => window.dispatchEvent(new Event("hypher-open-project-settings"))}
+              >
+                share
+              </button>
+            ) : null}
+            <AppChromeNav layout="toolbar" showSearch onSearchClick={() => setShowSearch(true)} />
+          </div>
         </div>
 
         {contentMode === "dashboard" ? (
@@ -587,6 +785,7 @@ export default function AppHome() {
               onRestoreConnections={store.restoreConnections}
               onCreateManualConnection={store.createManualConnection}
               onLogView={store.logProjectView}
+              onImportFilesAtCanvas={handleCanvasFileImport}
             />
           </AppErrorBoundary>
         ) : (

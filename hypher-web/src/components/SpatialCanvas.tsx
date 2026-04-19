@@ -2,6 +2,7 @@
 
 import { useRef, useState, useCallback, useEffect, useMemo } from "react";
 import { motion } from "framer-motion";
+import { toast } from "sonner";
 import { useQuery } from "convex/react";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 import { api } from "../../convex/_generated/api";
@@ -55,9 +56,16 @@ interface Props {
   onRestoreConnections: (from: Connection[], to: Connection[]) => Promise<void>;
   onCreateManualConnection: (sourceId: string, targetId: string) => Promise<void>;
   onLogView?: (projectId: string) => void;
+  /** Import dropped / picked files onto the canvas at the given canvas coordinates. */
+  onImportFilesAtCanvas?: (files: File[], canvasX: number, canvasY: number) => void | Promise<void>;
   /** Public snapshot: pan/zoom only; no edits, drag, or keyboard shortcuts */
   readOnly?: boolean;
 }
+
+type AmbientNearbyPayload = { kind: string; name: string; content?: string; tags: string[] };
+type AmbientPanelState =
+  | { mode: "docked"; nearby: AmbientNearbyPayload[] }
+  | { mode: "floating"; screenX: number; screenY: number; nearby: AmbientNearbyPayload[] };
 
 interface InlineCreate {
   canvasX: number;
@@ -77,6 +85,7 @@ export function SpatialCanvas({
   onUpdatePosition, onCreateAtPosition, onConfirmConnection, onDismissConnection,
   onUpdateObject, onDeleteObjects, onDuplicateObjects,
   onRestoreObjects, onRestoreConnections, onCreateManualConnection, onLogView,
+  onImportFilesAtCanvas,
   readOnly = false,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -85,15 +94,11 @@ export function SpatialCanvas({
   const [hoveredCardId, setHoveredCardId] = useState<string | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const captureBarInputRef = useRef<HTMLInputElement>(null);
+  const canvasUploadRef = useRef<HTMLInputElement>(null);
+  const [quickCaptureText, setQuickCaptureText] = useState("");
 
-  // Ambient Ask panel state — null when closed.
-  // screenX/screenY are viewport-relative coords from the right-click event (for panel positioning).
-  // nearby is the pre-computed list of items Claude will read.
-  const [ambientPanel, setAmbientPanel] = useState<{
-    screenX: number;
-    screenY: number;
-    nearby: { kind: string; name: string; content?: string; tags: string[] }[];
-  } | null>(null);
+  const [ambientPanel, setAmbientPanel] = useState<AmbientPanelState | null>(null);
 
   // Drop-to-suggest chip state — null when no chip is visible.
   const [chip, setChip] = useState<{
@@ -183,6 +188,23 @@ export function SpatialCanvas({
   const { transform, setTransform, canvasBg, cycleBg, animateZoom, onWheel, screenToCanvas } =
     useCanvasTransform(containerRef, projectId);
 
+  const mapItemsToAmbientPayload = useCallback(
+    (objs: AnyObject[]): AmbientNearbyPayload[] =>
+      objs.map((o) => ({
+        kind: o.kind,
+        name: o.kind === "note" ? (o as Note).content.slice(0, 200) : (o as Artifact | Project).name,
+        ...(o.kind === "note" ? { content: (o as Note).content } : {}),
+        tags: o.tags ?? [],
+      })),
+    []
+  );
+
+  const viewportCanvasCenter = useCallback(() => {
+    const rect = containerRef.current?.getBoundingClientRect();
+    if (!rect) return { x: 0, y: 0 };
+    return screenToCanvas(rect.left + rect.width / 2, rect.top + rect.height / 2);
+  }, [screenToCanvas]);
+
   const selection = useSelectionState();
 
   const undoRedo = useUndoRedo({
@@ -203,6 +225,39 @@ export function SpatialCanvas({
     const dist = 140 + i * 35;
     return { ...obj, canvasPosition: { x: Math.cos(angle) * dist, y: Math.sin(angle) * dist } };
   });
+
+  const positionedRef = useRef(positioned);
+  positionedRef.current = positioned;
+
+  useEffect(() => {
+    if (readOnly) return;
+    const openAskFromViewportCenter = () => {
+      setAmbientPanel((prev) => {
+        if (prev?.mode === "docked") return null;
+        const rect = containerRef.current?.getBoundingClientRect();
+        if (!rect) return prev;
+        const screenX = rect.left + rect.width / 2;
+        const screenY = rect.top + rect.height / 2;
+        const { x: canvasX, y: canvasY } = screenToCanvas(screenX, screenY);
+        const nearby = computeNearby(positionedRef.current, canvasX, canvasY);
+        if (nearby.length === 0) {
+          toast.message("Nothing nearby on the canvas to ask about.");
+          return prev;
+        }
+        return { mode: "docked", nearby: mapItemsToAmbientPayload(nearby) };
+      });
+    };
+    const openProjectSettings = () => {
+      if (project) setShowSettings(true);
+      else toast.message("Open a project to use share settings.");
+    };
+    window.addEventListener("hypher-open-ambient-ask", openAskFromViewportCenter);
+    window.addEventListener("hypher-open-project-settings", openProjectSettings);
+    return () => {
+      window.removeEventListener("hypher-open-ambient-ask", openAskFromViewportCenter);
+      window.removeEventListener("hypher-open-project-settings", openProjectSettings);
+    };
+  }, [readOnly, screenToCanvas, project, mapItemsToAmbientPayload]);
 
   const getPositionedItems = useCallback(() => positioned, [positioned]);
 
@@ -338,6 +393,48 @@ export function SpatialCanvas({
     onResetZoom: () => animateZoom(1),
   });
 
+  const handleCanvasFilesPicked = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const files = Array.from(e.target.files ?? []);
+      e.target.value = "";
+      if (files.length === 0 || !onImportFilesAtCanvas) return;
+      const { x, y } = viewportCanvasCenter();
+      void onImportFilesAtCanvas(files, x, y);
+    },
+    [onImportFilesAtCanvas, viewportCanvasCenter],
+  );
+
+  const handleRailConnect = useCallback(() => {
+    if (selection.selectionCount !== 2) {
+      toast.message("Select exactly two items, then use Connect.");
+      return;
+    }
+    const [a, b] = Array.from(selection.selectedIds);
+    void onCreateManualConnection(a, b)
+      .then(() => toast.success("Connected"))
+      .catch(() => toast.error("Could not connect"));
+  }, [selection.selectionCount, selection.selectedIds, onCreateManualConnection]);
+
+  const handleRailAddLink = useCallback(() => {
+    const raw = typeof window !== "undefined" ? window.prompt("Paste a URL or title for this link:") : null;
+    if (!raw?.trim()) return;
+    const { x, y } = viewportCanvasCenter();
+    onCreateAtPosition("artifact", raw.trim(), x, y);
+  }, [onCreateAtPosition, viewportCanvasCenter]);
+
+  const handleRailGroup = useCallback(() => {
+    toast.message("Groups are coming soon.");
+  }, []);
+
+  const handleCapturePaste = useCallback(async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      setQuickCaptureText((prev) => (prev ? `${prev} ${text}` : text));
+    } catch {
+      toast.error("Could not read clipboard");
+    }
+  }, []);
+
   const resize = useResize({
     zoomLevel: transform.k,
     onUpdateSize: handleUpdateSize,
@@ -381,7 +478,12 @@ export function SpatialCanvas({
   // ── Event handlers ──
   const onCanvasMouseDown = useCallback((e: React.MouseEvent) => {
     contextMenu.close();
-    if ((e.target as HTMLElement).closest(".spatial-card, .inline-create, .conn-popover, .spatial-controls, .canvas-toolbar")) return;
+    if (
+      (e.target as HTMLElement).closest(
+        ".spatial-card, .inline-create, .conn-popover, .spatial-controls, .canvas-toolbar, .canvas-tool-rail, .canvas-capture-bar, .canvas-zoom-dock, .ambient-ask-panel",
+      )
+    )
+      return;
     setPopover(null);
 
     if (readOnly) {
@@ -531,7 +633,12 @@ export function SpatialCanvas({
   // Click on empty space — behavior depends on mode
   const onCanvasClick = useCallback((e: React.MouseEvent) => {
     if (readOnly) return;
-    if ((e.target as HTMLElement).closest(".spatial-card, .inline-create, .spatial-controls, .conn-popover, .canvas-toolbar")) return;
+    if (
+      (e.target as HTMLElement).closest(
+        ".spatial-card, .inline-create, .spatial-controls, .conn-popover, .canvas-toolbar, .canvas-tool-rail, .canvas-capture-bar, .canvas-zoom-dock, .ambient-ask-panel",
+      )
+    )
+      return;
     if (inlineCreate) return;
     // Only if we didn't pan (< 5px movement)
     if (drag.didPanMove(e)) return;
@@ -571,6 +678,13 @@ export function SpatialCanvas({
     setInlineCreate(null);
   };
 
+  const submitQuickCapture = useCallback(() => {
+    const t = quickCaptureText.trim();
+    if (!t || readOnly) return;
+    const { x, y } = viewportCanvasCenter();
+    onCreateAtPosition("note", t, x, y);
+    setQuickCaptureText("");
+  }, [quickCaptureText, readOnly, viewportCanvasCenter, onCreateAtPosition]);
 
   // "Connect all" from the suggestion chip: fan out manual connections.
   const handleChipConnectAll = useCallback(async () => {
@@ -591,7 +705,7 @@ export function SpatialCanvas({
   }, [readOnly]);
 
   const canvasClassName = [
-    "spatial-canvas tw-relative",
+    "spatial-canvas tw-relative canvas-ui-mockup",
     readOnly ? "read-only" : "",
     canvasMode === "text" ? "text-mode" : "",
     canvasMode === "pan" ? "pan-mode" : "",
@@ -614,7 +728,12 @@ export function SpatialCanvas({
           e.preventDefault();
           return;
         }
-        if ((e.target as HTMLElement).closest(".spatial-card, .canvas-toolbar, .conn-popover, .context-menu")) return;
+        if (
+          (e.target as HTMLElement).closest(
+            ".spatial-card, .canvas-toolbar, .canvas-tool-rail, .canvas-capture-bar, .canvas-zoom-dock, .ambient-ask-panel, .conn-popover, .context-menu",
+          )
+        )
+          return;
         const rect = containerRef.current?.getBoundingClientRect();
         if (!rect) return;
         const pos = screenToCanvas(e.clientX, e.clientY);
@@ -631,10 +750,14 @@ export function SpatialCanvas({
           ))}
         </div>
       )}
-      <div className="spatial-grid" data-bg={canvasBg} style={{
-        backgroundPosition: `${transform.x}px ${transform.y}px`,
-        backgroundSize: `${24 * transform.k}px ${24 * transform.k}px`,
-      }} />
+      <div
+        className="spatial-grid"
+        data-bg={canvasBg}
+        style={{
+          backgroundPosition: `${transform.x}px ${transform.y}px`,
+          backgroundSize: `${20 * transform.k}px ${20 * transform.k}px`,
+        }}
+      />
 
       <div className="spatial-transform" style={{
         transform: `translate(${transform.x}px, ${transform.y}px) scale(${transform.k})`,
@@ -830,74 +953,168 @@ export function SpatialCanvas({
         </div>
       )}
 
-      {/* Bottom toolbar: mode switcher + zoom */}
-      <div className="canvas-toolbar">
-        {!readOnly && (
-        <div className="canvas-mode-switcher">
+      {!readOnly && onImportFilesAtCanvas && (
+        <input
+          ref={canvasUploadRef}
+          type="file"
+          multiple
+          className="canvas-upload-input"
+          aria-hidden
+          tabIndex={-1}
+          onChange={handleCanvasFilesPicked}
+        />
+      )}
+
+      {!readOnly && (
+        <aside className="canvas-tool-rail" role="toolbar" aria-label="Canvas tools">
+          {selection.selectionCount >= 2 && (
+            <div className="canvas-tool-rail-selection">{selection.selectionCount} selected</div>
+          )}
           <button
-            className={`canvas-mode-btn ${canvasMode === "select" ? "active" : ""}`}
-            onClick={() => setCanvasMode("select")}
+            type="button"
+            className={`canvas-tool-rail-btn${canvasMode === "select" ? " is-active" : ""}`}
+            aria-label="Select"
             title="Select (V)"
+            onClick={() => setCanvasMode("select")}
           >
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" width={16} height={16}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M15.042 21.672 13.684 16.6m0 0-2.51 2.225.569-9.47 5.227 7.917-3.286-.672ZM12 2.25V4.5m5.834.166-1.591 1.591M20.25 10.5H18M7.757 14.743l-1.59 1.59M6 10.5H3.75m4.007-4.243-1.59-1.59" />
+            <svg width={14} height={14} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <path d="M3 2l5 11 2-5 5-2z" />
             </svg>
           </button>
           <button
-            className={`canvas-mode-btn ${canvasMode === "pan" ? "active" : ""}`}
-            onClick={() => setCanvasMode("pan")}
-            title="Pan (H)"
+            type="button"
+            className={`canvas-tool-rail-btn${canvasMode === "text" ? " is-active" : ""}`}
+            aria-label="Add note"
+            title="Add note — click canvas to place (T)"
+            onClick={() => setCanvasMode("text")}
           >
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" width={16} height={16}>
+            <svg width={14} height={14} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" aria-hidden>
+              <rect x="3" y="3" width="10" height="10" rx="1.5" />
+              <path d="M6 7h4M6 10h3" />
+            </svg>
+          </button>
+          <button
+            type="button"
+            className="canvas-tool-rail-btn"
+            aria-label="Add link"
+            title="Add link"
+            onClick={handleRailAddLink}
+          >
+            <svg width={14} height={14} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <path d="M6 10l4-4M5 7l-2 2a2 2 0 0 0 3 3l2-2M9 6l2-2a2 2 0 0 1 3 3l-2 2" />
+            </svg>
+          </button>
+          <button
+            type="button"
+            className="canvas-tool-rail-btn"
+            aria-label="Upload file"
+            title="Upload"
+            disabled={!onImportFilesAtCanvas}
+            onClick={() => canvasUploadRef.current?.click()}
+          >
+            <svg width={14} height={14} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <path d="M8 2v8M5 5l3-3 3 3M3 13h10" />
+            </svg>
+          </button>
+          <div className="canvas-tool-rail-divider" aria-hidden />
+          <button type="button" className="canvas-tool-rail-btn" aria-label="Connect" title="Connect two selected items" onClick={handleRailConnect}>
+            <svg width={14} height={14} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" aria-hidden>
+              <circle cx="4" cy="4" r="1.5" />
+              <circle cx="12" cy="12" r="1.5" />
+              <path d="M5 5l6 6" />
+            </svg>
+          </button>
+          <button type="button" className="canvas-tool-rail-btn" aria-label="Group" title="Group" onClick={handleRailGroup}>
+            <svg width={14} height={14} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" aria-hidden>
+              <rect x="2" y="2" width="5" height="5" rx="0.5" />
+              <rect x="9" y="9" width="5" height="5" rx="0.5" />
+            </svg>
+          </button>
+          <div className="canvas-tool-rail-divider" aria-hidden />
+          <button
+            type="button"
+            className={`canvas-tool-rail-btn${canvasMode === "pan" ? " is-active" : ""}`}
+            aria-label="Pan"
+            title="Pan (H)"
+            onClick={() => setCanvasMode("pan")}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" width={14} height={14} aria-hidden>
               <path strokeLinecap="round" strokeLinejoin="round" d="M10.05 4.575a1.575 1.575 0 1 0-3.15 0v3.15M10.05 4.575a1.575 1.575 0 0 1 3.15 0v3.15M10.05 4.575v5.1M13.2 7.725a1.575 1.575 0 0 1 3.15 0v3m-3.15-3v5.1m0-5.1a1.575 1.575 0 0 1 3.15 0m-3.15 0v5.1m3.15-5.1v1.875c0 .621.504 1.125 1.125 1.125M13.2 12.825v-1.875m0 1.875c0 .621-.504 1.125-1.125 1.125m1.125-1.125a1.125 1.125 0 0 1 1.125 1.125m-1.125-1.125v1.875m-6.3-7.5v5.1m0-5.1a1.575 1.575 0 0 0-3.15 0m3.15 0v5.1m-3.15-5.1v1.875c0 .621-.504 1.125-1.125 1.125m0 0A1.125 1.125 0 0 1 3.75 12v-1.875" />
             </svg>
           </button>
-          <button
-            className={`canvas-mode-btn ${canvasMode === "text" ? "active" : ""}`}
-            onClick={() => setCanvasMode("text")}
-            title="Text (T)"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" width={16} height={16}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.087.16 2.185.283 3.293.369V21l4.076-4.076a1.526 1.526 0 0 1 1.037-.443 48.2 48.2 0 0 0 5.887-.375c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0 0 12 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018Z" />
+          {project && (
+            <button type="button" className="canvas-tool-rail-btn" aria-label="Project settings" title="Project settings" onClick={() => setShowSettings(true)}>
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" width={14} height={14} aria-hidden>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 0 1 0 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 0 1 0-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28Z" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+              </svg>
+            </button>
+          )}
+          <button type="button" className="canvas-tool-rail-btn" aria-label="Cycle canvas background" title={`Background: ${canvasBg}`} onClick={cycleBg}>
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" width={14} height={14} aria-hidden>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6A2.25 2.25 0 0 1 6 3.75h2.25A2.25 2.25 0 0 1 10.5 6v2.25a2.25 2.25 0 0 1-2.25 2.25H6a2.25 2.25 0 0 1-2.25-2.25V6ZM3.75 15.75A2.25 2.25 0 0 1 6 13.5h2.25a2.25 2.25 0 0 1 2.25 2.25V18a2.25 2.25 0 0 1-2.25 2.25H6A2.25 2.25 0 0 1 3.75 18v-2.25ZM13.5 6a2.25 2.25 0 0 1 2.25-2.25H18A2.25 2.25 0 0 1 20.25 6v2.25A2.25 2.25 0 0 1 18 10.5h-2.25a2.25 2.25 0 0 1-2.25-2.25V6ZM13.5 15.75a2.25 2.25 0 0 1 2.25-2.25H18a2.25 2.25 0 0 1 2.25 2.25V18A2.25 2.25 0 0 1 18 20.25h-2.25a2.25 2.25 0 0 1-2.25-2.25v-2.25Z" />
             </svg>
+          </button>
+        </aside>
+      )}
+
+      {!readOnly && (
+        <div className="canvas-capture-bar">
+          <svg width={14} height={14} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" className="canvas-capture-bar-lead" aria-hidden>
+            <path d="M8 3.5v9M3.5 8h9" />
+          </svg>
+          <input
+            ref={captureBarInputRef}
+            type="text"
+            className="canvas-capture-input"
+            placeholder="add to canvas…"
+            value={quickCaptureText}
+            onChange={(e) => setQuickCaptureText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                submitQuickCapture();
+              }
+            }}
+          />
+          <div className="canvas-capture-actions">
+            <button type="button" className="canvas-capture-icon-btn" aria-label="Paste from clipboard" title="Paste" onClick={() => void handleCapturePaste()}>
+              <svg width={13} height={13} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <rect x="3" y="2" width="10" height="12" rx="1" />
+                <path d="M6 5h4M6 8h4M6 11h2" />
+              </svg>
+            </button>
+            <button
+              type="button"
+              className="canvas-capture-icon-btn"
+              aria-label="Upload"
+              title="Upload"
+              disabled={!onImportFilesAtCanvas}
+              onClick={() => canvasUploadRef.current?.click()}
+            >
+              <svg width={13} height={13} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <path d="M8 2v8M5 5l3-3 3 3M3 13h10" />
+              </svg>
+            </button>
+          </div>
+          <button type="button" className="canvas-capture-submit" onClick={submitQuickCapture}>
+            add <kbd className="canvas-capture-kbd">↵</kbd>
           </button>
         </div>
-        )}
+      )}
 
-        {!readOnly && selection.selectionCount >= 2 && (
-          <span className="selection-count">{selection.selectionCount} selected</span>
-        )}
-
-        {!readOnly && project && (
-          <button
-            className="canvas-mode-btn"
-            onClick={() => setShowSettings(true)}
-            title="Project Settings"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" width={16} height={16}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 0 1 0 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 0 1 0-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28Z" />
-              <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
-            </svg>
-          </button>
-        )}
-
-        {!readOnly && (
-        <button
-          className="canvas-mode-btn"
-          onClick={cycleBg}
-          title={`Background: ${canvasBg}`}
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" width={16} height={16}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6A2.25 2.25 0 0 1 6 3.75h2.25A2.25 2.25 0 0 1 10.5 6v2.25a2.25 2.25 0 0 1-2.25 2.25H6a2.25 2.25 0 0 1-2.25-2.25V6ZM3.75 15.75A2.25 2.25 0 0 1 6 13.5h2.25a2.25 2.25 0 0 1 2.25 2.25V18a2.25 2.25 0 0 1-2.25 2.25H6A2.25 2.25 0 0 1 3.75 18v-2.25ZM13.5 6a2.25 2.25 0 0 1 2.25-2.25H18A2.25 2.25 0 0 1 20.25 6v2.25A2.25 2.25 0 0 1 18 10.5h-2.25a2.25 2.25 0 0 1-2.25-2.25V6ZM13.5 15.75a2.25 2.25 0 0 1 2.25-2.25H18a2.25 2.25 0 0 1 2.25 2.25V18A2.25 2.25 0 0 1 18 20.25h-2.25a2.25 2.25 0 0 1-2.25-2.25v-2.25Z" />
+      <div className="canvas-zoom-dock" aria-label="Zoom">
+        <button type="button" className="canvas-zoom-btn" aria-label="Zoom out" title="Zoom out (-)" onClick={() => animateZoom(Math.max(0.15, transform.k * 0.8))}>
+          <svg width={12} height={12} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" aria-hidden>
+            <path d="M4 8h8" />
           </svg>
         </button>
-        )}
-
-        <div className="spatial-controls">
-          <button className="btn-icon" onClick={() => animateZoom(Math.min(3, transform.k * 1.25))} title="Zoom in">+</button>
-          <span className="spatial-zoom-label">{Math.round(transform.k * 100)}%</span>
-          <button className="btn-icon" onClick={() => animateZoom(Math.max(0.15, transform.k * 0.8))} title="Zoom out">-</button>
-        </div>
+        <span className="canvas-zoom-value">{Math.round(transform.k * 100)}%</span>
+        <button type="button" className="canvas-zoom-btn" aria-label="Zoom in" title="Zoom in (+)" onClick={() => animateZoom(Math.min(3, transform.k * 1.25))}>
+          <svg width={12} height={12} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" aria-hidden>
+            <path d="M8 4v8M4 8h8" />
+          </svg>
+        </button>
       </div>
 
       {items.length === 0 && (
@@ -950,16 +1167,10 @@ export function SpatialCanvas({
             const screenX = (rect?.left ?? 0) + contextMenu.menu!.position.x;
             const screenY = (rect?.top ?? 0) + contextMenu.menu!.position.y;
             setAmbientPanel({
+              mode: "floating",
               screenX,
               screenY,
-              nearby: nearby.map((o) => ({
-                kind: o.kind,
-                name: o.kind === "note"
-                  ? (o as import("@/types").Note).content.slice(0, 200)
-                  : (o as import("@/types").Artifact | import("@/types").Project).name,
-                ...(o.kind === "note" ? { content: (o as import("@/types").Note).content } : {}),
-                tags: o.tags ?? [],
-              })),
+              nearby: mapItemsToAmbientPayload(nearby),
             });
             contextMenu.close();
           }}
@@ -983,9 +1194,11 @@ export function SpatialCanvas({
           zoom/pan with the canvas. Uses position:fixed anchored to the right-click screen coords. */}
       {!readOnly && ambientPanel && (
         <AmbientAskPanel
-          screenX={ambientPanel.screenX}
-          screenY={ambientPanel.screenY}
+          variant={ambientPanel.mode}
+          screenX={ambientPanel.mode === "floating" ? ambientPanel.screenX : 0}
+          screenY={ambientPanel.mode === "floating" ? ambientPanel.screenY : 0}
           nearby={ambientPanel.nearby}
+          contextLabel={project?.name}
           onClose={() => setAmbientPanel(null)}
         />
       )}
