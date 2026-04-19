@@ -85,6 +85,29 @@ export default defineSchema({
     .index("by_type", ["type"])
     .index("by_user", ["userId"]),
 
+  projectMemories: defineTable({
+    userId: v.string(),
+    projectId: v.id("objects"),
+    summary: v.string(),
+    currentDirection: v.string(),
+    recentChanges: v.array(v.string()),
+    openQuestions: v.array(v.string()),
+    nextActions: v.array(v.object({
+      id: v.string(),
+      title: v.string(),
+      rationale: v.string(),
+      status: v.union(v.literal("suggested"), v.literal("accepted"), v.literal("dismissed")),
+      createdAt: v.number(),
+      updatedAt: v.number(),
+    })),
+    generatedAt: v.number(),
+    sourceUpdatedAt: v.number(),
+    model: v.string(),
+    error: v.optional(v.string()),
+  })
+    .index("by_user", ["userId"])
+    .index("by_user_project", ["userId", "projectId"]),
+
   githubTokens: defineTable({
     userId: v.string(),
     accessToken: v.string(),

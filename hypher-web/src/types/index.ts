@@ -3,6 +3,8 @@ export type NoteMaturity = "fleeting" | "developing" | "structured" | "reference
 export type ArtifactType = "image" | "video" | "code" | "document" | "font" | "audio" | "other";
 export type ConnectionType = "manual" | "ai_suggested" | "ai_confirmed" | "dismissed";
 export type ObjectKind = "project" | "note" | "artifact";
+export type ProjectMemoryStatus = "fresh" | "stale" | "empty" | "generating" | "error";
+export type ProjectNextActionStatus = "suggested" | "accepted" | "dismissed";
 
 export interface CanvasPosition {
   x: number;
@@ -77,9 +79,35 @@ export interface ActivityEntry {
   targetKind?: ObjectKind;
   targetName?: string;
   timestamp: number;
+  projectId?: string;
+  activityType?: string;
+  summary?: string;
 }
 
 export type AnyObject = Project | Note | Artifact;
+
+export interface ProjectNextAction {
+  id: string;
+  title: string;
+  rationale: string;
+  status: ProjectNextActionStatus;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface ProjectMemory {
+  id?: string;
+  projectId: string;
+  summary: string;
+  currentDirection: string;
+  recentChanges: string[];
+  openQuestions: string[];
+  nextActions: ProjectNextAction[];
+  generatedAt: number;
+  sourceUpdatedAt: number;
+  model: string;
+  error?: string;
+}
 
 export interface ProjectSuggestion {
   projectId: string;

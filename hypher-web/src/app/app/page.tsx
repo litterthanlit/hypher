@@ -394,6 +394,7 @@ export default function AppHome() {
           <ProjectDashboard
             projects={store.projects}
             allObjects={store.objects}
+            activity={store.activity}
             onSelectProject={(id) => {
               setSelectedProjectId(id);
               store.setSelectedId(id);

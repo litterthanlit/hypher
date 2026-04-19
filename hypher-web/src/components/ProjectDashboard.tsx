@@ -2,16 +2,24 @@
 
 import { useState, useMemo } from "react";
 import { motion } from "framer-motion";
-import { useQuery } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 import { api } from "../../convex/_generated/api";
-import type { Project, ProjectStatus, AnyObject } from "@/types";
+import type { ActivityEntry, Project, ProjectStatus, AnyObject, ProjectMemory } from "@/types";
 import { computeHealthScore, type HealthResult } from "@/lib/health";
+import {
+  canGenerateProjectMemory,
+  computeProjectMemorySourceUpdatedAt,
+  getProjectMemoryStatus,
+  selectPrimaryNextAction,
+} from "@/lib/projectMemory";
 import { HealthRing } from "./HealthRing";
+import { toast } from "sonner";
 
 interface Props {
   projects: Project[];
   allObjects: AnyObject[];
+  activity: ActivityEntry[];
   onSelectProject: (id: string) => void;
 }
 
@@ -57,15 +65,30 @@ function timeAgo(ts: number): string {
   return new Date(ts).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
-export function ProjectDashboard({ projects, allObjects, onSelectProject }: Props) {
+function memoryStatusLabel(status: ReturnType<typeof getProjectMemoryStatus>): string {
+  switch (status) {
+    case "fresh": return "Fresh";
+    case "stale": return "Stale";
+    case "empty": return "Empty";
+    case "generating": return "Generating";
+    case "error": return "Needs retry";
+  }
+}
+
+export function ProjectDashboard({ projects, allObjects, activity, onSelectProject }: Props) {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [priorityFilter, setPriorityFilter] = useState<PriorityFilter>("all");
   const [blockersOnly, setBlockersOnly] = useState(false);
   const [sortKey, setSortKey] = useState<SortKey>("priority");
+  const [generatingProjectIds, setGeneratingProjectIds] = useState<Set<string>>(() => new Set());
 
   // Fetch health inputs from Convex (reactive)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const healthInputsList = useQuery((api as any).projects.healthInputs);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const memories = useQuery((api as any).projectMemories.listForDashboard) as ProjectMemory[] | undefined;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const updateNextActionStatus = useMutation((api as any).projectMemories.updateNextActionStatus);
 
   // Build a map of projectId → HealthResult directly in render
   // (no useMemo — O(n) where n = project count; negligible for ~5–12 projects)
@@ -77,16 +100,97 @@ export function ProjectDashboard({ projects, allObjects, onSelectProject }: Prop
     }
   }
 
-  // Count items per project
-  const itemCounts = useMemo(() => {
-    const counts: Record<string, number> = {};
+  const projectItemsMap = useMemo(() => {
+    const byProject: Record<string, AnyObject[]> = {};
     for (const obj of allObjects) {
       if (obj.projectId) {
-        counts[obj.projectId] = (counts[obj.projectId] ?? 0) + 1;
+        (byProject[obj.projectId] ??= []).push(obj);
       }
     }
-    return counts;
+    return byProject;
   }, [allObjects]);
+
+  const activityMap = useMemo(() => {
+    const byProject: Record<string, ActivityEntry[]> = {};
+    for (const entry of activity) {
+      if (entry.projectId) {
+        (byProject[entry.projectId] ??= []).push(entry);
+      }
+    }
+    return byProject;
+  }, [activity]);
+
+  const itemCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const [projectId, items] of Object.entries(projectItemsMap)) {
+      counts[projectId] = items.length;
+    }
+    return counts;
+  }, [projectItemsMap]);
+
+  const memoryMap = useMemo(() => {
+    const byProject: Record<string, ProjectMemory> = {};
+    for (const memory of memories ?? []) {
+      byProject[memory.projectId] = memory;
+    }
+    return byProject;
+  }, [memories]);
+
+  const setGenerating = (projectId: string, value: boolean) => {
+    setGeneratingProjectIds((prev) => {
+      const next = new Set(prev);
+      if (value) next.add(projectId);
+      else next.delete(projectId);
+      return next;
+    });
+  };
+
+  const handleGenerateMemory = async (
+    event: React.MouseEvent<HTMLButtonElement>,
+    project: Project
+  ) => {
+    event.stopPropagation();
+    if (!canGenerateProjectMemory(project) || generatingProjectIds.has(project.id)) return;
+    setGenerating(project.id, true);
+    try {
+      const response = await fetch("/api/project-memory/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId: project.id }),
+      });
+      const data = await response.json() as { ok: boolean; error?: string };
+      if (!response.ok || !data.ok) {
+        throw new Error(data.error ?? "generation-failed");
+      }
+      toast.success("Project memory updated");
+    } catch (err) {
+      console.error("[ProjectDashboard] generate memory", err);
+      toast.error("Could not generate memory");
+    } finally {
+      setGenerating(project.id, false);
+    }
+  };
+
+  const handleNextActionStatus = async (
+    event: React.MouseEvent<HTMLButtonElement>,
+    projectId: string,
+    actionId: string,
+    status: "accepted" | "dismissed"
+  ) => {
+    event.stopPropagation();
+    try {
+      await updateNextActionStatus({
+        projectId,
+        actionId,
+        status,
+        updatedAt: Date.now(),
+      });
+      toast.success(status === "accepted" ? "Next action accepted" : "Next action dismissed");
+    } catch (err) {
+      console.error("[ProjectDashboard] update next action", err);
+      toast.error("Could not update next action");
+    }
+  };
 
   // Filter
   const filtered = useMemo(() => {
@@ -219,17 +323,43 @@ export function ProjectDashboard({ projects, allObjects, onSelectProject }: Prop
             const pri = project.priority ?? 3;
             const isInactive = project.status === "archived" || project.status === "shipped";
             const healthResult = healthMap[project.id];
+            const projectItems = projectItemsMap[project.id] ?? [];
+            const projectActivity = activityMap[project.id] ?? [];
+            const memory = memoryMap[project.id] ?? null;
+            const sourceUpdatedAt = computeProjectMemorySourceUpdatedAt({
+              project,
+              items: projectItems,
+              activities: projectActivity,
+            });
+            const memoryStatus = getProjectMemoryStatus({
+              memory,
+              sourceUpdatedAt,
+              generating: generatingProjectIds.has(project.id),
+            });
+            const primaryNextAction = selectPrimaryNextAction(memory?.nextActions ?? []);
+            const canGenerate = canGenerateProjectMemory(project);
+            const shouldShowGenerate = canGenerate && (
+              memoryStatus === "empty" ||
+              memoryStatus === "stale" ||
+              memoryStatus === "error" ||
+              memoryStatus === "generating"
+            );
 
             return (
-              <motion.button
+              <motion.article
                 key={project.id}
                 className="dashboard-card"
-                onClick={() => onSelectProject(project.id)}
                 whileHover={{ y: -2, boxShadow: "0 4px 16px rgba(0,0,0,0.08)" }}
                 transition={{ type: "spring", stiffness: 500, damping: 30 }}
               >
                 <div className="dashboard-card-top">
-                  <span className="dashboard-card-name">{project.name}</span>
+                  <button
+                    type="button"
+                    className="dashboard-card-name dashboard-card-name-btn"
+                    onClick={() => onSelectProject(project.id)}
+                  >
+                    {project.name}
+                  </button>
                   <span style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
                     {project.blockers && (
                       <span className="dashboard-card-blocker" title={project.blockers}>
@@ -266,7 +396,75 @@ export function ProjectDashboard({ projects, allObjects, onSelectProject }: Prop
                   </span>
                   <span className="dashboard-card-activity">{timeAgo(activity)}</span>
                 </div>
-              </motion.button>
+
+                <div className={`dashboard-memory dashboard-memory--${memoryStatus}`}>
+                  <div className="dashboard-memory-header">
+                    <span className="dashboard-memory-eyebrow">Memory</span>
+                    <span className="dashboard-memory-status">{memoryStatusLabel(memoryStatus)}</span>
+                  </div>
+
+                  {memory?.summary ? (
+                    <p className="dashboard-memory-summary">{memory.summary}</p>
+                  ) : (
+                    <p className="dashboard-memory-empty">{canGenerate ? "Generate memory" : "No memory yet"}</p>
+                  )}
+
+                  {primaryNextAction ? (
+                    <div className="dashboard-next-action">
+                      <span className="dashboard-next-action-label">
+                        {primaryNextAction.status === "accepted" ? "Accepted next action" : "Suggested next action"}
+                      </span>
+                      <p className="dashboard-next-action-title">{primaryNextAction.title}</p>
+                      <p className="dashboard-next-action-rationale">{primaryNextAction.rationale}</p>
+                      <div className="dashboard-next-action-buttons">
+                        {primaryNextAction.status === "suggested" ? (
+                          <button
+                            type="button"
+                            className="dashboard-memory-btn dashboard-memory-btn--primary"
+                            onClick={(event) => handleNextActionStatus(event, project.id, primaryNextAction.id, "accepted")}
+                          >
+                            Accept
+                          </button>
+                        ) : (
+                          <span className="dashboard-next-action-accepted">Accepted</span>
+                        )}
+                        <button
+                          type="button"
+                          className="dashboard-memory-btn"
+                          onClick={(event) => handleNextActionStatus(event, project.id, primaryNextAction.id, "dismissed")}
+                        >
+                          Dismiss
+                        </button>
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {memory?.openQuestions?.[0] ? (
+                    <p className="dashboard-open-question">
+                      <span>Open question</span>
+                      {memory.openQuestions[0]}
+                    </p>
+                  ) : null}
+
+                  <div className="dashboard-memory-footer">
+                    {memory?.generatedAt ? (
+                      <span>Generated {timeAgo(memory.generatedAt)}</span>
+                    ) : (
+                      <span>No memory yet</span>
+                    )}
+                    {shouldShowGenerate ? (
+                      <button
+                        type="button"
+                        className="dashboard-memory-btn"
+                        disabled={memoryStatus === "generating"}
+                        onClick={(event) => handleGenerateMemory(event, project)}
+                      >
+                        {memoryStatus === "generating" ? "Generating..." : memoryStatus === "empty" ? "Generate memory" : "Refresh memory"}
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
+              </motion.article>
             );
           })}
         </div>
