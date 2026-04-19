@@ -8,6 +8,8 @@ export default defineSchema({
     demoSeeded: v.optional(v.boolean()),
     /** Pre-rendered digest copy for the demo workspace (Try Hypher). */
     demoDigestText: v.optional(v.string()),
+    onboardingWelcomeSeenAt: v.optional(v.number()),
+    onboardingTourCompletedAt: v.optional(v.number()),
   }).index("by_user", ["userId"]),
 
   subscriptions: defineTable({

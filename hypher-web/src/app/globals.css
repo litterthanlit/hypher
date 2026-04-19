@@ -1433,6 +1433,212 @@ body:has(.capture-root) {
   border-color: var(--red);
 }
 
+/* ─── Onboarding ─── */
+
+.welcome-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1400;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(250, 250, 250, 0.94);
+  backdrop-filter: blur(12px);
+}
+
+.welcome-card {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  width: min(100%, 420px);
+  gap: 18px;
+  padding: 32px;
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  background: var(--bg-primary);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.12);
+  text-align: center;
+}
+
+.welcome-logo {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 24px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.welcome-title {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 22px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+}
+
+.welcome-copy {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.welcome-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 4px;
+}
+
+.welcome-btn,
+.onboarding-tour-next,
+.onboarding-tour-skip {
+  min-height: 44px;
+  border-radius: 8px;
+  border: 1px solid var(--border-default);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 650;
+  cursor: pointer;
+  transition: background var(--transition), border-color var(--transition), color var(--transition);
+}
+
+.welcome-btn {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+.welcome-btn--primary,
+.onboarding-tour-next {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: white;
+}
+
+.welcome-btn:hover:not(:disabled),
+.onboarding-tour-skip:hover,
+.onboarding-tour-next:hover {
+  border-color: var(--accent-hover);
+}
+
+.welcome-btn--primary:hover:not(:disabled),
+.onboarding-tour-next:hover {
+  background: var(--accent-hover);
+}
+
+.welcome-btn:disabled {
+  cursor: wait;
+  opacity: 0.68;
+}
+
+.welcome-btn:focus-visible,
+.onboarding-tour-next:focus-visible,
+.onboarding-tour-skip:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.welcome-footnote {
+  margin: -4px 0 0;
+  color: var(--text-tertiary);
+  font-size: 12px;
+}
+
+.onboarding-tour-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1350;
+  pointer-events: auto;
+}
+
+.onboarding-tour-spotlight {
+  position: fixed;
+  z-index: 1;
+  border: 2px solid white;
+  border-radius: 8px;
+  box-shadow:
+    0 0 0 9999px rgba(0, 0, 0, 0.36),
+    0 12px 36px rgba(0, 0, 0, 0.18);
+  pointer-events: none;
+}
+
+.onboarding-tour-card {
+  position: fixed;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  background: var(--bg-primary);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.16);
+}
+
+.onboarding-tour-kicker {
+  color: var(--text-tertiary);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.onboarding-tour-title {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 16px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  line-height: 1.25;
+}
+
+.onboarding-tour-copy {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.onboarding-tour-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding-top: 4px;
+}
+
+.onboarding-tour-skip {
+  padding: 0 12px;
+  background: var(--bg-primary);
+  color: var(--text-secondary);
+}
+
+.onboarding-tour-next {
+  padding: 0 18px;
+}
+
+@media (max-width: 520px) {
+  .welcome-overlay {
+    align-items: stretch;
+    padding: 16px;
+  }
+
+  .welcome-card {
+    justify-content: center;
+    width: 100%;
+    min-height: calc(100vh - 32px);
+    padding: 24px;
+  }
+
+  .onboarding-tour-card {
+    left: 16px !important;
+    right: 16px;
+    width: auto !important;
+    max-width: calc(100vw - 32px);
+  }
+}
+
 /* ─── Project Dashboard ─── */
 
 .dashboard {

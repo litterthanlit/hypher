@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import type { CaptureResult, Project, ProjectSuggestion, AnyObject } from "@/types";
 import { ProjectAssignPopup } from "./ProjectAssignPopup";
 import { FloatingClusters } from "./FloatingClusters";
+import { ONBOARDING_TARGETS } from "@/lib/onboarding";
 
 interface Props {
   projects: Project[];
@@ -224,7 +225,10 @@ export function CaptureHome({
 
       {/* Center capture area */}
       <div className="capture-center">
-        <div className={`capture-input-wrap ${isDragNear ? "drag-glow" : ""}`}>
+        <div
+          className={`capture-input-wrap ${isDragNear ? "drag-glow" : ""}`}
+          data-onboarding-target={ONBOARDING_TARGETS.captureInput}
+        >
           <input
             ref={inputRef}
             className={`capture-input ${text ? "has-text" : ""}`}

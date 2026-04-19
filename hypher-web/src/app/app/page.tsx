@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useStore } from "@/lib/useStore";
-import { useQuery } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { CaptureHome } from "@/components/CaptureHome";
 import { Sidebar } from "@/components/Sidebar";
@@ -10,11 +10,21 @@ import { SpatialCanvas } from "@/components/SpatialCanvas";
 import { ListView } from "@/components/ListView";
 import { ProjectDashboard } from "@/components/ProjectDashboard";
 import { DailyDigest } from "@/components/DailyDigest";
+import { WelcomeOverlay } from "@/components/WelcomeOverlay";
+import { OnboardingTour } from "@/components/OnboardingTour";
 import { AppErrorBoundary } from "@/components/AppErrorBoundary";
 import { SearchDialog } from "@/components/SearchDialog";
 import { AppChromeNav } from "@/components/AppChromeNav";
 import { InboxReviewPanel } from "@/components/InboxReviewPanel";
 import { generateSeedData } from "@/lib/notion-seed";
+import {
+  ONBOARDING_TOUR_STEPS,
+  getNextOnboardingTourIndex,
+  getOnboardingTourStep,
+  shouldRunOnboardingTour,
+  shouldShowOnboardingWelcome,
+  type OnboardingState,
+} from "@/lib/onboarding";
 import { toast } from "sonner";
 import type { ArtifactType, ObjectKind } from "@/types";
 
@@ -37,6 +47,17 @@ export default function AppHome() {
   const skipTags = !store.clerkLoaded || !store.isSignedIn;
   const tagsList = useQuery(api.tags.listWithCounts, skipTags ? "skip" : {});
   const demoDigestText = useQuery(api.seed.getDemoDigest, skipTags ? "skip" : {});
+  const onboardingState = useQuery(
+    // typegen pending convex dev/codegen for this new module
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (api as any).onboarding.getState,
+    skipTags ? "skip" : {}
+  ) as OnboardingState | undefined;
+  // typegen pending convex dev/codegen for this new module
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const markWelcomeSeen = useMutation((api as any).onboarding.markWelcomeSeen);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const markTourCompleted = useMutation((api as any).onboarding.markTourCompleted);
   const tags = useMemo(() => tagsList ?? [], [tagsList]);
   const [appMode, setAppMode] = useState<AppMode>("capture");
   const [contentMode, setContentMode] = useState<ContentMode>("canvas");
@@ -45,6 +66,21 @@ export default function AppHome() {
   const [showDigest, setShowDigest] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [welcomeBusy, setWelcomeBusy] = useState(false);
+  const [welcomeDismissedThisSession, setWelcomeDismissedThisSession] = useState(false);
+  const [tourActive, setTourActive] = useState(false);
+  const [tourStepIndex, setTourStepIndex] = useState(0);
+
+  const onboardingReady = skipTags || onboardingState !== undefined;
+  const welcomeVisible =
+    !welcomeDismissedThisSession &&
+    shouldShowOnboardingWelcome(onboardingState, {
+      isSignedIn: store.isSignedIn,
+      isReady: onboardingReady && !store.convexDataLoading,
+      hasWorkspaceData: store.projects.length > 0,
+    });
+  const tourStep = tourActive ? getOnboardingTourStep(tourStepIndex) : null;
+  const onboardingTourShouldRun = shouldRunOnboardingTour(onboardingState);
 
   // Server /capture route redirects here with ?project=…&toast=captured (or /app/p/:id → /app?project=…)
   useEffect(() => {
@@ -73,10 +109,36 @@ export default function AppHome() {
     if (typeof window === "undefined") return;
     const today = new Date().toISOString().slice(0, 10);
     const lastDigest = localStorage.getItem("hypher-last-digest-date");
-    if (lastDigest !== today && store.projects.length > 0) {
+    if (
+      lastDigest !== today &&
+      store.projects.length > 0 &&
+      onboardingReady &&
+      !welcomeVisible &&
+      !tourActive &&
+      !onboardingTourShouldRun
+    ) {
       setShowDigest(true);
     }
-  }, [store.projects.length]);
+  }, [store.projects.length, onboardingReady, welcomeVisible, tourActive, onboardingTourShouldRun]);
+
+  useEffect(() => {
+    if (welcomeVisible || tourActive || !onboardingTourShouldRun) return;
+    setTourStepIndex(0);
+    setTourActive(true);
+  }, [welcomeVisible, tourActive, onboardingTourShouldRun]);
+
+  useEffect(() => {
+    if (!tourActive || !tourStep) return;
+    setShowDigest(false);
+    setMobileSidebarOpen(false);
+    if (tourStep.destination === "capture") {
+      setAppMode("capture");
+      return;
+    }
+    setAppMode("workspace");
+    setContentMode("dashboard");
+    setSelectedProjectId(null);
+  }, [tourActive, tourStep?.id, tourStep?.destination]);
 
   // Load content mode from localStorage when project changes
   useEffect(() => {
@@ -265,6 +327,56 @@ export default function AppHome() {
     store.addToast(`Sorted into ${projectName}`);
   }, [store]);
 
+  const handleStartOnboardingTour = useCallback(async () => {
+    setWelcomeBusy(true);
+    try {
+      await markWelcomeSeen();
+      setWelcomeDismissedThisSession(true);
+      setTourStepIndex(0);
+      setTourActive(true);
+    } catch (err) {
+      console.error("[onboarding] mark welcome seen", err);
+      toast.error("Could not start onboarding");
+    } finally {
+      setWelcomeBusy(false);
+    }
+  }, [markWelcomeSeen]);
+
+  const handleExploreSelf = useCallback(async () => {
+    setWelcomeBusy(true);
+    try {
+      await markTourCompleted();
+      setWelcomeDismissedThisSession(true);
+      setTourActive(false);
+      setTourStepIndex(0);
+    } catch (err) {
+      console.error("[onboarding] mark tour complete", err);
+      toast.error("Could not dismiss onboarding");
+    } finally {
+      setWelcomeBusy(false);
+    }
+  }, [markTourCompleted]);
+
+  const completeTour = useCallback(async () => {
+    try {
+      await markTourCompleted();
+      setTourActive(false);
+      setTourStepIndex(0);
+    } catch (err) {
+      console.error("[onboarding] complete tour", err);
+      toast.error("Could not save onboarding progress");
+    }
+  }, [markTourCompleted]);
+
+  const handleTourNext = useCallback(() => {
+    const next = getNextOnboardingTourIndex(tourStepIndex);
+    if (next === null) {
+      void completeTour();
+      return;
+    }
+    setTourStepIndex(next);
+  }, [completeTour, tourStepIndex]);
+
   // Canvas create handler
   const handleCreateAtPosition = useCallback((kind: ObjectKind, text: string, x: number, y: number) => {
     const now = Date.now();
@@ -290,6 +402,23 @@ export default function AppHome() {
       })()
     : [];
   const projectConnections = store.connections.filter((c) => c.type !== "dismissed");
+  const onboardingUi = (
+    <>
+      <WelcomeOverlay
+        visible={welcomeVisible}
+        busy={welcomeBusy}
+        onShowTour={handleStartOnboardingTour}
+        onExploreSelf={handleExploreSelf}
+      />
+      <OnboardingTour
+        step={tourStep}
+        stepIndex={tourStepIndex}
+        totalSteps={ONBOARDING_TOUR_STEPS.length}
+        onNext={handleTourNext}
+        onSkip={completeTour}
+      />
+    </>
+  );
 
   // ── CAPTURE MODE ──
   if (appMode === "capture") {
@@ -325,6 +454,7 @@ export default function AppHome() {
         {store.modelLoading && (
           <div className="loading-bar"><span className="loading-dot" />Loading embedding model...</div>
         )}
+        {onboardingUi}
       </div>
     );
   }
@@ -519,6 +649,7 @@ export default function AppHome() {
       {store.modelLoading && (
         <div className="loading-bar"><span className="loading-dot" />Loading embedding model...</div>
       )}
+      {onboardingUi}
     </main>
   );
 }

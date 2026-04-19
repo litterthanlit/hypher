@@ -13,6 +13,7 @@ import {
   getProjectMemoryStatus,
   selectPrimaryNextAction,
 } from "@/lib/projectMemory";
+import { ONBOARDING_TARGETS } from "@/lib/onboarding";
 import { HealthRing } from "./HealthRing";
 import { toast } from "sonner";
 
@@ -397,7 +398,10 @@ export function ProjectDashboard({ projects, allObjects, activity, onSelectProje
                   <span className="dashboard-card-activity">{timeAgo(activity)}</span>
                 </div>
 
-                <div className={`dashboard-memory dashboard-memory--${memoryStatus}`}>
+                <div
+                  className={`dashboard-memory dashboard-memory--${memoryStatus}`}
+                  data-onboarding-target={ONBOARDING_TARGETS.dashboardMemory}
+                >
                   <div className="dashboard-memory-header">
                     <span className="dashboard-memory-eyebrow">Memory</span>
                     <span className="dashboard-memory-status">{memoryStatusLabel(memoryStatus)}</span>
