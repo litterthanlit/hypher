@@ -10,7 +10,7 @@ function BetaCta({ className }: { className?: string }) {
       href="/sign-up"
       className={
         className ??
-        "tw-inline-flex tw-items-center tw-justify-center tw-rounded-[var(--radius-sm)] tw-bg-electric tw-px-5 tw-py-2.5 tw-text-sm tw-font-medium tw-text-white tw-shadow-sm tw-transition tw-duration-150 hover:tw-bg-electric-dim active:tw-scale-[0.99]"
+        "tw-inline-flex tw-items-center tw-justify-center tw-rounded-[var(--radius-sm)] tw-bg-electric tw-px-5 tw-py-2.5 tw-text-sm tw-font-medium tw-text-[var(--text-on-accent)] tw-shadow-sm tw-transition tw-duration-150 hover:tw-bg-electric-dim active:tw-scale-[0.99]"
       }
     >
       Request beta access
@@ -44,7 +44,7 @@ export function LandingPage() {
             <Link href="/" className="logo tw-shrink-0 tw-no-underline">
               hypher
             </Link>
-            <BetaCta className="tw-inline-flex md:tw-hidden tw-items-center tw-justify-center tw-rounded-[var(--radius-sm)] tw-bg-electric tw-px-3 tw-py-2 tw-text-xs tw-font-medium tw-text-white tw-shadow-sm tw-transition tw-duration-150 hover:tw-bg-electric-dim" />
+            <BetaCta className="tw-inline-flex md:tw-hidden tw-items-center tw-justify-center tw-rounded-[var(--radius-sm)] tw-bg-electric tw-px-3 tw-py-2 tw-text-xs tw-font-medium tw-text-[var(--text-on-accent)] tw-shadow-sm tw-transition tw-duration-150 hover:tw-bg-electric-dim" />
             <div className="tw-hidden tw-items-center tw-gap-8 md:tw-flex">
               <nav className="tw-flex tw-items-center tw-gap-6" aria-label="Primary">
                 <a href="#product" className={navLinkClass}>
@@ -60,7 +60,7 @@ export function LandingPage() {
                   Sign in
                 </Link>
               </nav>
-              <BetaCta className="tw-inline-flex tw-items-center tw-justify-center tw-rounded-[var(--radius-sm)] tw-bg-electric tw-px-4 tw-py-2 tw-text-sm tw-font-medium tw-text-white tw-shadow-sm tw-transition tw-duration-150 hover:tw-bg-electric-dim" />
+              <BetaCta className="tw-inline-flex tw-items-center tw-justify-center tw-rounded-[var(--radius-sm)] tw-bg-electric tw-px-4 tw-py-2 tw-text-sm tw-font-medium tw-text-[var(--text-on-accent)] tw-shadow-sm tw-transition tw-duration-150 hover:tw-bg-electric-dim" />
             </div>
           </div>
           <nav
@@ -224,7 +224,7 @@ export function LandingPage() {
                 Bring your messiest project brain.
               </h2>
               <div className="tw-mt-8 tw-flex tw-flex-col tw-items-stretch tw-justify-center tw-gap-3 sm:tw-flex-row sm:tw-items-center sm:tw-justify-center">
-                <BetaCta className="tw-inline-flex tw-items-center tw-justify-center tw-rounded-[var(--radius-sm)] tw-bg-electric tw-px-6 tw-py-3 tw-text-sm tw-font-medium tw-text-white tw-shadow-sm tw-transition tw-duration-150 hover:tw-bg-electric-dim" />
+                <BetaCta className="tw-inline-flex tw-items-center tw-justify-center tw-rounded-[var(--radius-sm)] tw-bg-electric tw-px-6 tw-py-3 tw-text-sm tw-font-medium tw-text-[var(--text-on-accent)] tw-shadow-sm tw-transition tw-duration-150 hover:tw-bg-electric-dim" />
                 <InviteCta className="tw-inline-flex tw-items-center tw-justify-center tw-rounded-[var(--radius-sm)] tw-border tw-border-[var(--border-default)] tw-bg-[var(--bg-root)] tw-px-6 tw-py-3 tw-text-sm tw-font-medium tw-text-[var(--text-primary)] tw-transition tw-duration-150 hover:tw-border-[var(--border-hover)]" />
               </div>
             </div>

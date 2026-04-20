@@ -14,8 +14,8 @@ export default {
     extend: {
       colors: {
         electric: {
-          DEFAULT: "#2d9d6a",
-          dim: "#268a5c",
+          DEFAULT: "var(--accent)",
+          dim: "var(--accent-hover)",
         },
       },
       fontFamily: {

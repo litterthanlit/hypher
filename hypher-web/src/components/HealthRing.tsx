@@ -123,7 +123,15 @@ function HealthPopoverContent({ breakdown, score }: PopoverProps) {
     <>
       <div className="health-popover-header">
         <span className="health-popover-title">Health</span>
-        <span className="health-popover-chip" style={{ background: scoreColor(score) }}>{score}</span>
+        <span
+          className="health-popover-chip"
+          style={{
+            background: scoreColor(score),
+            color: score >= 70 ? "var(--text-on-accent)" : "#ffffff",
+          }}
+        >
+          {score}
+        </span>
       </div>
       <div className="health-popover-rows">
         {rows.map(({ label, sub, color }) => {

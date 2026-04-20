@@ -87,7 +87,7 @@ export function PricingCards({ variant }: { variant: Variant }) {
             type="button"
             disabled={loading !== null}
             onClick={() => void startCheckout("pro_monthly")}
-            className="tw-w-full tw-rounded-full tw-bg-electric tw-px-5 tw-py-2.5 tw-text-sm tw-font-medium tw-text-white tw-shadow-sm tw-transition hover:tw-bg-electric-dim disabled:tw-opacity-60"
+            className="tw-w-full tw-rounded-full tw-bg-electric tw-px-5 tw-py-2.5 tw-text-sm tw-font-medium tw-text-[var(--text-on-accent)] tw-shadow-sm tw-transition hover:tw-bg-electric-dim disabled:tw-opacity-60"
           >
             {loading === "pro" ? "Redirecting…" : "Subscribe"}
           </button>

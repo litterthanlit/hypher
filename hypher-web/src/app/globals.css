@@ -9,10 +9,10 @@
 
 /* ─── Light (default) ─── */
 :root {
-  --bg-root: #FAFAFA;
+  --bg-root: #ebebeb;
   --bg-primary: #ffffff;
-  --bg-secondary: #f4f3f1;
-  --bg-tertiary: #eae8e4;
+  --bg-secondary: #e2e2e2;
+  --bg-tertiary: #d6d6d6;
   --bg-hover: rgba(0, 0, 0, 0.03);
   --bg-active: rgba(0, 0, 0, 0.05);
   --bg-selected: rgba(0, 0, 0, 0.04);
@@ -26,10 +26,12 @@
   --text-tertiary: #999999;
   --text-quaternary: #c4c4c4;
 
-  --accent: #2d9d6a;
-  --accent-hover: #268a5c;
-  --accent-subtle: rgba(45, 157, 106, 0.07);
-  --accent-muted: rgba(45, 157, 106, 0.12);
+  --accent: #88bba2;
+  --accent-hover: #6fa38e;
+  --accent-subtle: rgba(136, 187, 162, 0.14);
+  --accent-muted: rgba(136, 187, 162, 0.24);
+  /* Solid accent fills (sage is light — use dark ink, not white) */
+  --text-on-accent: #2f2d2d;
 
   --blue: #3b82f6;
   --amber: #d4882b;
@@ -74,19 +76,19 @@
   --canvas-node-stroke: rgba(0, 0, 0, 0.08);
   --canvas-label: #5c5c5c;
   --canvas-label-hover: #1a1a1a;
-  --canvas-link: rgba(45, 157, 106, 0.2);
-  --canvas-link-suggested: rgba(45, 157, 106, 0.08);
+  --canvas-link: rgba(136, 187, 162, 0.35);
+  --canvas-link-suggested: rgba(136, 187, 162, 0.12);
   /* Connection lines: confirmed vs suggested (SVG stroke) */
-  --canvas-conn-confirmed: rgba(45, 157, 106, 0.55);
-  --canvas-conn-manual: rgba(45, 157, 106, 0.72);
-  --canvas-conn-ai: rgba(45, 157, 106, 0.42);
+  --canvas-conn-confirmed: rgba(136, 187, 162, 0.62);
+  --canvas-conn-manual: rgba(136, 187, 162, 0.78);
+  --canvas-conn-ai: rgba(136, 187, 162, 0.5);
   --canvas-conn-suggested-stroke: rgba(0, 0, 0, 0.28);
   --canvas-glow-alpha: 0.06;
   --canvas-organism-fill: #ffffff;
   --canvas-organism-stroke: rgba(0, 0, 0, 0.06);
 
-  --overlay-bg: rgba(250, 249, 247, 0.8);
-  --search-overlay-bg: rgba(250, 249, 247, 0.7);
+  --overlay-bg: rgba(235, 235, 235, 0.88);
+  --search-overlay-bg: rgba(235, 235, 235, 0.78);
   --scrollbar-thumb: rgba(0, 0, 0, 0.08);
   --scrollbar-thumb-hover: rgba(0, 0, 0, 0.14);
 
@@ -94,7 +96,7 @@
   --ambient-elevated: rgba(0, 0, 0, 0.035);
   --ambient-floor: rgba(0, 0, 0, 0.022);
 
-  /* Capture input — blue accent (distinct from app green accent) */
+  /* Capture input — blue accent (distinct from app sage accent) */
   --capture-blue: #2563eb;
   --capture-blue-soft: rgba(37, 99, 235, 0.06);
   --capture-blue-border: rgba(37, 99, 235, 0.14);
@@ -107,10 +109,10 @@
 /* ─── Dark ─── */
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg-root: #0e0e0e;
-    --bg-primary: #151515;
-    --bg-secondary: #1c1c1c;
-    --bg-tertiary: #242424;
+    --bg-root: #2f2d2d;
+    --bg-primary: #363433;
+    --bg-secondary: #3d3a38;
+    --bg-tertiary: #4a4744;
     --bg-hover: rgba(255, 255, 255, 0.04);
     --bg-active: rgba(255, 255, 255, 0.06);
     --bg-selected: rgba(255, 255, 255, 0.05);
@@ -119,15 +121,16 @@
     --border-hover: rgba(255, 255, 255, 0.10);
     --border-focus: rgba(255, 255, 255, 0.18);
 
-    --text-primary: #ececec;
-    --text-secondary: #a0a0a0;
-    --text-tertiary: #666666;
-    --text-quaternary: #404040;
+    --text-primary: #ebebeb;
+    --text-secondary: #b5b3b1;
+    --text-tertiary: #7a7876;
+    --text-quaternary: #525050;
 
-    --accent: #4ade80;
-    --accent-hover: #3ac96f;
-    --accent-subtle: rgba(74, 222, 128, 0.08);
-    --accent-muted: rgba(74, 222, 128, 0.14);
+    --accent: #88bba2;
+    --accent-hover: #a3cfbd;
+    --accent-subtle: rgba(136, 187, 162, 0.14);
+    --accent-muted: rgba(136, 187, 162, 0.26);
+    --text-on-accent: #2f2d2d;
 
     --blue: #60a5fa;
     --amber: #fbbf24;
@@ -139,18 +142,18 @@
     --shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.4);
     --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.2), 0 0 0 1px rgba(255, 255, 255, 0.04);
 
-    --canvas-node-fill: #1c1c1c;
-    --canvas-node-stroke: rgba(255, 255, 255, 0.06);
-    --canvas-label: #a0a0a0;
-    --canvas-label-hover: #ececec;
-    --canvas-link: rgba(74, 222, 128, 0.15);
-    --canvas-link-suggested: rgba(74, 222, 128, 0.06);
-    --canvas-conn-confirmed: rgba(74, 222, 128, 0.45);
-    --canvas-conn-manual: rgba(74, 222, 128, 0.62);
-    --canvas-conn-ai: rgba(74, 222, 128, 0.38);
+    --canvas-node-fill: #363433;
+    --canvas-node-stroke: rgba(255, 255, 255, 0.07);
+    --canvas-label: #b5b3b1;
+    --canvas-label-hover: #ebebeb;
+    --canvas-link: rgba(136, 187, 162, 0.28);
+    --canvas-link-suggested: rgba(136, 187, 162, 0.1);
+    --canvas-conn-confirmed: rgba(136, 187, 162, 0.55);
+    --canvas-conn-manual: rgba(136, 187, 162, 0.72);
+    --canvas-conn-ai: rgba(136, 187, 162, 0.45);
     --canvas-conn-suggested-stroke: rgba(255, 255, 255, 0.28);
     --canvas-glow-alpha: 0.1;
-    --canvas-organism-fill: #151515;
+    --canvas-organism-fill: #363433;
     --canvas-organism-stroke: rgba(255, 255, 255, 0.05);
 
     --overlay-bg: rgba(0, 0, 0, 0.7);
@@ -1133,7 +1136,7 @@ body:has(.capture-root) {
   font-size: 12px;
   font-family: var(--font-sans);
   font-weight: 500;
-  color: var(--bg-primary);
+  color: var(--text-on-accent);
   background: var(--accent);
   border: none;
   border-radius: var(--radius-sm);
@@ -1556,7 +1559,7 @@ body:has(.capture-root) {
   font-size: 11px;
   font-family: var(--font-sans);
   font-weight: 500;
-  color: var(--bg-primary);
+  color: var(--text-on-accent);
   background: var(--accent);
   border: none;
   border-radius: 4px;
@@ -2214,7 +2217,7 @@ body:has(.capture-root) {
 .onboarding-tour-next {
   border-color: var(--accent);
   background: var(--accent);
-  color: white;
+  color: var(--text-on-accent);
 }
 
 .welcome-btn:hover:not(:disabled),
@@ -2701,13 +2704,13 @@ body:has(.capture-root) {
 .dashboard-memory-btn--primary {
   border-color: var(--accent);
   background: var(--accent);
-  color: white;
+  color: var(--text-on-accent);
 }
 
 .dashboard-memory-btn--primary:hover:not(:disabled) {
   background: var(--accent-hover);
   border-color: var(--accent-hover);
-  color: white;
+  color: var(--text-on-accent);
 }
 
 .dashboard-next-action-accepted {
@@ -3854,7 +3857,7 @@ body:has(.capture-root) {
   font-size: 12.5px;
   font-weight: 500;
   background: var(--accent);
-  color: #fff;
+  color: var(--text-on-accent);
   border: none;
   border-radius: 7px;
   cursor: pointer;
@@ -4601,7 +4604,7 @@ body:has(.capture-root) {
   width: 100%;
   border-radius: var(--radius-md);
   background:
-    radial-gradient(ellipse 70% 60% at 50% 50%, rgba(45, 157, 106, 0.04), transparent 70%),
+    radial-gradient(ellipse 70% 60% at 50% 50%, rgba(136, 187, 162, 0.08), transparent 70%),
     var(--bg-secondary);
   border: 1px solid var(--border-default);
   overflow: hidden;
@@ -5264,7 +5267,7 @@ body:has(.capture-root) {
 
 .home-input-submit-mock:hover:not(:disabled) {
   background: var(--accent);
-  color: #fff;
+  color: var(--text-on-accent);
 }
 
 .home-input-shell-mock.is-drag .home-input-mock {
@@ -6466,7 +6469,6 @@ body:has(.capture-root) {
 .health-popover-chip {
   font-size: 11px;
   font-weight: 600;
-  color: #fff;
   padding: 2px 7px;
   border-radius: var(--radius-pill);
   line-height: 1.4;
@@ -6795,7 +6797,7 @@ body:has(.capture-root) {
 .ambient-ask-send {
   appearance: none;
   background: var(--accent);
-  color: #fff;
+  color: var(--text-on-accent);
   border: none;
   border-radius: var(--radius-sm);
   font-size: 12px;
@@ -6902,7 +6904,7 @@ body:has(.capture-root) {
 
 .suggestion-chip-btn--primary {
   background: var(--accent);
-  color: #fff;
+  color: var(--text-on-accent);
 }
 
 .suggestion-chip-btn--primary:hover {

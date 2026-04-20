@@ -44,7 +44,7 @@ const CLUSTER_POSITIONS = [
 ];
 
 const PROJECT_COLORS = [
-  "#3ecf8e", "#60a5fa", "#fbbf24", "#f472b6",
+  "#88bba2", "#60a5fa", "#fbbf24", "#f472b6",
   "#a78bfa", "#fb923c", "#34d399", "#38bdf8",
 ];
 

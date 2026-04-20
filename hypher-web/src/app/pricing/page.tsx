@@ -18,7 +18,7 @@ export default function PricingPage() {
           <SignUpButton mode="modal">
             <button
               type="button"
-              className="tw-rounded-full tw-bg-electric tw-px-4 tw-py-2 tw-text-sm tw-font-medium tw-text-white tw-shadow-sm tw-transition hover:tw-bg-electric-dim"
+              className="tw-rounded-full tw-bg-electric tw-px-4 tw-py-2 tw-text-sm tw-font-medium tw-text-[var(--text-on-accent)] tw-shadow-sm tw-transition hover:tw-bg-electric-dim"
             >
               Sign up
             </button>
