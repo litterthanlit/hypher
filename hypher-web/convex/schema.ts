@@ -58,6 +58,35 @@ export default defineSchema({
     .index("by_status", ["status"])
     .index("by_createdAt", ["createdAt"]),
 
+  betaRequests: defineTable({
+    name: v.string(),
+    email: v.string(),
+    emailNorm: v.string(),
+    role: v.string(),
+    work: v.string(),
+    pain: v.string(),
+    link: v.optional(v.string()),
+    howFound: v.string(),
+    status: v.union(
+      v.literal("pending"),
+      v.literal("approved"),
+      v.literal("rejected"),
+      v.literal("archived")
+    ),
+    adminNotes: v.optional(v.string()),
+    idealUserType: v.optional(v.string()),
+    inviteId: v.optional(v.id("betaInvites")),
+    invitePrefix: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    reviewedAt: v.optional(v.number()),
+    reviewedBy: v.optional(v.string()),
+    archivedAt: v.optional(v.number()),
+  })
+    .index("by_email", ["emailNorm"])
+    .index("by_status", ["status"])
+    .index("by_createdAt", ["createdAt"]),
+
   objects: defineTable({
     userId: v.optional(v.string()),
     kind: v.union(v.literal("project"), v.literal("note"), v.literal("artifact")),

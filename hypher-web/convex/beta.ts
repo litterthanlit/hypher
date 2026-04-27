@@ -1,14 +1,27 @@
 import { mutation, query } from "./_generated/server";
+import type { MutationCtx } from "./_generated/server";
 import { v } from "convex/values";
 import bcrypt from "bcryptjs";
 import { requireUserId } from "./lib/auth";
 
 type FeedbackCategory = "bug" | "friction" | "idea" | "praise";
 type FeedbackStatus = "new" | "reviewed" | "closed";
+type BetaRequestStatus = "pending" | "approved" | "rejected" | "archived";
 
 const PREFIX_LEN = 10;
 const BCRYPT_COST = 10;
 const MAX_FEEDBACK_LENGTH = 2000;
+const REQUEST_LIMITS = {
+  name: 80,
+  email: 160,
+  role: 120,
+  work: 500,
+  pain: 500,
+  link: 220,
+  howFound: 240,
+  adminNotes: 1000,
+  idealUserType: 80,
+};
 
 const feedbackCategory = v.union(
   v.literal("bug"),
@@ -21,6 +34,13 @@ const feedbackStatus = v.union(
   v.literal("new"),
   v.literal("reviewed"),
   v.literal("closed")
+);
+
+const betaRequestStatus = v.union(
+  v.literal("pending"),
+  v.literal("approved"),
+  v.literal("rejected"),
+  v.literal("archived")
 );
 
 function gateEnabled(): boolean {
@@ -71,6 +91,104 @@ function randomPart(length: number): string {
 
 function generateInviteCode(): string {
   return `HYP-${randomPart(4)}-${randomPart(4)}-${randomPart(4)}-${randomPart(4)}`;
+}
+
+function normalizeEmail(input: string): string {
+  return input.trim().toLowerCase();
+}
+
+function trimLimit(input: string | undefined, limit: number): string {
+  return (input ?? "").trim().slice(0, limit);
+}
+
+function normalizeRequestInput(args: {
+  name: string;
+  email: string;
+  role: string;
+  work: string;
+  pain: string;
+  link?: string;
+  howFound: string;
+  website?: string;
+}):
+  | {
+      ok: true;
+      request: {
+        name: string;
+        email: string;
+        emailNorm: string;
+        role: string;
+        work: string;
+        pain: string;
+        link?: string;
+        howFound: string;
+      };
+    }
+  | { ok: false; error: string } {
+  if (args.website?.trim()) return { ok: false, error: "bot-field" };
+
+  const name = trimLimit(args.name, REQUEST_LIMITS.name);
+  const email = trimLimit(args.email, REQUEST_LIMITS.email);
+  const emailNorm = normalizeEmail(email);
+  const role = trimLimit(args.role, REQUEST_LIMITS.role);
+  const work = trimLimit(args.work, REQUEST_LIMITS.work);
+  const pain = trimLimit(args.pain, REQUEST_LIMITS.pain);
+  const link = trimLimit(args.link, REQUEST_LIMITS.link);
+  const howFound = trimLimit(args.howFound, REQUEST_LIMITS.howFound);
+
+  if (!name) return { ok: false, error: "name-required" };
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailNorm)) return { ok: false, error: "email-invalid" };
+  if (!role) return { ok: false, error: "role-required" };
+  if (!work) return { ok: false, error: "work-required" };
+  if (!pain) return { ok: false, error: "pain-required" };
+  if (!howFound) return { ok: false, error: "how-found-required" };
+
+  return {
+    ok: true,
+    request: {
+      name,
+      email,
+      emailNorm,
+      role,
+      work,
+      pain,
+      ...(link ? { link } : {}),
+      howFound,
+    },
+  };
+}
+
+async function insertInvite(ctx: MutationCtx, args: {
+  adminId: string;
+  label: string;
+  maxRedemptions: number;
+  expiresAt?: number;
+}) {
+  const trimmed = args.label.trim();
+  if (!trimmed) throw new Error("Label required");
+  if (!Number.isFinite(args.maxRedemptions) || args.maxRedemptions < 1 || args.maxRedemptions > 500) {
+    throw new Error("Max redemptions must be between 1 and 500");
+  }
+
+  const code = generateInviteCode();
+  const parts = splitInviteCode(code);
+  if (!parts) throw new Error("Could not generate invite code");
+  const inviteId = await ctx.db.insert("betaInvites", {
+    prefix: parts.prefix,
+    remainderBcrypt: bcrypt.hashSync(parts.remainder, BCRYPT_COST),
+    label: trimmed,
+    maxRedemptions: Math.floor(args.maxRedemptions),
+    redemptionCount: 0,
+    createdBy: args.adminId,
+    createdAt: Date.now(),
+    ...(args.expiresAt !== undefined ? { expiresAt: args.expiresAt } : {}),
+  });
+
+  return {
+    inviteId,
+    code,
+    prefix: parts.prefix,
+  };
 }
 
 function validateInvite(invite: {
@@ -175,31 +293,7 @@ export const createInvite = mutation({
   },
   handler: async (ctx, { label, maxRedemptions, expiresAt }) => {
     const adminId = await requireAdmin(ctx);
-    const trimmed = label.trim();
-    if (!trimmed) throw new Error("Label required");
-    if (!Number.isFinite(maxRedemptions) || maxRedemptions < 1 || maxRedemptions > 500) {
-      throw new Error("Max redemptions must be between 1 and 500");
-    }
-
-    const code = generateInviteCode();
-    const parts = splitInviteCode(code);
-    if (!parts) throw new Error("Could not generate invite code");
-    const inviteId = await ctx.db.insert("betaInvites", {
-      prefix: parts.prefix,
-      remainderBcrypt: bcrypt.hashSync(parts.remainder, BCRYPT_COST),
-      label: trimmed,
-      maxRedemptions: Math.floor(maxRedemptions),
-      redemptionCount: 0,
-      createdBy: adminId,
-      createdAt: Date.now(),
-      ...(expiresAt !== undefined ? { expiresAt } : {}),
-    });
-
-    return {
-      inviteId,
-      code,
-      prefix: parts.prefix,
-    };
+    return await insertInvite(ctx, { adminId, label, maxRedemptions, expiresAt });
   },
 });
 
@@ -211,6 +305,166 @@ export const revokeInvite = mutation({
     if (!row) throw new Error("Invite not found");
     await ctx.db.patch(inviteId, { revokedAt: Date.now() });
     return { ok: true as const };
+  },
+});
+
+export const submitRequest = mutation({
+  args: {
+    name: v.string(),
+    email: v.string(),
+    role: v.string(),
+    work: v.string(),
+    pain: v.string(),
+    link: v.optional(v.string()),
+    howFound: v.string(),
+    website: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const normalized = normalizeRequestInput(args);
+    if (!normalized.ok) return { ok: false as const, error: normalized.error };
+
+    const existing = await ctx.db
+      .query("betaRequests")
+      .withIndex("by_email", (q) => q.eq("emailNorm", normalized.request.emailNorm))
+      .collect();
+    const active = existing.find((row) => row.status !== "archived");
+    if (active) {
+      return {
+        ok: true as const,
+        duplicate: true as const,
+        requestId: active._id,
+        status: active.status,
+      };
+    }
+
+    const now = Date.now();
+    const requestId = await ctx.db.insert("betaRequests", {
+      ...normalized.request,
+      status: "pending",
+      createdAt: now,
+      updatedAt: now,
+    });
+    return { ok: true as const, duplicate: false as const, requestId, status: "pending" as const };
+  },
+});
+
+export const listRequests = query({
+  args: { status: v.optional(betaRequestStatus) },
+  handler: async (ctx, { status }) => {
+    await requireAdmin(ctx);
+    const rows = status
+      ? await ctx.db
+          .query("betaRequests")
+          .withIndex("by_status", (q) => q.eq("status", status))
+          .order("desc")
+          .collect()
+      : await ctx.db
+          .query("betaRequests")
+          .withIndex("by_createdAt")
+          .order("desc")
+          .collect();
+
+    return rows.map((row) => ({
+      id: row._id,
+      name: row.name,
+      email: row.email,
+      role: row.role,
+      work: row.work,
+      pain: row.pain,
+      link: row.link,
+      howFound: row.howFound,
+      status: row.status,
+      adminNotes: row.adminNotes,
+      idealUserType: row.idealUserType,
+      inviteId: row.inviteId,
+      invitePrefix: row.invitePrefix,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+      reviewedAt: row.reviewedAt,
+      reviewedBy: row.reviewedBy,
+      archivedAt: row.archivedAt,
+    }));
+  },
+});
+
+export const updateRequestReview = mutation({
+  args: {
+    requestId: v.id("betaRequests"),
+    adminNotes: v.optional(v.string()),
+    idealUserType: v.optional(v.string()),
+  },
+  handler: async (ctx, { requestId, adminNotes, idealUserType }) => {
+    await requireAdmin(ctx);
+    const existing = await ctx.db.get(requestId);
+    if (!existing) throw new Error("Request not found");
+    await ctx.db.patch(requestId, {
+      adminNotes: trimLimit(adminNotes, REQUEST_LIMITS.adminNotes) || undefined,
+      idealUserType: trimLimit(idealUserType, REQUEST_LIMITS.idealUserType) || undefined,
+      updatedAt: Date.now(),
+    });
+    return { ok: true as const };
+  },
+});
+
+export const updateRequestStatus = mutation({
+  args: {
+    requestId: v.id("betaRequests"),
+    status: betaRequestStatus,
+  },
+  handler: async (ctx, { requestId, status }) => {
+    const adminId = await requireAdmin(ctx);
+    const existing = await ctx.db.get(requestId);
+    if (!existing) throw new Error("Request not found");
+    if (status === "approved") throw new Error("Use approveRequest to approve requests");
+
+    const now = Date.now();
+    await ctx.db.patch(requestId, {
+      status: status as BetaRequestStatus,
+      updatedAt: now,
+      reviewedAt: status === "pending" ? undefined : now,
+      reviewedBy: status === "pending" ? undefined : adminId,
+      archivedAt: status === "archived" ? now : undefined,
+    });
+    return { ok: true as const, status: status as BetaRequestStatus };
+  },
+});
+
+export const approveRequest = mutation({
+  args: { requestId: v.id("betaRequests") },
+  handler: async (ctx, { requestId }) => {
+    const adminId = await requireAdmin(ctx);
+    const existing = await ctx.db.get(requestId);
+    if (!existing) throw new Error("Request not found");
+    if (existing.status === "approved" && existing.inviteId) {
+      throw new Error("Request already approved");
+    }
+    if (existing.status === "archived") {
+      throw new Error("Archived requests cannot be approved");
+    }
+
+    const invite = await insertInvite(ctx, {
+      adminId,
+      label: `Beta request: ${existing.name}`,
+      maxRedemptions: 1,
+      expiresAt: Date.now() + 30 * 86_400_000,
+    });
+    const now = Date.now();
+    await ctx.db.patch(requestId, {
+      status: "approved",
+      inviteId: invite.inviteId,
+      invitePrefix: invite.prefix,
+      reviewedAt: now,
+      reviewedBy: adminId,
+      updatedAt: now,
+      archivedAt: undefined,
+    });
+    return {
+      ok: true as const,
+      requestId,
+      inviteId: invite.inviteId,
+      code: invite.code,
+      prefix: invite.prefix,
+    };
   },
 });
 

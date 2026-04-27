@@ -4,7 +4,9 @@ import {
   isBetaAdmin,
   normalizeInviteCode,
   splitInviteCode,
+  updateBetaRequestStatusInList,
   updateFeedbackStatusInList,
+  validateBetaRequestInput,
   validateFeedbackInput,
   validateInviteForRedemption,
 } from "./beta";
@@ -99,6 +101,59 @@ describe("beta feedback helpers", () => {
     expect(updateFeedbackStatusInList(rows, "f2", "closed", 2)).toEqual([
       { id: "f1", status: "new", updatedAt: 1 },
       { id: "f2", status: "closed", updatedAt: 2 },
+    ]);
+  });
+});
+
+describe("beta request helpers", () => {
+  const validRequest = {
+    name: "Nick",
+    email: "NICK@EXAMPLE.COM ",
+    role: "Solo founder",
+    work: "Building Hypher",
+    pain: "Project context is scattered.",
+    link: "https://example.com",
+    howFound: "X",
+  };
+
+  it("normalizes valid beta requests", () => {
+    expect(validateBetaRequestInput(validRequest)).toEqual({
+      ok: true,
+      request: {
+        name: "Nick",
+        email: "NICK@EXAMPLE.COM",
+        emailNorm: "nick@example.com",
+        role: "Solo founder",
+        work: "Building Hypher",
+        pain: "Project context is scattered.",
+        link: "https://example.com",
+        howFound: "X",
+      },
+    });
+  });
+
+  it("rejects invalid request email", () => {
+    expect(validateBetaRequestInput({ ...validRequest, email: "not-email" })).toEqual({
+      ok: false,
+      error: "email-invalid",
+    });
+  });
+
+  it("rejects honeypot submissions", () => {
+    expect(validateBetaRequestInput({ ...validRequest, website: "spam" })).toEqual({
+      ok: false,
+      error: "bot-field",
+    });
+  });
+
+  it("updates only the selected request row status", () => {
+    const rows = [
+      { id: "r1", status: "pending" as const, updatedAt: 1 },
+      { id: "r2", status: "pending" as const, updatedAt: 1 },
+    ];
+    expect(updateBetaRequestStatusInList(rows, "r2", "approved", 2)).toEqual([
+      { id: "r1", status: "pending", updatedAt: 1 },
+      { id: "r2", status: "approved", updatedAt: 2 },
     ]);
   });
 });

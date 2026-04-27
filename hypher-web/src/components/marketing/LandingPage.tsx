@@ -7,7 +7,7 @@ import { MarketingProductVisual } from "./MarketingProductVisual";
 function BetaCta({ className }: { className?: string }) {
   return (
     <Link
-      href="/sign-up"
+      href="/beta/request"
       className={
         className ??
         "tw-inline-flex tw-items-center tw-justify-center tw-rounded-[var(--radius-sm)] tw-bg-electric tw-px-5 tw-py-2.5 tw-text-sm tw-font-medium tw-text-[var(--text-on-accent)] tw-shadow-sm tw-transition tw-duration-150 hover:tw-bg-electric-dim active:tw-scale-[0.99]"
