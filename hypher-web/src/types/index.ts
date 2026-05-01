@@ -125,7 +125,7 @@ export function getDisplayName(obj: AnyObject): string {
   switch (obj.kind) {
     case "project": return obj.name;
     case "note": {
-      const trimmed = obj.content.trim();
+      const trimmed = (obj.content ?? "").trim();
       return trimmed.length <= 40 ? trimmed : trimmed.slice(0, 40) + "\u2026";
     }
     case "artifact": return obj.name;
@@ -135,7 +135,7 @@ export function getDisplayName(obj: AnyObject): string {
 export function getEmbeddingText(obj: AnyObject): string {
   switch (obj.kind) {
     case "project": return [obj.name, obj.description].filter(Boolean).join(". ");
-    case "note": return obj.content;
+    case "note": return (obj.content ?? "").trim();
     case "artifact": return `${obj.name} — ${obj.type}`;
   }
 }

@@ -54,7 +54,10 @@ export function Sidebar({
     <aside className={["sidebar", className].filter(Boolean).join(" ")}>
       <div className="sidebar-header">
         <button className="logo-btn" onClick={() => { closeMobile(); onGoHome(); }} title="Capture (Cmd+N)">
-          <span className="logo">hypher</span>
+          <span className="logo logo--with-mark">
+            <img className="hypher-signal-mark hypher-signal-mark--sidebar" src="/hypher-logo.svg" alt="" aria-hidden />
+            hypher
+          </span>
         </button>
         <button className="btn-icon" onClick={() => setShowForm("project")} title="Create">
           <PlusIcon />

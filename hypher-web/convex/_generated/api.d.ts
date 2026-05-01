@@ -31,6 +31,7 @@ import type * as lib_auth from "../lib/auth.js";
 import type * as lib_clerk from "../lib/clerk.js";
 import type * as lib_quotedReply from "../lib/quotedReply.js";
 import type * as lib_rateLimit from "../lib/rateLimit.js";
+import type * as lib_samplePreviewConstants from "../lib/samplePreviewConstants.js";
 import type * as objects from "../objects.js";
 import type * as onboarding from "../onboarding.js";
 import type * as projectMemories from "../projectMemories.js";
@@ -69,6 +70,7 @@ declare const fullApi: ApiFromModules<{
   "lib/clerk": typeof lib_clerk;
   "lib/quotedReply": typeof lib_quotedReply;
   "lib/rateLimit": typeof lib_rateLimit;
+  "lib/samplePreviewConstants": typeof lib_samplePreviewConstants;
   objects: typeof objects;
   onboarding: typeof onboarding;
   projectMemories: typeof projectMemories;

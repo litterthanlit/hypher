@@ -39,14 +39,14 @@ function FlowConnector() {
 export function MarketingProductVisual() {
   return (
     <div
-      className="marketing-product-visual tw-relative tw-overflow-hidden tw-rounded-[var(--radius-md)] tw-border tw-border-[var(--border-default)] tw-bg-[var(--bg-primary)] tw-shadow-[var(--shadow-card)]"
+      className="marketing-product-visual tw-relative tw-overflow-hidden tw-rounded-[var(--radius-md)] tw-border tw-bg-[var(--bg-primary)]"
       aria-label="Product preview: capture flows into projects, memory, and next actions"
     >
       <GridBackdrop />
 
       <div className="tw-relative tw-z-[1] tw-p-4 sm:tw-p-6">
         {/* Capture */}
-        <div className="tw-rounded-[var(--radius-sm)] tw-border tw-border-[var(--capture-blue-border)] tw-bg-[var(--capture-blue-soft)] tw-px-3 tw-py-2.5 sm:tw-px-4">
+        <div className="tw-rounded-[var(--radius-sm)] tw-border tw-border-[var(--capture-blue-border)] tw-bg-gradient-to-b tw-from-white tw-to-[var(--capture-blue-soft)] tw-px-3 tw-py-2.5 tw-shadow-[var(--shadow-marketing-inset)] sm:tw-px-4">
           <div className="tw-flex tw-items-center tw-gap-2 tw-font-mono tw-text-[10px] tw-uppercase tw-tracking-wider tw-text-[var(--text-tertiary)]">
             <span
               className="tw-h-1.5 tw-w-1.5 tw-shrink-0 tw-rounded-full tw-bg-[var(--capture-blue)]"
@@ -68,11 +68,11 @@ export function MarketingProductVisual() {
             Suggested projects
           </p>
           <div className="tw-flex tw-flex-wrap tw-gap-2">
-            <div className="tw-rounded-[var(--radius-sm)] tw-border tw-border-[var(--accent)] tw-bg-[var(--accent-subtle)] tw-px-3 tw-py-1.5 tw-text-left tw-text-xs tw-font-medium tw-text-[var(--text-primary)]">
+            <div className="tw-rounded-[var(--radius-sm)] tw-border tw-border-[var(--accent)] tw-bg-[var(--accent-subtle)] tw-px-3 tw-py-1.5 tw-text-left tw-text-xs tw-font-medium tw-text-[var(--text-primary)] tw-shadow-[var(--shadow-marketing-inset)]">
               <span className="tw-text-[var(--accent)]">Essays</span>
               <span className="tw-ml-2 tw-font-normal tw-text-[var(--text-tertiary)]">82%</span>
             </div>
-            <div className="tw-rounded-[var(--radius-sm)] tw-border tw-border-[var(--border-default)] tw-bg-[var(--bg-secondary)] tw-px-3 tw-py-1.5 tw-text-left tw-text-xs tw-font-medium tw-text-[var(--text-secondary)]">
+            <div className="marketing-inset-panel tw-rounded-[var(--radius-sm)] tw-px-3 tw-py-1.5 tw-text-left tw-text-xs tw-font-medium tw-text-[var(--text-secondary)] tw-transition hover:tw-brightness-[1.015]">
               Ship v1
               <span className="tw-ml-2 tw-font-normal tw-text-[var(--text-tertiary)]">14%</span>
             </div>
@@ -90,7 +90,7 @@ export function MarketingProductVisual() {
             <p className="tw-font-mono tw-text-[10px] tw-uppercase tw-tracking-wider tw-text-[var(--text-tertiary)]">
               On canvas
             </p>
-            <article className="tw-rounded-[var(--radius-sm)] tw-border tw-border-[var(--border-default)] tw-bg-[var(--bg-secondary)] tw-p-3 tw-transition hover:tw-border-[var(--border-hover)]">
+            <article className="marketing-inset-panel tw-rounded-[var(--radius-sm)] tw-p-3 tw-transition hover:tw-brightness-[1.02]">
               <div className="tw-flex tw-items-center tw-justify-between tw-gap-2">
                 <h3 className="tw-text-sm tw-font-medium tw-tracking-tight tw-text-[var(--text-primary)]">
                   Essays
@@ -103,7 +103,7 @@ export function MarketingProductVisual() {
                 Digest tone, export limits, reader trust.
               </p>
             </article>
-            <article className="tw-rounded-[var(--radius-sm)] tw-border tw-border-[var(--border-default)] tw-bg-[var(--bg-secondary)] tw-p-3 tw-opacity-90 tw-transition hover:tw-border-[var(--border-hover)]">
+            <article className="marketing-inset-panel tw-rounded-[var(--radius-sm)] tw-p-3 tw-opacity-95 tw-transition hover:tw-brightness-[1.02]">
               <div className="tw-flex tw-items-center tw-justify-between tw-gap-2">
                 <h3 className="tw-text-sm tw-font-medium tw-tracking-tight tw-text-[var(--text-primary)]">
                   Ship v1
@@ -123,7 +123,7 @@ export function MarketingProductVisual() {
             <p className="tw-font-mono tw-text-[10px] tw-uppercase tw-tracking-wider tw-text-[var(--text-tertiary)]">
               Project memory
             </p>
-            <div className="tw-flex tw-flex-1 tw-flex-col tw-rounded-[var(--radius-sm)] tw-border tw-border-[var(--border-default)] tw-bg-[var(--bg-primary)] tw-p-3">
+            <div className="marketing-inset-panel marketing-inset-panel--sheet tw-flex tw-flex-1 tw-flex-col tw-rounded-[var(--radius-sm)] tw-p-3">
               <div className="tw-text-[11px] tw-leading-relaxed tw-text-[var(--text-secondary)]">
                 <p>
                   <span className="tw-font-medium tw-text-[var(--text-primary)]">Direction · </span>
@@ -138,13 +138,13 @@ export function MarketingProductVisual() {
                 <span className="tw-font-mono tw-text-[10px] tw-uppercase tw-tracking-wider tw-text-[var(--text-tertiary)]">
                   Next
                 </span>
-                <div className="tw-mt-2 tw-inline-flex tw-max-w-full tw-items-center tw-rounded-[var(--radius-sm)] tw-border tw-border-[var(--accent-muted)] tw-bg-[var(--accent-subtle)] tw-px-2.5 tw-py-1 tw-text-[11px] tw-font-medium tw-text-[var(--text-primary)]">
+                <div className="tw-mt-2 tw-inline-flex tw-max-w-full tw-items-center tw-rounded-[var(--radius-sm)] tw-border tw-border-[var(--accent-muted)] tw-bg-[var(--accent-subtle)] tw-px-2.5 tw-py-1 tw-text-[11px] tw-font-medium tw-text-[var(--text-primary)] tw-shadow-[var(--shadow-marketing-inset)]">
                   Draft digest intro for first-time readers
                 </div>
               </div>
             </div>
 
-            <div className="tw-rounded-[var(--radius-sm)] tw-border tw-border-[var(--border-default)] tw-bg-[var(--bg-secondary)] tw-p-3">
+            <div className="marketing-inset-panel tw-rounded-[var(--radius-sm)] tw-p-3">
               <div className="tw-flex tw-items-center tw-justify-between tw-gap-2">
                 <span className="tw-font-mono tw-text-[10px] tw-uppercase tw-tracking-wider tw-text-[var(--text-tertiary)]">
                   Daily digest

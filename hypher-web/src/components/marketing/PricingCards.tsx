@@ -37,7 +37,7 @@ export function PricingCards({ variant }: { variant: Variant }) {
   };
 
   const cardBase =
-    "tw-flex tw-flex-col tw-rounded-2xl tw-border tw-border-black/[0.06] tw-bg-white tw-p-8 tw-shadow-[var(--shadow-card)]";
+    "marketing-surface-card tw-flex tw-flex-col tw-rounded-2xl tw-p-8";
   const desc = variant === "expanded" ? "tw-mt-3 tw-text-[15px] tw-leading-relaxed tw-text-[var(--text-secondary)]" : "tw-mt-2 tw-text-sm tw-leading-relaxed tw-text-[var(--text-secondary)]";
 
   return (

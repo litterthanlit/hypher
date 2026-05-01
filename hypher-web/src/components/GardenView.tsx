@@ -13,7 +13,7 @@ interface Props {
 
 const STATUS_COLORS: Record<string, string> = {
   seed: "#666666",
-  growing: "#88bba2",
+  growing: "#88BBA2",
   active: "#0091ff",
   shipped: "#a78bfa",
   dormant: "#ffb224",

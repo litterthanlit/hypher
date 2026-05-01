@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { MarketingBrand } from "@/components/marketing/MarketingBrand";
 import { useMutation } from "convex/react";
 import type { FormEvent } from "react";
 import { useCallback, useState } from "react";
@@ -93,9 +94,9 @@ export function BetaRequestForm() {
 
   if (submitted) {
     return (
-      <div className="beta-request-shell">
+      <div className="marketing-root beta-request-shell">
         <div className="beta-request-card">
-          <Link href="/" className="logo beta-request-logo">hypher</Link>
+          <MarketingBrand className="beta-request-logo" />
           <p className="launch-eyebrow">Private beta</p>
           <h1>Request received.</h1>
           <p className="beta-request-lede">
@@ -115,9 +116,9 @@ export function BetaRequestForm() {
   }
 
   return (
-    <div className="beta-request-shell">
+    <div className="marketing-root beta-request-shell">
       <form className="beta-request-card" onSubmit={(event) => void handleSubmit(event)}>
-        <Link href="/" className="logo beta-request-logo">hypher</Link>
+        <MarketingBrand className="beta-request-logo" />
         <p className="launch-eyebrow">Private beta</p>
         <h1>Request beta access.</h1>
         <p className="beta-request-lede">

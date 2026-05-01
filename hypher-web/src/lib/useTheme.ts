@@ -25,7 +25,7 @@ function readTheme(): CanvasTheme {
     nodeStroke: v("--canvas-node-stroke") || "rgba(255,255,255,0.08)",
     label: v("--canvas-label") || "#a1a1a1",
     labelHover: v("--canvas-label-hover") || "#ededed",
-    accent: v("--accent") || "#88bba2",
+    accent: v("--accent") || "#88BBA2",
     blue: v("--blue") || "#0091ff",
     amber: v("--amber") || "#ffb224",
     linkColor: v("--canvas-link") || "rgba(136,187,162,0.35)",
@@ -42,7 +42,7 @@ export function useCanvasTheme(): CanvasTheme {
       return {
         nodeFill: "#111111", nodeStroke: "rgba(255,255,255,0.08)",
         label: "#a1a1a1", labelHover: "#ededed",
-        accent: "#88bba2", blue: "#0091ff", amber: "#ffb224",
+        accent: "#88BBA2", blue: "#0091ff", amber: "#ffb224",
         linkColor: "rgba(136,187,162,0.35)", linkSuggested: "rgba(136,187,162,0.12)",
         glowAlpha: 0.12, organismFill: "#0d0d0d", organismStroke: "rgba(255,255,255,0.06)",
       };

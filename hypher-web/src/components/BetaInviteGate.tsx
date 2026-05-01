@@ -51,10 +51,13 @@ export function BetaInviteGate() {
   }, [code, redeemInvite]);
 
   return (
-    <div className="beta-gate-root">
+    <div className="marketing-root beta-gate-root">
       <div className="beta-gate-card">
         <div className="beta-gate-top">
-          <span className="logo">hypher</span>
+          <span className="logo logo--with-mark">
+            <img className="hypher-signal-mark hypher-signal-mark--sidebar" src="/hypher-logo.svg" alt="" aria-hidden />
+            hypher
+          </span>
           <UserButton />
         </div>
         <p className="launch-eyebrow">Private beta</p>

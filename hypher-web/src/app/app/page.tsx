@@ -57,7 +57,7 @@ export default function AppHome() {
 
   if (gateState === undefined) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#fafafa] text-[#444]">
+      <div className="flex min-h-screen items-center justify-center bg-[var(--bg-root)] text-[var(--text-secondary)]">
         <p className="text-sm tracking-wide">Loading beta access...</p>
       </div>
     );
@@ -462,7 +462,7 @@ function HypherApp({ gateState }: { gateState: BetaGateState }) {
 
   if (!store.clerkLoaded) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#fafafa] text-[#444]">
+      <div className="flex min-h-screen items-center justify-center bg-[var(--bg-root)] text-[var(--text-secondary)]">
         <p className="text-sm tracking-wide">Loading…</p>
       </div>
     );
@@ -644,6 +644,7 @@ function HypherApp({ gateState }: { gateState: BetaGateState }) {
               </svg>
             </button>
             <nav className="workspace-breadcrumb" aria-label="Breadcrumb">
+              <img className="hypher-signal-mark hypher-signal-mark--workspace" src="/hypher-logo.svg" alt="" aria-hidden />
               <span className="workspace-breadcrumb__brand">hypher</span>
               <span className="workspace-breadcrumb__sep">/</span>
               <span className="workspace-breadcrumb__current">

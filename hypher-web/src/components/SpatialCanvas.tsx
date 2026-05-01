@@ -741,7 +741,7 @@ export function SpatialCanvas({
       }}
     >
       {convexLoading && (
-        <div className="canvas-convex-loading tw-absolute tw-inset-0 tw-z-20 tw-flex tw-flex-wrap tw-content-start tw-gap-4 tw-p-8 tw-bg-[#fafafa]/85 tw-backdrop-blur-[1px]" aria-busy="true">
+        <div className="canvas-convex-loading tw-absolute tw-inset-0 tw-z-20 tw-flex tw-flex-wrap tw-content-start tw-gap-4 tw-p-8 tw-bg-[var(--bg-root)]/90 tw-backdrop-blur-[1px]" aria-busy="true">
           {Array.from({ length: 8 }).map((_, i) => (
             <div
               key={i}

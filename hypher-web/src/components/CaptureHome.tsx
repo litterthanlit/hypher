@@ -60,7 +60,7 @@ function formatRelative(ms: number): string {
 }
 
 function itemLabel(o: AnyObject): string {
-  if (o.kind === "note") return (o as import("@/types").Note).content.slice(0, 48) || "Note";
+  if (o.kind === "note") return ((o as import("@/types").Note).content ?? "").slice(0, 48) || "Note";
   if (o.kind === "artifact") return (o as import("@/types").Artifact).name || "File";
   return "Item";
 }
@@ -204,7 +204,7 @@ export function CaptureHome({
       <input
         ref={fileRef}
         type="file"
-        className="sr-only"
+        hidden
         multiple
         aria-hidden
         tabIndex={-1}
@@ -218,40 +218,47 @@ export function CaptureHome({
       />
 
       <header className="capture-chrome-mock">
-        <div className="capture-chrome-mock__left">
-          <button
-            type="button"
-            className="capture-icon-btn"
-            aria-label="Open workspace"
-            title="Workspace"
-            onClick={onNavigateToWorkspace}
-          >
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden>
-              <line x1="2" y1="4" x2="14" y2="4" />
-              <line x1="2" y1="8" x2="14" y2="8" />
-              <line x1="2" y1="12" x2="14" y2="12" />
-            </svg>
-          </button>
-          <span className="capture-wordmark-mock">hypher</span>
-        </div>
-        <div className="capture-chrome-mock__right">
-          {onSearchClick ? (
-            <button type="button" className="capture-icon-btn" aria-label="Search" title="Search (⌘K)" onClick={onSearchClick}>
+        <div className="capture-chrome-mock__inner">
+          <div className="capture-chrome-mock__left">
+            <button
+              type="button"
+              className="capture-icon-btn"
+              aria-label="Open workspace"
+              title="Workspace"
+              onClick={onNavigateToWorkspace}
+            >
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden>
-                <circle cx="7" cy="7" r="5" />
-                <line x1="11" y1="11" x2="14" y2="14" />
+                <line x1="2" y1="4" x2="14" y2="4" />
+                <line x1="2" y1="8" x2="14" y2="8" />
+                <line x1="2" y1="12" x2="14" y2="12" />
               </svg>
             </button>
-          ) : null}
-          {onDigestClick ? (
-            <button type="button" className="capture-icon-btn" aria-label="Daily digest" title="Digest (⌘D)" onClick={onDigestClick}>
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                <path d="M3.5 6a4.5 4.5 0 0 1 9 0v3l1.5 2.5H2L3.5 9V6z" />
-                <path d="M6 12.5a2 2 0 0 0 4 0" />
-              </svg>
-            </button>
-          ) : null}
-          <UserButton />
+            <span className="capture-chrome-brand">
+              <img className="hypher-signal-mark" src="/hypher-logo.svg" alt="" aria-hidden />
+              <span className="capture-wordmark-mock">hypher</span>
+            </span>
+          </div>
+          <div className="capture-chrome-mock__right">
+            {onSearchClick ? (
+              <button type="button" className="capture-icon-btn" aria-label="Search" title="Search (⌘K)" onClick={onSearchClick}>
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden>
+                  <circle cx="7" cy="7" r="5" />
+                  <line x1="11" y1="11" x2="14" y2="14" />
+                </svg>
+              </button>
+            ) : null}
+            {onDigestClick ? (
+              <button type="button" className="capture-icon-btn" aria-label="Daily digest" title="Digest (⌘D)" onClick={onDigestClick}>
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <path d="M3.5 6a4.5 4.5 0 0 1 9 0v3l1.5 2.5H2L3.5 9V6z" />
+                  <path d="M6 12.5a2 2 0 0 0 4 0" />
+                </svg>
+              </button>
+            ) : null}
+            <span className="capture-user-wrap" title="Signed in">
+              <UserButton />
+            </span>
+          </div>
         </div>
       </header>
 

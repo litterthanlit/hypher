@@ -16,7 +16,7 @@ function defaultCardColor(content: string): string {
 
 export function getCardColor(obj: AnyObject): string {
   if (obj.canvasColor) return obj.canvasColor;
-  if (obj.kind === "note") return defaultCardColor(obj.content);
+  if (obj.kind === "note") return defaultCardColor(obj.content ?? "");
   return "";
 }
 
@@ -27,8 +27,8 @@ export function getCardRotation(id: string): number {
 }
 
 export function getPreview(obj: AnyObject): string {
-  if (obj.kind === "note") return obj.content.slice(0, 120);
-  if (obj.kind === "project") return obj.description.slice(0, 120);
+  if (obj.kind === "note") return (obj.content ?? "").slice(0, 120);
+  if (obj.kind === "project") return (obj.description ?? "").slice(0, 120);
   if (obj.kind === "artifact") return obj.fileReference || obj.type;
   return "";
 }
