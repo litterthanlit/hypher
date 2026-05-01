@@ -212,10 +212,18 @@ async function getAccessRow(ctx: Parameters<typeof requireUserId>[0], userId: st
 
 export const getGateState = query({
   handler: async (ctx) => {
-    const userId = await requireUserId(ctx);
+    const enabled = gateEnabled();
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      return {
+        gateEnabled: enabled,
+        isAdmin: false,
+        hasAccess: !enabled,
+      };
+    }
+    const userId = identity.subject;
     const admin = isAdmin(userId);
     const access = await getAccessRow(ctx, userId);
-    const enabled = gateEnabled();
     return {
       gateEnabled: enabled,
       isAdmin: admin,

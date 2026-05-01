@@ -1,4 +1,5 @@
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
+import { NextResponse, type NextFetchEvent, type NextRequest } from "next/server";
 
 const isPublicRoute = createRouteMatcher([
   "/",
@@ -16,11 +17,16 @@ const isPublicRoute = createRouteMatcher([
   "/api/clerk-webhook(.*)",
 ]);
 
-export default clerkMiddleware(async (auth, req) => {
-  if (!isPublicRoute(req)) {
-    await auth.protect();
-  }
+const protectedMiddleware = clerkMiddleware(async (auth) => {
+  await auth.protect();
 });
+
+export default function middleware(req: NextRequest, event: NextFetchEvent) {
+  if (isPublicRoute(req)) {
+    return NextResponse.next();
+  }
+  return protectedMiddleware(req, event);
+}
 
 export const config = {
   // Runs on all app routes including /api/* so we can call auth.protect selectively.
