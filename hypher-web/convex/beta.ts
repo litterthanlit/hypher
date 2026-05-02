@@ -218,6 +218,7 @@ export const getGateState = query({
       return {
         gateEnabled: enabled,
         isAdmin: false,
+        isAuthenticated: false,
         hasAccess: !enabled,
       };
     }
@@ -227,6 +228,7 @@ export const getGateState = query({
     return {
       gateEnabled: enabled,
       isAdmin: admin,
+      isAuthenticated: true,
       hasAccess: !enabled || admin || access !== null,
       ...(access ? { accessGrantedAt: access.grantedAt } : {}),
     };

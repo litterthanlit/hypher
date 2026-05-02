@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
+import { useAuth } from "@clerk/nextjs";
 import { useStore } from "@/lib/useStore";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
@@ -9,6 +10,7 @@ import { Sidebar } from "@/components/Sidebar";
 import { SpatialCanvas } from "@/components/SpatialCanvas";
 import { ListView } from "@/components/ListView";
 import { ProjectDashboard } from "@/components/ProjectDashboard";
+import { ProjectPulse } from "@/components/ProjectPulse";
 import { DailyDigest } from "@/components/DailyDigest";
 import { WelcomeOverlay } from "@/components/WelcomeOverlay";
 import { OnboardingTour } from "@/components/OnboardingTour";
@@ -19,7 +21,14 @@ import { HealthRing } from "@/components/HealthRing";
 import { InboxReviewPanel } from "@/components/InboxReviewPanel";
 import { BetaInviteGate } from "@/components/BetaInviteGate";
 import { BetaFeedbackModal } from "@/components/BetaFeedbackModal";
+import { CreateForm } from "@/components/CreateForm";
 import { generateSeedData } from "@/lib/notion-seed";
+import {
+  getAppAccessState,
+  getWorkspaceChromeState,
+  getWorkspaceEmptyState,
+  type WorkspaceContentMode,
+} from "@/lib/activation";
 import {
   ONBOARDING_TOUR_STEPS,
   getNextOnboardingTourIndex,
@@ -30,7 +39,7 @@ import {
 } from "@/lib/onboarding";
 import { toast } from "sonner";
 import { computeHealthScore, type HealthInputs } from "@/lib/health";
-import type { ArtifactType, ObjectKind } from "@/types";
+import type { AnyObject, ArtifactType, ObjectKind } from "@/types";
 import type { BetaGateState } from "@/lib/beta";
 
 function guessArtifactType(filename: string): ArtifactType {
@@ -45,29 +54,61 @@ function guessArtifactType(filename: string): ArtifactType {
 }
 
 type AppMode = "capture" | "workspace";
-type ContentMode = "canvas" | "list" | "dashboard" | "inbox";
+type ContentMode = WorkspaceContentMode;
 
 export default function AppHome() {
+  const { isLoaded: clerkLoaded, isSignedIn } = useAuth();
   const gateState = useQuery(
     // typegen pending convex dev/codegen for this new module
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (api as any).beta.getGateState,
     {}
   ) as BetaGateState | undefined;
+  const appAccessState = getAppAccessState({
+    clerkLoaded,
+    isSignedIn: Boolean(isSignedIn),
+    gateState,
+  });
 
-  if (gateState === undefined) {
+  if (appAccessState === "loading") {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[var(--bg-root)] text-[var(--text-secondary)]">
-        <p className="text-sm tracking-wide">Loading beta access...</p>
+        <p className="text-sm tracking-wide">Loading workspace...</p>
       </div>
     );
   }
 
-  if (!gateState.hasAccess) {
+  if (appAccessState === "sign_in_required") {
+    return <SignInRequired />;
+  }
+
+  if (appAccessState === "beta_gate") {
     return <BetaInviteGate />;
   }
 
+  if (!gateState) return null;
   return <HypherApp gateState={gateState} />;
+}
+
+function SignInRequired() {
+  return (
+    <div className="marketing-root beta-gate-root">
+      <div className="beta-gate-card">
+        <div className="beta-gate-top">
+          <span className="logo logo--with-mark">
+            <img className="hypher-signal-mark hypher-signal-mark--sidebar" src="/hypher-logo.svg" alt="Hypher" />
+          </span>
+        </div>
+        <p className="launch-eyebrow">Sign in required</p>
+        <h1>Sign in to create projects.</h1>
+        <p>Hypher needs an account before it can save captures, project memory, and settings.</p>
+        <div className="auth-required-actions">
+          <a className="btn-primary" href="/sign-in?redirect_url=/app">Sign in</a>
+          <a className="btn-secondary auth-required-secondary" href="/beta/request">Request beta</a>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function HypherApp({ gateState }: { gateState: BetaGateState }) {
@@ -106,12 +147,13 @@ function HypherApp({ gateState }: { gateState: BetaGateState }) {
   const markTourCompleted = useMutation((api as any).onboarding.markTourCompleted);
   const tags = useMemo(() => tagsList ?? [], [tagsList]);
   const [appMode, setAppMode] = useState<AppMode>("capture");
-  const [contentMode, setContentMode] = useState<ContentMode>("canvas");
+  const [contentMode, setContentMode] = useState<ContentMode>("pulse");
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [showSearch, setShowSearch] = useState(false);
   const [showDigest, setShowDigest] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [showCreateProject, setShowCreateProject] = useState(false);
   const [welcomeBusy, setWelcomeBusy] = useState(false);
   const [welcomeDismissedThisSession, setWelcomeDismissedThisSession] = useState(false);
   const [tourActive, setTourActive] = useState(false);
@@ -138,7 +180,7 @@ function HypherApp({ gateState }: { gateState: BetaGateState }) {
       setSelectedProjectId(pid);
       store.setSelectedId(pid);
       setAppMode("workspace");
-      setContentMode("canvas");
+      setContentMode("pulse");
     }
     if (params.get("toast") === "captured") {
       toast.success("Captured");
@@ -191,8 +233,8 @@ function HypherApp({ gateState }: { gateState: BetaGateState }) {
   useEffect(() => {
     if (selectedProjectId) {
       const saved = localStorage.getItem(`hypher-view-mode-${selectedProjectId}`);
-      if (saved === "canvas" || saved === "list") setContentMode(saved);
-      else setContentMode("canvas");
+      if (saved === "pulse" || saved === "canvas" || saved === "list") setContentMode(saved);
+      else setContentMode("pulse");
     }
   }, [selectedProjectId]);
 
@@ -402,6 +444,18 @@ function HypherApp({ gateState }: { gateState: BetaGateState }) {
     store.addToast(`Sorted into ${projectName}`);
   }, [store]);
 
+  const handleCreateProject = useCallback(async (obj: AnyObject) => {
+    const id = await store.addObject(obj);
+    setShowCreateProject(false);
+    if (obj.kind === "project") {
+      setSelectedProjectId(id);
+      store.setSelectedId(id);
+      setContentMode("pulse");
+      setAppMode("workspace");
+      localStorage.setItem(`hypher-view-mode-${id}`, "pulse");
+    }
+  }, [store]);
+
   const handleStartOnboardingTour = useCallback(async () => {
     setWelcomeBusy(true);
     try {
@@ -482,6 +536,16 @@ function HypherApp({ gateState }: { gateState: BetaGateState }) {
     selectedProjectId && projectHealthScores[selectedProjectId] != null
       ? projectHealthScores[selectedProjectId]!
       : null;
+  const workspaceChromeState = getWorkspaceChromeState({
+    projectCount: store.projects.length,
+    selectedProjectId,
+    contentMode,
+  });
+  const workspaceEmptyState = getWorkspaceEmptyState({
+    projectCount: store.projects.length,
+    selectedProjectId,
+    contentMode,
+  });
   const onboardingUi = (
     <>
       <WelcomeOverlay
@@ -499,6 +563,13 @@ function HypherApp({ gateState }: { gateState: BetaGateState }) {
       />
     </>
   );
+  const createProjectModal = showCreateProject ? (
+    <CreateForm
+      kind="project"
+      onSubmit={(obj) => void handleCreateProject(obj)}
+      onCancel={() => setShowCreateProject(false)}
+    />
+  ) : null;
 
   // ── CAPTURE MODE ──
   if (appMode === "capture") {
@@ -512,9 +583,12 @@ function HypherApp({ gateState }: { gateState: BetaGateState }) {
           onKeepInInbox={handleKeepInInbox}
           onCreateProjectAndCapture={handleCreateProjectAndCapture}
           onNavigateToWorkspace={() => setAppMode("workspace")}
+          onCreateProject={() => setShowCreateProject(true)}
           onProjectClick={(id) => {
             setSelectedProjectId(id);
             store.setSelectedId(id);
+            setContentMode("pulse");
+            localStorage.setItem(`hypher-view-mode-${id}`, "pulse");
             setAppMode("workspace");
           }}
           onClipboardCapture={store.captureFromClipboard}
@@ -576,6 +650,7 @@ function HypherApp({ gateState }: { gateState: BetaGateState }) {
           </AppErrorBoundary>
         )}
         {onboardingUi}
+        {createProjectModal}
         <BetaFeedbackModal visible={showFeedback} onClose={() => setShowFeedback(false)} />
       </div>
     );
@@ -598,7 +673,12 @@ function HypherApp({ gateState }: { gateState: BetaGateState }) {
         recentItems={store.recentItems}
         selectedProjectId={selectedProjectId}
         selectedObjectId={store.selectedId}
-        onSelectProject={(id) => { setSelectedProjectId(id); store.setSelectedId(id); }}
+        onSelectProject={(id) => {
+          setSelectedProjectId(id);
+          store.setSelectedId(id);
+          setContentMode("pulse");
+          localStorage.setItem(`hypher-view-mode-${id}`, "pulse");
+        }}
         onSelectInboxItem={(id) => { store.setSelectedId(id); setSelectedProjectId(null); setContentMode("inbox"); }}
         onSelectRecent={(id) => { store.setSelectedId(id); }}
         onAdd={store.addObject}
@@ -644,71 +724,73 @@ function HypherApp({ gateState }: { gateState: BetaGateState }) {
               </svg>
             </button>
             <nav className="workspace-breadcrumb" aria-label="Breadcrumb">
-              <img className="hypher-signal-mark hypher-signal-mark--workspace" src="/hypher-logo.svg" alt="" aria-hidden />
               <span className="workspace-breadcrumb__brand">hypher</span>
               <span className="workspace-breadcrumb__sep">/</span>
               <span className="workspace-breadcrumb__current">
                 {contentMode === "dashboard"
-                  ? "dashboard"
+                  ? "projects"
                   : contentMode === "inbox"
                     ? "inbox"
-                    : currentProject?.name ?? "workspace"}
+                    : currentProject?.name ?? workspaceChromeState.currentLabel}
               </span>
             </nav>
           </div>
 
           <div className="workspace-chrome__center">
-            <div className="workspace-view-toggle" role="tablist" aria-label="Content view">
-              <button
-                type="button"
-                role="tab"
-                aria-selected={contentMode === "canvas"}
-                className={contentMode === "canvas" ? "is-active" : ""}
-                disabled={!selectedProjectId}
-                onClick={() => setContentMode("canvas")}
-              >
-                <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden>
-                  <circle cx="4" cy="4" r="1.5" />
-                  <circle cx="12" cy="6" r="1.5" />
-                  <circle cx="6" cy="12" r="1.5" />
-                  <circle cx="12" cy="12" r="1.5" />
-                </svg>
-                canvas
-              </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={contentMode === "list"}
-                className={contentMode === "list" ? "is-active" : ""}
-                disabled={!selectedProjectId}
-                onClick={() => setContentMode("list")}
-              >
-                <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden>
-                  <line x1="3" y1="4" x2="13" y2="4" />
-                  <line x1="3" y1="8" x2="13" y2="8" />
-                  <line x1="3" y1="12" x2="13" y2="12" />
-                </svg>
-                list
-              </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={contentMode === "dashboard"}
-                className={contentMode === "dashboard" ? "is-active" : ""}
-                onClick={() => {
-                  setSelectedProjectId(null);
-                  setContentMode("dashboard");
-                }}
-              >
-                <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden>
-                  <rect x="2" y="2" width="5" height="5" rx="0.5" />
-                  <rect x="9" y="2" width="5" height="5" rx="0.5" />
-                  <rect x="2" y="9" width="5" height="5" rx="0.5" />
-                  <rect x="9" y="9" width="5" height="5" rx="0.5" />
-                </svg>
-                dashboard
-              </button>
-            </div>
+            {workspaceChromeState.showProjectViewTabs ? (
+              <div className="workspace-view-toggle" role="tablist" aria-label="Project view">
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={contentMode === "pulse"}
+                  className={contentMode === "pulse" ? "is-active" : ""}
+                  onClick={() => {
+                    setContentMode("pulse");
+                    if (selectedProjectId) localStorage.setItem(`hypher-view-mode-${selectedProjectId}`, "pulse");
+                  }}
+                >
+                  <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden>
+                    <path d="M2.5 8h2l1.25-3 2.5 6 1.5-3H13.5" />
+                  </svg>
+                  pulse
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={contentMode === "canvas"}
+                  className={contentMode === "canvas" ? "is-active" : ""}
+                  onClick={() => {
+                    setContentMode("canvas");
+                    if (selectedProjectId) localStorage.setItem(`hypher-view-mode-${selectedProjectId}`, "canvas");
+                  }}
+                >
+                  <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden>
+                    <circle cx="4" cy="4" r="1.5" />
+                    <circle cx="12" cy="6" r="1.5" />
+                    <circle cx="6" cy="12" r="1.5" />
+                    <circle cx="12" cy="12" r="1.5" />
+                  </svg>
+                  canvas
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={contentMode === "list"}
+                  className={contentMode === "list" ? "is-active" : ""}
+                  onClick={() => {
+                    setContentMode("list");
+                    if (selectedProjectId) localStorage.setItem(`hypher-view-mode-${selectedProjectId}`, "list");
+                  }}
+                >
+                  <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden>
+                    <line x1="3" y1="4" x2="13" y2="4" />
+                    <line x1="3" y1="8" x2="13" y2="8" />
+                    <line x1="3" y1="12" x2="13" y2="12" />
+                  </svg>
+                  list
+                </button>
+              </div>
+            ) : null}
           </div>
 
           <div className="workspace-chrome__right">
@@ -718,12 +800,14 @@ function HypherApp({ gateState }: { gateState: BetaGateState }) {
                 <span>{toolbarHealthScore}%</span>
               </div>
             ) : null}
-            <button type="button" className="workspace-chrome-icon" aria-label="Daily digest" title="Digest (⌘D)" onClick={() => setShowDigest(true)}>
-              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                <rect x="2" y="3" width="12" height="10" rx="1.5" />
-                <path d="M2 5 8 9l6-4" />
-              </svg>
-            </button>
+            {store.projects.length > 0 ? (
+              <button type="button" className="workspace-chrome-icon" aria-label="Daily digest" title="Digest (⌘D)" onClick={() => setShowDigest(true)}>
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <rect x="2" y="3" width="12" height="10" rx="1.5" />
+                  <path d="M2 5 8 9l6-4" />
+                </svg>
+              </button>
+            ) : null}
             {selectedProjectId && contentMode === "canvas" ? (
               <button
                 type="button"
@@ -758,7 +842,22 @@ function HypherApp({ gateState }: { gateState: BetaGateState }) {
           </div>
         </div>
 
-        {contentMode === "dashboard" ? (
+        {workspaceEmptyState ? (
+          <div className="workspace-empty">
+            <p>{workspaceEmptyState.title}</p>
+            <p className="workspace-empty-sub">{workspaceEmptyState.body}</p>
+            <div className="workspace-empty-actions">
+              <button type="button" className="workspace-empty-btn workspace-empty-btn--primary" onClick={() => setAppMode("capture")}>
+                Go to capture
+              </button>
+              {workspaceEmptyState.secondaryAction === "manual_project" ? (
+                <button type="button" className="workspace-empty-btn" onClick={() => setShowCreateProject(true)}>
+                  Create first project
+                </button>
+              ) : null}
+            </div>
+          </div>
+        ) : contentMode === "dashboard" ? (
           <ProjectDashboard
             projects={store.projects}
             allObjects={store.objects}
@@ -766,7 +865,8 @@ function HypherApp({ gateState }: { gateState: BetaGateState }) {
             onSelectProject={(id) => {
               setSelectedProjectId(id);
               store.setSelectedId(id);
-              setContentMode("canvas");
+              setContentMode("pulse");
+              localStorage.setItem(`hypher-view-mode-${id}`, "pulse");
             }}
           />
         ) : contentMode === "inbox" ? (
@@ -801,11 +901,32 @@ function HypherApp({ gateState }: { gateState: BetaGateState }) {
               store.addToast(`Sorted into ${projectName}`);
             }}
           />
-        ) : !selectedProjectId ? (
+        ) : selectedProjectId && !currentProject ? (
           <div className="workspace-empty">
-            <p>Select a project from the sidebar</p>
-            <p className="workspace-empty-sub">or press Cmd+N to capture a new thought</p>
+            <p>Loading project pulse</p>
+            <p className="workspace-empty-sub">Hypher is getting this project ready.</p>
           </div>
+        ) : contentMode === "pulse" && currentProject ? (
+          <ProjectPulse
+            project={currentProject}
+            allObjects={store.objects}
+            activity={store.activity}
+            healthScore={toolbarHealthScore}
+            onOpenCanvas={() => {
+              setContentMode("canvas");
+              if (selectedProjectId) localStorage.setItem(`hypher-view-mode-${selectedProjectId}`, "canvas");
+            }}
+            onOpenList={() => {
+              setContentMode("list");
+              if (selectedProjectId) localStorage.setItem(`hypher-view-mode-${selectedProjectId}`, "list");
+            }}
+            onCapture={() => setAppMode("capture")}
+            onSelectItem={(id) => {
+              store.setSelectedId(id);
+              setContentMode("list");
+              if (selectedProjectId) localStorage.setItem(`hypher-view-mode-${selectedProjectId}`, "list");
+            }}
+          />
         ) : contentMode === "canvas" ? (
           <AppErrorBoundary label="Canvas">
             <SpatialCanvas
@@ -867,7 +988,8 @@ function HypherApp({ gateState }: { gateState: BetaGateState }) {
             onSelectProject={(id) => {
               setSelectedProjectId(id);
               store.setSelectedId(id);
-              setContentMode("canvas");
+              setContentMode("pulse");
+              localStorage.setItem(`hypher-view-mode-${id}`, "pulse");
               if (appMode !== "workspace") setAppMode("workspace");
             }}
           />
@@ -889,6 +1011,7 @@ function HypherApp({ gateState }: { gateState: BetaGateState }) {
         <div className="loading-bar"><span className="loading-dot" />Loading embedding model...</div>
       )}
       {onboardingUi}
+      {createProjectModal}
       <BetaFeedbackModal visible={showFeedback} onClose={() => setShowFeedback(false)} />
     </main>
   );

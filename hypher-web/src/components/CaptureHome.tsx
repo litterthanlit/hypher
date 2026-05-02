@@ -1,13 +1,13 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
-import Link from "next/link";
 import { useUser } from "@clerk/nextjs";
 import { UserButton } from "@clerk/nextjs";
 import type { CaptureResult, Project, ProjectSuggestion, AnyObject } from "@/types";
 import { ProjectAssignPopup } from "./ProjectAssignPopup";
 import { ONBOARDING_TARGETS } from "@/lib/onboarding";
 import { HealthRing } from "./HealthRing";
+import { getCaptureEmptyState } from "@/lib/activation";
 
 interface Props {
   projects: Project[];
@@ -17,6 +17,7 @@ interface Props {
   onKeepInInbox: (noteId: string) => Promise<void>;
   onCreateProjectAndCapture: (projectName: string, noteId: string) => Promise<void>;
   onNavigateToWorkspace: () => void;
+  onCreateProject?: () => void;
   onProjectClick: (projectId: string) => void;
   onClipboardCapture?: () => void;
   onNotionImport?: () => void;
@@ -73,6 +74,7 @@ export function CaptureHome({
   onKeepInInbox,
   onCreateProjectAndCapture,
   onNavigateToWorkspace,
+  onCreateProject,
   onProjectClick,
   onClipboardCapture,
   onNotionImport,
@@ -175,6 +177,7 @@ export function CaptureHome({
 
   const primary = sortedProjects[0];
   const secondary = sortedProjects.slice(1, 4);
+  const emptyState = getCaptureEmptyState(projects.length);
 
   const previewForProject = (p: Project): string => {
     if (p.description?.trim()) return p.description.trim();
@@ -223,9 +226,9 @@ export function CaptureHome({
             <button
               type="button"
               className="capture-icon-btn"
-              aria-label="Open workspace"
-              title="Workspace"
-              onClick={onNavigateToWorkspace}
+              aria-label={projects.length > 0 ? "Open workspace" : "Focus capture"}
+              title={projects.length > 0 ? "Workspace" : "Capture first"}
+              onClick={projects.length > 0 ? onNavigateToWorkspace : () => inputRef.current?.focus()}
             >
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden>
                 <line x1="2" y1="4" x2="14" y2="4" />
@@ -359,15 +362,22 @@ export function CaptureHome({
           )}
 
           {step === "assigning" && (
-            <ProjectAssignPopup
-              text={capturedText}
-              projects={projects}
-              aiSuggestions={aiSuggestions}
-              onAssign={handleAssign}
-              onInbox={handleInbox}
-              onNewProject={handleNewProject}
-              onDismiss={handleDismiss}
-            />
+            <>
+              <div className="capture-working-steps" aria-live="polite">
+                <span>Captured</span>
+                <span>Sorting</span>
+                <span>{aiSuggestions.length > 0 ? "Suggested project" : "Ready for review"}</span>
+              </div>
+              <ProjectAssignPopup
+                text={capturedText}
+                projects={projects}
+                aiSuggestions={aiSuggestions}
+                onAssign={handleAssign}
+                onInbox={handleInbox}
+                onNewProject={handleNewProject}
+                onDismiss={handleDismiss}
+              />
+            </>
           )}
         </section>
 
@@ -385,15 +395,27 @@ export function CaptureHome({
             <span className="home-projects-meta-mock">{activeCount} active</span>
           </div>
 
-          {projects.length === 0 && step === "idle" ? (
+          {emptyState && step === "idle" ? (
             <div className="capture-clusters-empty">
-              <p className="capture-clusters-empty-title">No projects yet</p>
+              <p className="capture-clusters-empty-title">{emptyState.title}</p>
               <p className="capture-clusters-empty-sub">
-                Capture a thought, then sort it into a new project — or open the workspace to create one from the sidebar.
+                {emptyState.body}
               </p>
-              <button type="button" className="capture-clusters-empty-btn" onClick={onNavigateToWorkspace}>
-                Open workspace
-              </button>
+              <div className="capture-empty-actions">
+                <button type="button" className="capture-clusters-empty-btn" onClick={() => inputRef.current?.focus()}>
+                  Capture first fragment
+                </button>
+                {onClipboardCapture ? (
+                  <button type="button" className="capture-clusters-empty-btn capture-clusters-empty-btn--secondary" onClick={onClipboardCapture}>
+                    Paste from clipboard
+                  </button>
+                ) : null}
+                {onCreateProject ? (
+                  <button type="button" className="capture-clusters-empty-btn capture-clusters-empty-btn--secondary" onClick={onCreateProject}>
+                    Create project manually
+                  </button>
+                ) : null}
+              </div>
             </div>
           ) : (
             <div className="home-projects-grid-mock">
@@ -485,17 +507,6 @@ export function CaptureHome({
           )}
         </section>
 
-        <footer className="capture-home-links-mock">
-          <Link href="/app/settings/api-keys">API keys</Link>
-          <span aria-hidden className="capture-home-links-sep">
-            ·
-          </span>
-          <Link href="/app/settings/integrations">Integrations</Link>
-          <span aria-hidden className="capture-home-links-sep">
-            ·
-          </span>
-          <Link href="/app/settings/launch-readiness">Launch</Link>
-        </footer>
       </main>
     </div>
   );

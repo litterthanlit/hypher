@@ -5,6 +5,7 @@ export type BetaRequestStatus = "pending" | "approved" | "rejected" | "archived"
 export interface BetaGateState {
   gateEnabled: boolean;
   hasAccess: boolean;
+  isAuthenticated: boolean;
   isAdmin: boolean;
   accessGrantedAt?: number;
 }
@@ -93,11 +94,13 @@ export function isBetaGateEnabled(envValue: string | undefined): boolean {
 export function getBetaGateState(args: {
   gateEnabled: boolean;
   isAdmin: boolean;
+  isAuthenticated?: boolean;
   accessGrantedAt?: number;
 }): BetaGateState {
   return {
     gateEnabled: args.gateEnabled,
     isAdmin: args.isAdmin,
+    isAuthenticated: args.isAuthenticated ?? true,
     hasAccess: !args.gateEnabled || args.isAdmin || args.accessGrantedAt !== undefined,
     ...(args.accessGrantedAt !== undefined ? { accessGrantedAt: args.accessGrantedAt } : {}),
   };

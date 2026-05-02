@@ -10,8 +10,9 @@ function BetaCta({ className }: { className?: string }) {
     <Link
       href="/beta/request"
       className={
-        className ??
-        "tw-inline-flex tw-items-center tw-justify-center tw-rounded-[var(--radius-sm)] tw-bg-electric tw-px-5 tw-py-2.5 tw-text-sm tw-font-medium tw-text-[var(--text-on-accent)] tw-shadow-sm tw-transition tw-duration-150 hover:tw-bg-electric-dim active:tw-scale-[0.99]"
+        className
+          ? `${className} tw-text-white tw-no-underline hover:tw-text-white hover:tw-no-underline`
+          : "tw-inline-flex tw-items-center tw-justify-center tw-rounded-[var(--radius-sm)] tw-bg-electric tw-px-5 tw-py-2.5 tw-text-sm tw-font-medium tw-text-white tw-no-underline tw-shadow-sm tw-transition tw-duration-150 hover:tw-bg-electric-dim hover:tw-text-white hover:tw-no-underline active:tw-scale-[0.99]"
       }
     >
       Request beta access
@@ -24,8 +25,9 @@ function InviteCta({ className }: { className?: string }) {
     <Link
       href="/app"
       className={
-        className ??
-        "tw-inline-flex tw-items-center tw-justify-center tw-rounded-[var(--radius-sm)] tw-border tw-border-[var(--border-default)] tw-bg-[var(--bg-primary)] tw-px-5 tw-py-2.5 tw-text-sm tw-font-medium tw-text-[var(--text-primary)] tw-transition tw-duration-150 hover:tw-border-[var(--border-hover)] hover:tw-bg-[var(--bg-secondary)]"
+        className
+          ? `${className} tw-no-underline hover:tw-no-underline`
+          : "tw-inline-flex tw-items-center tw-justify-center tw-rounded-[var(--radius-sm)] tw-border tw-border-[var(--border-default)] tw-bg-[var(--bg-primary)] tw-px-5 tw-py-2.5 tw-text-sm tw-font-medium tw-text-[var(--text-primary)] tw-no-underline tw-transition tw-duration-150 hover:tw-border-[var(--border-hover)] hover:tw-bg-[var(--bg-secondary)] hover:tw-no-underline"
       }
     >
       I have an invite
@@ -34,7 +36,7 @@ function InviteCta({ className }: { className?: string }) {
 }
 
 const navLinkClass =
-  "tw-text-sm tw-text-[var(--text-secondary)] tw-transition tw-duration-150 hover:tw-text-[var(--text-primary)] tw-shrink-0";
+  "tw-text-sm tw-text-[var(--text-secondary)] tw-no-underline tw-transition tw-duration-150 hover:tw-text-[var(--text-primary)] hover:tw-no-underline tw-shrink-0";
 
 function PrimaryNavLinks() {
   return (
@@ -88,7 +90,7 @@ export function LandingPage() {
         <section className="marketing-hero tw-border-b tw-border-[var(--border-default)]">
           <div className="tw-mx-auto tw-grid tw-max-w-6xl tw-gap-10 tw-px-4 tw-py-12 sm:tw-px-6 sm:tw-py-16 lg:tw-grid-cols-[minmax(0,1.02fr)_minmax(0,1fr)] lg:tw-items-center lg:tw-gap-14 lg:tw-px-8 lg:tw-py-20">
             <div className="tw-min-w-0">
-              <h1 className="tw-mt-0 tw-max-w-[22ch] tw-text-balance tw-font-wordmark tw-text-[2rem] tw-font-normal tw-leading-[1.12] tw-tracking-[0.04em] sm:tw-max-w-none sm:tw-text-4xl lg:tw-text-[2.85rem] lg:tw-leading-[1.08]">
+              <h1 className="tw-mt-0 tw-max-w-[22ch] tw-text-balance tw-font-wordmark tw-text-[2rem] tw-font-medium tw-leading-[1.12] tw-tracking-[0.04em] sm:tw-max-w-none sm:tw-text-4xl lg:tw-text-[2.85rem] lg:tw-leading-[1.08]">
                 Capture first. Hypher sorts the rest.
               </h1>
               <p className="tw-mt-5 tw-max-w-xl tw-text-pretty tw-text-base tw-leading-relaxed tw-text-[var(--text-secondary)] sm:tw-text-[17px]">
@@ -250,7 +252,7 @@ function LoopStep({
 }) {
   return (
     <article className="marketing-surface-card tw-group tw-flex tw-flex-col tw-rounded-[var(--radius-md)] tw-p-5">
-      <div className="marketing-inset-panel tw-mb-5 tw-min-h-[100px] tw-p-3">{visual}</div>
+      <div className="marketing-inset-panel tw-mb-5 tw-min-h-[112px] tw-p-3">{visual}</div>
       <p className="tw-font-mono tw-text-[10px] tw-uppercase tw-tracking-wider tw-text-[var(--text-quaternary)]">
         {step}
       </p>
@@ -276,13 +278,43 @@ function FeatureBlock({ title, body, detail }: { title: string; body: string; de
 
 function LoopVisualCapture() {
   return (
-    <div className="tw-flex tw-h-full tw-flex-col tw-justify-center tw-gap-2">
-      <div className="tw-h-2 tw-w-12 tw-rounded tw-bg-[var(--text-quaternary)]/40" />
-      <div className="tw-h-2 tw-w-full tw-max-w-[180px] tw-rounded tw-bg-[var(--text-tertiary)]/35" />
-      <div className="tw-h-2 tw-w-[72%] tw-max-w-[140px] tw-rounded tw-bg-[var(--text-tertiary)]/25" />
-      <div className="tw-mt-1 tw-flex tw-gap-1.5">
-        <span className="tw-h-6 tw-w-6 tw-rounded-[4px] tw-bg-[var(--capture-blue-soft)] tw-ring-1 tw-ring-[var(--capture-blue-border)]" />
-        <span className="tw-h-6 tw-w-14 tw-rounded-[4px] tw-bg-[var(--bg-tertiary)]" />
+    <div className="tw-flex tw-h-full tw-min-h-[104px] tw-flex-col tw-gap-2.5">
+      <div className="tw-flex tw-items-center tw-justify-between tw-gap-2">
+        <span className="tw-font-mono tw-text-[9px] tw-uppercase tw-tracking-wider tw-text-[var(--text-tertiary)]">
+          Inbox
+        </span>
+        <span className="tw-rounded tw-bg-[var(--bg-tertiary)] tw-px-1.5 tw-py-0.5 tw-font-mono tw-text-[9px] tw-tabular-nums tw-text-[var(--text-tertiary)]">
+          3 new
+        </span>
+      </div>
+      <div className="tw-rounded tw-border tw-border-[var(--border-default)] tw-bg-[var(--bg-primary)] tw-p-2.5 tw-shadow-[0_1px_0_rgba(255,255,255,0.06)_inset]">
+        <div className="tw-flex tw-items-start tw-gap-2">
+          <span
+            className="tw-mt-1 tw-h-1.5 tw-w-1.5 tw-shrink-0 tw-rounded-full tw-bg-[var(--accent)]"
+            aria-hidden
+          />
+          <div className="tw-min-w-0 tw-flex-1">
+            <p className="tw-text-[10px] tw-leading-snug tw-text-[var(--text-secondary)]">
+              <span className="tw-font-mono tw-text-[var(--text-quaternary)]">2m · </span>
+              RFC digest tone — ship empty state before widening beta…
+            </p>
+          </div>
+        </div>
+        <div className="tw-mt-2.5 tw-flex tw-items-center tw-gap-2 tw-border-t tw-border-dashed tw-border-[var(--border-default)] tw-pt-2">
+          <div
+            className="tw-relative tw-h-8 tw-w-8 tw-shrink-0 tw-overflow-hidden tw-rounded tw-bg-gradient-to-br tw-from-[var(--capture-blue-soft)] tw-to-[var(--bg-tertiary)] tw-ring-1 tw-ring-[var(--capture-blue-border)]"
+            aria-hidden
+          >
+            <span className="tw-absolute tw-inset-0 tw-flex tw-items-center tw-justify-center tw-font-mono tw-text-[8px] tw-text-[var(--capture-blue)]">
+              img
+            </span>
+          </div>
+          <div className="tw-flex tw-min-w-0 tw-flex-1 tw-flex-col tw-gap-1">
+            <div className="tw-h-[3px] tw-w-full tw-max-w-[132px] tw-rounded-full tw-bg-[var(--text-quaternary)]/28" />
+            <div className="tw-h-[3px] tw-w-[78%] tw-max-w-[104px] tw-rounded-full tw-bg-[var(--text-quaternary)]/18" />
+            <div className="tw-h-[3px] tw-w-[52%] tw-max-w-[72px] tw-rounded-full tw-bg-[var(--text-quaternary)]/12" />
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -290,33 +322,59 @@ function LoopVisualCapture() {
 
 function LoopVisualSort() {
   return (
-    <div className="tw-flex tw-h-full tw-flex-col tw-justify-center tw-gap-2.5 tw-text-[10px]">
-      <div className="tw-flex tw-items-center tw-gap-2">
-        <span className="tw-rounded-[4px] tw-bg-[var(--accent-subtle)] tw-px-2 tw-py-1 tw-font-medium tw-text-[var(--accent)]">
-          Essays
-        </span>
-        <span className="tw-text-[var(--text-quaternary)]">82%</span>
+    <div className="tw-flex tw-h-full tw-min-h-[104px] tw-flex-col tw-gap-2 tw-text-[10px]">
+      <span className="tw-font-mono tw-text-[9px] tw-uppercase tw-tracking-wider tw-text-[var(--text-tertiary)]">
+        Suggested project
+      </span>
+      <div className="tw-flex tw-items-stretch tw-gap-2">
+        <div className="tw-flex tw-min-w-0 tw-flex-1 tw-flex-col tw-rounded tw-border tw-border-[var(--accent)] tw-bg-[var(--accent-subtle)] tw-p-2">
+          <div className="tw-flex tw-items-center tw-justify-between tw-gap-1">
+            <span className="tw-truncate tw-font-medium tw-text-[var(--accent)]">Essays</span>
+            <span className="tw-shrink-0 tw-font-mono tw-text-[var(--text-tertiary)]">82%</span>
+          </div>
+          <div className="tw-mt-2 tw-h-1 tw-w-full tw-overflow-hidden tw-rounded-full tw-bg-[var(--bg-primary)]">
+            <div className="tw-h-full tw-w-[82%] tw-rounded-full tw-bg-[var(--accent)]/50" />
+          </div>
+        </div>
+        <div className="tw-flex tw-min-w-0 tw-flex-1 tw-flex-col tw-rounded tw-border tw-border-[var(--border-default)] tw-bg-[var(--bg-primary)] tw-p-2 tw-opacity-[0.92]">
+          <div className="tw-flex tw-items-center tw-justify-between tw-gap-1">
+            <span className="tw-truncate tw-font-medium tw-text-[var(--text-secondary)]">Ship v1</span>
+            <span className="tw-shrink-0 tw-font-mono tw-text-[var(--text-tertiary)]">14%</span>
+          </div>
+          <div className="tw-mt-2 tw-h-1 tw-w-full tw-overflow-hidden tw-rounded-full tw-bg-[var(--bg-tertiary)]">
+            <div className="tw-h-full tw-w-[14%] tw-rounded-full tw-bg-[var(--text-quaternary)]/40" />
+          </div>
+        </div>
       </div>
-      <div className="tw-flex tw-items-center tw-gap-2 tw-text-[var(--text-tertiary)]">
-        <span className="tw-rounded-[4px] tw-bg-[var(--bg-tertiary)] tw-px-2 tw-py-1 tw-text-[var(--text-secondary)]">
-          Ship v1
-        </span>
-        <span>14%</span>
-      </div>
-      <p className="tw-leading-snug tw-text-[var(--text-quaternary)]">Why: shared keywords + last 3 captures.</p>
+      <p className="tw-line-clamp-2 tw-leading-snug tw-text-[var(--text-quaternary)]">
+        Matched &quot;digest&quot;, &quot;export&quot;, and your last three captures.
+      </p>
     </div>
   );
 }
 
 function LoopVisualReturn() {
   return (
-    <div className="tw-flex tw-h-full tw-flex-col tw-justify-center tw-gap-2 tw-text-[10px]">
-      <div className="tw-rounded-[4px] tw-border tw-border-[var(--border-default)] tw-bg-[var(--bg-primary)] tw-p-2">
-        <p className="tw-font-medium tw-text-[var(--text-primary)]">Direction</p>
-        <p className="tw-mt-1 tw-leading-snug tw-text-[var(--text-tertiary)]">Close export thread this week.</p>
+    <div className="tw-flex tw-h-full tw-min-h-[104px] tw-flex-col tw-justify-between tw-gap-2 tw-text-[10px]">
+      <div className="tw-rounded tw-border tw-border-[var(--border-default)] tw-bg-[var(--bg-primary)] tw-p-2.5">
+        <div className="tw-flex tw-items-center tw-gap-2.5">
+          <div
+            className="tw-flex tw-h-9 tw-w-9 tw-shrink-0 tw-items-center tw-justify-center tw-rounded-full tw-border tw-border-[var(--border-default)] tw-bg-[var(--bg-secondary)] tw-font-mono tw-text-[9px] tw-tabular-nums tw-text-[var(--text-tertiary)]"
+            aria-hidden
+          >
+            72%
+          </div>
+          <div className="tw-min-w-0">
+            <p className="tw-font-medium tw-text-[var(--text-primary)]">Project memory</p>
+            <p className="tw-mt-0.5 tw-truncate tw-leading-snug tw-text-[var(--text-tertiary)]">
+              Direction + open questions updated
+            </p>
+          </div>
+        </div>
       </div>
-      <div className="tw-rounded-[4px] tw-border tw-border-[var(--accent-muted)] tw-bg-[var(--accent-subtle)] tw-px-2 tw-py-1.5 tw-font-medium tw-text-[var(--text-primary)]">
-        Next · Ship digest empty state
+      <div className="tw-rounded tw-border tw-border-[var(--accent-muted)] tw-bg-[var(--accent-subtle)] tw-px-2 tw-py-1.5">
+        <p className="tw-font-mono tw-text-[9px] tw-uppercase tw-tracking-wide tw-text-[var(--text-tertiary)]">Next</p>
+        <p className="tw-mt-0.5 tw-font-medium tw-leading-tight tw-text-[var(--text-primary)]">Ship digest empty state</p>
       </div>
     </div>
   );

@@ -55,8 +55,7 @@ export function BetaInviteGate() {
       <div className="beta-gate-card">
         <div className="beta-gate-top">
           <span className="logo logo--with-mark">
-            <img className="hypher-signal-mark hypher-signal-mark--sidebar" src="/hypher-logo.svg" alt="" aria-hidden />
-            hypher
+            <img className="hypher-signal-mark hypher-signal-mark--sidebar" src="/hypher-logo.svg" alt="Hypher" />
           </span>
           <UserButton />
         </div>

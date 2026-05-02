@@ -17,26 +17,6 @@ export function AppChromeNav({ layout, showSearch, onSearchClick, onFeedbackClic
 
   return (
     <div className={navClass}>
-      <Link href="/app/settings/api-keys" className="main-toolbar-settings">
-        API keys
-      </Link>
-      <Link href="/app/settings/integrations" className="main-toolbar-settings">
-        Integrations
-      </Link>
-      <Link href="/app/settings/launch-readiness" className="main-toolbar-settings">
-        Launch
-      </Link>
-      {showBetaAdmin ? (
-        <Link href="/app/settings/beta" className="main-toolbar-settings">
-          Beta
-        </Link>
-      ) : null}
-      {onFeedbackClick ? (
-        <button type="button" className="main-toolbar-settings main-toolbar-feedback" onClick={onFeedbackClick}>
-          Feedback
-        </button>
-      ) : null}
-      <UserButton />
       {showSearch && onSearchClick ? (
         <button type="button" className="btn-search" onClick={onSearchClick} aria-label="Search">
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" width={14} height={14}>
@@ -46,6 +26,20 @@ export function AppChromeNav({ layout, showSearch, onSearchClick, onFeedbackClic
           <kbd className="toolbar-kbd">⌘K</kbd>
         </button>
       ) : null}
+      {onFeedbackClick ? (
+        <button type="button" className="main-toolbar-settings main-toolbar-feedback" onClick={onFeedbackClick}>
+          Feedback
+        </button>
+      ) : null}
+      {showBetaAdmin ? (
+        <Link href="/app/settings/beta" className="main-toolbar-settings">
+          Beta
+        </Link>
+      ) : null}
+      <Link href="/app/settings" className="main-toolbar-settings">
+        Settings
+      </Link>
+      <UserButton />
     </div>
   );
 }

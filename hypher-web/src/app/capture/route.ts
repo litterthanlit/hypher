@@ -1,7 +1,16 @@
 import { auth } from "@clerk/nextjs/server";
-import { fetchMutation, fetchQuery } from "convex/nextjs";
+import { fetchAction, fetchMutation, fetchQuery } from "convex/nextjs";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
+import type { AnyObject, Connection, Note, ProjectSuggestion } from "@/types";
+import { getDisplayName } from "@/types";
+import {
+  computeSuggestionsFromData,
+  generateEmbedding,
+  suggestProjectFromData,
+} from "@/lib/engine";
+
+export const runtime = "nodejs";
 
 // ── CORS helpers for Chrome extension ──────────────────────────────────────────
 // In dev, allow any chrome-extension:// origin.
@@ -42,6 +51,16 @@ type Parsed = {
   tags?: string[];
   error?: string;
 };
+
+function mapObject(doc: any): AnyObject {
+  const { _id, _creationTime, ...rest } = doc;
+  return { ...rest, id: String(_id) } as AnyObject;
+}
+
+function mapConnection(doc: any): Connection {
+  const { _id, _creationTime, ...rest } = doc;
+  return { ...rest, id: String(_id) } as Connection;
+}
 
 function normalizeCaptureFields(
   content: string,
@@ -104,7 +123,11 @@ async function parseCaptureInput(req: Request, url: URL): Promise<Parsed> {
           ? body.text
           : "";
     const projectRaw =
-      typeof body.project === "string" ? body.project : null;
+      typeof body.project === "string"
+        ? body.project
+        : typeof body.projectId === "string"
+          ? body.projectId
+          : null;
     const tagsRaw =
       typeof body.tags === "string"
         ? body.tags
@@ -137,10 +160,19 @@ function successRedirect(
   origin: string,
   projectConvexId: string | null,
   wantsJson: boolean,
-  noteId: string
+  noteId: string,
+  enrichment: { enriched: boolean; suggestions?: ProjectSuggestion[] }
 ): Response {
   if (wantsJson) {
-    return Response.json({ success: true, id: noteId }, { status: 200 });
+    return Response.json(
+      {
+        success: true,
+        id: noteId,
+        enriched: enrichment.enriched,
+        suggestions: enrichment.suggestions ?? [],
+      },
+      { status: 200 }
+    );
   }
   const path = projectConvexId
     ? `/app/p/${encodeURIComponent(projectConvexId)}`
@@ -162,6 +194,91 @@ function errorResponse(
     status,
     headers: { "Content-Type": "text/plain; charset=utf-8" },
   });
+}
+
+async function enrichCapturedNote(params: {
+  token: string;
+  note: Note;
+  projectConvexId: string | null;
+}): Promise<{ enriched: boolean; suggestions: ProjectSuggestion[] }> {
+  const [embedded, generatedTags] = await Promise.all([
+    generateEmbedding(params.note),
+    params.note.tags?.length || params.note.content.length < 10
+      ? Promise.resolve([] as string[])
+      : fetchAction(api.ai.generateTags, { content: params.note.content }, { token: params.token }).catch(() => [] as string[]),
+  ]);
+
+  const tags = params.note.tags?.length
+    ? params.note.tags
+    : generatedTags.length > 0
+      ? generatedTags
+      : undefined;
+
+  await fetchMutation(
+    api.objects.put,
+    {
+      id: params.note.id as Id<"objects">,
+      kind: "note",
+      content: params.note.content,
+      maturity: params.note.maturity,
+      createdAt: params.note.createdAt,
+      modifiedAt: embedded.modifiedAt,
+      projectId: params.note.projectId ?? null,
+      reviewedAt: params.note.reviewedAt,
+      embedding: embedded.embedding,
+      embeddingText: embedded.embeddingText,
+      tags,
+    },
+    { token: params.token }
+  );
+
+  await fetchMutation(
+    api.activity.put,
+    {
+      action: "created",
+      objectId: params.note.id,
+      objectKind: "note",
+      objectName: getDisplayName(params.note),
+      timestamp: params.note.createdAt,
+      projectId: params.projectConvexId ?? undefined,
+      activityType: "capture",
+    },
+    { token: params.token }
+  );
+
+  if (params.projectConvexId) {
+    await fetchMutation(
+      api.objects.touchLastActivity,
+      {
+        id: params.projectConvexId as Id<"objects">,
+        timestamp: params.note.createdAt,
+      },
+      { token: params.token }
+    );
+  }
+
+  const [rawObjects, rawConnections] = await Promise.all([
+    fetchQuery(api.objects.list, {}, { token: params.token }),
+    fetchQuery(api.connections.list, {}, { token: params.token }),
+  ]);
+  const allObjects = rawObjects
+    .map(mapObject)
+    .map((obj) => (obj.id === params.note.id ? embedded : obj));
+  const connections = rawConnections.map(mapConnection);
+
+  const suggestions =
+    params.projectConvexId || !embedded.embedding
+      ? []
+      : suggestProjectFromData(embedded, allObjects);
+
+  const newConnections = computeSuggestionsFromData(allObjects, connections);
+  await Promise.all(
+    newConnections.map((conn) =>
+      fetchMutation(api.connections.put, conn, { token: params.token })
+    )
+  );
+
+  return { enriched: true, suggestions };
 }
 
 async function handleCapture(req: Request): Promise<Response> {
@@ -217,12 +334,32 @@ async function handleCapture(req: Request): Promise<Response> {
         createdAt: now,
         modifiedAt: now,
         projectId: projectConvexId,
+        ...(projectConvexId ? { reviewedAt: now } : {}),
         tags: input.tags,
       },
       { token }
     );
 
-    return successRedirect(url.origin, projectConvexId, wantsJson, String(noteId));
+    const note: Note = {
+      id: String(noteId),
+      kind: "note",
+      content: input.content,
+      maturity: "fleeting",
+      createdAt: now,
+      modifiedAt: now,
+      projectId: projectConvexId,
+      tags: input.tags,
+      ...(projectConvexId ? { reviewedAt: now } : {}),
+    };
+
+    let enrichment: { enriched: boolean; suggestions?: ProjectSuggestion[] } = { enriched: false, suggestions: [] };
+    try {
+      enrichment = await enrichCapturedNote({ token, note, projectConvexId });
+    } catch (e) {
+      console.error("[capture:enrich]", e);
+    }
+
+    return successRedirect(url.origin, projectConvexId, wantsJson, String(noteId), enrichment);
   } catch (e) {
     console.error("[capture]", e);
     return errorResponse(wantsJson, "capture_failed", 500);
