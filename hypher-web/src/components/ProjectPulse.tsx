@@ -5,9 +5,10 @@ import { useMutation, useQuery } from "convex/react";
 import { toast } from "sonner";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
-import type { ActivityEntry, AgentEvent, AnyObject, Project, ProjectMemory, ProjectMemoryStatus } from "@/types";
+import type { ActivityEntry, AgentEvent, AnyObject, Project, ProjectAction, ProjectMemory, ProjectMemoryStatus } from "@/types";
 import { getDisplayName } from "@/types";
 import { buildAgentEventNoteContent } from "@/lib/agentEvents";
+import { selectProjectActionQueue } from "@/lib/actions";
 import { buildProjectPulseModel } from "@/lib/projectPulse";
 import {
   canGenerateProjectMemory,
@@ -72,10 +73,17 @@ export function ProjectPulse({
     (api as any).agentEvents.listForProject,
     { projectId: project.id as Id<"objects">, limit: 5 }
   ) as AgentEvent[] | undefined;
+  const projectActions = useQuery(
+    (api as any).actions.listForProject,
+    { projectId: project.id as Id<"objects"> }
+  ) as ProjectAction[] | undefined;
   const updateNextActionStatus = useMutation((api as any).projectMemories.updateNextActionStatus);
   const dismissAgentEvent = useMutation((api as any).agentEvents.dismiss);
   const markAgentEventReviewed = useMutation((api as any).agentEvents.markReviewed);
   const saveAgentEventAsNote = useMutation((api as any).agentEvents.saveAsNote);
+  const createActionFromAgentSuggestion = useMutation((api as any).actions.createFromAgentSuggestion);
+  const createActionFromMemoryAction = useMutation((api as any).actions.createFromMemoryAction);
+  const updateActionStatus = useMutation((api as any).actions.updateStatus);
 
   const model = useMemo(
     () => buildProjectPulseModel({ project, allObjects, activity, memories }),
@@ -93,6 +101,10 @@ export function ProjectPulse({
     generating,
   });
   const canGenerate = canGenerateProjectMemory(project);
+  const actionQueue = useMemo(
+    () => selectProjectActionQueue(projectActions ?? []),
+    [projectActions]
+  );
 
   const handleGenerateMemory = async () => {
     if (!canGenerate || generating) return;
@@ -130,6 +142,38 @@ export function ProjectPulse({
     }
   };
 
+  const handleSaveMemoryAction = async () => {
+    if (!model.primaryNextAction) return;
+    try {
+      await createActionFromMemoryAction({
+        projectId: project.id as Id<"objects">,
+        memoryActionId: model.primaryNextAction.id,
+        title: model.primaryNextAction.title,
+        rationale: model.primaryNextAction.rationale,
+        status: model.primaryNextAction.status,
+        createdAt: Date.now(),
+      });
+      toast.success("Saved as project action");
+    } catch (err) {
+      console.error("[ProjectPulse] save memory action", err);
+      toast.error("Could not save action");
+    }
+  };
+
+  const handleProjectActionStatus = async (action: ProjectAction, status: "accepted" | "completed" | "dismissed") => {
+    try {
+      await updateActionStatus({
+        actionId: action.id as Id<"actions">,
+        status,
+        updatedAt: Date.now(),
+      });
+      toast.success(status === "completed" ? "Action completed" : "Action updated");
+    } catch (err) {
+      console.error("[ProjectPulse] update action", err);
+      toast.error("Could not update action");
+    }
+  };
+
   const handleSaveAgentEvent = async (event: AgentEvent) => {
     try {
       await saveAgentEventAsNote({
@@ -154,6 +198,21 @@ export function ProjectPulse({
     } catch (err) {
       console.error("[ProjectPulse] update agent event", err);
       toast.error("Could not update agent event");
+    }
+  };
+
+  const handleCreateAgentAction = async (event: AgentEvent, title: string) => {
+    try {
+      await createActionFromAgentSuggestion({
+        eventId: event.id as Id<"agentEvents">,
+        projectId: project.id as Id<"objects">,
+        title,
+        createdAt: Date.now(),
+      });
+      toast.success("Saved as project action");
+    } catch (err) {
+      console.error("[ProjectPulse] create agent action", err);
+      toast.error("Could not save action");
     }
   };
 
@@ -228,10 +287,50 @@ export function ProjectPulse({
                 <button type="button" className="project-pulse-inline-btn" onClick={() => void handleNextActionStatus("dismissed")}>
                   Dismiss
                 </button>
+                <button type="button" className="project-pulse-inline-btn" onClick={() => void handleSaveMemoryAction()}>
+                  Save as action
+                </button>
               </div>
             </>
           ) : (
             <p className="project-pulse-muted">Generate memory to get a concrete next move.</p>
+          )}
+        </section>
+
+        <section className="project-pulse-panel project-pulse-panel--actions">
+          <div className="project-pulse-panel-head">
+            <h2>Actions</h2>
+            <span>{actionQueue.length}</span>
+          </div>
+          {actionQueue.length ? (
+            <div className="project-action-list">
+              {actionQueue.slice(0, 5).map((action) => (
+                <article key={action.id} className={`project-action-row is-${action.status}`}>
+                  <span>{action.status}</span>
+                  <strong>{action.title}</strong>
+                  {action.rationale ? <p>{action.rationale}</p> : null}
+                  <div className="project-pulse-row-actions">
+                    {action.status === "suggested" ? (
+                      <button type="button" className="project-pulse-inline-btn" onClick={() => void handleProjectActionStatus(action, "accepted")}>
+                        Accept
+                      </button>
+                    ) : null}
+                    {action.status !== "completed" && action.status !== "dismissed" ? (
+                      <button type="button" className="project-pulse-inline-btn" onClick={() => void handleProjectActionStatus(action, "completed")}>
+                        Complete
+                      </button>
+                    ) : null}
+                    {action.status !== "dismissed" ? (
+                      <button type="button" className="project-pulse-inline-btn" onClick={() => void handleProjectActionStatus(action, "dismissed")}>
+                        Dismiss
+                      </button>
+                    ) : null}
+                  </div>
+                </article>
+              ))}
+            </div>
+          ) : (
+            <p className="project-pulse-muted">Save a memory suggestion or agent suggestion to start the action queue.</p>
           )}
         </section>
 
@@ -291,7 +390,12 @@ export function ProjectPulse({
                   {event.suggestedActions?.length ? (
                     <ul>
                       {event.suggestedActions.slice(0, 3).map((action) => (
-                        <li key={action}>{action}</li>
+                        <li key={action}>
+                          <span>{action}</span>
+                          <button type="button" className="project-pulse-inline-btn" onClick={() => void handleCreateAgentAction(event, action)}>
+                            Save action
+                          </button>
+                        </li>
                       ))}
                     </ul>
                   ) : null}

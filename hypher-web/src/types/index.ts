@@ -7,6 +7,8 @@ export type ProjectMemoryStatus = "fresh" | "stale" | "empty" | "generating" | "
 export type ProjectNextActionStatus = "suggested" | "accepted" | "dismissed";
 export type AgentEventKind = "handoff" | "build_log" | "question" | "suggestion" | "artifact" | "next_action";
 export type AgentEventStatus = "new" | "reviewed" | "accepted" | "dismissed";
+export type ProjectActionStatus = "suggested" | "accepted" | "completed" | "dismissed";
+export type ProjectActionSourceType = "project_memory" | "agent_event" | "manual" | "github";
 
 export interface CanvasPosition {
   x: number;
@@ -127,6 +129,20 @@ export interface AgentEvent {
   status: AgentEventStatus;
   createdAt: number;
   reviewedAt?: number;
+}
+
+export interface ProjectAction {
+  id: string;
+  userId: string;
+  projectId: string;
+  title: string;
+  status: ProjectActionStatus;
+  sourceType: ProjectActionSourceType;
+  sourceId?: string;
+  rationale?: string;
+  createdAt: number;
+  updatedAt: number;
+  completedAt?: number;
 }
 
 export interface ProjectSuggestion {

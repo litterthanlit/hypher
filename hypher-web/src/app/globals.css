@@ -5484,6 +5484,59 @@ body:has(.capture-root) {
   padding-left: 18px;
 }
 
+.agent-update-row li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.agent-update-row li span {
+  min-width: 0;
+}
+
+.project-action-list {
+  display: grid;
+  gap: 10px;
+}
+
+.project-action-row {
+  padding: 10px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--bg-primary) 92%, var(--accent));
+}
+
+.project-action-row > span {
+  display: block;
+  margin-bottom: 5px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+
+.project-action-row strong {
+  display: block;
+  color: var(--text-primary);
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.project-action-row p {
+  margin: 6px 0 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.project-action-row.is-completed,
+.project-action-row.is-dismissed {
+  opacity: 0.62;
+}
+
 .agent-event-controls {
   display: flex;
   flex-wrap: wrap;

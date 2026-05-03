@@ -206,6 +206,32 @@ export default defineSchema({
     .index("by_user_status", ["userId", "status"])
     .index("by_user_createdAt", ["userId", "createdAt"]),
 
+  actions: defineTable({
+    userId: v.string(),
+    projectId: v.id("objects"),
+    title: v.string(),
+    status: v.union(
+      v.literal("suggested"),
+      v.literal("accepted"),
+      v.literal("completed"),
+      v.literal("dismissed")
+    ),
+    sourceType: v.union(
+      v.literal("project_memory"),
+      v.literal("agent_event"),
+      v.literal("manual"),
+      v.literal("github")
+    ),
+    sourceId: v.optional(v.string()),
+    rationale: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    completedAt: v.optional(v.number()),
+  })
+    .index("by_user", ["userId"])
+    .index("by_user_project", ["userId", "projectId"])
+    .index("by_user_status", ["userId", "status"]),
+
   githubTokens: defineTable({
     userId: v.string(),
     accessToken: v.string(),
