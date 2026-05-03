@@ -9,6 +9,11 @@ const CORS_HEADERS: Record<string, string> = {
   "Access-Control-Allow-Headers": "Authorization, Content-Type",
 };
 
+const CONVEX_URL =
+  process.env.NEXT_PUBLIC_CONVEX_URL ??
+  process.env.CONVEX_URL ??
+  "https://adamant-pheasant-663.convex.cloud";
+
 function bearerToken(req: Request): string | null {
   const header = req.headers.get("authorization") ?? "";
   const match = header.match(/^Bearer\s+(.+)$/i);
@@ -36,7 +41,8 @@ export async function POST(req: Request) {
   try {
     result = await fetchAction(
       (api as any).agentEvents.createFromApiRequest,
-      { apiKey, payload }
+      { apiKey, payload },
+      { url: CONVEX_URL }
     ) as { ok: boolean; status?: number; error?: string };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Agent event request failed";
