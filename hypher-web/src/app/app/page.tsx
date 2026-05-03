@@ -11,6 +11,7 @@ import { SpatialCanvas } from "@/components/SpatialCanvas";
 import { ListView } from "@/components/ListView";
 import { ProjectDashboard } from "@/components/ProjectDashboard";
 import { ProjectPulse } from "@/components/ProjectPulse";
+import { AgentInboxPanel } from "@/components/AgentInboxPanel";
 import { DailyDigest } from "@/components/DailyDigest";
 import { WelcomeOverlay } from "@/components/WelcomeOverlay";
 import { OnboardingTour } from "@/components/OnboardingTour";
@@ -39,7 +40,7 @@ import {
 } from "@/lib/onboarding";
 import { toast } from "sonner";
 import { computeHealthScore, type HealthInputs } from "@/lib/health";
-import type { AnyObject, ArtifactType, ObjectKind } from "@/types";
+import type { AgentEvent, AnyObject, ArtifactType, ObjectKind } from "@/types";
 import type { BetaGateState } from "@/lib/beta";
 
 function guessArtifactType(filename: string): ArtifactType {
@@ -118,6 +119,7 @@ function HypherApp({ gateState }: { gateState: BetaGateState }) {
   const demoDigestText = useQuery(api.seed.getDemoDigest, skipTags ? "skip" : {});
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const healthInputsList = useQuery((api as any).projects.healthInputs, skipTags ? "skip" : {});
+  const agentInbox = useQuery((api as any).agentEvents.listInbox, skipTags ? "skip" : {}) as AgentEvent[] | undefined;
   const projectHealthScores = useMemo(() => {
     if (!healthInputsList) return {} as Record<string, number>;
     const now = Date.now();
@@ -685,6 +687,8 @@ function HypherApp({ gateState }: { gateState: BetaGateState }) {
         onGoHome={() => { setMobileSidebarOpen(false); setAppMode("capture"); }}
         onDashboard={() => { setContentMode("dashboard"); setSelectedProjectId(null); }}
         onDigest={() => setShowDigest(true)}
+        agentInboxCount={agentInbox?.length ?? 0}
+        onAgentInbox={() => { setContentMode("agent-inbox"); setSelectedProjectId(null); }}
         onFeedback={() => setShowFeedback(true)}
         showBetaAdmin={gateState.isAdmin}
         className={mobileSidebarOpen ? "sidebar--drawer-open" : undefined}
@@ -729,6 +733,8 @@ function HypherApp({ gateState }: { gateState: BetaGateState }) {
               <span className="workspace-breadcrumb__current">
                 {contentMode === "dashboard"
                   ? "projects"
+                  : contentMode === "agent-inbox"
+                    ? "agent inbox"
                   : contentMode === "inbox"
                     ? "inbox"
                     : currentProject?.name ?? workspaceChromeState.currentLabel}
@@ -869,6 +875,8 @@ function HypherApp({ gateState }: { gateState: BetaGateState }) {
               localStorage.setItem(`hypher-view-mode-${id}`, "pulse");
             }}
           />
+        ) : contentMode === "agent-inbox" ? (
+          <AgentInboxPanel events={agentInbox ?? []} projects={store.projects} />
         ) : contentMode === "inbox" ? (
           <InboxReviewPanel
             items={store.inboxItems}

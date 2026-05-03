@@ -1,0 +1,44 @@
+import { fetchAction } from "convex/nextjs";
+import { api } from "../../../../../convex/_generated/api";
+
+export const runtime = "nodejs";
+
+const CORS_HEADERS: Record<string, string> = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Authorization, Content-Type",
+};
+
+function bearerToken(req: Request): string | null {
+  const header = req.headers.get("authorization") ?? "";
+  const match = header.match(/^Bearer\s+(.+)$/i);
+  return match?.[1]?.trim() || null;
+}
+
+export async function OPTIONS() {
+  return new Response(null, { status: 204, headers: CORS_HEADERS });
+}
+
+export async function POST(req: Request) {
+  const apiKey = bearerToken(req);
+  if (!apiKey) {
+    return Response.json({ ok: false, error: "Missing API key" }, { status: 401, headers: CORS_HEADERS });
+  }
+
+  let payload: unknown;
+  try {
+    payload = await req.json();
+  } catch {
+    return Response.json({ ok: false, error: "Invalid JSON" }, { status: 400, headers: CORS_HEADERS });
+  }
+
+  const result = await fetchAction(
+    (api as any).agentEvents.createFromApiRequest,
+    { apiKey, payload }
+  ) as { ok: boolean; status?: number; error?: string };
+
+  return Response.json(result, {
+    status: result.status ?? (result.ok ? 200 : 400),
+    headers: CORS_HEADERS,
+  });
+}

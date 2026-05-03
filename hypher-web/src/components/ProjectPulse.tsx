@@ -4,8 +4,10 @@ import { useMemo, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { toast } from "sonner";
 import { api } from "../../convex/_generated/api";
-import type { ActivityEntry, AnyObject, Project, ProjectMemory, ProjectMemoryStatus } from "@/types";
+import type { Id } from "../../convex/_generated/dataModel";
+import type { ActivityEntry, AgentEvent, AnyObject, Project, ProjectMemory, ProjectMemoryStatus } from "@/types";
 import { getDisplayName } from "@/types";
+import { buildAgentEventNoteContent } from "@/lib/agentEvents";
 import { buildProjectPulseModel } from "@/lib/projectPulse";
 import {
   canGenerateProjectMemory,
@@ -66,7 +68,14 @@ export function ProjectPulse({
 }: Props) {
   const [generating, setGenerating] = useState(false);
   const memories = useQuery((api as any).projectMemories.listForDashboard) as ProjectMemory[] | undefined;
+  const agentEvents = useQuery(
+    (api as any).agentEvents.listForProject,
+    { projectId: project.id as Id<"objects">, limit: 5 }
+  ) as AgentEvent[] | undefined;
   const updateNextActionStatus = useMutation((api as any).projectMemories.updateNextActionStatus);
+  const dismissAgentEvent = useMutation((api as any).agentEvents.dismiss);
+  const markAgentEventReviewed = useMutation((api as any).agentEvents.markReviewed);
+  const saveAgentEventAsNote = useMutation((api as any).agentEvents.saveAsNote);
 
   const model = useMemo(
     () => buildProjectPulseModel({ project, allObjects, activity, memories }),
@@ -118,6 +127,33 @@ export function ProjectPulse({
     } catch (err) {
       console.error("[ProjectPulse] update next action", err);
       toast.error("Could not update next action");
+    }
+  };
+
+  const handleSaveAgentEvent = async (event: AgentEvent) => {
+    try {
+      await saveAgentEventAsNote({
+        eventId: event.id as Id<"agentEvents">,
+        projectId: project.id as Id<"objects">,
+        content: buildAgentEventNoteContent(event),
+        createdAt: Date.now(),
+      });
+      toast.success("Agent update saved as note");
+    } catch (err) {
+      console.error("[ProjectPulse] save agent event", err);
+      toast.error("Could not save agent update");
+    }
+  };
+
+  const handleAgentStatus = async (event: AgentEvent, status: "reviewed" | "dismissed") => {
+    try {
+      const args = { eventId: event.id as Id<"agentEvents">, reviewedAt: Date.now() };
+      if (status === "dismissed") await dismissAgentEvent(args);
+      else await markAgentEventReviewed(args);
+      toast.success(status === "dismissed" ? "Agent update dismissed" : "Agent update reviewed");
+    } catch (err) {
+      console.error("[ProjectPulse] update agent event", err);
+      toast.error("Could not update agent event");
     }
   };
 
@@ -233,6 +269,50 @@ export function ProjectPulse({
             </ul>
           ) : (
             <p className="project-pulse-muted">No open questions yet.</p>
+          )}
+        </section>
+
+        <section className="project-pulse-panel project-pulse-panel--agent">
+          <div className="project-pulse-panel-head">
+            <h2>Agent Updates</h2>
+            <span>{agentEvents?.length ?? 0}</span>
+          </div>
+          {agentEvents?.length ? (
+            <div className="agent-updates-list">
+              {agentEvents.map((event) => (
+                <article key={event.id} className="agent-update-row">
+                  <div className="agent-event-meta">
+                    <span>{event.source}</span>
+                    <span>{event.kind.replace("_", " ")}</span>
+                    <span>{timeAgo(event.createdAt)}</span>
+                  </div>
+                  <h3>{event.title}</h3>
+                  <p>{event.body}</p>
+                  {event.suggestedActions?.length ? (
+                    <ul>
+                      {event.suggestedActions.slice(0, 3).map((action) => (
+                        <li key={action}>{action}</li>
+                      ))}
+                    </ul>
+                  ) : null}
+                  <div className="project-pulse-row-actions">
+                    <button type="button" className="project-pulse-inline-btn" onClick={() => void handleSaveAgentEvent(event)}>
+                      Save as note
+                    </button>
+                    <button type="button" className="project-pulse-inline-btn" onClick={() => void handleAgentStatus(event, "reviewed")}>
+                      Review
+                    </button>
+                    <button type="button" className="project-pulse-inline-btn" onClick={() => void handleAgentStatus(event, "dismissed")}>
+                      Dismiss
+                    </button>
+                  </div>
+                </article>
+              ))}
+            </div>
+          ) : (
+            <p className="project-pulse-muted">
+              No agent updates yet. When OpenClaw, Hermes, or another agent works on this project, its handoffs will appear here for review.
+            </p>
           )}
         </section>
 

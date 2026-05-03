@@ -21,6 +21,8 @@ interface Props {
   onGoHome: () => void;
   onDashboard: () => void;
   onDigest: () => void;
+  agentInboxCount?: number;
+  onAgentInbox?: () => void;
   onFeedback?: () => void;
   showBetaAdmin?: boolean;
   /** Merged onto `<aside>` (e.g. `sidebar--drawer-open` on narrow screens). */
@@ -42,6 +44,8 @@ function timeAgo(ts: number): string {
 export function Sidebar({
   projects, inboxItems, recentItems, selectedProjectId, selectedObjectId,
   onSelectProject, onSelectInboxItem, onSelectRecent, onAdd, onGoHome, onDashboard, onDigest,
+  agentInboxCount = 0,
+  onAgentInbox,
   onFeedback,
   showBetaAdmin,
   className,
@@ -141,6 +145,19 @@ export function Sidebar({
             </ul>
           </div>
         )}
+        {agentInboxCount > 0 && onAgentInbox ? (
+          <div className="section">
+            <button className="sidebar-digest-btn sidebar-agent-inbox-btn" onClick={() => { closeMobile(); onAgentInbox(); }}>
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <path d="M3 4.5h10" />
+                <path d="M4.5 2.5h7l1.5 2v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-7l1.5-2Z" />
+                <path d="M6 8h4" />
+              </svg>
+              Agent Inbox
+              <span className="count inbox-count">{agentInboxCount}</span>
+            </button>
+          </div>
+        ) : null}
         <div className="section">
           {projects.length > 0 ? (
             <button

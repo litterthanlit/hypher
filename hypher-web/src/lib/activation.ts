@@ -1,4 +1,4 @@
-export type WorkspaceContentMode = "pulse" | "canvas" | "list" | "dashboard" | "inbox";
+export type WorkspaceContentMode = "pulse" | "canvas" | "list" | "dashboard" | "inbox" | "agent-inbox";
 
 export type ActivationAction = "capture" | "manual_project";
 export type FirstUseActivationAction = ActivationAction | "open_project";
@@ -112,7 +112,7 @@ export function getWorkspaceChromeState(params: {
   selectedProjectId: string | null;
   contentMode: WorkspaceContentMode;
 }): { showProjectViewTabs: boolean; currentLabel: string } {
-  if (params.projectCount === 0 && params.contentMode !== "inbox") {
+  if (params.projectCount === 0 && params.contentMode !== "inbox" && params.contentMode !== "agent-inbox") {
     return { showProjectViewTabs: false, currentLabel: "first project" };
   }
 
@@ -134,7 +134,7 @@ export function getWorkspaceEmptyState(params: {
   selectedProjectId: string | null;
   contentMode: WorkspaceContentMode;
 }): ActivationEmptyState | null {
-  if (params.projectCount === 0) {
+  if (params.projectCount === 0 && params.contentMode !== "inbox" && params.contentMode !== "agent-inbox") {
     return {
       title: "No project pulse yet",
       body: "Capture a few real fragments first. Hypher will help group them into a project and create memory around it.",

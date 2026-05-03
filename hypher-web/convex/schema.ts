@@ -173,6 +173,39 @@ export default defineSchema({
     .index("by_user", ["userId"])
     .index("by_user_project", ["userId", "projectId"]),
 
+  agentEvents: defineTable({
+    userId: v.string(),
+    projectId: v.optional(v.id("objects")),
+    source: v.string(),
+    kind: v.union(
+      v.literal("handoff"),
+      v.literal("build_log"),
+      v.literal("question"),
+      v.literal("suggestion"),
+      v.literal("artifact"),
+      v.literal("next_action")
+    ),
+    title: v.string(),
+    body: v.string(),
+    suggestedActions: v.optional(v.array(v.string())),
+    repo: v.optional(v.string()),
+    branch: v.optional(v.string()),
+    commitSha: v.optional(v.string()),
+    artifactUrl: v.optional(v.string()),
+    status: v.union(
+      v.literal("new"),
+      v.literal("reviewed"),
+      v.literal("accepted"),
+      v.literal("dismissed")
+    ),
+    createdAt: v.number(),
+    reviewedAt: v.optional(v.number()),
+  })
+    .index("by_user", ["userId"])
+    .index("by_user_project", ["userId", "projectId"])
+    .index("by_user_status", ["userId", "status"])
+    .index("by_user_createdAt", ["userId", "createdAt"]),
+
   githubTokens: defineTable({
     userId: v.string(),
     accessToken: v.string(),

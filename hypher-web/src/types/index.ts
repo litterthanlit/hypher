@@ -5,6 +5,8 @@ export type ConnectionType = "manual" | "ai_suggested" | "ai_confirmed" | "dismi
 export type ObjectKind = "project" | "note" | "artifact";
 export type ProjectMemoryStatus = "fresh" | "stale" | "empty" | "generating" | "error";
 export type ProjectNextActionStatus = "suggested" | "accepted" | "dismissed";
+export type AgentEventKind = "handoff" | "build_log" | "question" | "suggestion" | "artifact" | "next_action";
+export type AgentEventStatus = "new" | "reviewed" | "accepted" | "dismissed";
 
 export interface CanvasPosition {
   x: number;
@@ -107,6 +109,24 @@ export interface ProjectMemory {
   sourceUpdatedAt: number;
   model: string;
   error?: string;
+}
+
+export interface AgentEvent {
+  id: string;
+  userId: string;
+  projectId?: string;
+  source: string;
+  kind: AgentEventKind;
+  title: string;
+  body: string;
+  suggestedActions?: string[];
+  repo?: string;
+  branch?: string;
+  commitSha?: string;
+  artifactUrl?: string;
+  status: AgentEventStatus;
+  createdAt: number;
+  reviewedAt?: number;
 }
 
 export interface ProjectSuggestion {
