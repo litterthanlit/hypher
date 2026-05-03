@@ -2,10 +2,11 @@
 
 import { useState, useCallback, useEffect } from "react";
 import Link from "next/link";
-import { useQuery, useMutation } from "convex/react";
+import { useQuery, useMutation, useConvexAuth } from "convex/react";
 import { toast } from "sonner";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
+import { getSettingsAccessState } from "@/lib/settingsAccess";
 
 type Variant = "modal" | "page";
 
@@ -16,7 +17,9 @@ interface Props {
 
 export function ApiKeysPanel({ onClose, variant = "modal" }: Props) {
   const [includeRevoked, setIncludeRevoked] = useState(false);
-  const keys = useQuery(api.apiKeys.list, { includeRevoked });
+  const { isLoading, isAuthenticated } = useConvexAuth();
+  const accessState = getSettingsAccessState({ isLoading, isAuthenticated });
+  const keys = useQuery(api.apiKeys.list, accessState === "settings" ? { includeRevoked } : "skip");
   const createKey = useMutation(api.apiKeys.create);
   const revokeKey = useMutation(api.apiKeys.revoke);
 
@@ -52,18 +55,20 @@ export function ApiKeysPanel({ onClose, variant = "modal" }: Props) {
   const [copied, setCopied] = useState(false);
 
   const handleOpenCreate = useCallback(() => {
+    if (accessState !== "settings") return;
     setNewKeyName("");
     setShowNameModal(true);
-  }, []);
+  }, [accessState]);
 
   const handleCreate = useCallback(async () => {
+    if (accessState !== "settings") return;
     if (!newKeyName.trim()) return;
     const plainKey = await createKey({ name: newKeyName.trim() });
     setShowNameModal(false);
     setNewKeyName("");
     setRevealedKey(plainKey);
     setCopied(false);
-  }, [newKeyName, createKey]);
+  }, [accessState, newKeyName, createKey]);
 
   const handleCopy = useCallback(() => {
     if (revealedKey) {
@@ -79,10 +84,11 @@ export function ApiKeysPanel({ onClose, variant = "modal" }: Props) {
 
   const handleRevoke = useCallback(
     async (keyId: string) => {
+      if (accessState !== "settings") return;
       if (!window.confirm("Revoke this API key? Apps using it will stop working.")) return;
       await revokeKey({ keyId: keyId as Id<"apiKeys"> });
     },
-    [revokeKey]
+    [accessState, revokeKey]
   );
 
   useEffect(() => {
@@ -93,6 +99,8 @@ export function ApiKeysPanel({ onClose, variant = "modal" }: Props) {
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, [onClose, variant, revealedKey, showNameModal]);
+
+  const authRequired = accessState !== "settings";
 
   const inner = (
     <>
@@ -116,7 +124,18 @@ export function ApiKeysPanel({ onClose, variant = "modal" }: Props) {
         API keys let you capture into Hypher from external apps using <code>@hypher/core</code>.
       </p>
 
-      <div className="api-keys-toolbar">
+      {authRequired ? (
+        <div className="api-keys-auth-required">
+          <p>{accessState === "loading" ? "Checking sign-in..." : "Sign in to create and manage Hypher API keys."}</p>
+          {accessState === "sign_in_required" ? (
+            <Link href="/sign-in?redirect_url=/app/settings/api-keys" className="settings-github-connect">
+              Sign in
+            </Link>
+          ) : null}
+        </div>
+      ) : null}
+
+      {!authRequired ? <div className="api-keys-toolbar">
         <button
           type="button"
           className="settings-github-connect"
@@ -132,9 +151,9 @@ export function ApiKeysPanel({ onClose, variant = "modal" }: Props) {
           />
           Show revoked
         </label>
-      </div>
+      </div> : null}
 
-      {showNameModal && (
+      {!authRequired && showNameModal && (
         <div className="modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) setShowNameModal(false); }}>
           <div className="modal api-keys-name-modal" onClick={(e) => e.stopPropagation()}>
             <h4 className="api-keys-modal-title">Name this key</h4>
@@ -164,7 +183,7 @@ export function ApiKeysPanel({ onClose, variant = "modal" }: Props) {
         </div>
       )}
 
-      {revealedKey && (
+      {!authRequired && revealedKey && (
         <div className="modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) dismissReveal(); }}>
           <div className="modal api-keys-panel" onClick={(e) => e.stopPropagation()}>
             <div className="api-key-revealed">
@@ -185,7 +204,7 @@ export function ApiKeysPanel({ onClose, variant = "modal" }: Props) {
         </div>
       )}
 
-      <div className="api-keys-table-wrap">
+      {!authRequired ? <div className="api-keys-table-wrap">
         <table className="api-keys-table">
           <thead>
             <tr>
@@ -235,10 +254,10 @@ export function ApiKeysPanel({ onClose, variant = "modal" }: Props) {
             ))}
           </tbody>
         </table>
-      </div>
+      </div> : null}
 
       {/* ── Daily email digest ──────────────────────────────────────────── */}
-      <div className="api-keys-digest-section">
+      {!authRequired ? <div className="api-keys-digest-section">
         <h4 className="api-keys-section-title">Daily email digest</h4>
         <p className="api-keys-desc">
           Receive a morning summary of your projects by email. Reply to add a thought to your inbox.
@@ -294,7 +313,7 @@ export function ApiKeysPanel({ onClose, variant = "modal" }: Props) {
             Unsubscribe from digest
           </button>
         </div>
-      </div>
+      </div> : null}
     </>
   );
 
