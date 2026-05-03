@@ -32,10 +32,20 @@ export async function POST(req: Request) {
     return Response.json({ ok: false, error: "Invalid JSON" }, { status: 400, headers: CORS_HEADERS });
   }
 
-  const result = await fetchAction(
-    (api as any).agentEvents.createFromApiRequest,
-    { apiKey, payload }
-  ) as { ok: boolean; status?: number; error?: string };
+  let result: { ok: boolean; status?: number; error?: string };
+  try {
+    result = await fetchAction(
+      (api as any).agentEvents.createFromApiRequest,
+      { apiKey, payload }
+    ) as { ok: boolean; status?: number; error?: string };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Agent event request failed";
+    console.error("[agent/events]", message);
+    return Response.json(
+      { ok: false, error: "Agent event request failed", detail: message },
+      { status: 500, headers: CORS_HEADERS }
+    );
+  }
 
   return Response.json(result, {
     status: result.status ?? (result.ok ? 200 : 400),
