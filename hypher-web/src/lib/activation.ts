@@ -1,6 +1,7 @@
 export type WorkspaceContentMode = "pulse" | "canvas" | "list" | "dashboard" | "inbox";
 
 export type ActivationAction = "capture" | "manual_project";
+export type FirstUseActivationAction = ActivationAction | "open_project";
 export type AppAccessState = "loading" | "sign_in_required" | "beta_gate" | "app";
 
 export interface ActivationEmptyState {
@@ -8,6 +9,22 @@ export interface ActivationEmptyState {
   body: string;
   primaryAction: ActivationAction;
   secondaryAction?: ActivationAction;
+}
+
+export interface FirstUseActivationStep {
+  label: string;
+  complete: boolean;
+  current: boolean;
+  meta?: string;
+}
+
+export interface FirstUseActivationRail {
+  title: string;
+  body: string;
+  primaryAction: FirstUseActivationAction;
+  primaryLabel: string;
+  isComplete: boolean;
+  steps: FirstUseActivationStep[];
 }
 
 export function getAppAccessState(params: {
@@ -19,6 +36,65 @@ export function getAppAccessState(params: {
   if (!params.isSignedIn || params.gateState.isAuthenticated === false) return "sign_in_required";
   if (!params.gateState.hasAccess) return "beta_gate";
   return "app";
+}
+
+export function getFirstUseActivationRail(params: {
+  captureCount: number;
+  projectCount: number;
+  sortedCaptureCount: number;
+  memoryCount: number;
+  reviewedNextActionCount: number;
+}): FirstUseActivationRail {
+  const captureProgress = Math.min(Math.max(params.captureCount, 0), 3);
+  const capturedThree = params.captureCount >= 3;
+  const sortedIntoProject = params.projectCount > 0 && params.sortedCaptureCount > 0;
+  const generatedMemory = params.memoryCount > 0;
+  const reviewedNextAction = params.reviewedNextActionCount > 0;
+
+  const rawSteps: Array<Omit<FirstUseActivationStep, "current">> = [
+    {
+      label: "Capture 3 real fragments",
+      complete: capturedThree,
+      meta: `${captureProgress}/3`,
+    },
+    {
+      label: "Sort them into a project",
+      complete: sortedIntoProject,
+    },
+    {
+      label: "Generate project memory",
+      complete: generatedMemory,
+    },
+    {
+      label: "Review a next action",
+      complete: reviewedNextAction,
+    },
+  ];
+  const currentIndex = rawSteps.findIndex((step) => !step.complete);
+  const steps = rawSteps.map((step, index) => ({
+    ...step,
+    current: index === currentIndex,
+  }));
+  const isComplete = currentIndex === -1;
+
+  let primaryAction: FirstUseActivationAction = "capture";
+  let primaryLabel = "Capture fragment";
+  if (capturedThree && !sortedIntoProject) {
+    primaryAction = "manual_project";
+    primaryLabel = "Create project";
+  } else if (sortedIntoProject && (!generatedMemory || !reviewedNextAction)) {
+    primaryAction = "open_project";
+    primaryLabel = generatedMemory ? "Review next action" : "Open project pulse";
+  }
+
+  return {
+    title: "First project pulse",
+    body: "Capture a few real fragments, sort them into a project, then let Hypher create memory and a next move.",
+    primaryAction,
+    primaryLabel,
+    isComplete,
+    steps,
+  };
 }
 
 export function getCaptureEmptyState(projectCount: number): ActivationEmptyState | null {

@@ -3,11 +3,13 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { useUser } from "@clerk/nextjs";
 import { UserButton } from "@clerk/nextjs";
-import type { CaptureResult, Project, ProjectSuggestion, AnyObject } from "@/types";
+import { useQuery } from "convex/react";
+import { api } from "../../convex/_generated/api";
+import type { CaptureResult, Project, ProjectSuggestion, AnyObject, ProjectMemory } from "@/types";
 import { ProjectAssignPopup } from "./ProjectAssignPopup";
 import { ONBOARDING_TARGETS } from "@/lib/onboarding";
 import { HealthRing } from "./HealthRing";
-import { getCaptureEmptyState } from "@/lib/activation";
+import { getCaptureEmptyState, getFirstUseActivationRail } from "@/lib/activation";
 
 interface Props {
   projects: Project[];
@@ -30,6 +32,8 @@ interface Props {
 }
 
 type CaptureStep = "idle" | "assigning";
+
+const FIRST_USE_RAIL_STORAGE_KEY = "hypher-first-use-activation-complete";
 
 function weekdayPart(): string {
   const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -93,8 +97,13 @@ export function CaptureHome({
   const [capturedText, setCapturedText] = useState("");
   const [capturedNoteId, setCapturedNoteId] = useState<string | null>(null);
   const [isDragNear, setIsDragNear] = useState(false);
+  const [activationRailHidden, setActivationRailHidden] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return localStorage.getItem(FIRST_USE_RAIL_STORAGE_KEY) === "true";
+  });
   const inputRef = useRef<HTMLInputElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const memories = useQuery((api as any).projectMemories.listForDashboard) as ProjectMemory[] | undefined;
 
   const sortedProjects = useMemo(
     () => [...projects].sort((a, b) => b.modifiedAt - a.modifiedAt),
@@ -178,6 +187,53 @@ export function CaptureHome({
   const primary = sortedProjects[0];
   const secondary = sortedProjects.slice(1, 4);
   const emptyState = getCaptureEmptyState(projects.length);
+  const firstUseRail = useMemo(() => {
+    const projectIds = new Set(projects.map((project) => project.id));
+    const captureCount = allObjects.filter((object) => object.kind !== "project").length;
+    const sortedCaptureCount = allObjects.filter(
+      (object) => object.kind !== "project" && object.projectId && projectIds.has(object.projectId)
+    ).length;
+    const projectMemories = (memories ?? []).filter(
+      (memory) => projectIds.has(memory.projectId) && Boolean(memory.summary?.trim())
+    );
+    const reviewedNextActionCount = projectMemories.reduce(
+      (count, memory) =>
+        count + memory.nextActions.filter((action) => action.status === "accepted" || action.status === "dismissed").length,
+      0
+    );
+    return getFirstUseActivationRail({
+      captureCount,
+      projectCount: projects.length,
+      sortedCaptureCount,
+      memoryCount: projectMemories.length,
+      reviewedNextActionCount,
+    });
+  }, [allObjects, memories, projects]);
+
+  useEffect(() => {
+    if (!firstUseRail.isComplete || activationRailHidden) return;
+    localStorage.setItem(FIRST_USE_RAIL_STORAGE_KEY, "true");
+    setActivationRailHidden(true);
+  }, [activationRailHidden, firstUseRail.isComplete]);
+
+  const handleRailPrimaryAction = () => {
+    if (firstUseRail.primaryAction === "capture") {
+      inputRef.current?.focus();
+      return;
+    }
+    if (firstUseRail.primaryAction === "manual_project") {
+      if (onCreateProject) onCreateProject();
+      else inputRef.current?.focus();
+      return;
+    }
+    if (primary) onProjectClick(primary.id);
+    else onNavigateToWorkspace();
+  };
+
+  const handleHideActivationRail = () => {
+    localStorage.setItem(FIRST_USE_RAIL_STORAGE_KEY, "true");
+    setActivationRailHidden(true);
+  };
 
   const previewForProject = (p: Project): string => {
     if (p.description?.trim()) return p.description.trim();
@@ -331,6 +387,40 @@ export function CaptureHome({
               ) : null}
             </div>
           )}
+
+          {step === "idle" && !activationRailHidden ? (
+            <div className="first-use-rail" aria-label="First project pulse progress">
+              <div className="first-use-rail__head">
+                <div>
+                  <p className="first-use-rail__eyebrow">Activation</p>
+                  <h2>{firstUseRail.title}</h2>
+                  <p>{firstUseRail.body}</p>
+                </div>
+                <button type="button" className="first-use-rail__skip" onClick={handleHideActivationRail}>
+                  Skip
+                </button>
+              </div>
+              <ol className="first-use-rail__steps">
+                {firstUseRail.steps.map((railStep) => (
+                  <li
+                    key={railStep.label}
+                    className={[
+                      "first-use-rail__step",
+                      railStep.complete ? "is-complete" : "",
+                      railStep.current ? "is-current" : "",
+                    ].filter(Boolean).join(" ")}
+                  >
+                    <span className="first-use-rail__dot" aria-hidden />
+                    <span className="first-use-rail__label">{railStep.label}</span>
+                    {railStep.meta ? <span className="first-use-rail__meta">{railStep.meta}</span> : null}
+                  </li>
+                ))}
+              </ol>
+              <button type="button" className="first-use-rail__action" onClick={handleRailPrimaryAction}>
+                {firstUseRail.primaryLabel}
+              </button>
+            </div>
+          ) : null}
 
           {step === "idle" && (
             <div className="home-kbd-hints-mock">

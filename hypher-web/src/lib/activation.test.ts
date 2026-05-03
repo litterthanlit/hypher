@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   getAppAccessState,
   getCaptureEmptyState,
+  getFirstUseActivationRail,
   getWorkspaceChromeState,
   getWorkspaceEmptyState,
   type WorkspaceContentMode,
@@ -27,6 +28,57 @@ describe("capture activation copy", () => {
       primaryAction: "capture",
       secondaryAction: "manual_project",
     });
+  });
+});
+
+describe("first-use activation rail", () => {
+  it("starts new users with a 3-fragment capture goal", () => {
+    expect(
+      getFirstUseActivationRail({
+        captureCount: 0,
+        projectCount: 0,
+        sortedCaptureCount: 0,
+        memoryCount: 0,
+        reviewedNextActionCount: 0,
+      })
+    ).toMatchObject({
+      title: "First project pulse",
+      primaryAction: "capture",
+      isComplete: false,
+      steps: [
+        { label: "Capture 3 real fragments", complete: false, current: true, meta: "0/3" },
+        { label: "Sort them into a project", complete: false, current: false },
+        { label: "Generate project memory", complete: false, current: false },
+        { label: "Review a next action", complete: false, current: false },
+      ],
+    });
+  });
+
+  it("moves users to project creation after three captures", () => {
+    const rail = getFirstUseActivationRail({
+      captureCount: 3,
+      projectCount: 0,
+      sortedCaptureCount: 0,
+      memoryCount: 0,
+      reviewedNextActionCount: 0,
+    });
+
+    expect(rail?.primaryAction).toBe("manual_project");
+    expect(rail?.steps[0]).toMatchObject({ complete: true, meta: "3/3" });
+    expect(rail?.steps[1]).toMatchObject({ complete: false, current: true });
+  });
+
+  it("marks the rail complete after memory and next action review", () => {
+    const rail = getFirstUseActivationRail({
+      captureCount: 4,
+      projectCount: 1,
+      sortedCaptureCount: 3,
+      memoryCount: 1,
+      reviewedNextActionCount: 1,
+    });
+
+    expect(rail?.isComplete).toBe(true);
+    expect(rail?.steps.every((step) => step.complete)).toBe(true);
   });
 });
 
