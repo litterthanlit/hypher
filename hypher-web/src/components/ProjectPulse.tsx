@@ -9,7 +9,8 @@ import type { ActivityEntry, AgentEvent, AnyObject, Project, ProjectAction, Proj
 import { getDisplayName } from "@/types";
 import { buildAgentEventNoteContent } from "@/lib/agentEvents";
 import { selectProjectActionQueue } from "@/lib/actions";
-import { buildProjectPulseModel } from "@/lib/projectPulse";
+import { compileProjectContext } from "@/lib/projectContext";
+import { buildProjectContextInput, buildProjectPulseModel } from "@/lib/projectPulse";
 import {
   canGenerateProjectMemory,
   computeProjectMemorySourceUpdatedAt,
@@ -216,6 +217,24 @@ export function ProjectPulse({
     }
   };
 
+  const handleCopyAgentContext = async () => {
+    try {
+      const packet = compileProjectContext({
+        ...buildProjectContextInput({
+          project,
+          model,
+          actionQueue,
+          agentEvents: agentEvents ?? [],
+        }),
+      });
+      await navigator.clipboard.writeText(packet);
+      toast.success("Agent context copied");
+    } catch (err) {
+      console.error("[ProjectPulse] copy agent context", err);
+      toast.error("Could not copy agent context");
+    }
+  };
+
   return (
     <section className="project-pulse">
       <header className="project-pulse-hero">
@@ -235,6 +254,9 @@ export function ProjectPulse({
           ) : null}
           <button type="button" className="project-pulse-btn project-pulse-btn--primary" onClick={onCapture}>
             Capture
+          </button>
+          <button type="button" className="project-pulse-btn" onClick={() => void handleCopyAgentContext()}>
+            Copy agent context
           </button>
           <button type="button" className="project-pulse-btn" onClick={onOpenCanvas}>
             Canvas

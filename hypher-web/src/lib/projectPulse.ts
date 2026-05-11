@@ -1,4 +1,5 @@
 import type { ActivityEntry, AnyObject, Project, ProjectMemory } from "@/types";
+import type { AgentEvent, ProjectAction } from "@/types";
 import { selectPrimaryNextAction } from "./projectMemory";
 
 export function buildProjectPulseModel(params: {
@@ -24,5 +25,20 @@ export function buildProjectPulseModel(params: {
     recentActivity,
     memory,
     primaryNextAction: selectPrimaryNextAction(memory?.nextActions ?? []),
+  };
+}
+
+export function buildProjectContextInput(params: {
+  project: Project;
+  model: ReturnType<typeof buildProjectPulseModel>;
+  actionQueue: ProjectAction[];
+  agentEvents: AgentEvent[];
+}) {
+  return {
+    project: params.project,
+    memory: params.model.memory,
+    captures: params.model.latestCaptures,
+    actions: params.actionQueue,
+    agentEvents: params.agentEvents,
   };
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { ActivityEntry, AnyObject, Project, ProjectMemory } from "@/types";
-import { buildProjectPulseModel } from "./projectPulse";
+import type { ActivityEntry, AgentEvent, AnyObject, Project, ProjectAction, ProjectMemory } from "@/types";
+import { buildProjectContextInput, buildProjectPulseModel } from "./projectPulse";
 
 const project: Project = {
   id: "p1",
@@ -81,5 +81,50 @@ describe("buildProjectPulseModel", () => {
     expect(model.memory?.summary).toBe("Hypher is tightening activation.");
     expect(model.primaryNextAction?.title).toBe("Run a first-user smoke test");
     expect(model.recentActivity.map((entry) => entry.id)).toEqual(["a1"]);
+  });
+});
+
+describe("buildProjectContextInput", () => {
+  it("maps Project Pulse data into compiler input without browser state", () => {
+    const actions: ProjectAction[] = [
+      {
+        id: "pa1",
+        userId: "u1",
+        projectId: "p1",
+        title: "Copy context packet",
+        status: "accepted",
+        sourceType: "manual",
+        createdAt: 70,
+        updatedAt: 70,
+      },
+    ];
+    const agentEvents: AgentEvent[] = [
+      {
+        id: "e1",
+        userId: "u1",
+        projectId: "p1",
+        source: "openclaw",
+        kind: "handoff",
+        title: "Smoke test passed",
+        body: "Matched handoff reached Project Pulse.",
+        status: "new",
+        createdAt: 80,
+      },
+    ];
+
+    const input = buildProjectContextInput({
+      project,
+      model: buildProjectPulseModel({ project, allObjects: objects, activity, memories: [memory] }),
+      actionQueue: actions,
+      agentEvents,
+    });
+
+    expect(input).toEqual({
+      project,
+      memory,
+      captures: [objects[2], objects[1]],
+      actions,
+      agentEvents,
+    });
   });
 });
