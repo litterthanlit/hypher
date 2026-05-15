@@ -259,6 +259,31 @@ export default defineSchema({
     .index("by_prefix", ["prefix"])
     .index("by_legacy_full", ["legacyFullKeyHash"]),
 
+  oauthAuthorizationCodes: defineTable({
+    codeHash: v.string(),
+    userId: v.string(),
+    clientId: v.string(),
+    redirectUri: v.string(),
+    codeChallenge: v.string(),
+    resource: v.string(),
+    scope: v.string(),
+    createdAt: v.number(),
+    expiresAt: v.number(),
+    consumedAt: v.optional(v.number()),
+  }).index("by_codeHash", ["codeHash"]),
+
+  oauthAccessTokens: defineTable({
+    tokenHash: v.string(),
+    userId: v.string(),
+    clientId: v.string(),
+    resource: v.string(),
+    scope: v.string(),
+    createdAt: v.number(),
+    expiresAt: v.number(),
+    revokedAt: v.optional(v.number()),
+    lastUsedAt: v.optional(v.number()),
+  }).index("by_tokenHash", ["tokenHash"]),
+
   tags: defineTable({
     userId: v.string(),
     name: v.string(),

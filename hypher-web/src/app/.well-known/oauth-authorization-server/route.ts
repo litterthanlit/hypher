@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { baseUrlFromRequest, buildProtectedResourceMetadata } from "@/lib/oauthBridge";
+import { baseUrlFromRequest, buildOAuthMetadata } from "@/lib/oauthBridge";
 
 export const runtime = "nodejs";
 
 export async function GET(req: NextRequest) {
-  return NextResponse.json(buildProtectedResourceMetadata(baseUrlFromRequest(req.url)), {
+  return NextResponse.json(buildOAuthMetadata(baseUrlFromRequest(req.url)), {
     headers: { "Cache-Control": "no-store" },
   });
 }

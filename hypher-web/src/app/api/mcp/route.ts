@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
-import { fetchQuery } from "convex/nextjs";
+import { fetchMutation, fetchQuery } from "convex/nextjs";
 import { api } from "../../../../convex/_generated/api";
 import type { Id } from "../../../../convex/_generated/dataModel";
 import type { ActivityEntry, AgentEvent, AnyObject, Project, ProjectAction, ProjectMemory } from "@/types";
+import { HYPHER_MCP_SCOPE, baseUrlFromRequest, sha256Base64url } from "@/lib/oauthBridge";
 import {
   buildMcpToolResult,
   getHypherMcpToolDescriptors,
@@ -21,7 +22,7 @@ type JsonRpcRequest = {
 };
 
 function metadataUrl(req: NextRequest): string {
-  return `${process.env.NEXT_PUBLIC_APP_URL || new URL(req.url).origin}/.well-known/oauth-protected-resource`;
+  return `${baseUrlFromRequest(req.url)}/.well-known/oauth-protected-resource`;
 }
 
 function jsonRpc(id: JsonRpcRequest["id"], result: unknown, status = 200) {
@@ -39,7 +40,13 @@ function jsonRpcError(id: JsonRpcRequest["id"], code: number, message: string, s
 }
 
 function authChallenge(req: NextRequest) {
-  return `Bearer resource_metadata="${metadataUrl(req)}", scope="hypher.projects.read"`;
+  return `Bearer resource_metadata="${metadataUrl(req)}", scope="${HYPHER_MCP_SCOPE}"`;
+}
+
+function bearerToken(req: NextRequest): string | null {
+  const header = req.headers.get("authorization") ?? "";
+  const match = header.match(/^Bearer\s+(.+)$/i);
+  return match?.[1]?.trim() || null;
 }
 
 function mapProject(row: any): Project | null {
@@ -101,6 +108,33 @@ async function getMcpContext(token: string, projectId?: string): Promise<HypherM
   return { projects, projectContexts };
 }
 
+async function getMcpContextForAccessToken(accessToken: string, resource: string, projectId?: string): Promise<HypherMcpContext | null> {
+  const tokenHash = sha256Base64url(accessToken);
+  const now = Date.now();
+
+  const validated = await fetchMutation((api as any).oauth.validateAccessToken, {
+    tokenHash,
+    resource,
+    scope: HYPHER_MCP_SCOPE,
+    now,
+  });
+  if (!validated) return null;
+
+  const data = await fetchQuery((api as any).oauthContext.dataForToken, {
+    tokenHash,
+    resource,
+    scope: HYPHER_MCP_SCOPE,
+    projectId,
+    now,
+  }) as { projects: Project[]; projectContext: HypherMcpProjectContext | null } | null;
+  if (!data) return null;
+
+  return {
+    projects: data.projects,
+    projectContexts: projectId && data.projectContext ? { [projectId]: data.projectContext } : {},
+  };
+}
+
 export async function GET() {
   return NextResponse.json({
     name: "hypher",
@@ -140,26 +174,36 @@ export async function POST(req: NextRequest) {
     return jsonRpcError(body.id, -32601, "Method not found");
   }
 
-  const { userId, getToken } = await auth();
-  if (!userId) {
-    return jsonRpcError(body.id, -32001, "unauth", 401, {
-      "WWW-Authenticate": authChallenge(req),
-    });
-  }
-
-  const token = await getToken({ template: "convex" });
-  if (!token) {
-    return jsonRpcError(body.id, -32001, "missing-convex-token", 401, {
-      "WWW-Authenticate": authChallenge(req),
-    });
-  }
-
   const toolName = String(body.params?.name ?? "");
   const args = (body.params?.arguments ?? {}) as Record<string, unknown>;
   const projectId = typeof args.projectId === "string" ? args.projectId : undefined;
 
   try {
-    const context = await getMcpContext(token, toolName === "list_projects" ? undefined : projectId);
+    const accessToken = bearerToken(req);
+    let context: HypherMcpContext | null = null;
+
+    if (accessToken) {
+      context = await getMcpContextForAccessToken(
+        accessToken,
+        baseUrlFromRequest(req.url),
+        toolName === "list_projects" ? undefined : projectId
+      );
+    } else {
+      const { userId, getToken } = await auth();
+      if (userId) {
+        const convexToken = await getToken({ template: "convex" });
+        if (convexToken) {
+          context = await getMcpContext(convexToken, toolName === "list_projects" ? undefined : projectId);
+        }
+      }
+    }
+
+    if (!context) {
+      return jsonRpcError(body.id, -32001, "unauth", 401, {
+        "WWW-Authenticate": authChallenge(req),
+      });
+    }
+
     return jsonRpc(body.id, buildMcpToolResult(toolName, args, context));
   } catch (err) {
     console.error("[api/mcp]", err);
