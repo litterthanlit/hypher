@@ -5170,6 +5170,11 @@ body:has(.capture-root) {
   padding: 8px 11px;
 }
 
+.project-pulse-btn:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
 .project-pulse-btn:hover,
 .project-pulse-inline-btn:hover:not(:disabled) {
   background: var(--bg-hover);
@@ -5279,6 +5284,38 @@ body:has(.capture-root) {
   font-size: 14px;
 }
 
+.project-memory-stack {
+  display: grid;
+  gap: 12px;
+}
+
+.project-memory-fields {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+}
+
+.project-memory-fields div {
+  display: grid;
+  gap: 3px;
+}
+
+.project-memory-fields dt,
+.project-memory-mini span {
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.project-memory-fields dd {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
 .project-pulse-muted {
   color: var(--text-tertiary);
   font-size: 13px;
@@ -5319,6 +5356,59 @@ body:has(.capture-root) {
   font-size: 13px;
 }
 
+.next-action-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.next-action-meta span {
+  padding: 4px 7px;
+  border: 1px solid var(--border-default);
+  border-radius: 6px;
+  color: var(--text-tertiary);
+  font-size: 11px;
+}
+
+.project-pulse-next-context {
+  margin: 10px 0 0;
+  color: var(--text-tertiary);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.handoff-tool-select,
+.project-merge-control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.handoff-tool-select span {
+  color: var(--text-tertiary);
+  font-size: 11px;
+}
+
+.handoff-tool-select select,
+.project-merge-control select,
+.capture-correction-actions select {
+  min-height: 30px;
+  min-width: 0;
+  border: 1px solid var(--border-default);
+  border-radius: 6px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: 12px;
+}
+
+.handoff-tool-select select,
+.project-merge-control select {
+  padding: 0 8px;
+}
+
 .project-pulse-row-actions {
   display: flex;
   align-items: center;
@@ -5341,6 +5431,101 @@ body:has(.capture-root) {
   display: flex;
   flex-direction: column;
   gap: 6px;
+}
+
+.project-capture-list {
+  gap: 10px;
+}
+
+.project-capture-row {
+  border-top: 1px solid var(--border-default);
+  padding-top: 8px;
+}
+
+.project-capture-row:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.project-capture-row .project-pulse-list-row {
+  border-top: 0;
+  padding: 0;
+}
+
+.capture-correction-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.capture-correction-actions select {
+  max-width: 150px;
+  padding: 0 7px;
+}
+
+.project-memory-mini {
+  display: grid;
+  gap: 14px;
+}
+
+.project-memory-mini > div {
+  display: grid;
+  gap: 8px;
+}
+
+.handoff-history-list {
+  display: grid;
+  gap: 10px;
+}
+
+.handoff-history-row {
+  padding: 10px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  background: var(--bg-secondary);
+}
+
+.handoff-history-row h3 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.handoff-history-row p {
+  margin: 6px 0 0;
+  color: var(--text-tertiary);
+  font-size: 12px;
+}
+
+.handoff-preview {
+  margin-bottom: 12px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  background: var(--bg-secondary);
+}
+
+.handoff-preview summary {
+  cursor: pointer;
+  padding: 9px 10px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.handoff-preview textarea {
+  width: 100%;
+  min-height: 180px;
+  resize: vertical;
+  border: 0;
+  border-top: 1px solid var(--border-default);
+  background: var(--bg-primary);
+  color: var(--text-secondary);
+  padding: 10px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.45;
 }
 
 .project-pulse-list-row {
@@ -6693,11 +6878,18 @@ body:has(.capture-root) {
   font-size: 28px;
   font-weight: 400;
   color: #000000;
-  letter-spacing: -0.03em;
-  margin-bottom: 24px;
+  letter-spacing: 0;
+  margin-bottom: 8px;
   line-height: 1.25;
   text-wrap: balance;
-  text-transform: lowercase;
+}
+
+.home-hero-subtitle-mock {
+  max-width: 520px;
+  margin: 0 0 24px;
+  color: #737373;
+  font-size: 14px;
+  line-height: 1.5;
 }
 
 .home-input-shell-mock {

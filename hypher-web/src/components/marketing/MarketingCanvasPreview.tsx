@@ -8,7 +8,7 @@ const MOCK_PROJECTS: Array<Pick<Project, "id" | "name" | "canvasColor">> = [
   { id: "p-ship", name: "Ship v1", canvasColor: "#88BBA2" },
   { id: "p-write", name: "Essays", canvasColor: "#60a5fa" },
   { id: "p-indie", name: "indie-io", canvasColor: "#fbbf24" },
-  { id: "p-think", name: "Second brain", canvasColor: "#a78bfa" },
+  { id: "p-think", name: "Project memory", canvasColor: "#a78bfa" },
   { id: "p-side", name: "Side quest", canvasColor: "#f472b6" },
   { id: "p-meta", name: "Hypher meta", canvasColor: "#34d399" },
 ];

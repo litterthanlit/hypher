@@ -8,6 +8,20 @@ const nextActionValidator = v.object({
   id: v.string(),
   title: v.string(),
   rationale: v.string(),
+  requiredContext: v.optional(v.array(v.string())),
+  suggestedTargetTool: v.optional(v.union(
+    v.literal("ChatGPT"),
+    v.literal("Claude"),
+    v.literal("Cursor"),
+    v.literal("Windsurf"),
+    v.literal("Linear"),
+    v.literal("GitHub"),
+    v.literal("GitHub Copilot"),
+    v.literal("MCP tool"),
+    v.literal("Manual")
+  )),
+  confidence: v.optional(v.number()),
+  sourceCaptureIds: v.optional(v.array(v.string())),
   status: v.union(v.literal("suggested"), v.literal("accepted"), v.literal("dismissed")),
   createdAt: v.number(),
   updatedAt: v.number(),
@@ -24,6 +38,12 @@ async function requireProject(ctx: QueryCtx | MutationCtx, userId: string, proje
 function mapMemory(doc: any) {
   const { _id, _creationTime, userId, ...rest } = doc;
   return { ...rest, id: _id };
+}
+
+function stripUndefined<T extends Record<string, unknown>>(value: T): Partial<T> {
+  return Object.fromEntries(
+    Object.entries(value).filter(([, item]) => item !== undefined)
+  ) as Partial<T>;
 }
 
 export const listForDashboard = query({
@@ -91,12 +111,19 @@ export const upsertGenerated = mutation({
   args: {
     projectId: v.id("objects"),
     summary: v.string(),
+    currentGoal: v.optional(v.string()),
     currentDirection: v.string(),
     recentChanges: v.array(v.string()),
+    importantDecisions: v.optional(v.array(v.string())),
+    constraints: v.optional(v.array(v.string())),
     openQuestions: v.array(v.string()),
+    activeTasks: v.optional(v.array(v.string())),
+    blockers: v.optional(v.array(v.string())),
+    staleAssumptions: v.optional(v.array(v.string())),
     nextActions: v.array(nextActionValidator),
     generatedAt: v.number(),
     sourceUpdatedAt: v.number(),
+    lastUpdatedAt: v.optional(v.number()),
     model: v.string(),
   },
   handler: async (ctx, args) => {
@@ -117,7 +144,14 @@ export const upsertGenerated = mutation({
       nextActions: args.nextActions,
       generatedAt: args.generatedAt,
       sourceUpdatedAt: args.sourceUpdatedAt,
+      lastUpdatedAt: args.lastUpdatedAt ?? args.generatedAt,
       model: args.model,
+      ...(args.currentGoal !== undefined ? { currentGoal: args.currentGoal } : {}),
+      ...(args.importantDecisions !== undefined ? { importantDecisions: args.importantDecisions } : {}),
+      ...(args.constraints !== undefined ? { constraints: args.constraints } : {}),
+      ...(args.activeTasks !== undefined ? { activeTasks: args.activeTasks } : {}),
+      ...(args.blockers !== undefined ? { blockers: args.blockers } : {}),
+      ...(args.staleAssumptions !== undefined ? { staleAssumptions: args.staleAssumptions } : {}),
     };
 
     if (existing) {
@@ -128,6 +162,43 @@ export const upsertGenerated = mutation({
     const id = await ctx.db.insert("projectMemories", { ...data, userId });
     const inserted = await ctx.db.get(id);
     return inserted ? mapMemory(inserted) : null;
+  },
+});
+
+export const updateManual = mutation({
+  args: {
+    projectId: v.id("objects"),
+    summary: v.optional(v.string()),
+    currentGoal: v.optional(v.string()),
+    currentDirection: v.optional(v.string()),
+    importantDecisions: v.optional(v.array(v.string())),
+    constraints: v.optional(v.array(v.string())),
+    openQuestions: v.optional(v.array(v.string())),
+    activeTasks: v.optional(v.array(v.string())),
+    blockers: v.optional(v.array(v.string())),
+    staleAssumptions: v.optional(v.array(v.string())),
+    updatedAt: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const userId = await requireUserId(ctx);
+    await requireProject(ctx, userId, args.projectId);
+
+    const memory = await ctx.db
+      .query("projectMemories")
+      .withIndex("by_user_project", (q) => q.eq("userId", userId).eq("projectId", args.projectId))
+      .unique();
+
+    if (!memory) throw new Error("Memory not found");
+
+    const { projectId, updatedAt, ...patch } = args;
+    await ctx.db.patch(memory._id, stripUndefined({
+      ...patch,
+      lastUpdatedAt: updatedAt,
+      generatedAt: updatedAt,
+      model: memory.model === "manual" ? "manual" : `${memory.model}+manual`,
+    }));
+    const updated = await ctx.db.get(memory._id);
+    return updated ? mapMemory(updated) : null;
   },
 });
 

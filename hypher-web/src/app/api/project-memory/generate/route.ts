@@ -10,7 +10,7 @@ import {
   prepareProjectMemoryInput,
 } from "@/lib/projectMemory";
 import { ratelimitUser } from "@/lib/rateLimit";
-import type { ActivityEntry, AnyObject, Project, ProjectNextAction } from "@/types";
+import type { ActivityEntry, AnyObject, Project, ProjectNextAction, TargetTool } from "@/types";
 
 export const runtime = "nodejs";
 
@@ -28,6 +28,11 @@ function makeActionId(projectId: string, index: number): string {
     ? crypto.randomUUID()
     : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
   return `${projectId}:action:${index}:${random}`;
+}
+
+function asTargetTool(value: string | undefined): TargetTool | undefined {
+  const tools: TargetTool[] = ["ChatGPT", "Claude", "Cursor", "Windsurf", "Linear", "GitHub", "GitHub Copilot", "MCP tool", "Manual"];
+  return tools.find((tool) => tool === value);
 }
 
 export async function POST(req: NextRequest) {
@@ -130,6 +135,10 @@ export async function POST(req: NextRequest) {
       id: makeActionId(body.projectId!, index),
       title: action.title,
       rationale: action.rationale,
+      requiredContext: action.requiredContext,
+      suggestedTargetTool: asTargetTool(action.suggestedTargetTool),
+      confidence: action.confidence,
+      sourceCaptureIds: action.sourceCaptureIds,
       status: "suggested",
       createdAt: now,
       updatedAt: now,
@@ -142,9 +151,15 @@ export async function POST(req: NextRequest) {
       {
         projectId: body.projectId,
         summary: parsed.value.summary,
+        currentGoal: parsed.value.currentGoal,
         currentDirection: parsed.value.currentDirection,
         recentChanges: parsed.value.recentChanges,
+        importantDecisions: parsed.value.importantDecisions,
+        constraints: parsed.value.constraints,
         openQuestions: parsed.value.openQuestions,
+        activeTasks: parsed.value.activeTasks,
+        blockers: parsed.value.blockers,
+        staleAssumptions: parsed.value.staleAssumptions,
         nextActions,
         generatedAt: now,
         sourceUpdatedAt: prepared.sourceUpdatedAt,

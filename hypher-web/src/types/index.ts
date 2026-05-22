@@ -3,12 +3,27 @@ export type NoteMaturity = "fleeting" | "developing" | "structured" | "reference
 export type ArtifactType = "image" | "video" | "code" | "document" | "font" | "audio" | "other";
 export type ConnectionType = "manual" | "ai_suggested" | "ai_confirmed" | "dismissed";
 export type ObjectKind = "project" | "note" | "artifact";
+export type CaptureType =
+  | "thought"
+  | "decision"
+  | "bug"
+  | "task"
+  | "design_note"
+  | "code_note"
+  | "meeting_note"
+  | "user_insight"
+  | "agent_output"
+  | "link_reference"
+  | "open_question";
+export type CaptureStatus = "unsorted" | "sorted" | "archived";
 export type ProjectMemoryStatus = "fresh" | "stale" | "empty" | "generating" | "error";
 export type ProjectNextActionStatus = "suggested" | "accepted" | "dismissed";
+export type TargetTool = "ChatGPT" | "Claude" | "Cursor" | "Windsurf" | "Linear" | "GitHub" | "GitHub Copilot" | "MCP tool" | "Manual";
 export type AgentEventKind = "handoff" | "build_log" | "question" | "suggestion" | "artifact" | "next_action";
 export type AgentEventStatus = "new" | "reviewed" | "accepted" | "dismissed";
 export type ProjectActionStatus = "suggested" | "accepted" | "completed" | "dismissed";
 export type ProjectActionSourceType = "project_memory" | "agent_event" | "manual" | "github";
+export type HandoffStatus = "pending" | "used" | "completed" | "discarded";
 
 export interface CanvasPosition {
   x: number;
@@ -25,6 +40,17 @@ export interface HypherObject {
   tags?: string[];
   canvasPosition?: CanvasPosition;
   projectId?: string | null;
+  source?: string;
+  captureType?: CaptureType;
+  suggestedProjectId?: string | null;
+  confirmedProjectId?: string | null;
+  confidence?: number;
+  captureStatus?: CaptureStatus;
+  linkedHandoffId?: string;
+  excludeFromPackets?: boolean;
+  pinnedAsDecision?: boolean;
+  convertedToTask?: boolean;
+  stale?: boolean;
   lastSurfacedAt?: number;
   reviewedAt?: number;
   canvasColor?: string;
@@ -94,6 +120,10 @@ export interface ProjectNextAction {
   id: string;
   title: string;
   rationale: string;
+  requiredContext?: string[];
+  suggestedTargetTool?: TargetTool;
+  confidence?: number;
+  sourceCaptureIds?: string[];
   status: ProjectNextActionStatus;
   createdAt: number;
   updatedAt: number;
@@ -103,14 +133,35 @@ export interface ProjectMemory {
   id?: string;
   projectId: string;
   summary: string;
+  currentGoal?: string;
   currentDirection: string;
   recentChanges: string[];
+  importantDecisions?: string[];
+  constraints?: string[];
   openQuestions: string[];
+  activeTasks?: string[];
+  blockers?: string[];
+  staleAssumptions?: string[];
   nextActions: ProjectNextAction[];
   generatedAt: number;
   sourceUpdatedAt: number;
+  lastUpdatedAt?: number;
   model: string;
   error?: string;
+}
+
+export interface Handoff {
+  id: string;
+  userId: string;
+  projectId: string;
+  generatedAt: number;
+  targetTool: TargetTool;
+  packetContent: string;
+  sourceCaptures: string[];
+  requestedTask: string;
+  status: HandoffStatus;
+  userNotes?: string;
+  returnedAgentOutput?: string;
 }
 
 export interface AgentEvent {

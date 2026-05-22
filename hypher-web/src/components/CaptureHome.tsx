@@ -326,7 +326,10 @@ export function CaptureHome({
           <p className="home-greeting-mock">
             {weekdayPart()} {daypartLabel()}, <span className="home-greeting-name">{firstName}</span>
           </p>
-          <h1 className="home-hero-title-mock">what&apos;s on your mind?</h1>
+          <h1 className="home-hero-title-mock">Stay single-threaded.</h1>
+          <p className="home-hero-subtitle-mock">
+            Hypher keeps your project memory fresh and briefs your agents with the right context.
+          </p>
 
           <div
             className={`home-input-shell-mock ${isDragNear ? "is-drag" : ""}`}
@@ -338,7 +341,7 @@ export function CaptureHome({
               value={text}
               onChange={(e) => setText(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="say it simply…"
+              placeholder="dump a thought, bug, decision, or agent output..."
               disabled={step === "assigning"}
             />
             <button

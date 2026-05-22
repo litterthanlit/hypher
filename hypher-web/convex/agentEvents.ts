@@ -277,7 +277,7 @@ export const saveAsNote = mutation({
   },
   handler: async (ctx, { eventId, projectId, content, createdAt }) => {
     const userId = await requireUserId(ctx);
-    await requireEvent(ctx, eventId, userId);
+    const event = await requireEvent(ctx, eventId, userId);
     const project = await ctx.db.get(projectId);
     if (!project || project.userId !== userId || project.kind !== "project") {
       throw new Error("Invalid project");
@@ -288,6 +288,10 @@ export const saveAsNote = mutation({
       content,
       maturity: "developing",
       tags: ["agent-update"],
+      source: event.source,
+      captureType: "agent_output",
+      captureStatus: "sorted",
+      confirmedProjectId: String(projectId),
       projectId: String(projectId),
       reviewedAt: createdAt,
       createdAt,

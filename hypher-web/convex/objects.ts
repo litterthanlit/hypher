@@ -23,12 +23,41 @@ const objectFields = {
   embeddingText: v.optional(v.string()),
   tags: v.optional(v.array(v.string())),
   projectId: v.optional(v.union(v.string(), v.null())),
+  source: v.optional(v.string()),
+  captureType: v.optional(v.union(
+    v.literal("thought"),
+    v.literal("decision"),
+    v.literal("bug"),
+    v.literal("task"),
+    v.literal("design_note"),
+    v.literal("code_note"),
+    v.literal("meeting_note"),
+    v.literal("user_insight"),
+    v.literal("agent_output"),
+    v.literal("link_reference"),
+    v.literal("open_question")
+  )),
+  suggestedProjectId: v.optional(v.union(v.string(), v.null())),
+  confirmedProjectId: v.optional(v.union(v.string(), v.null())),
+  confidence: v.optional(v.number()),
+  captureStatus: v.optional(v.union(v.literal("unsorted"), v.literal("sorted"), v.literal("archived"))),
+  linkedHandoffId: v.optional(v.string()),
+  excludeFromPackets: v.optional(v.boolean()),
+  pinnedAsDecision: v.optional(v.boolean()),
+  convertedToTask: v.optional(v.boolean()),
+  stale: v.optional(v.boolean()),
   lastSurfacedAt: v.optional(v.number()),
   reviewedAt: v.optional(v.number()),
   canvasPosition: v.optional(v.object({ x: v.number(), y: v.number() })),
   canvasColor: v.optional(v.string()),
   canvasSize: v.optional(v.object({ w: v.number(), h: v.number() })),
 };
+
+function stripUndefined<T extends Record<string, unknown>>(value: T): Partial<T> {
+  return Object.fromEntries(
+    Object.entries(value).filter(([, item]) => item !== undefined)
+  ) as Partial<T>;
+}
 
 export const list = query({
   handler: async (ctx) => {
@@ -119,6 +148,8 @@ export const assignToProject = mutation({
     }
     await ctx.db.patch(id, {
       projectId: projectId as string,
+      confirmedProjectId: projectId as string,
+      captureStatus: "sorted",
       reviewedAt: timestamp,
       modifiedAt: timestamp,
     });
@@ -134,9 +165,52 @@ export const markReviewed = mutation({
       throw new Error("Unauthorized");
     }
     await ctx.db.patch(id, {
+      captureStatus: existing.captureStatus ?? "unsorted",
       reviewedAt: timestamp,
       modifiedAt: timestamp,
     });
+  },
+});
+
+export const patchCaptureMetadata = mutation({
+  args: {
+    id: v.id("objects"),
+    timestamp: v.number(),
+    captureType: v.optional(v.union(
+      v.literal("thought"),
+      v.literal("decision"),
+      v.literal("bug"),
+      v.literal("task"),
+      v.literal("design_note"),
+      v.literal("code_note"),
+      v.literal("meeting_note"),
+      v.literal("user_insight"),
+      v.literal("agent_output"),
+      v.literal("link_reference"),
+      v.literal("open_question")
+    )),
+    source: v.optional(v.string()),
+    suggestedProjectId: v.optional(v.union(v.string(), v.null())),
+    confirmedProjectId: v.optional(v.union(v.string(), v.null())),
+    confidence: v.optional(v.number()),
+    captureStatus: v.optional(v.union(v.literal("unsorted"), v.literal("sorted"), v.literal("archived"))),
+    linkedHandoffId: v.optional(v.string()),
+    excludeFromPackets: v.optional(v.boolean()),
+    pinnedAsDecision: v.optional(v.boolean()),
+    convertedToTask: v.optional(v.boolean()),
+    stale: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args) => {
+    const userId = await requireUserId(ctx);
+    const { id, timestamp, ...patch } = args;
+    const existing = await ctx.db.get(id);
+    if (!existing || existing.userId !== userId || existing.kind === "project") {
+      throw new Error("Unauthorized");
+    }
+    await ctx.db.patch(id, stripUndefined({
+      ...patch,
+      modifiedAt: timestamp,
+    }));
   },
 });
 

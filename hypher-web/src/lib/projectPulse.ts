@@ -9,7 +9,7 @@ export function buildProjectPulseModel(params: {
   memories?: ProjectMemory[];
 }) {
   const latestCaptures = params.allObjects
-    .filter((obj) => obj.kind !== "project" && obj.projectId === params.project.id)
+    .filter((obj) => obj.kind !== "project" && obj.projectId === params.project.id && obj.captureStatus !== "archived")
     .sort((a, b) => (b.modifiedAt ?? 0) - (a.modifiedAt ?? 0))
     .slice(0, 5);
 

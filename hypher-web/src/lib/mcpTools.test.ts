@@ -128,7 +128,8 @@ describe("buildMcpToolResult", () => {
     const result = buildMcpToolResult("get_project_context", { projectId: "p1" }, context);
 
     expect(result.structuredContent.projectId).toBe("p1");
-    expect(result.structuredContent.context).toContain("# Agent Context: Hypher");
+    expect(result.structuredContent.context).toContain("# Agent Context Packet");
+    expect(result.structuredContent.context).toContain("Name: Hypher");
     expect(result.structuredContent.context).toContain("Build the read-only MCP surface.");
   });
 

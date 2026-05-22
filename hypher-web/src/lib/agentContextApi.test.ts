@@ -16,6 +16,7 @@ const memory: ProjectMemory = {
   id: "m1",
   projectId: "p1",
   summary: "Hypher keeps projects aware.",
+  currentGoal: "Expose clean handoff packets to agents.",
   currentDirection: "Expose context packets through a server route.",
   recentChanges: ["Copy Agent Context shipped"],
   openQuestions: ["Which tools should ChatGPT get first?"],
@@ -24,6 +25,8 @@ const memory: ProjectMemory = {
       id: "next-1",
       title: "Build read-only context endpoint",
       rationale: "Prepares MCP/OAuth connector.",
+      suggestedTargetTool: "ChatGPT",
+      confidence: 0.7,
       status: "suggested",
       createdAt: 10,
       updatedAt: 10,
@@ -107,12 +110,14 @@ describe("buildAgentContextApiResponse", () => {
     expect(response.projectId).toBe("p1");
     expect(response.plan).toBe("pro");
     expect(response.limits.captures).toBe(8);
-    expect(response.context).toContain("# Agent Context: Hypher");
-    expect(response.context).toContain("Task: Use Hypher from ChatGPT");
-    expect(response.context).toContain("Role: ChatGPT connector");
+    expect(response.context).toContain("# Agent Context Packet");
+    expect(response.context).toContain("Name: Hypher");
+    expect(response.context).toContain("Current goal: Expose clean handoff packets to agents.");
+    expect(response.context).toContain("Recommended action: Build read-only context endpoint");
     expect(response.context).toContain("Expose context packets through a server route.");
     expect(response.context).toContain("Wire ChatGPT connector");
-    expect(response.context).toContain("codex handoff: Context endpoint planned");
+    expect(response.context).toContain("codex / handoff: Context endpoint planned");
+    expect(response.context).toContain("Generated at:");
   });
 
   it("labels inactive or missing subscriptions as free and applies free limits", () => {

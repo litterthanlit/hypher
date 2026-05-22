@@ -5,7 +5,7 @@ import { useAuth } from "@clerk/nextjs";
 import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
-import type { AnyObject, CaptureResult, Connection, Project, ProjectSuggestion, Note, Artifact, ActivityEntry } from "@/types";
+import type { AnyObject, CaptureResult, CaptureType, Connection, Project, ProjectSuggestion, Note, Artifact, ActivityEntry } from "@/types";
 import { getDisplayName } from "@/types";
 import { toast } from "sonner";
 import { generateEmbedding, computeSuggestionsFromData, suggestProjectFromData } from "./engine";
@@ -39,6 +39,21 @@ function stripUndefined(obj: Record<string, unknown>): Record<string, unknown> {
     if (v !== undefined) out[k] = v;
   }
   return out;
+}
+
+function inferCaptureType(text: string): CaptureType {
+  const lower = text.toLowerCase();
+  if (/\b(decided|decision|we will|ship|choose|chosen)\b/.test(lower)) return "decision";
+  if (/\b(bug|broken|error|fails|regression|crash)\b/.test(lower)) return "bug";
+  if (/\b(todo|task|need to|follow up|fix|implement)\b/.test(lower)) return "task";
+  if (/\b(design|ux|ui|mock|visual)\b/.test(lower)) return "design_note";
+  if (/\b(code|api|component|schema|route|function)\b/.test(lower)) return "code_note";
+  if (/\b(meeting|call|standup|sync)\b/.test(lower)) return "meeting_note";
+  if (/\b(user|customer|feedback|insight)\b/.test(lower)) return "user_insight";
+  if (/\b(agent|claude|chatgpt|cursor|windsurf|copilot)\b/.test(lower)) return "agent_output";
+  if (/https?:\/\//.test(lower)) return "link_reference";
+  if (text.trim().endsWith("?")) return "open_question";
+  return "thought";
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -109,6 +124,8 @@ export function useStore() {
   const assignToProjectMut = useMutation((api.objects as any).assignToProject);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const markReviewedMut = useMutation((api.objects as any).markReviewed);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const patchCaptureMetadataMut = useMutation((api.objects as any).patchCaptureMetadata);
   const putConnectionMut = useMutation(api.connections.put);
   const removeConnectionMut = useMutation(api.connections.remove);
   const putActivityMut = useMutation(api.activity.put);
@@ -176,7 +193,7 @@ export function useStore() {
   const artifacts = objects.filter((o): o is Artifact => o.kind === "artifact");
 
   const inboxItems = useMemo(
-    () => objects.filter((o) => o.kind !== "project" && !o.projectId),
+    () => objects.filter((o) => o.kind !== "project" && !o.projectId && o.captureStatus !== "archived"),
     [objects]
   );
 
@@ -195,7 +212,7 @@ export function useStore() {
   );
 
   const objectsForProject = useCallback(
-    (projectId: string) => objects.filter((o) => o.projectId === projectId),
+    (projectId: string) => objects.filter((o) => o.projectId === projectId && o.captureStatus !== "archived"),
     [objects]
   );
 
@@ -335,6 +352,10 @@ export function useStore() {
         kind: "note" as const,
         content: text,
         maturity: "fleeting",
+        source: "manual",
+        captureType: inferCaptureType(text),
+        captureStatus: projectId ? "sorted" : "unsorted",
+        confirmedProjectId: projectId ?? null,
         createdAt: now,
         modifiedAt: now,
         projectId: projectId ?? null,
@@ -346,6 +367,10 @@ export function useStore() {
         kind: "note",
         content: text,
         maturity: "fleeting",
+        source: "manual",
+        captureType: inferCaptureType(text),
+        captureStatus: projectId ? "sorted" : "unsorted",
+        confirmedProjectId: projectId ?? null,
         createdAt: now,
         modifiedAt: now,
         projectId: projectId ?? null,
@@ -371,6 +396,15 @@ export function useStore() {
       ];
       if (!projectId && embedded.embedding) {
         suggestions = suggestProjectFromData(embedded, allObjs);
+      }
+
+      if (!projectId && suggestions[0]) {
+        await patchCaptureMetadataMut({
+          id: convexId as Id<"objects">,
+          timestamp: now,
+          suggestedProjectId: suggestions[0].projectId,
+          confidence: suggestions[0].confidence,
+        });
       }
 
       // Connection suggestions
@@ -420,8 +454,42 @@ export function useStore() {
     const obj = objects.find((o) => o.id === objectId);
     if (!obj) return;
     await putObjectMut(
-      convexUpdateArgs({ ...obj, projectId: null, modifiedAt: Date.now() })
+      convexUpdateArgs({
+        ...obj,
+        projectId: null,
+        confirmedProjectId: null,
+        captureStatus: "unsorted",
+        modifiedAt: Date.now(),
+      })
     );
+  };
+
+  const updateCaptureMeta = async (
+    objectId: string,
+    patch: Partial<Pick<
+      AnyObject,
+      | "captureType"
+      | "source"
+      | "suggestedProjectId"
+      | "confirmedProjectId"
+      | "confidence"
+      | "captureStatus"
+      | "linkedHandoffId"
+      | "excludeFromPackets"
+      | "pinnedAsDecision"
+      | "convertedToTask"
+      | "stale"
+    >>
+  ) => {
+    await patchCaptureMetadataMut({
+      id: objectId as Id<"objects">,
+      timestamp: Date.now(),
+      ...stripUndefined(patch as Record<string, unknown>),
+    });
+  };
+
+  const markCaptureArchived = async (objectId: string) => {
+    await updateCaptureMeta(objectId, { captureStatus: "archived" });
   };
 
   const updateObject = async (obj: AnyObject) => {
@@ -751,6 +819,8 @@ export function useStore() {
     assignToProject,
     markReviewed,
     unassignFromProject,
+    updateCaptureMeta,
+    markCaptureArchived,
     projectSuggestionsFor,
     confirmConnection,
     dismissConnection,

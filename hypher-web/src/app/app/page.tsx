@@ -458,6 +458,34 @@ function HypherApp({ gateState }: { gateState: BetaGateState }) {
     }
   }, [store]);
 
+  const handleCreateProjectFromCapture = useCallback(async (objectId: string, projectName: string) => {
+    const now = Date.now();
+    const projectId = await store.addObject({
+      id: crypto.randomUUID(),
+      kind: "project",
+      name: projectName,
+      description: "",
+      status: "active",
+      createdAt: now,
+      modifiedAt: now,
+    });
+    await store.assignToProject(objectId, projectId);
+  }, [store]);
+
+  const handleMergeCurrentProject = useCallback(async (targetProjectId: string) => {
+    if (!selectedProjectId) return;
+    const current = store.projects.find((candidate) => candidate.id === selectedProjectId);
+    if (!current) return;
+    const children = store.objectsForProject(selectedProjectId);
+    for (const child of children) {
+      await store.assignToProject(child.id, targetProjectId);
+    }
+    await store.updateObject({ ...current, status: "archived", modifiedAt: Date.now() });
+    setSelectedProjectId(targetProjectId);
+    store.setSelectedId(targetProjectId);
+    setContentMode("pulse");
+  }, [selectedProjectId, store]);
+
   const handleStartOnboardingTour = useCallback(async () => {
     setWelcomeBusy(true);
     try {
@@ -920,6 +948,7 @@ function HypherApp({ gateState }: { gateState: BetaGateState }) {
             allObjects={store.objects}
             activity={store.activity}
             healthScore={toolbarHealthScore}
+            projects={store.projects}
             onOpenCanvas={() => {
               setContentMode("canvas");
               if (selectedProjectId) localStorage.setItem(`hypher-view-mode-${selectedProjectId}`, "canvas");
@@ -934,6 +963,15 @@ function HypherApp({ gateState }: { gateState: BetaGateState }) {
               setContentMode("list");
               if (selectedProjectId) localStorage.setItem(`hypher-view-mode-${selectedProjectId}`, "list");
             }}
+            onMoveCapture={async (objectId, projectId) => {
+              await store.assignToProject(objectId, projectId);
+              const project = store.projects.find((candidate) => candidate.id === projectId);
+              store.addToast(project ? `Moved to ${project.name}` : "Capture moved");
+            }}
+            onArchiveCapture={store.markCaptureArchived}
+            onUpdateCapture={store.updateCaptureMeta}
+            onCreateProjectFromCapture={handleCreateProjectFromCapture}
+            onMergeProject={handleMergeCurrentProject}
           />
         ) : contentMode === "canvas" ? (
           <AppErrorBoundary label="Canvas">
