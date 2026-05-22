@@ -124,12 +124,11 @@ describe("buildMcpToolResult", () => {
     expect(result.content[0]?.text).not.toContain("Keep Hypher Stripe");
   });
 
-  it("returns the protected compiled context packet", () => {
+  it("returns the protected compiled Builder Brief", () => {
     const result = buildMcpToolResult("get_project_context", { projectId: "p1" }, context);
 
     expect(result.structuredContent.projectId).toBe("p1");
-    expect(result.structuredContent.context).toContain("# Agent Context Packet");
-    expect(result.structuredContent.context).toContain("Name: Hypher");
+    expect(result.structuredContent.context).toContain("# Builder Brief: Hypher");
     expect(result.structuredContent.context).toContain("Build the read-only MCP surface.");
   });
 

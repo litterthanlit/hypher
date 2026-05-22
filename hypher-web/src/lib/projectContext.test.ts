@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
-import type { AgentEvent, AnyObject, Project, ProjectAction, ProjectMemory } from "@/types";
-import { compileProjectContext, compileProjectContextWithMeta } from "./projectContext";
+import type { AgentEvent, AnyObject, Handoff, Project, ProjectAction, ProjectMemory } from "@/types";
+import { compileBuilderBrief, compileProjectContext, compileProjectContextWithMeta } from "./projectContext";
 
 const project: Project = {
   id: "p1",
   kind: "project",
   name: "Hypher",
-  description: "Capture-first workspace for project context.",
+  description: "Context control layer for AI builders.",
   status: "active",
   createdAt: 1,
   modifiedAt: 100,
@@ -16,25 +16,33 @@ const project: Project = {
 const memory: ProjectMemory = {
   id: "m1",
   projectId: "p1",
-  summary: "Hypher is becoming the project context layer for AI builders.",
-  currentGoal: "Ship the narrow beta loop from messy capture to saved handoff.",
-  currentDirection: "Prove Copy Agent Context before SDK or MCP.",
-  recentChanges: ["Agent handoffs now appear in Project Pulse", "Project actions can be created from suggestions"],
-  importantDecisions: ["Markdown copy is the first agent handoff win."],
-  constraints: ["Do not build generic productivity features."],
-  openQuestions: ["How much context should an agent packet include?"],
-  blockers: ["Need saved handoff history."],
-  staleAssumptions: ["Graph view is not part of the beta loop."],
+  summary: "Hypher keeps AI builder agents on track by crystallizing project activity into live execution context.",
+  currentGoal: "Ship the first Builder Brief workflow inside Project Pulse.",
+  currentDirection: "Use the existing compiler and Project Pulse flow instead of creating duplicate context systems.",
+  recentChanges: ["Project Pulse already saves handoff packets", "The protected context API route exists"],
+  importantDecisions: [
+    "The Builder Brief is the core product primitive.",
+    "Captures are input. Crystallized Context is the product. Builder Brief is the output.",
+  ],
+  constraints: [
+    "The compiler must remain pure and deterministic.",
+    "Do not build OAuth yet.",
+    "Do not introduce a new state manager unless necessary.",
+  ],
+  openQuestions: ["Should Do Not Do become a first-class memory field later?"],
+  activeTasks: ["Rename user-facing packet language to Builder Brief"],
+  blockers: ["Need compiler tests before implementation"],
+  staleAssumptions: ["Agent Context Packet is still the preferred product name."],
   nextActions: [
     {
       id: "na1",
-      title: "Run production handoff smoke",
-      rationale: "Validates the agent-to-Pulse loop.",
-      requiredContext: ["Project Pulse", "latest captures", "recent handoffs"],
+      title: "Implement Copy Builder Brief in Project Pulse",
+      rationale: "This makes Hypher's context control loop agent-ready.",
+      requiredContext: ["Project Pulse", "project memory", "action queue"],
       suggestedTargetTool: "Cursor",
       confidence: 0.82,
       sourceCaptureIds: ["n1", "a1"],
-      status: "suggested",
+      status: "accepted",
       createdAt: 80,
       updatedAt: 80,
     },
@@ -49,11 +57,32 @@ const captures: AnyObject[] = [
   {
     id: "n1",
     kind: "note",
-    content: "Creed validates the context-layer category, but Hypher should keep capture as the source of truth.",
+    content: "Don't build MCP yet. Builder Brief comes before delivery integrations.",
     maturity: "developing",
     projectId: "p1",
+    captureType: "decision",
+    pinnedAsDecision: true,
     createdAt: 50,
     modifiedAt: 70,
+  },
+  {
+    id: "n2",
+    kind: "note",
+    content: "  # pasted heading\n\n\n```ts\nconst token = 'redacted';\n```  ",
+    maturity: "fleeting",
+    projectId: "p1",
+    createdAt: 40,
+    modifiedAt: 60,
+  },
+  {
+    id: "n-stale",
+    kind: "note",
+    content: "Treat Agent Context Packet as the permanent product name.",
+    maturity: "fleeting",
+    projectId: "p1",
+    stale: true,
+    createdAt: 30,
+    modifiedAt: 55,
   },
   {
     id: "a1",
@@ -62,7 +91,7 @@ const captures: AnyObject[] = [
     type: "image",
     projectId: "p1",
     createdAt: 40,
-    modifiedAt: 60,
+    modifiedAt: 50,
   },
 ];
 
@@ -71,7 +100,7 @@ const actions: ProjectAction[] = [
     id: "pa1",
     userId: "u1",
     projectId: "p1",
-    title: "Build Copy Agent Context v1",
+    title: "Add Builder Brief compiler tests",
     status: "accepted",
     sourceType: "manual",
     createdAt: 70,
@@ -94,121 +123,193 @@ const agentEvents: AgentEvent[] = [
     id: "e1",
     userId: "u1",
     projectId: "p1",
-    source: "openclaw",
+    source: "codex",
     kind: "handoff",
-    title: "Context layer strategy reviewed",
-    body: "Compared Hypher against Creed and kept Copy Agent Context as the immediate proof.",
-    suggestedActions: ["Ship context packet compiler"],
+    title: "Current build audited",
+    body: "Found existing compiler, Project Pulse copy flow, protected context API, and MCP context tool.",
+    suggestedActions: ["Adapt compiler instead of duplicating it"],
     status: "new",
     createdAt: 95,
   },
 ];
 
-describe("compileProjectContext", () => {
-  it("builds a task-specific markdown packet from project memory, actions, captures, and agent events", () => {
-    const packet = compileProjectContext({
+const handoffs: Handoff[] = [
+  {
+    id: "h1",
+    userId: "u1",
+    projectId: "p1",
+    generatedAt: 85,
+    targetTool: "Cursor",
+    packetContent: "# Old packet",
+    sourceCaptures: ["n1"],
+    requestedTask: "Ship Copy Agent Context v1",
+    status: "used",
+  },
+];
+
+describe("compileBuilderBrief", () => {
+  it("builds the Builder Brief sections in a fixed order", () => {
+    const packet = compileBuilderBrief({
       project,
       memory,
       captures,
       actions,
       agentEvents,
-      task: "Implement the first context packet",
-      role: "coding agent",
+      handoffs,
+      generatedAt: 123,
     });
 
-    expect(packet).toContain("# Agent Context Packet");
-    expect(packet).toContain("Name: Hypher");
-    expect(packet).toContain("Current goal: Ship the narrow beta loop from messy capture to saved handoff.");
-    expect(packet).toContain("Suggested target tool: Cursor");
-    expect(packet).toContain("Recommended action: Run production handoff smoke");
-    expect(packet).toContain("Expected output:");
-    expect(packet).toContain("Success criteria:");
-    expect(packet).toContain("Freshness:");
-    expect(packet).toContain("Sources included:");
-    expect(packet).toContain("Hypher is becoming the project context layer for AI builders.");
-    expect(packet).toContain("Prove Copy Agent Context before SDK or MCP.");
-    expect(packet).toContain("- Markdown copy is the first agent handoff win.");
-    expect(packet).toContain("- Do not build generic productivity features.");
-    expect(packet).toContain("- How much context should an agent packet include?");
-    expect(packet).toContain("- Build Copy Agent Context v1");
-    expect(packet).not.toContain("Old dismissed action");
-    expect(packet).toContain("- Creed validates the context-layer category");
-    expect(packet).toContain("- Project Pulse mock (image)");
-    expect(packet).toContain("- openclaw / handoff: Context layer strategy reviewed");
-    expect(packet).toContain("Do not:");
+    const sections = [
+      "# Builder Brief: Hypher",
+      "## Mission",
+      "## Current Objective",
+      "## Current Task",
+      "## Plan",
+      "## Crystallized Decisions",
+      "## Constraints",
+      "## Do Not Do",
+      "## Recent Progress",
+      "## Open Actions",
+      "## Agent Warnings",
+      "## Acceptance Criteria",
+      "## Handoff Notes",
+    ];
+
+    const indexes = sections.map((section) => packet.indexOf(section));
+    expect(indexes.every((index) => index >= 0)).toBe(true);
+    expect([...indexes].sort((a, b) => a - b)).toEqual(indexes);
   });
 
-  it("uses project fields when memory is not available", () => {
-    const packet = compileProjectContext({
+  it("renders crystallized project state and anti-drift instructions", () => {
+    const packet = compileBuilderBrief({
       project,
+      memory,
+      captures,
+      actions,
+      agentEvents,
+      handoffs,
+      generatedAt: 123,
+    });
+
+    expect(packet).toContain("Hypher keeps AI builder agents on track");
+    expect(packet).toContain("Ship the first Builder Brief workflow inside Project Pulse.");
+    expect(packet).toContain("Implement Copy Builder Brief in Project Pulse");
+    expect(packet).toContain("1. [accepted] Implement Copy Builder Brief in Project Pulse");
+    expect(packet).toContain("- The Builder Brief is the core product primitive.");
+    expect(packet).toContain("- Don't build MCP yet. Builder Brief comes before delivery integrations.");
+    expect(packet).toContain("- The compiler must remain pure and deterministic.");
+    expect(packet).toContain("- Do not build OAuth yet.");
+    expect(packet).toContain("- Do not introduce a new state manager unless necessary.");
+    expect(packet).toContain("- Project Pulse already saves handoff packets");
+    expect(packet).toContain("- [accepted] Add Builder Brief compiler tests");
+    expect(packet).toContain("- Stale assumption: Agent Context Packet is still the preferred product name.");
+    expect(packet).toContain("- Current Task is completed or clearly blocked with reasons.");
+    expect(packet).toContain("- Previous Cursor brief was used: Ship Copy Agent Context v1.");
+    expect(packet).not.toContain("Old dismissed action");
+  });
+
+  it("keeps output deterministic and compatible with compileProjectContext", () => {
+    const params = {
+      project,
+      memory,
+      captures,
+      actions,
+      agentEvents,
+      handoffs,
+      generatedAt: 123,
+    };
+
+    expect(compileBuilderBrief(params)).toBe(compileBuilderBrief(params));
+    expect(compileProjectContext(params)).toBe(compileBuilderBrief(params));
+  });
+
+  it("uses clear empty states when optional data is missing", () => {
+    const packet = compileBuilderBrief({
+      project: { ...project, description: "" },
       captures: [],
       actions: [],
       agentEvents: [],
+      generatedAt: 123,
     });
 
-    expect(packet).toContain("Capture-first workspace for project context.");
-    expect(packet).toContain("No generated project memory yet.");
-    expect(packet).toContain("No active tasks recorded.");
+    expect(packet).toContain("# Builder Brief: Hypher");
+    expect(packet).toContain("No mission captured yet.");
+    expect(packet).toContain("No current objective captured yet.");
+    expect(packet).toContain("No current task captured yet.");
+    expect(packet).toContain("- No approved plan captured yet.");
+    expect(packet).toContain("- No crystallized decisions recorded yet.");
+    expect(packet).toContain("- No constraints recorded yet.");
+    expect(packet).toContain("- No explicit Do Not Do items recorded yet.");
+    expect(packet).toContain("- No recent progress recorded yet.");
+    expect(packet).toContain("- No open actions recorded yet.");
+    expect(packet).toContain("- No agent warnings recorded yet.");
+    expect(packet).toContain("- No task-specific acceptance criteria recorded yet.");
+    expect(packet).toContain("- No handoff notes recorded yet.");
   });
 
-  it("limits noisy sections to keep the packet focused", () => {
-    const manyCaptures = Array.from({ length: 8 }, (_, index): AnyObject => ({
+  it("applies item limits and keeps raw captures from overwhelming crystallized state", () => {
+    const noisyCaptures = Array.from({ length: 8 }, (_, index): AnyObject => ({
       id: `n-${index}`,
       kind: "note",
-      content: `Capture ${index}`,
+      content: `Raw capture ${index}`,
       maturity: "fleeting",
       projectId: "p1",
       createdAt: index,
       modifiedAt: index,
     }));
 
-    const packet = compileProjectContext({
-      project,
-      captures: manyCaptures,
-      actions: [],
-      agentEvents: [],
-      limits: { captures: 3 },
-    });
-
-    expect(packet).toContain("- Capture 7");
-    expect(packet).toContain("- Capture 5");
-    expect(packet).not.toContain("- Capture 4");
-  });
-
-  it("keeps section ordering deterministic", () => {
-    const packet = compileProjectContext({
+    const packet = compileBuilderBrief({
       project,
       memory,
-      captures,
+      captures: noisyCaptures,
       actions,
       agentEvents,
+      limits: { captures: 2, decisions: 1, constraints: 2, actions: 1 },
+      generatedAt: 123,
     });
 
-    const sections = [
-      "# Agent Context Packet",
-      "## Project",
-      "## Current State",
-      "## Task For Agent",
-      "## Relevant Context",
-      "## Guardrails",
-      "## Metadata",
-    ];
-
-    expect(sections.map((section) => packet.indexOf(section))).toEqual(
-      sections.map((section) => expect.any(Number))
-    );
-    const indexes = sections.map((section) => packet.indexOf(section));
-    expect(indexes.every((index) => index >= 0)).toBe(true);
-    expect([...indexes].sort((a, b) => a - b)).toEqual(indexes);
+    expect(packet).toContain("- The Builder Brief is the core product primitive.");
+    expect(packet).not.toContain("Raw capture 7");
+    expect(packet).not.toContain("Raw capture 0");
+    expect(packet).not.toContain("- Captures:");
+    expect(packet).toContain("- [accepted] Add Builder Brief compiler tests");
   });
 
-  it("returns source metadata for saved handoffs and excludes stale or archived captures", () => {
+  it("normalizes messy markdown content without leaking private ids", () => {
+    const packet = compileBuilderBrief({
+      project: {
+        ...project,
+        description: "Line one\n\n```secret-ish block```\n# pasted heading",
+      },
+      memory: {
+        ...memory,
+        summary: "",
+        importantDecisions: ["  # Customer pasted heading\n\n\n```ts\nconst token = 'redacted';\n```  "],
+        constraints: ["  Keep   whitespace\n\nreadable.  "],
+      },
+      captures: [captures[1]],
+      actions,
+      agentEvents,
+      generatedAt: 123,
+    });
+
+    expect(packet).toContain("Line one ```secret-ish block``` # pasted heading");
+    expect(packet).toContain("- # Customer pasted heading ```ts const token = 'redacted'; ```");
+    expect(packet).toContain("- Keep whitespace readable.");
+    expect(packet).not.toContain("internal-note-id");
+    expect(packet).not.toContain("action-secret-id");
+    expect(packet).not.toContain("event-secret-id");
+    expect(packet).not.toContain("user-secret-id");
+  });
+
+  it("returns source metadata and excludes stale, archived, and explicitly excluded captures", () => {
     const result = compileProjectContextWithMeta({
       project,
       memory,
       captures: [
         captures[1],
-        { ...captures[2], stale: true },
+        { ...captures[2], excludeFromPackets: true },
+        { ...captures[3], stale: true },
         {
           id: "n-archived",
           kind: "note",
@@ -222,66 +323,13 @@ describe("compileProjectContext", () => {
       ],
       actions,
       agentEvents,
+      generatedAt: 123,
     });
 
     expect(result.sourceCaptureIds).toEqual(["n1"]);
-    expect(result.excludedSourceCaptureIds).toEqual(["a1", "n-archived"]);
+    expect(result.excludedSourceCaptureIds).toEqual(["n2", "n-stale", "n-archived"]);
     expect(result.targetTool).toBe("Cursor");
-    expect(result.requestedTask).toBe("Run production handoff smoke");
-    expect(result.packet).toContain("Sources excluded: 2 captures");
-  });
-
-  it("normalizes messy markdown content without leaking private ids", () => {
-    const packet = compileProjectContext({
-      project: {
-        ...project,
-        description: "Line one\n\n```secret-ish block```\n# pasted heading",
-      },
-      captures: [
-        {
-          id: "internal-note-id",
-          kind: "note",
-          content: "  # Customer pasted heading\n\n\n```ts\nconst token = 'redacted';\n```  ",
-          maturity: "fleeting",
-          projectId: "p1",
-          createdAt: 1,
-          modifiedAt: 1,
-        },
-      ],
-      actions: [
-        {
-          id: "action-secret-id",
-          userId: "user-secret-id",
-          projectId: "p1",
-          title: "  Trim whitespace  ",
-          status: "suggested",
-          sourceType: "manual",
-          createdAt: 1,
-          updatedAt: 1,
-        },
-      ],
-      agentEvents: [
-        {
-          id: "event-secret-id",
-          userId: "user-secret-id",
-          projectId: "p1",
-          source: "codex",
-          kind: "handoff",
-          title: "  Messy handoff  ",
-          body: "Line one\n\n\nLine two",
-          status: "new",
-          createdAt: 1,
-        },
-      ],
-    });
-
-    expect(packet).toContain("Line one ```secret-ish block``` # pasted heading");
-    expect(packet).toContain("- # Customer pasted heading ```ts const token = 'redacted'; ```");
-    expect(packet).toContain("- Trim whitespace (Manual)");
-    expect(packet).toContain("- codex / handoff: Messy handoff. Line one Line two");
-    expect(packet).not.toContain("internal-note-id");
-    expect(packet).not.toContain("action-secret-id");
-    expect(packet).not.toContain("event-secret-id");
-    expect(packet).not.toContain("user-secret-id");
+    expect(result.requestedTask).toBe("Implement Copy Builder Brief in Project Pulse");
+    expect(result.packet).toContain("# Builder Brief: Hypher");
   });
 });

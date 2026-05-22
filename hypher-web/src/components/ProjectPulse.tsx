@@ -10,7 +10,13 @@ import { getDisplayName } from "@/types";
 import { buildAgentEventNoteContent } from "@/lib/agentEvents";
 import { selectProjectActionQueue } from "@/lib/actions";
 import { compileProjectContextWithMeta } from "@/lib/projectContext";
-import { buildProjectContextInput, buildProjectPulseModel } from "@/lib/projectPulse";
+import {
+  BUILDER_BRIEF_COPY_ERROR_TOAST,
+  BUILDER_BRIEF_COPY_LABEL,
+  BUILDER_BRIEF_COPY_SUCCESS_TOAST,
+  buildProjectContextInput,
+  buildProjectPulseModel,
+} from "@/lib/projectPulse";
 import {
   canGenerateProjectMemory,
   computeProjectMemorySourceUpdatedAt,
@@ -283,10 +289,10 @@ export function ProjectPulse({
       }
       await navigator.clipboard.writeText(compiled.packet);
       setLatestPacket(compiled.packet);
-      toast.success("Handoff packet copied and saved");
+      toast.success(BUILDER_BRIEF_COPY_SUCCESS_TOAST);
     } catch (err) {
       console.error("[ProjectPulse] generate handoff", err);
-      toast.error("Could not generate handoff packet");
+      toast.error(BUILDER_BRIEF_COPY_ERROR_TOAST);
     } finally {
       setPacketBusy(false);
     }
@@ -295,20 +301,20 @@ export function ProjectPulse({
   const handleCopyHandoff = async (handoff: Handoff) => {
     try {
       await navigator.clipboard.writeText(handoff.packetContent);
-      toast.success("Handoff copied");
+      toast.success("Builder Brief copied");
     } catch (err) {
       console.error("[ProjectPulse] copy handoff", err);
-      toast.error("Could not copy handoff");
+      toast.error(BUILDER_BRIEF_COPY_ERROR_TOAST);
     }
   };
 
   const handleHandoffStatus = async (handoff: Handoff, status: Handoff["status"]) => {
     try {
       await updateHandoffStatus({ handoffId: handoff.id as Id<"handoffs">, status });
-      toast.success("Handoff updated");
+      toast.success("Builder Brief updated");
     } catch (err) {
       console.error("[ProjectPulse] update handoff", err);
-      toast.error("Could not update handoff");
+      toast.error("Could not update Builder Brief");
     }
   };
 
@@ -390,7 +396,7 @@ export function ProjectPulse({
             Capture
           </button>
           <button type="button" className="project-pulse-btn" disabled={packetBusy} onClick={() => void handleGenerateHandoff()}>
-            {packetBusy ? "Generating..." : "Generate handoff packet"}
+            {packetBusy ? "Preparing..." : BUILDER_BRIEF_COPY_LABEL}
           </button>
           <button type="button" className="project-pulse-btn" onClick={onOpenCanvas}>
             Canvas
@@ -490,7 +496,7 @@ export function ProjectPulse({
                   Save as action
                 </button>
                 <button type="button" className="project-pulse-inline-btn project-pulse-inline-btn--primary" disabled={packetBusy} onClick={() => void handleGenerateHandoff()}>
-                  Packet
+                  Brief
                 </button>
               </div>
             </>
@@ -501,12 +507,12 @@ export function ProjectPulse({
 
         <section className="project-pulse-panel project-pulse-panel--handoffs">
           <div className="project-pulse-panel-head">
-            <h2>Handoff History</h2>
+            <h2>Builder Brief History</h2>
             <span>{handoffs?.length ?? 0}</span>
           </div>
           {latestPacket ? (
             <details className="handoff-preview">
-              <summary>Latest packet</summary>
+              <summary>Latest Builder Brief</summary>
               <textarea readOnly value={latestPacket} />
             </details>
           ) : null}
@@ -545,7 +551,7 @@ export function ProjectPulse({
               ))}
             </div>
           ) : (
-            <p className="project-pulse-muted">No packets generated yet.</p>
+            <p className="project-pulse-muted">No Builder Briefs copied yet.</p>
           )}
         </section>
 
@@ -740,7 +746,7 @@ export function ProjectPulse({
             </div>
           ) : (
             <p className="project-pulse-muted">
-              No agent updates yet. When OpenClaw, Hermes, or another agent works on this project, its handoffs will appear here for review.
+              No agent updates yet. When OpenClaw, Hermes, or another agent works on this project, its handoff notes will appear here for review.
             </p>
           )}
         </section>

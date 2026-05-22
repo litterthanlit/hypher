@@ -2,7 +2,7 @@ import type { AgentEvent, AnyObject, Handoff, Project, ProjectAction, ProjectMem
 import { selectProjectActionQueue } from "./actions";
 import { selectPrimaryNextAction } from "./projectMemory";
 
-interface CompileProjectContextParams {
+export interface CompileBuilderBriefParams {
   project: Project;
   memory?: ProjectMemory | null;
   captures: AnyObject[];
@@ -22,8 +22,16 @@ interface CompileProjectContextParams {
     openQuestions?: number;
     decisions?: number;
     constraints?: number;
+    doNotDo?: number;
+    recentProgress?: number;
+    openActions?: number;
+    agentWarnings?: number;
+    acceptanceCriteria?: number;
+    handoffNotes?: number;
   };
 }
+
+export type CompileProjectContextParams = CompileBuilderBriefParams;
 
 export interface CompiledProjectContext {
   packet: string;
@@ -44,6 +52,12 @@ const DEFAULT_LIMITS = {
   openQuestions: 5,
   decisions: 5,
   constraints: 5,
+  doNotDo: 6,
+  recentProgress: 5,
+  openActions: 6,
+  agentWarnings: 6,
+  acceptanceCriteria: 6,
+  handoffNotes: 6,
 };
 
 function clean(value: string | undefined | null): string {
@@ -64,20 +78,29 @@ function pushSection(lines: string[], title: string, body: string[]) {
   lines.push(...body);
 }
 
-function labelList(title: string, items: string[], empty: string): string[] {
-  return [
-    `${title}:`,
-    ...(items.length ? items.map((item) => `- ${item}`) : [`- ${empty}`]),
-  ];
+function bulletList(items: string[], empty: string): string[] {
+  return items.length ? items.map((item) => `- ${item}`) : [`- ${empty}`];
 }
 
-function sourceLabel(sourceType: ProjectAction["sourceType"]): string {
-  switch (sourceType) {
-    case "agent_event": return "Agent";
-    case "github": return "GitHub";
-    case "manual": return "Manual";
-    case "project_memory": return "Memory";
+function numberedList(items: string[], empty: string): string[] {
+  return items.length ? items.map((item, index) => `${index + 1}. ${item}`) : [`- ${empty}`];
+}
+
+function uniqueLines(items: string[]): string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const item of items) {
+    const normalized = normalizeText(item);
+    const key = normalized.toLowerCase();
+    if (!normalized || seen.has(key)) continue;
+    seen.add(key);
+    result.push(normalized);
   }
+  return result;
+}
+
+function looksLikeDoNotDo(item: string): boolean {
+  return /^(do not|don't|dont|avoid|never)\b/i.test(normalizeText(item));
 }
 
 function captureLine(item: AnyObject): string {
@@ -86,34 +109,11 @@ function captureLine(item: AnyObject): string {
   return truncate(item.name);
 }
 
-function captureText(item: AnyObject): string {
-  if (item.kind === "note") return item.content;
-  if (item.kind === "artifact") return [item.name, item.fileReference].filter(Boolean).join(" ");
-  return item.name;
-}
-
 function splitLines(value: string | undefined): string[] {
   return clean(value)
     .split(/\n+/)
     .map((line) => normalizeText(line))
     .filter(Boolean);
-}
-
-function extractLinks(items: AnyObject[], limit: number): string[] {
-  const links: string[] = [];
-  const seen = new Set<string>();
-  for (const item of items) {
-    const matches = captureText(item).match(/https?:\/\/[^\s)]+/g) ?? [];
-    for (const raw of matches) {
-      const link = raw.replace(/[.,;]+$/, "");
-      if (!seen.has(link)) {
-        seen.add(link);
-        links.push(link);
-      }
-      if (links.length >= limit) return links;
-    }
-  }
-  return links;
 }
 
 function inferTargetTool(action: string, role?: string): TargetTool {
@@ -126,27 +126,6 @@ function inferTargetTool(action: string, role?: string): TargetTool {
   if (/\b(claude)\b/.test(text)) return "Claude";
   if (/\b(manual|check by hand)\b/.test(text)) return "Manual";
   return "ChatGPT";
-}
-
-function expectedOutputFor(tool: TargetTool): string {
-  switch (tool) {
-    case "Cursor":
-    case "Windsurf":
-    case "GitHub Copilot":
-      return "A focused implementation or code review result, with files changed and verification notes.";
-    case "GitHub":
-      return "A clear issue, PR comment, or repository update grounded in the packet.";
-    case "Linear":
-      return "One scoped issue or update with acceptance criteria.";
-    case "Manual":
-      return "A completed manual check with decisions, blockers, and follow-up notes.";
-    case "MCP tool":
-      return "A tool-ready request plus the exact context needed to execute it.";
-    case "Claude":
-    case "ChatGPT":
-    default:
-      return "A concise answer, plan, or draft that uses the included project memory.";
-  }
 }
 
 function actionFromQueue(actions: ProjectAction[]): ProjectNextAction | null {
@@ -210,25 +189,21 @@ export function compileProjectContextWithMeta(params: CompileProjectContextParam
   const primaryAction =
     selectPrimaryNextAction(memory?.nextActions ?? []) ??
     actionFromQueue(params.actions) ??
-    {
+    (params.task ? {
       id: "manual-next-action",
-      title: params.task ? normalizeText(params.task) : "Clarify the next useful project move",
+      title: normalizeText(params.task),
       rationale: "Hypher needs one concrete next action before handing this project to an agent.",
       status: "suggested" as const,
       createdAt: generatedAt,
       updatedAt: generatedAt,
-    };
+    } : null);
 
-  const requestedTask = normalizeText(primaryAction.title);
-  const targetTool = params.targetTool ?? primaryAction.suggestedTargetTool ?? inferTargetTool(requestedTask, params.role);
+  const requestedTask = normalizeText(primaryAction?.title) || "No current task captured yet.";
+  const targetTool = params.targetTool ?? primaryAction?.suggestedTargetTool ?? inferTargetTool(requestedTask, params.role);
   const freshness = freshnessLabel(params);
-  const links = extractLinks(includedCaptures, limits.captures);
 
   const pinnedDecisionLines = includedCaptures
     .filter((item) => item.pinnedAsDecision)
-    .map(captureLine);
-  const openQuestionLines = includedCaptures
-    .filter((item) => item.captureType === "open_question")
     .map(captureLine);
   const staleLines = captureCandidates
     .filter((item) => item.stale)
@@ -239,7 +214,7 @@ export function compileProjectContextWithMeta(params: CompileProjectContextParam
     .slice()
     .sort((a, b) => b.generatedAt - a.generatedAt)
     .slice(0, limits.handoffs)
-    .map((handoff) => `- ${handoff.targetTool} / ${handoff.status}: ${truncate(handoff.requestedTask, 140)} (${new Date(handoff.generatedAt).toISOString()})`);
+    .map((handoff) => `Previous ${handoff.targetTool} brief was ${handoff.status}: ${truncate(handoff.requestedTask, 140)}.`);
 
   const agentHandoffLines = params.agentEvents
     .slice()
@@ -250,121 +225,78 @@ export function compileProjectContextWithMeta(params: CompileProjectContextParam
       const actions = event.suggestedActions?.length
         ? ` Suggested actions: ${event.suggestedActions.slice(0, 3).join("; ")}.`
         : "";
-      return `- ${normalizeText(event.source)} / ${event.kind.replace("_", " ")}: ${normalizeText(event.title)}. ${summary}${actions}`;
+      return `${normalizeText(event.source)} / ${event.kind.replace("_", " ")}: ${normalizeText(event.title)}. ${summary}${actions}`;
     });
 
   const sourceCaptureIds = includedCaptures.map((item) => item.id);
   const excludedSourceCaptureIds = excludedCaptures.map((item) => item.id);
-  const lines = ["# Agent Context Packet"];
 
-  pushSection(lines, "Project", [
-    `Name: ${normalizeText(params.project.name) || "Project"}`,
-    `Summary: ${normalizeText(memory?.summary || params.project.description) || "No generated project memory yet."}`,
-    `Current goal: ${normalizeText(memory?.currentGoal || params.task || params.project.description) || "No current goal recorded."}`,
-    `Current direction: ${normalizeText(memory?.currentDirection) || "No generated project memory yet."}`,
-  ]);
+  const projectName = normalizeText(params.project.name) || "Project";
+  const mission = normalizeText(memory?.summary || params.project.description) || "No mission captured yet.";
+  const currentGoal = normalizeText(memory?.currentGoal);
+  const currentDirection = normalizeText(memory?.currentDirection);
+  const objective = normalizeText(currentGoal || currentDirection || params.project.description) || "No current objective captured yet.";
+  const objectiveBody = currentGoal && currentDirection && currentDirection !== currentGoal
+    ? [currentGoal, `Current state: ${currentDirection}`]
+    : [objective];
+  const task = requestedTask || "No current task captured yet.";
+  const activeMemoryActions = (memory?.nextActions ?? [])
+    .filter((action) => action.status !== "dismissed")
+    .map((action) => `[${action.status}] ${truncate(action.title, 180)}`);
+  const planLines = uniqueLines([
+    ...activeMemoryActions,
+    ...(memory?.activeTasks ?? []).map((item) => truncate(item, 180)),
+    ...activeActions.map((action) => `[${action.status}] ${truncate(action.title, 180)}`),
+  ]).slice(0, limits.actions);
+  const decisionLines = uniqueLines([
+    ...(memory?.importantDecisions ?? []),
+    ...pinnedDecisionLines,
+  ]).map((item) => truncate(item, 180)).slice(0, limits.decisions);
+  const constraintLines = uniqueLines(memory?.constraints ?? [])
+    .map((item) => truncate(item, 180))
+    .slice(0, limits.constraints);
+  const doNotDoLines = uniqueLines([
+    ...constraintLines.filter(looksLikeDoNotDo),
+    ...includedCaptures.map(captureLine).filter(looksLikeDoNotDo),
+  ]).slice(0, limits.doNotDo);
+  const recentProgressLines = uniqueLines(memory?.recentChanges ?? [])
+    .map((item) => truncate(item, 180))
+    .slice(0, limits.recentProgress);
+  const openActionLines = uniqueLines([
+    ...activeActions.map((action) => `[${action.status}] ${truncate(action.title, 180)}`),
+    ...(memory?.activeTasks ?? []).map((item) => truncate(item, 180)),
+  ]).slice(0, limits.openActions);
+  const warningLines = uniqueLines([
+    ...(memory?.staleAssumptions ?? []).map((item) => `Stale assumption: ${item}`),
+    ...staleLines.map((item) => `Stale capture: ${item}`),
+    ...(memory?.blockers ?? []).map((item) => `Blocker: ${item}`),
+    ...splitLines(params.project.blockers).map((item) => `Blocker: ${item}`),
+  ]).map((item) => truncate(item, 180)).slice(0, limits.agentWarnings);
+  const acceptanceLines = task === "No current task captured yet."
+    ? []
+    : [
+        "Current Task is completed or clearly blocked with reasons.",
+        "Plan, decisions, constraints, and Do Not Do items are followed.",
+        "Relevant tests or checks are run and reported.",
+        "Handoff Notes include changes, blockers, and the next move.",
+      ].slice(0, limits.acceptanceCriteria);
+  const handoffLines = uniqueLines([...recentHandoffLines, ...agentHandoffLines])
+    .map((item) => truncate(item, 220))
+    .slice(0, limits.handoffNotes);
+  const lines = [`# Builder Brief: ${projectName}`];
 
-  pushSection(lines, "Current State", [
-    ...labelList(
-      "Recent changes",
-      (memory?.recentChanges ?? []).slice(0, limits.recentChanges).map((item) => truncate(item, 180)),
-      "No recent changes captured yet."
-    ),
-    "",
-    ...labelList(
-      "Important decisions",
-      [...(memory?.importantDecisions ?? []), ...pinnedDecisionLines].slice(0, limits.decisions).map((item) => truncate(item, 180)),
-      "No decisions pinned yet."
-    ),
-    "",
-    ...labelList(
-      "Constraints",
-      (memory?.constraints ?? []).slice(0, limits.constraints).map((item) => truncate(item, 180)),
-      "No constraints recorded yet."
-    ),
-    "",
-    ...labelList(
-      "Known blockers",
-      [...(memory?.blockers ?? []), ...splitLines(params.project.blockers)].slice(0, limits.openQuestions).map((item) => truncate(item, 180)),
-      "No known blockers."
-    ),
-    "",
-    ...labelList(
-      "Active tasks",
-      [
-        ...(memory?.activeTasks ?? []),
-        ...activeActions.map((action) => `${normalizeText(action.title)} (${sourceLabel(action.sourceType)})`),
-      ].slice(0, limits.actions),
-      "No active tasks recorded."
-    ),
-    "",
-    ...labelList(
-      "Stale assumptions",
-      [...(memory?.staleAssumptions ?? []), ...staleLines].slice(0, limits.openQuestions).map((item) => truncate(item, 180)),
-      "No stale assumptions marked."
-    ),
-  ]);
-
-  pushSection(lines, "Task For Agent", [
-    `Recommended action: ${requestedTask}`,
-    `Why it matters: ${normalizeText(primaryAction.rationale) || "It is the clearest next step for the project."}`,
-    `Required context: ${(primaryAction.requiredContext?.length ? primaryAction.requiredContext : ["Project summary", "recent changes", "relevant captures"]).join(", ")}`,
-    `Suggested target tool: ${targetTool}`,
-    `Confidence: ${typeof primaryAction.confidence === "number" ? `${Math.round(primaryAction.confidence * 100)}%` : "medium"}`,
-    `Source captures used: ${sourceCaptureIds.length}`,
-    `Expected output: ${expectedOutputFor(targetTool)}`,
-    "Success criteria:",
-    "- Uses the current direction and constraints above.",
-    "- Calls out assumptions instead of inventing missing context.",
-    "- Leaves a concise return handoff with changes, blockers, and next steps.",
-  ]);
-
-  pushSection(lines, "Relevant Context", [
-    ...labelList(
-      "Captures",
-      includedCaptures.map(captureLine),
-      "No captures assigned yet."
-    ),
-    "",
-    ...labelList("Links", links, "No links included."),
-    "",
-    ...labelList(
-      "Prior handoffs",
-      [...recentHandoffLines, ...agentHandoffLines].map((line) => line.replace(/^- /, "")),
-      "No prior handoffs recorded."
-    ),
-    "",
-    ...labelList(
-      "Open questions",
-      [...(memory?.openQuestions ?? []), ...openQuestionLines].slice(0, limits.openQuestions).map((item) => truncate(item, 180)),
-      "No open questions recorded."
-    ),
-  ]);
-
-  pushSection(lines, "Guardrails", [
-    ...labelList("Do not", [
-      "Turn this into a generic productivity system.",
-      "Assume stale or excluded captures are current.",
-      "Change project direction without naming the tradeoff.",
-    ], "No guardrails recorded."),
-    "",
-    ...labelList("Assume", [
-      "The builder wants one useful next move, not a long task list.",
-      "Hypher is project memory and agent briefing, not an agent runner.",
-    ], "No assumptions recorded."),
-    "",
-    ...labelList("Ask before", [
-      "Using missing context as fact.",
-      "Expanding scope beyond the recommended action.",
-    ], "No ask-before rules recorded."),
-  ]);
-
-  pushSection(lines, "Metadata", [
-    `Generated at: ${new Date(generatedAt).toISOString()}`,
-    `Freshness: ${freshness}`,
-    `Sources included: ${sourceCaptureIds.length} captures, ${activeActions.length} actions, ${(params.handoffs ?? []).length + params.agentEvents.length} prior handoffs`,
-    `Sources excluded: ${excludedSourceCaptureIds.length} captures`,
-  ]);
+  pushSection(lines, "Mission", [mission]);
+  pushSection(lines, "Current Objective", objectiveBody);
+  pushSection(lines, "Current Task", [task]);
+  pushSection(lines, "Plan", numberedList(planLines, "No approved plan captured yet."));
+  pushSection(lines, "Crystallized Decisions", bulletList(decisionLines, "No crystallized decisions recorded yet."));
+  pushSection(lines, "Constraints", bulletList(constraintLines, "No constraints recorded yet."));
+  pushSection(lines, "Do Not Do", bulletList(doNotDoLines, "No explicit Do Not Do items recorded yet."));
+  pushSection(lines, "Recent Progress", bulletList(recentProgressLines, "No recent progress recorded yet."));
+  pushSection(lines, "Open Actions", bulletList(openActionLines, "No open actions recorded yet."));
+  pushSection(lines, "Agent Warnings", bulletList(warningLines, "No agent warnings recorded yet."));
+  pushSection(lines, "Acceptance Criteria", bulletList(acceptanceLines, "No task-specific acceptance criteria recorded yet."));
+  pushSection(lines, "Handoff Notes", bulletList(handoffLines, "No handoff notes recorded yet."));
 
   return {
     packet: `${lines.join("\n").trim()}\n`,
@@ -378,5 +310,9 @@ export function compileProjectContextWithMeta(params: CompileProjectContextParam
 }
 
 export function compileProjectContext(params: CompileProjectContextParams): string {
+  return compileProjectContextWithMeta(params).packet;
+}
+
+export function compileBuilderBrief(params: CompileBuilderBriefParams): string {
   return compileProjectContextWithMeta(params).packet;
 }

@@ -67,8 +67,8 @@ export function getHypherMcpToolDescriptors(): HypherMcpToolDescriptor[] {
     },
     {
       name: "get_project_context",
-      title: "Get project context",
-      description: "Return the protected Hypher agent context packet for a project.",
+      title: "Get Builder Brief",
+      description: "Return the protected Hypher Builder Brief for a project.",
       inputSchema: PROJECT_ID_SCHEMA,
       annotations: READ_ONLY,
     },
@@ -88,8 +88,8 @@ export function getHypherMcpToolDescriptors(): HypherMcpToolDescriptor[] {
     },
     {
       name: "prepare_handoff",
-      title: "Prepare handoff",
-      description: "Prepare a concise read-only handoff for continuing work in ChatGPT.",
+      title: "Prepare handoff notes",
+      description: "Prepare concise read-only handoff notes for continuing work in ChatGPT.",
       inputSchema: PROJECT_ID_SCHEMA,
       annotations: READ_ONLY,
     },

@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { ActivityEntry, AgentEvent, AnyObject, Project, ProjectAction, ProjectMemory } from "@/types";
-import { buildProjectContextInput, buildProjectPulseModel } from "./projectPulse";
+import {
+  BUILDER_BRIEF_COPY_ERROR_TOAST,
+  BUILDER_BRIEF_COPY_LABEL,
+  BUILDER_BRIEF_COPY_SUCCESS_TOAST,
+  buildProjectContextInput,
+  buildProjectPulseModel,
+} from "./projectPulse";
 
 const project: Project = {
   id: "p1",
@@ -91,7 +97,7 @@ describe("buildProjectContextInput", () => {
         id: "pa1",
         userId: "u1",
         projectId: "p1",
-        title: "Copy context packet",
+        title: "Copy Builder Brief",
         status: "accepted",
         sourceType: "manual",
         createdAt: 70,
@@ -126,5 +132,13 @@ describe("buildProjectContextInput", () => {
       actions,
       agentEvents,
     });
+  });
+});
+
+describe("Builder Brief UI copy", () => {
+  it("keeps Project Pulse copy language focused on Builder Briefs", () => {
+    expect(BUILDER_BRIEF_COPY_LABEL).toBe("Copy Builder Brief");
+    expect(BUILDER_BRIEF_COPY_SUCCESS_TOAST).toBe("Builder Brief copied and saved");
+    expect(BUILDER_BRIEF_COPY_ERROR_TOAST).toBe("Could not copy Builder Brief");
   });
 });
