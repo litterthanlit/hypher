@@ -1,5 +1,6 @@
 import type {
   AcceptedCrystallizedSuggestion,
+  AcceptedCrystallizedSuggestionStatus,
   AnyObject,
   CrystallizedSuggestionKind,
   CrystallizedSuggestionSourceType,
@@ -39,6 +40,12 @@ export type AcceptedCrystallizedMemoryPatch = Partial<Pick<
   | "handoffNotes"
   | "acceptedCrystallizedSuggestions"
 >>;
+
+export function acceptedCrystallizedSuggestionStatus(
+  suggestion: AcceptedCrystallizedSuggestion
+): AcceptedCrystallizedSuggestionStatus {
+  return suggestion.status ?? "active";
+}
 
 type ClassifiedSuggestion = Pick<CrystallizedSuggestion, "kind" | "confidence" | "reason">;
 
@@ -248,11 +255,50 @@ export function buildAcceptedCrystallizedMemoryPatch(params: {
       sourceId: params.suggestion.sourceId,
       suggestionId: params.suggestion.id,
       createdAt: params.acceptedAt,
+      status: "active",
+      updatedAt: params.acceptedAt,
     };
     patch.acceptedCrystallizedSuggestions = [...accepted, source];
   }
 
   return patch;
+}
+
+function sameAcceptedSuggestion(
+  item: AcceptedCrystallizedSuggestion,
+  target: AcceptedCrystallizedSuggestion
+): boolean {
+  if (item.suggestionId && target.suggestionId && item.suggestionId === target.suggestionId) {
+    return true;
+  }
+  return item.kind === target.kind
+    && canonicalKey(item.text) === canonicalKey(target.text)
+    && item.sourceType === target.sourceType
+    && item.sourceId === target.sourceId;
+}
+
+export function buildCrystallizedMemoryStatusPatch(params: {
+  memory: ProjectMemory;
+  target: AcceptedCrystallizedSuggestion;
+  status: AcceptedCrystallizedSuggestionStatus;
+  updatedAt: number;
+}): AcceptedCrystallizedMemoryPatch {
+  const accepted = params.memory.acceptedCrystallizedSuggestions ?? [];
+  let changed = false;
+  const updated = accepted.map((item) => {
+    if (!sameAcceptedSuggestion(item, params.target)) return item;
+    if (acceptedCrystallizedSuggestionStatus(item) === params.status && item.updatedAt === params.updatedAt) {
+      return item;
+    }
+    changed = true;
+    return {
+      ...item,
+      status: params.status,
+      updatedAt: params.updatedAt,
+    };
+  });
+
+  return changed ? { acceptedCrystallizedSuggestions: updated } : {};
 }
 
 export function suggestCrystallizedUpdates(params: SuggestCrystallizedUpdatesParams): CrystallizedSuggestion[] {

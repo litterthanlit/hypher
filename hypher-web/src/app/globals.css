@@ -5224,6 +5224,10 @@ body:has(.capture-root) {
   grid-column: 1 / -1;
 }
 
+.project-pulse-panel--crystallized-memory {
+  grid-column: 1 / -1;
+}
+
 .project-pulse-panel-head {
   display: flex;
   justify-content: space-between;
@@ -5525,6 +5529,50 @@ body:has(.capture-root) {
 
 .crystallize-empty {
   margin-top: 12px;
+}
+
+.crystallized-memory-groups {
+  display: grid;
+  gap: 14px;
+}
+
+.crystallized-memory-group {
+  display: grid;
+  gap: 8px;
+}
+
+.crystallized-memory-group h3 {
+  margin: 0;
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.crystallized-memory-list {
+  display: grid;
+  gap: 8px;
+}
+
+.crystallized-memory-row {
+  padding: 12px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  background: var(--bg-primary);
+}
+
+.crystallized-memory-row.is-stale,
+.crystallized-memory-row.is-excluded {
+  background: var(--bg-secondary);
+  opacity: 0.72;
+}
+
+.crystallized-memory-row p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.45;
 }
 
 .handoff-history-list {

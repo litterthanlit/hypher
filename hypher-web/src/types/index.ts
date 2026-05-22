@@ -38,6 +38,7 @@ export type CrystallizedSuggestionSourceType =
   | "handoff"
   | "returned_agent_output"
   | "user_note";
+export type AcceptedCrystallizedSuggestionStatus = "active" | "stale" | "excluded";
 
 export interface CanvasPosition {
   x: number;
@@ -150,6 +151,8 @@ export interface AcceptedCrystallizedSuggestion {
   sourceId?: string;
   suggestionId?: string;
   createdAt: number;
+  status?: AcceptedCrystallizedSuggestionStatus;
+  updatedAt?: number;
 }
 
 export interface ProjectMemory {

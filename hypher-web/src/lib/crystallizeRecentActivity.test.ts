@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { AnyObject, Handoff, ProjectMemory } from "@/types";
 import {
   buildAcceptedCrystallizedMemoryPatch,
+  buildCrystallizedMemoryStatusPatch,
   suggestCrystallizedUpdates,
 } from "./crystallizeRecentActivity";
 
@@ -211,6 +212,8 @@ describe("suggestCrystallizedUpdates", () => {
           sourceId: "capture-1",
           suggestionId: "crystal-acceptance-capture-capture-1-abc",
           createdAt: 50,
+          status: "active",
+          updatedAt: 50,
         },
       ],
     });
@@ -253,6 +256,55 @@ describe("suggestCrystallizedUpdates", () => {
     });
 
     expect(patch).toEqual({});
+  });
+
+  it("updates accepted crystallized memory lifecycle status", () => {
+    const memory: ProjectMemory = {
+      projectId: "project-1",
+      summary: "Existing memory.",
+      currentDirection: "Keep the loop review-first.",
+      recentChanges: [],
+      constraints: ["Do not expand MCP tools."],
+      acceptedCrystallizedSuggestions: [
+        {
+          kind: "do_not_do",
+          text: "Do not expand MCP tools.",
+          sourceType: "capture",
+          sourceId: "capture-1",
+          suggestionId: "crystal-do_not_do-capture-capture-1-abc",
+          createdAt: 20,
+          status: "active",
+          updatedAt: 20,
+        },
+      ],
+      openQuestions: [],
+      nextActions: [],
+      generatedAt: 1,
+      sourceUpdatedAt: 1,
+      model: "test",
+    };
+
+    const patch = buildCrystallizedMemoryStatusPatch({
+      memory,
+      target: memory.acceptedCrystallizedSuggestions![0]!,
+      status: "excluded",
+      updatedAt: 60,
+    });
+
+    expect(patch).toEqual({
+      acceptedCrystallizedSuggestions: [
+        {
+          kind: "do_not_do",
+          text: "Do not expand MCP tools.",
+          sourceType: "capture",
+          sourceId: "capture-1",
+          suggestionId: "crystal-do_not_do-capture-capture-1-abc",
+          createdAt: 20,
+          status: "excluded",
+          updatedAt: 60,
+        },
+      ],
+    });
   });
 
   it("applies suggestion limits and keeps output deterministic", () => {

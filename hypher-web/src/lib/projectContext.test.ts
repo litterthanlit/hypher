@@ -382,4 +382,112 @@ describe("compileBuilderBrief", () => {
     expect(packet).toContain("- A returned agent result was accepted into project memory.");
     expect(packet).not.toContain("Unaccepted suggestion");
   });
+
+  it("keeps stale and excluded accepted crystallized memory out of Builder Briefs", () => {
+    const packet = compileBuilderBrief({
+      project,
+      memory: {
+        ...memory,
+        importantDecisions: [
+          "Decision: keep active memory.",
+          "Decision: stale memory should not guide agents.",
+        ],
+        constraints: [
+          "Keep the compiler deterministic.",
+          "Do not use stale delivery advice.",
+        ],
+        acceptanceCriteria: [
+          "Active criteria stay visible.",
+          "Excluded criteria should not appear.",
+        ],
+        agentWarnings: [
+          "Watch active warning.",
+          "Watch stale warning.",
+        ],
+        handoffNotes: [
+          "Active handoff note.",
+          "Excluded handoff note.",
+        ],
+        acceptedCrystallizedSuggestions: [
+          {
+            kind: "decision",
+            text: "Decision: stale memory should not guide agents.",
+            sourceType: "capture",
+            sourceId: "capture-stale",
+            suggestionId: "suggestion-stale-decision",
+            createdAt: 10,
+            status: "stale",
+            updatedAt: 20,
+          },
+          {
+            kind: "do_not_do",
+            text: "Do not use stale delivery advice.",
+            sourceType: "capture",
+            sourceId: "capture-excluded",
+            suggestionId: "suggestion-excluded-do-not-do",
+            createdAt: 10,
+            status: "excluded",
+            updatedAt: 20,
+          },
+          {
+            kind: "acceptance_criterion",
+            text: "Excluded criteria should not appear.",
+            sourceType: "user_note",
+            sourceId: "handoff-2",
+            suggestionId: "suggestion-excluded-criteria",
+            createdAt: 10,
+            status: "excluded",
+            updatedAt: 20,
+          },
+          {
+            kind: "agent_warning",
+            text: "Watch stale warning.",
+            sourceType: "returned_agent_output",
+            sourceId: "handoff-3",
+            suggestionId: "suggestion-stale-warning",
+            createdAt: 10,
+            status: "stale",
+            updatedAt: 20,
+          },
+          {
+            kind: "handoff_note",
+            text: "Excluded handoff note.",
+            sourceType: "user_note",
+            sourceId: "handoff-4",
+            suggestionId: "suggestion-excluded-note",
+            createdAt: 10,
+            status: "excluded",
+            updatedAt: 20,
+          },
+          {
+            kind: "constraint",
+            text: "Accepted source metadata still renders when the string array is missing.",
+            sourceType: "capture",
+            sourceId: "capture-active",
+            suggestionId: "suggestion-active-constraint",
+            createdAt: 10,
+            status: "active",
+            updatedAt: 20,
+          },
+        ],
+      },
+      captures,
+      actions,
+      agentEvents: [],
+      handoffs: [],
+      generatedAt: 123,
+    });
+
+    expect(packet).toContain("- Decision: keep active memory.");
+    expect(packet).toContain("- Keep the compiler deterministic.");
+    expect(packet).toContain("- Active criteria stay visible.");
+    expect(packet).toContain("- Watch active warning.");
+    expect(packet).toContain("- Active handoff note.");
+    expect(packet).toContain("- Accepted source metadata still renders when the string array is missing.");
+    expect(packet).not.toContain("stale memory should not guide agents");
+    expect(packet).not.toContain("Do not use stale delivery advice");
+    expect(packet).not.toContain("Excluded criteria should not appear");
+    expect(packet).not.toContain("Watch stale warning");
+    expect(packet).not.toContain("Excluded handoff note");
+  });
 });

@@ -1,4 +1,15 @@
-import type { AgentEvent, AnyObject, Handoff, Project, ProjectAction, ProjectMemory, ProjectNextAction, TargetTool } from "@/types";
+import type {
+  AcceptedCrystallizedSuggestion,
+  AgentEvent,
+  AnyObject,
+  CrystallizedSuggestionKind,
+  Handoff,
+  Project,
+  ProjectAction,
+  ProjectMemory,
+  ProjectNextAction,
+  TargetTool,
+} from "@/types";
 import { selectProjectActionQueue } from "./actions";
 import { summarizeHandoffResult } from "./handoffResults";
 import { selectPrimaryNextAction } from "./projectMemory";
@@ -98,6 +109,39 @@ function uniqueLines(items: string[]): string[] {
     result.push(normalized);
   }
   return result;
+}
+
+type AcceptedMemoryKind = Exclude<CrystallizedSuggestionKind, "current_task" | "open_action">;
+
+function acceptedMemoryStatus(item: AcceptedCrystallizedSuggestion): "active" | "stale" | "excluded" {
+  return item.status ?? "active";
+}
+
+function activeAcceptedMemoryTexts(memory: ProjectMemory | null, kinds: AcceptedMemoryKind[]): string[] {
+  return (memory?.acceptedCrystallizedSuggestions ?? [])
+    .filter((item) => kinds.includes(item.kind as AcceptedMemoryKind))
+    .filter((item) => acceptedMemoryStatus(item) === "active")
+    .map((item) => item.text);
+}
+
+function inactiveAcceptedMemoryKeys(memory: ProjectMemory | null, kinds: AcceptedMemoryKind[]): Set<string> {
+  return new Set(
+    (memory?.acceptedCrystallizedSuggestions ?? [])
+      .filter((item) => kinds.includes(item.kind as AcceptedMemoryKind))
+      .filter((item) => acceptedMemoryStatus(item) !== "active")
+      .map((item) => normalizeText(item.text).toLowerCase())
+      .filter(Boolean)
+  );
+}
+
+function withoutInactiveAcceptedMemory(
+  memory: ProjectMemory | null,
+  kinds: AcceptedMemoryKind[],
+  items: string[]
+): string[] {
+  const inactive = inactiveAcceptedMemoryKeys(memory, kinds);
+  if (!inactive.size) return items;
+  return items.filter((item) => !inactive.has(normalizeText(item).toLowerCase()));
 }
 
 function looksLikeDoNotDo(item: string): boolean {
@@ -252,11 +296,15 @@ export function compileProjectContextWithMeta(params: CompileProjectContextParam
     ...(memory?.activeTasks ?? []).map((item) => truncate(item, 180)),
     ...activeActions.map((action) => `[${action.status}] ${truncate(action.title, 180)}`),
   ]).slice(0, limits.actions);
-  const decisionLines = uniqueLines([
+  const decisionLines = withoutInactiveAcceptedMemory(memory, ["decision"], uniqueLines([
     ...(memory?.importantDecisions ?? []),
+    ...activeAcceptedMemoryTexts(memory, ["decision"]),
     ...pinnedDecisionLines,
-  ]).map((item) => truncate(item, 180)).slice(0, limits.decisions);
-  const constraintLines = uniqueLines(memory?.constraints ?? [])
+  ])).map((item) => truncate(item, 180)).slice(0, limits.decisions);
+  const constraintLines = withoutInactiveAcceptedMemory(memory, ["constraint", "do_not_do"], uniqueLines([
+    ...(memory?.constraints ?? []),
+    ...activeAcceptedMemoryTexts(memory, ["constraint", "do_not_do"]),
+  ]))
     .map((item) => truncate(item, 180))
     .slice(0, limits.constraints);
   const doNotDoLines = uniqueLines([
@@ -271,7 +319,10 @@ export function compileProjectContextWithMeta(params: CompileProjectContextParam
     ...(memory?.activeTasks ?? []).map((item) => truncate(item, 180)),
   ]).slice(0, limits.openActions);
   const warningLines = uniqueLines([
-    ...(memory?.agentWarnings ?? []),
+    ...withoutInactiveAcceptedMemory(memory, ["agent_warning"], uniqueLines([
+      ...(memory?.agentWarnings ?? []),
+      ...activeAcceptedMemoryTexts(memory, ["agent_warning"]),
+    ])),
     ...(memory?.staleAssumptions ?? []).map((item) => `Stale assumption: ${item}`),
     ...staleLines.map((item) => `Stale capture: ${item}`),
     ...(memory?.blockers ?? []).map((item) => `Blocker: ${item}`),
@@ -286,10 +337,20 @@ export function compileProjectContextWithMeta(params: CompileProjectContextParam
         "Handoff Notes include changes, blockers, and the next move.",
       ];
   const acceptanceLines = uniqueLines([
-    ...(memory?.acceptanceCriteria ?? []),
+    ...withoutInactiveAcceptedMemory(memory, ["acceptance_criterion"], uniqueLines([
+      ...(memory?.acceptanceCriteria ?? []),
+      ...activeAcceptedMemoryTexts(memory, ["acceptance_criterion"]),
+    ])),
     ...defaultAcceptanceLines,
   ]).map((item) => truncate(item, 180)).slice(0, limits.acceptanceCriteria);
-  const handoffLines = uniqueLines([...(memory?.handoffNotes ?? []), ...recentHandoffLines, ...agentHandoffLines])
+  const handoffLines = uniqueLines([
+    ...withoutInactiveAcceptedMemory(memory, ["handoff_note"], uniqueLines([
+      ...(memory?.handoffNotes ?? []),
+      ...activeAcceptedMemoryTexts(memory, ["handoff_note"]),
+    ])),
+    ...recentHandoffLines,
+    ...agentHandoffLines,
+  ])
     .map((item) => truncate(item, 220))
     .slice(0, limits.handoffNotes);
   const lines = [`# Builder Brief: ${projectName}`];

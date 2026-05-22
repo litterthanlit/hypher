@@ -5,12 +5,26 @@ import { useMutation, useQuery } from "convex/react";
 import { toast } from "sonner";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
-import type { ActivityEntry, AgentEvent, AnyObject, Handoff, Project, ProjectAction, ProjectMemory, ProjectMemoryStatus, TargetTool } from "@/types";
+import type {
+  AcceptedCrystallizedSuggestion,
+  AcceptedCrystallizedSuggestionStatus,
+  ActivityEntry,
+  AgentEvent,
+  AnyObject,
+  Handoff,
+  Project,
+  ProjectAction,
+  ProjectMemory,
+  ProjectMemoryStatus,
+  TargetTool,
+} from "@/types";
 import { getDisplayName } from "@/types";
 import { buildAgentEventNoteContent } from "@/lib/agentEvents";
 import { findDuplicateAction, selectProjectActionQueue } from "@/lib/actions";
 import {
+  acceptedCrystallizedSuggestionStatus,
   buildAcceptedCrystallizedMemoryPatch,
+  buildCrystallizedMemoryStatusPatch,
   suggestCrystallizedUpdates,
   type CrystallizedSuggestion,
 } from "@/lib/crystallizeRecentActivity";
@@ -58,6 +72,21 @@ const CRYSTALLIZED_KIND_LABELS: Record<CrystallizedSuggestion["kind"], string> =
   agent_warning: "Agent Warning",
   handoff_note: "Handoff Note",
 };
+const CRYSTALLIZED_MEMORY_KIND_ORDER: CrystallizedSuggestion["kind"][] = [
+  "decision",
+  "constraint",
+  "do_not_do",
+  "acceptance_criterion",
+  "agent_warning",
+  "handoff_note",
+  "current_task",
+  "open_action",
+];
+const CRYSTALLIZED_MEMORY_STATUS_LABELS: Record<AcceptedCrystallizedSuggestionStatus, string> = {
+  active: "Active",
+  stale: "Stale",
+  excluded: "Excluded",
+};
 
 function timeAgo(ts: number): string {
   const diff = Date.now() - ts;
@@ -97,13 +126,18 @@ function captureSummary(item: AnyObject): string {
   return item.name;
 }
 
-function crystallizedSourceLabel(suggestion: CrystallizedSuggestion): string {
+function crystallizedSourceLabel(suggestion: Pick<CrystallizedSuggestion, "sourceType">): string {
   switch (suggestion.sourceType) {
     case "capture": return "capture";
     case "returned_agent_output": return "agent result";
     case "user_note": return "user note";
     case "handoff": return "handoff";
   }
+}
+
+function crystallizedMemoryUpdatedLabel(item: AcceptedCrystallizedSuggestion): string {
+  const timestamp = item.updatedAt ?? item.createdAt;
+  return timestamp ? timeAgo(timestamp) : "saved";
 }
 
 function canApplyCrystallizedSuggestion(suggestion: CrystallizedSuggestion): boolean {
@@ -208,6 +242,18 @@ export function ProjectPulse({
     () => crystallizedSuggestions.filter((suggestion) => !dismissedCrystallizedSuggestionIds.includes(suggestion.id)),
     [crystallizedSuggestions, dismissedCrystallizedSuggestionIds]
   );
+  const crystallizedMemoryGroups = useMemo(() => {
+    const accepted = model.memory?.acceptedCrystallizedSuggestions ?? [];
+    return CRYSTALLIZED_MEMORY_KIND_ORDER
+      .map((kind) => ({
+        kind,
+        items: accepted.filter((item) => item.kind === kind),
+      }))
+      .filter((group) => group.items.length > 0);
+  }, [model.memory?.acceptedCrystallizedSuggestions]);
+  const crystallizedMemoryTotal = model.memory?.acceptedCrystallizedSuggestions?.length ?? 0;
+  const activeCrystallizedMemoryTotal = model.memory?.acceptedCrystallizedSuggestions
+    ?.filter((item) => acceptedCrystallizedSuggestionStatus(item) === "active").length ?? 0;
   const otherProjects = useMemo(
     () => projects.filter((candidate) => candidate.id !== project.id),
     [project.id, projects]
@@ -396,6 +442,32 @@ export function ProjectPulse({
     } catch (err) {
       console.error("[ProjectPulse] apply crystallized suggestion", err);
       toast.error("Could not apply suggestion");
+    }
+  };
+
+  const handleCrystallizedMemoryStatus = async (
+    item: AcceptedCrystallizedSuggestion,
+    status: AcceptedCrystallizedSuggestionStatus
+  ) => {
+    if (!model.memory) return;
+    try {
+      const now = Date.now();
+      const patch = buildCrystallizedMemoryStatusPatch({
+        memory: model.memory,
+        target: item,
+        status,
+        updatedAt: now,
+      });
+      if (!Object.keys(patch).length) return;
+      await updateManualMemory({
+        projectId: project.id as Id<"objects">,
+        updatedAt: now,
+        ...patch,
+      });
+      toast.success(status === "active" ? "Memory restored" : status === "stale" ? "Memory marked stale" : "Memory excluded");
+    } catch (err) {
+      console.error("[ProjectPulse] update crystallized memory", err);
+      toast.error("Could not update memory");
     }
   };
 
@@ -730,6 +802,59 @@ export function ProjectPulse({
               <p className="project-pulse-muted crystallize-empty">No new suggestions.</p>
             )
           ) : null}
+        </section>
+
+        <section className="project-pulse-panel project-pulse-panel--crystallized-memory">
+          <div className="project-pulse-panel-head">
+            <h2>Crystallized Memory</h2>
+            <span>{activeCrystallizedMemoryTotal}/{crystallizedMemoryTotal} active</span>
+          </div>
+          {crystallizedMemoryGroups.length ? (
+            <div className="crystallized-memory-groups">
+              {crystallizedMemoryGroups.map((group) => (
+                <div key={group.kind} className="crystallized-memory-group">
+                  <h3>{CRYSTALLIZED_KIND_LABELS[group.kind]}</h3>
+                  <div className="crystallized-memory-list">
+                    {group.items.map((item) => {
+                      const status = acceptedCrystallizedSuggestionStatus(item);
+                      return (
+                        <article
+                          key={`${item.suggestionId ?? item.sourceId ?? item.createdAt}-${item.kind}-${item.text}`}
+                          className={`crystallized-memory-row is-${status}`}
+                        >
+                          <div className="crystallized-suggestion-meta">
+                            <span>{CRYSTALLIZED_MEMORY_STATUS_LABELS[status]}</span>
+                            <span>{crystallizedSourceLabel(item)}</span>
+                            <span>{crystallizedMemoryUpdatedLabel(item)}</span>
+                          </div>
+                          <p>{item.text}</p>
+                          <div className="project-pulse-row-actions">
+                            {status !== "active" ? (
+                              <button type="button" className="project-pulse-inline-btn project-pulse-inline-btn--primary" onClick={() => void handleCrystallizedMemoryStatus(item, "active")}>
+                                Restore
+                              </button>
+                            ) : null}
+                            {status !== "stale" ? (
+                              <button type="button" className="project-pulse-inline-btn" onClick={() => void handleCrystallizedMemoryStatus(item, "stale")}>
+                                Stale
+                              </button>
+                            ) : null}
+                            {status !== "excluded" ? (
+                              <button type="button" className="project-pulse-inline-btn" onClick={() => void handleCrystallizedMemoryStatus(item, "excluded")}>
+                                Exclude
+                              </button>
+                            ) : null}
+                          </div>
+                        </article>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="project-pulse-muted">No accepted crystallized memory yet.</p>
+          )}
         </section>
 
         <section className="project-pulse-panel project-pulse-panel--handoffs">

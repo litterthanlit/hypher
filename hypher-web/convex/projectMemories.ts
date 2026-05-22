@@ -48,6 +48,12 @@ const acceptedCrystallizedSuggestionValidator = v.object({
   sourceId: v.optional(v.string()),
   suggestionId: v.optional(v.string()),
   createdAt: v.number(),
+  status: v.optional(v.union(
+    v.literal("active"),
+    v.literal("stale"),
+    v.literal("excluded")
+  )),
+  updatedAt: v.optional(v.number()),
 });
 
 async function requireProject(ctx: QueryCtx | MutationCtx, userId: string, projectId: Id<"objects">) {
