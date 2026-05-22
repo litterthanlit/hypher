@@ -117,6 +117,11 @@ function HypherApp({ gateState }: { gateState: BetaGateState }) {
   const skipTags = !store.clerkLoaded || !store.isSignedIn;
   const tagsList = useQuery(api.tags.listWithCounts, skipTags ? "skip" : {});
   const demoDigestText = useQuery(api.seed.getDemoDigest, skipTags ? "skip" : {});
+  const createProjectPulseVerificationProject = useMutation(
+    // typegen pending convex codegen for local verification seed
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (api.seed as any).createProjectPulseVerificationProject
+  );
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const healthInputsList = useQuery((api as any).projects.healthInputs, skipTags ? "skip" : {});
   const agentInbox = useQuery((api as any).agentEvents.listInbox, skipTags ? "skip" : {}) as AgentEvent[] | undefined;
@@ -194,6 +199,40 @@ function HypherApp({ gateState }: { gateState: BetaGateState }) {
       window.history.replaceState({}, "", next ? `/app?${next}` : "/app");
     }
   }, [store.clerkLoaded]);
+
+  useEffect(() => {
+    if (process.env.NODE_ENV !== "development") return;
+    if (typeof window === "undefined" || !store.clerkLoaded || !store.isSignedIn) return;
+
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("demo") !== "project-pulse") return;
+
+    params.delete("demo");
+    const next = params.toString();
+    window.history.replaceState({}, "", next ? `/app?${next}` : "/app");
+
+    let cancelled = false;
+    const run = async () => {
+      try {
+        const result = await createProjectPulseVerificationProject() as { projectId?: string } | null;
+        if (cancelled || !result?.projectId) return;
+        setSelectedProjectId(result.projectId);
+        store.setSelectedId(result.projectId);
+        setAppMode("workspace");
+        setContentMode("pulse");
+        localStorage.setItem(`hypher-view-mode-${result.projectId}`, "pulse");
+        toast.success("Project Pulse demo ready");
+      } catch (err) {
+        console.error("[seed] project pulse verification", err);
+        toast.error("Could not seed Project Pulse demo");
+      }
+    };
+    void run();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [createProjectPulseVerificationProject, store.clerkLoaded, store.isSignedIn]);
 
   // Auto-show digest on first open of the day
   useEffect(() => {

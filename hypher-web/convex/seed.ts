@@ -2,6 +2,13 @@ import { mutation, query, type MutationCtx } from "./_generated/server";
 import { v } from "convex/values";
 import { requireUserId } from "./lib/auth";
 import { SAMPLE_PREVIEW_PROJECT_NAME } from "./lib/samplePreviewConstants";
+import {
+  PROJECT_PULSE_VERIFICATION_ACCEPTED_MEMORY,
+  PROJECT_PULSE_VERIFICATION_CAPTURES,
+  PROJECT_PULSE_VERIFICATION_HANDOFF,
+  PROJECT_PULSE_VERIFICATION_MEMORY,
+  PROJECT_PULSE_VERIFICATION_PROJECT_NAME,
+} from "./lib/projectPulseVerificationSeed";
 import type { Id } from "./_generated/dataModel";
 
 const DEMO_PROJECT = "Try Hypher";
@@ -17,6 +24,10 @@ const DEMO_DIGEST = `Welcome to Hypher — this is a sample daily digest.
 - This digest is static demo text; live digests use your Convex + Anthropic setup.
 
 Enjoy the beta.`;
+
+function normalizedSeedText(value: string): string {
+  return value.trim().replace(/\s+/g, " ").toLowerCase();
+}
 
 async function performSeed(
   ctx: MutationCtx,
@@ -165,6 +176,212 @@ export const getDemoDigest = query({
       .withIndex("by_user", (q) => q.eq("userId", userId))
       .first();
     return meta?.demoDigestText ?? null;
+  },
+});
+
+/** Auth-scoped local/demo seed for visually verifying the complete Project Pulse loop. */
+export const createProjectPulseVerificationProject = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const userId = await requireUserId(ctx);
+    const now = Date.now();
+
+    const mine = await ctx.db
+      .query("objects")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .collect();
+    const existingProject = mine.find(
+      (o) => o.kind === "project" && (o as { name?: string }).name === PROJECT_PULSE_VERIFICATION_PROJECT_NAME,
+    );
+
+    let projectId: Id<"objects">;
+    let created = false;
+    if (existingProject) {
+      projectId = existingProject._id;
+      await ctx.db.patch(projectId, {
+        description: "Demo project for verifying the Project Pulse memory loop.",
+        status: "active",
+        priority: 3,
+        modifiedAt: now,
+      });
+    } else {
+      created = true;
+      projectId = await ctx.db.insert("objects", {
+        userId,
+        kind: "project",
+        createdAt: now,
+        modifiedAt: now,
+        name: PROJECT_PULSE_VERIFICATION_PROJECT_NAME,
+        description: "Demo project for verifying the Project Pulse memory loop.",
+        status: "active",
+        priority: 3,
+      });
+    }
+
+    const captureIds: Record<string, string> = {};
+    for (let index = 0; index < PROJECT_PULSE_VERIFICATION_CAPTURES.length; index += 1) {
+      const capture = PROJECT_PULSE_VERIFICATION_CAPTURES[index]!;
+      const existingCapture = mine.find(
+        (o) => o.kind === "note" && o.projectId === projectId && o.content === capture.text,
+      );
+      if (existingCapture) {
+        captureIds[capture.key] = String(existingCapture._id);
+        await ctx.db.patch(existingCapture._id, {
+          captureType: capture.captureType,
+          captureStatus: "sorted",
+          modifiedAt: now + index + 1,
+        });
+        continue;
+      }
+
+      const captureId = await ctx.db.insert("objects", {
+        userId,
+        kind: "note",
+        createdAt: now + index + 1,
+        modifiedAt: now + index + 1,
+        content: capture.text,
+        maturity: "developing",
+        projectId,
+        captureType: capture.captureType,
+        captureStatus: "sorted",
+        tags: ["project-pulse-demo"],
+      });
+      captureIds[capture.key] = String(captureId);
+    }
+
+    const handoffRows = await ctx.db
+      .query("handoffs")
+      .withIndex("by_user_project", (q) => q.eq("userId", userId).eq("projectId", projectId))
+      .collect();
+    const existingHandoff = handoffRows.find(
+      (handoff) => handoff.requestedTask === PROJECT_PULSE_VERIFICATION_HANDOFF.requestedTask,
+    );
+    const handoffPatch = {
+      generatedAt: now + 100,
+      targetTool: PROJECT_PULSE_VERIFICATION_HANDOFF.targetTool,
+      packetContent: PROJECT_PULSE_VERIFICATION_HANDOFF.packetContent,
+      sourceCaptures: Object.values(captureIds),
+      requestedTask: PROJECT_PULSE_VERIFICATION_HANDOFF.requestedTask,
+      status: "completed" as const,
+      returnedAgentOutput: PROJECT_PULSE_VERIFICATION_HANDOFF.returnedAgentOutput,
+      userNotes: PROJECT_PULSE_VERIFICATION_HANDOFF.userNotes,
+    };
+    const handoffId = existingHandoff?._id ?? await ctx.db.insert("handoffs", {
+      userId,
+      projectId,
+      ...handoffPatch,
+    });
+    if (existingHandoff) {
+      await ctx.db.patch(existingHandoff._id, handoffPatch);
+    }
+
+    const acceptedCrystallizedSuggestions = PROJECT_PULSE_VERIFICATION_ACCEPTED_MEMORY.map((item, index) => ({
+      kind: item.kind,
+      text: item.text,
+      sourceType: item.sourceType,
+      sourceId: item.sourceKey === PROJECT_PULSE_VERIFICATION_HANDOFF.key
+        ? String(handoffId)
+        : captureIds[item.sourceKey] ?? String(projectId),
+      suggestionId: `seed-${item.key}`,
+      createdAt: now + 200 + index,
+      status: item.status,
+      updatedAt: now + 200 + index,
+    }));
+
+    const memoryPatch = {
+      summary: PROJECT_PULSE_VERIFICATION_MEMORY.summary,
+      currentGoal: PROJECT_PULSE_VERIFICATION_MEMORY.currentGoal,
+      currentDirection: PROJECT_PULSE_VERIFICATION_MEMORY.currentDirection,
+      recentChanges: [...PROJECT_PULSE_VERIFICATION_MEMORY.recentChanges],
+      importantDecisions: [...PROJECT_PULSE_VERIFICATION_MEMORY.importantDecisions],
+      constraints: [...PROJECT_PULSE_VERIFICATION_MEMORY.constraints],
+      openQuestions: [...PROJECT_PULSE_VERIFICATION_MEMORY.openQuestions],
+      activeTasks: [...PROJECT_PULSE_VERIFICATION_MEMORY.activeTasks],
+      blockers: [...PROJECT_PULSE_VERIFICATION_MEMORY.blockers],
+      staleAssumptions: [...PROJECT_PULSE_VERIFICATION_MEMORY.staleAssumptions],
+      acceptanceCriteria: [...PROJECT_PULSE_VERIFICATION_MEMORY.acceptanceCriteria],
+      agentWarnings: [...PROJECT_PULSE_VERIFICATION_MEMORY.agentWarnings],
+      handoffNotes: [...PROJECT_PULSE_VERIFICATION_MEMORY.handoffNotes],
+      acceptedCrystallizedSuggestions,
+      nextActions: [
+        {
+          id: "project-pulse-demo-next",
+          title: "Verify the Project Pulse memory loop locally.",
+          rationale: "The beta demo needs the full Hypher loop visible before launch.",
+          requiredContext: ["Project Pulse", "Crystallized Memory", "Builder Brief History"],
+          suggestedTargetTool: "Manual" as const,
+          confidence: 0.9,
+          sourceCaptureIds: Object.values(captureIds),
+          status: "accepted" as const,
+          createdAt: now + 250,
+          updatedAt: now + 250,
+        },
+      ],
+      generatedAt: now + 250,
+      sourceUpdatedAt: now + 250,
+      lastUpdatedAt: now + 250,
+      model: "seed-project-pulse-verification",
+    };
+
+    const existingMemory = await ctx.db
+      .query("projectMemories")
+      .withIndex("by_user_project", (q) => q.eq("userId", userId).eq("projectId", projectId))
+      .unique();
+    if (existingMemory) {
+      await ctx.db.patch(existingMemory._id, memoryPatch);
+    } else {
+      await ctx.db.insert("projectMemories", {
+        userId,
+        projectId,
+        ...memoryPatch,
+      });
+    }
+
+    const actionTitle = "Open the seeded Project Pulse and inspect Crystallized Memory.";
+    const actionRows = await ctx.db
+      .query("actions")
+      .withIndex("by_user_project", (q) => q.eq("userId", userId).eq("projectId", projectId))
+      .collect();
+    const existingAction = actionRows.find((action) => (
+      action.status !== "completed"
+      && action.status !== "dismissed"
+      && normalizedSeedText(action.title) === normalizedSeedText(actionTitle)
+    ));
+    if (!existingAction) {
+      await ctx.db.insert("actions", {
+        userId,
+        projectId,
+        title: actionTitle,
+        status: "accepted",
+        sourceType: "manual",
+        rationale: "Confirms the ledger, lifecycle controls, and Builder Brief output are demo-ready.",
+        createdAt: now + 300,
+        updatedAt: now + 300,
+      });
+    }
+
+    const activityRows = await ctx.db
+      .query("activity")
+      .withIndex("by_project", (q) => q.eq("projectId", String(projectId)))
+      .collect();
+    const hasSeedActivity = activityRows.some(
+      (entry) => entry.userId === userId && entry.activityType === "project_pulse_verification_seed",
+    );
+    if (!hasSeedActivity) {
+      await ctx.db.insert("activity", {
+        userId,
+        action: "created",
+        objectId: String(projectId),
+        objectKind: "project",
+        objectName: PROJECT_PULSE_VERIFICATION_PROJECT_NAME,
+        timestamp: now + 350,
+        projectId: String(projectId),
+        activityType: "project_pulse_verification_seed",
+        summary: "Seeded Project Pulse demo data for local verification.",
+      });
+    }
+
+    return { projectId: String(projectId), created };
   },
 });
 
