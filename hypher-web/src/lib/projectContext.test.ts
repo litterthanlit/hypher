@@ -332,4 +332,27 @@ describe("compileBuilderBrief", () => {
     expect(result.requestedTask).toBe("Implement Copy Builder Brief in Project Pulse");
     expect(result.packet).toContain("# Builder Brief: Hypher");
   });
+
+  it("includes returned agent output in handoff notes without dumping the full result", () => {
+    const longReturnedOutput = `Implemented the Copy Builder Brief button and tests. ${"Detailed log line. ".repeat(80)}`;
+    const packet = compileBuilderBrief({
+      project,
+      memory,
+      captures,
+      actions,
+      agentEvents: [],
+      handoffs: [
+        {
+          ...handoffs[0]!,
+          returnedAgentOutput: longReturnedOutput,
+          userNotes: "Use this result as recent progress in the next Builder Brief.",
+        },
+      ],
+      generatedAt: 123,
+    });
+
+    expect(packet).toContain("- Agent result from previous Cursor brief: Implemented the Copy Builder Brief button and tests.");
+    expect(packet).toContain("- User note on previous Cursor brief: Use this result as recent progress in the next Builder Brief.");
+    expect(packet).not.toContain("Detailed log line. Detailed log line. Detailed log line. Detailed log line. Detailed log line.");
+  });
 });

@@ -9,6 +9,7 @@ import type { ActivityEntry, AgentEvent, AnyObject, Handoff, Project, ProjectAct
 import { getDisplayName } from "@/types";
 import { buildAgentEventNoteContent } from "@/lib/agentEvents";
 import { selectProjectActionQueue } from "@/lib/actions";
+import { buildHandoffResultUpdate } from "@/lib/handoffResults";
 import { compileProjectContextWithMeta } from "@/lib/projectContext";
 import {
   BUILDER_BRIEF_COPY_ERROR_TOAST,
@@ -102,6 +103,7 @@ export function ProjectPulse({
   const [targetTool, setTargetTool] = useState<TargetTool | "Auto">("Auto");
   const [latestPacket, setLatestPacket] = useState("");
   const [mergeTarget, setMergeTarget] = useState("");
+  const [handoffDrafts, setHandoffDrafts] = useState<Record<string, { returnedAgentOutput: string; userNotes: string }>>({});
   const memories = useQuery((api as any).projectMemories.listForDashboard) as ProjectMemory[] | undefined;
   const agentEvents = useQuery(
     (api as any).agentEvents.listForProject,
@@ -125,6 +127,7 @@ export function ProjectPulse({
   const updateActionStatus = useMutation((api as any).actions.updateStatus);
   const createHandoff = useMutation((api as any).handoffs.create);
   const updateHandoffStatus = useMutation((api as any).handoffs.updateStatus);
+  const updateHandoffNotes = useMutation((api as any).handoffs.updateNotes);
 
   const model = useMemo(
     () => buildProjectPulseModel({ project, allObjects, activity, memories }),
@@ -315,6 +318,47 @@ export function ProjectPulse({
     } catch (err) {
       console.error("[ProjectPulse] update handoff", err);
       toast.error("Could not update Builder Brief");
+    }
+  };
+
+  const handoffDraft = (handoff: Handoff) => handoffDrafts[handoff.id] ?? {
+    returnedAgentOutput: handoff.returnedAgentOutput ?? "",
+    userNotes: handoff.userNotes ?? "",
+  };
+
+  const handleHandoffDraft = (
+    handoff: Handoff,
+    patch: Partial<{ returnedAgentOutput: string; userNotes: string }>
+  ) => {
+    setHandoffDrafts((drafts) => ({
+      ...drafts,
+      [handoff.id]: { ...handoffDraft(handoff), ...patch },
+    }));
+  };
+
+  const handleSaveHandoffResult = async (handoff: Handoff) => {
+    const result = buildHandoffResultUpdate(handoff, handoffDraft(handoff));
+    if (!result.ok) {
+      toast.error(result.error);
+      return;
+    }
+    try {
+      await updateHandoffNotes({
+        handoffId: result.args.handoffId as Id<"handoffs">,
+        returnedAgentOutput: result.args.returnedAgentOutput,
+        userNotes: result.args.userNotes,
+      });
+      setHandoffDrafts((drafts) => ({
+        ...drafts,
+        [handoff.id]: {
+          returnedAgentOutput: result.args.returnedAgentOutput ?? "",
+          userNotes: result.args.userNotes ?? "",
+        },
+      }));
+      toast.success("Agent result saved");
+    } catch (err) {
+      console.error("[ProjectPulse] save handoff result", err);
+      toast.error("Could not save agent result");
     }
   };
 
@@ -527,6 +571,9 @@ export function ProjectPulse({
                   </div>
                   <h3>{handoff.requestedTask}</h3>
                   <p>{handoff.sourceCaptures.length} source captures included</p>
+                  {handoff.returnedAgentOutput ? (
+                    <p className="handoff-result-status">Agent result attached</p>
+                  ) : null}
                   <div className="project-pulse-row-actions">
                     <button type="button" className="project-pulse-inline-btn" onClick={() => void handleCopyHandoff(handoff)}>
                       Copy
@@ -547,6 +594,28 @@ export function ProjectPulse({
                       </button>
                     ) : null}
                   </div>
+                  <details className="handoff-result-editor">
+                    <summary>{handoff.returnedAgentOutput ? "Edit agent result" : "Add agent result"}</summary>
+                    <label>
+                      <span>Returned agent output</span>
+                      <textarea
+                        value={handoffDraft(handoff).returnedAgentOutput}
+                        placeholder="What did the builder agent do?"
+                        onChange={(event) => handleHandoffDraft(handoff, { returnedAgentOutput: event.target.value })}
+                      />
+                    </label>
+                    <label>
+                      <span>User notes</span>
+                      <textarea
+                        value={handoffDraft(handoff).userNotes}
+                        placeholder="Anything Hypher should remember for the next Builder Brief?"
+                        onChange={(event) => handleHandoffDraft(handoff, { userNotes: event.target.value })}
+                      />
+                    </label>
+                    <button type="button" className="project-pulse-inline-btn project-pulse-inline-btn--primary" onClick={() => void handleSaveHandoffResult(handoff)}>
+                      Save agent result
+                    </button>
+                  </details>
                 </article>
               ))}
             </div>

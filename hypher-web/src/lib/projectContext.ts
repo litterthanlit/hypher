@@ -1,5 +1,6 @@
 import type { AgentEvent, AnyObject, Handoff, Project, ProjectAction, ProjectMemory, ProjectNextAction, TargetTool } from "@/types";
 import { selectProjectActionQueue } from "./actions";
+import { summarizeHandoffResult } from "./handoffResults";
 import { selectPrimaryNextAction } from "./projectMemory";
 
 export interface CompileBuilderBriefParams {
@@ -214,7 +215,10 @@ export function compileProjectContextWithMeta(params: CompileProjectContextParam
     .slice()
     .sort((a, b) => b.generatedAt - a.generatedAt)
     .slice(0, limits.handoffs)
-    .map((handoff) => `Previous ${handoff.targetTool} brief was ${handoff.status}: ${truncate(handoff.requestedTask, 140)}.`);
+    .flatMap((handoff) => [
+      `Previous ${handoff.targetTool} brief was ${handoff.status}: ${truncate(handoff.requestedTask, 140)}.`,
+      ...summarizeHandoffResult(handoff),
+    ]);
 
   const agentHandoffLines = params.agentEvents
     .slice()

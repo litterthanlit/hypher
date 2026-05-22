@@ -5499,6 +5499,52 @@ body:has(.capture-root) {
   font-size: 12px;
 }
 
+.handoff-result-status {
+  color: var(--accent) !important;
+  font-weight: 650;
+}
+
+.handoff-result-editor {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-default);
+}
+
+.handoff-result-editor summary {
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.handoff-result-editor label {
+  display: grid;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.handoff-result-editor label span {
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.handoff-result-editor textarea {
+  width: 100%;
+  min-height: 76px;
+  resize: vertical;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  background: var(--bg-primary);
+  color: var(--text-secondary);
+  padding: 9px;
+  font-family: var(--font-sans);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
 .handoff-preview {
   margin-bottom: 12px;
   border: 1px solid var(--border-default);
