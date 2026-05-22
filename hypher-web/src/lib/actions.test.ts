@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildActionFromAgentSuggestion,
   buildActionFromMemoryAction,
+  findDuplicateAction,
   selectProjectActionQueue,
   type ProjectAction,
 } from "./actions";
@@ -64,6 +65,18 @@ describe("project actions", () => {
       "Completed",
       "Dismissed",
     ]);
+  });
+
+  it("finds obvious duplicate active actions by normalized title", () => {
+    const actions: ProjectAction[] = [
+      action("Wire Durable Persistence", "suggested", 3),
+      action("Wire durable persistence", "completed", 2),
+    ];
+
+    expect(findDuplicateAction(actions, " wire   durable persistence ")).toMatchObject({
+      title: "Wire Durable Persistence",
+      status: "suggested",
+    });
   });
 });
 

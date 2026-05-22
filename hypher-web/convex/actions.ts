@@ -21,11 +21,29 @@ function toClientAction(action: any) {
   return { ...rest, id: String(_id) };
 }
 
+function normalizedTitle(value: string): string {
+  return value.trim().replace(/\s+/g, " ").toLowerCase();
+}
+
 async function requireProject(ctx: any, projectId: any, userId: string) {
   const project = await ctx.db.get(projectId);
   if (!project || project.userId !== userId || project.kind !== "project") {
     throw new Error("Invalid project");
   }
+}
+
+async function findDuplicateAction(ctx: any, userId: string, projectId: any, title: string) {
+  const key = normalizedTitle(title);
+  if (!key) return null;
+  const rows = await ctx.db
+    .query("actions")
+    .withIndex("by_user_project", (q: any) => q.eq("userId", userId).eq("projectId", projectId))
+    .collect();
+  return rows.find((action: any) => (
+    action.status !== "completed"
+    && action.status !== "dismissed"
+    && normalizedTitle(action.title) === key
+  )) ?? null;
 }
 
 export const listForProject = query({
@@ -54,6 +72,8 @@ export const create = mutation({
   handler: async (ctx, args) => {
     const userId = await requireUserId(ctx);
     await requireProject(ctx, args.projectId, userId);
+    const duplicate = await findDuplicateAction(ctx, userId, args.projectId, args.title);
+    if (duplicate) return duplicate._id;
     return await ctx.db.insert("actions", {
       userId,
       projectId: args.projectId,
@@ -98,6 +118,8 @@ export const createFromAgentSuggestion = mutation({
     await requireProject(ctx, projectId, userId);
     const event = await ctx.db.get(eventId);
     if (!event || event.userId !== userId) throw new Error("Invalid event");
+    const duplicate = await findDuplicateAction(ctx, userId, projectId, title);
+    if (duplicate) return duplicate._id;
     return await ctx.db.insert("actions", {
       userId,
       projectId,
@@ -123,6 +145,8 @@ export const createFromMemoryAction = mutation({
   handler: async (ctx, args) => {
     const userId = await requireUserId(ctx);
     await requireProject(ctx, args.projectId, userId);
+    const duplicate = await findDuplicateAction(ctx, userId, args.projectId, args.title);
+    if (duplicate) return duplicate._id;
     return await ctx.db.insert("actions", {
       userId,
       projectId: args.projectId,

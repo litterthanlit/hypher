@@ -186,6 +186,31 @@ export default defineSchema({
     activeTasks: v.optional(v.array(v.string())),
     blockers: v.optional(v.array(v.string())),
     staleAssumptions: v.optional(v.array(v.string())),
+    acceptanceCriteria: v.optional(v.array(v.string())),
+    agentWarnings: v.optional(v.array(v.string())),
+    handoffNotes: v.optional(v.array(v.string())),
+    acceptedCrystallizedSuggestions: v.optional(v.array(v.object({
+      kind: v.union(
+        v.literal("decision"),
+        v.literal("constraint"),
+        v.literal("do_not_do"),
+        v.literal("current_task"),
+        v.literal("open_action"),
+        v.literal("acceptance_criterion"),
+        v.literal("agent_warning"),
+        v.literal("handoff_note")
+      ),
+      text: v.string(),
+      sourceType: v.union(
+        v.literal("capture"),
+        v.literal("handoff"),
+        v.literal("returned_agent_output"),
+        v.literal("user_note")
+      ),
+      sourceId: v.optional(v.string()),
+      suggestionId: v.optional(v.string()),
+      createdAt: v.number(),
+    }))),
     nextActions: v.array(v.object({
       id: v.string(),
       title: v.string(),

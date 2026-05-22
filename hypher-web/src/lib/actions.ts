@@ -56,6 +56,20 @@ export function buildActionFromMemoryAction(params: {
   };
 }
 
+function normalizedActionTitle(value: string): string {
+  return value.trim().replace(/\s+/g, " ").toLowerCase();
+}
+
+export function findDuplicateAction(actions: ProjectAction[], title: string): ProjectAction | null {
+  const key = normalizedActionTitle(title);
+  if (!key) return null;
+  return actions.find((action) => (
+    action.status !== "completed"
+    && action.status !== "dismissed"
+    && normalizedActionTitle(action.title) === key
+  )) ?? null;
+}
+
 const statusRank: Record<ProjectActionStatus, number> = {
   accepted: 0,
   suggested: 1,

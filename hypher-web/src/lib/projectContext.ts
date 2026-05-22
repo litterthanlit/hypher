@@ -271,20 +271,25 @@ export function compileProjectContextWithMeta(params: CompileProjectContextParam
     ...(memory?.activeTasks ?? []).map((item) => truncate(item, 180)),
   ]).slice(0, limits.openActions);
   const warningLines = uniqueLines([
+    ...(memory?.agentWarnings ?? []),
     ...(memory?.staleAssumptions ?? []).map((item) => `Stale assumption: ${item}`),
     ...staleLines.map((item) => `Stale capture: ${item}`),
     ...(memory?.blockers ?? []).map((item) => `Blocker: ${item}`),
     ...splitLines(params.project.blockers).map((item) => `Blocker: ${item}`),
   ]).map((item) => truncate(item, 180)).slice(0, limits.agentWarnings);
-  const acceptanceLines = task === "No current task captured yet."
+  const defaultAcceptanceLines = task === "No current task captured yet."
     ? []
     : [
         "Current Task is completed or clearly blocked with reasons.",
         "Plan, decisions, constraints, and Do Not Do items are followed.",
         "Relevant tests or checks are run and reported.",
         "Handoff Notes include changes, blockers, and the next move.",
-      ].slice(0, limits.acceptanceCriteria);
-  const handoffLines = uniqueLines([...recentHandoffLines, ...agentHandoffLines])
+      ];
+  const acceptanceLines = uniqueLines([
+    ...(memory?.acceptanceCriteria ?? []),
+    ...defaultAcceptanceLines,
+  ]).map((item) => truncate(item, 180)).slice(0, limits.acceptanceCriteria);
+  const handoffLines = uniqueLines([...(memory?.handoffNotes ?? []), ...recentHandoffLines, ...agentHandoffLines])
     .map((item) => truncate(item, 220))
     .slice(0, limits.handoffNotes);
   const lines = [`# Builder Brief: ${projectName}`];

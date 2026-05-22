@@ -24,6 +24,20 @@ export type AgentEventStatus = "new" | "reviewed" | "accepted" | "dismissed";
 export type ProjectActionStatus = "suggested" | "accepted" | "completed" | "dismissed";
 export type ProjectActionSourceType = "project_memory" | "agent_event" | "manual" | "github";
 export type HandoffStatus = "pending" | "used" | "completed" | "discarded";
+export type CrystallizedSuggestionKind =
+  | "decision"
+  | "constraint"
+  | "do_not_do"
+  | "current_task"
+  | "open_action"
+  | "acceptance_criterion"
+  | "agent_warning"
+  | "handoff_note";
+export type CrystallizedSuggestionSourceType =
+  | "capture"
+  | "handoff"
+  | "returned_agent_output"
+  | "user_note";
 
 export interface CanvasPosition {
   x: number;
@@ -129,6 +143,15 @@ export interface ProjectNextAction {
   updatedAt: number;
 }
 
+export interface AcceptedCrystallizedSuggestion {
+  kind: CrystallizedSuggestionKind;
+  text: string;
+  sourceType: CrystallizedSuggestionSourceType;
+  sourceId?: string;
+  suggestionId?: string;
+  createdAt: number;
+}
+
 export interface ProjectMemory {
   id?: string;
   projectId: string;
@@ -142,6 +165,10 @@ export interface ProjectMemory {
   activeTasks?: string[];
   blockers?: string[];
   staleAssumptions?: string[];
+  acceptanceCriteria?: string[];
+  agentWarnings?: string[];
+  handoffNotes?: string[];
+  acceptedCrystallizedSuggestions?: AcceptedCrystallizedSuggestion[];
   nextActions: ProjectNextAction[];
   generatedAt: number;
   sourceUpdatedAt: number;

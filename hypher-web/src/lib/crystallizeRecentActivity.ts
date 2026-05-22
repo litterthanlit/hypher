@@ -1,20 +1,12 @@
-import type { AnyObject, Handoff, ProjectAction, ProjectMemory } from "@/types";
-
-export type CrystallizedSuggestionKind =
-  | "decision"
-  | "constraint"
-  | "do_not_do"
-  | "current_task"
-  | "open_action"
-  | "acceptance_criterion"
-  | "agent_warning"
-  | "handoff_note";
-
-export type CrystallizedSuggestionSourceType =
-  | "capture"
-  | "handoff"
-  | "returned_agent_output"
-  | "user_note";
+import type {
+  AcceptedCrystallizedSuggestion,
+  AnyObject,
+  CrystallizedSuggestionKind,
+  CrystallizedSuggestionSourceType,
+  Handoff,
+  ProjectAction,
+  ProjectMemory,
+} from "@/types";
 
 export interface CrystallizedSuggestion {
   id: string;
@@ -37,6 +29,16 @@ export interface SuggestCrystallizedUpdatesParams {
     maxSourceLength?: number;
   };
 }
+
+export type AcceptedCrystallizedMemoryPatch = Partial<Pick<
+  ProjectMemory,
+  | "importantDecisions"
+  | "constraints"
+  | "acceptanceCriteria"
+  | "agentWarnings"
+  | "handoffNotes"
+  | "acceptedCrystallizedSuggestions"
+>>;
 
 type ClassifiedSuggestion = Pick<CrystallizedSuggestion, "kind" | "confidence" | "reason">;
 
@@ -159,6 +161,21 @@ function captureText(item: AnyObject): string {
   return "";
 }
 
+function acceptedMemoryField(kind: CrystallizedSuggestionKind): keyof AcceptedCrystallizedMemoryPatch | null {
+  switch (kind) {
+    case "decision": return "importantDecisions";
+    case "constraint":
+    case "do_not_do":
+      return "constraints";
+    case "acceptance_criterion": return "acceptanceCriteria";
+    case "agent_warning": return "agentWarnings";
+    case "handoff_note": return "handoffNotes";
+    case "current_task":
+    case "open_action":
+      return null;
+  }
+}
+
 function isIgnoredCapture(item: AnyObject): boolean {
   return item.kind === "project" || item.captureStatus === "archived" || Boolean(item.stale) || Boolean(item.excludeFromPackets);
 }
@@ -175,17 +192,67 @@ function existingTexts(params: SuggestCrystallizedUpdatesParams): string[] {
   return [
     ...suggestions,
     ...(params.existingActions ?? []).map((action) => action.title),
+    ...(params.captures ?? [])
+      .filter((item) => item.pinnedAsDecision || item.convertedToTask)
+      .map(captureText),
     memory?.summary,
     memory?.currentGoal,
     memory?.currentDirection,
     ...(memory?.recentChanges ?? []),
     ...(memory?.importantDecisions ?? []),
     ...(memory?.constraints ?? []),
+    ...(memory?.acceptanceCriteria ?? []),
+    ...(memory?.agentWarnings ?? []),
+    ...(memory?.handoffNotes ?? []),
+    ...(memory?.acceptedCrystallizedSuggestions ?? []).map((item) => item.text),
     ...(memory?.activeTasks ?? []),
     ...(memory?.blockers ?? []),
     ...(memory?.staleAssumptions ?? []),
     ...(memory?.nextActions ?? []).flatMap((action) => [action.title, action.rationale]),
   ].filter((item): item is string => typeof item === "string" && item.trim().length > 0);
+}
+
+export function buildAcceptedCrystallizedMemoryPatch(params: {
+  memory: ProjectMemory;
+  suggestion: CrystallizedSuggestion;
+  acceptedAt: number;
+}): AcceptedCrystallizedMemoryPatch {
+  const field = acceptedMemoryField(params.suggestion.kind);
+  if (!field) return {};
+
+  const text = ensurePunctuation(params.suggestion.text);
+  const textKey = canonicalKey(text);
+  if (!textKey) return {};
+
+  const existingValues = (params.memory[field] ?? []) as string[];
+  const hasText = existingValues.some((item) => canonicalKey(item) === textKey);
+
+  const accepted = params.memory.acceptedCrystallizedSuggestions ?? [];
+  const hasAcceptedSource = accepted.some((item) => {
+    if (item.suggestionId && item.suggestionId === params.suggestion.id) return true;
+    return item.kind === params.suggestion.kind
+      && canonicalKey(item.text) === textKey
+      && item.sourceType === params.suggestion.sourceType
+      && item.sourceId === params.suggestion.sourceId;
+  });
+
+  const patch: AcceptedCrystallizedMemoryPatch = {};
+  if (!hasText) {
+    patch[field] = [...existingValues, text] as any;
+  }
+  if (!hasAcceptedSource) {
+    const source: AcceptedCrystallizedSuggestion = {
+      kind: params.suggestion.kind,
+      text,
+      sourceType: params.suggestion.sourceType,
+      sourceId: params.suggestion.sourceId,
+      suggestionId: params.suggestion.id,
+      createdAt: params.acceptedAt,
+    };
+    patch.acceptedCrystallizedSuggestions = [...accepted, source];
+  }
+
+  return patch;
 }
 
 export function suggestCrystallizedUpdates(params: SuggestCrystallizedUpdatesParams): CrystallizedSuggestion[] {

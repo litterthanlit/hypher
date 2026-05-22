@@ -8,8 +8,12 @@ import type { Id } from "../../convex/_generated/dataModel";
 import type { ActivityEntry, AgentEvent, AnyObject, Handoff, Project, ProjectAction, ProjectMemory, ProjectMemoryStatus, TargetTool } from "@/types";
 import { getDisplayName } from "@/types";
 import { buildAgentEventNoteContent } from "@/lib/agentEvents";
-import { selectProjectActionQueue } from "@/lib/actions";
-import { suggestCrystallizedUpdates, type CrystallizedSuggestion } from "@/lib/crystallizeRecentActivity";
+import { findDuplicateAction, selectProjectActionQueue } from "@/lib/actions";
+import {
+  buildAcceptedCrystallizedMemoryPatch,
+  suggestCrystallizedUpdates,
+  type CrystallizedSuggestion,
+} from "@/lib/crystallizeRecentActivity";
 import { buildHandoffResultUpdate } from "@/lib/handoffResults";
 import { compileProjectContextWithMeta } from "@/lib/projectContext";
 import {
@@ -103,9 +107,21 @@ function crystallizedSourceLabel(suggestion: CrystallizedSuggestion): string {
 }
 
 function canApplyCrystallizedSuggestion(suggestion: CrystallizedSuggestion): boolean {
-  return suggestion.kind === "open_action"
-    || suggestion.kind === "current_task"
-    || (suggestion.kind === "decision" && suggestion.sourceType === "capture" && Boolean(suggestion.sourceId));
+  return Boolean(suggestion.text.trim());
+}
+
+function crystallizedApplyLabel(suggestion: CrystallizedSuggestion): string {
+  switch (suggestion.kind) {
+    case "decision": return suggestion.sourceType === "capture" && suggestion.sourceId ? "Pin decision" : "Accept";
+    case "constraint": return "Add constraint";
+    case "do_not_do": return "Add to Do Not Do";
+    case "current_task":
+    case "open_action":
+      return "Create action";
+    case "acceptance_criterion": return "Add criterion";
+    case "agent_warning": return "Add warning";
+    case "handoff_note": return "Add note";
+  }
 }
 
 export function ProjectPulse({
@@ -153,6 +169,7 @@ export function ProjectPulse({
   const createActionFromMemoryAction = useMutation((api as any).actions.createFromMemoryAction);
   const createAction = useMutation((api as any).actions.create);
   const updateActionStatus = useMutation((api as any).actions.updateStatus);
+  const updateManualMemory = useMutation((api as any).projectMemories.updateManual);
   const createHandoff = useMutation((api as any).handoffs.create);
   const updateHandoffStatus = useMutation((api as any).handoffs.updateStatus);
   const updateHandoffNotes = useMutation((api as any).handoffs.updateNotes);
@@ -323,14 +340,21 @@ export function ProjectPulse({
   const handleApplyCrystallizedSuggestion = async (suggestion: CrystallizedSuggestion) => {
     try {
       if (suggestion.kind === "open_action" || suggestion.kind === "current_task") {
+        const duplicate = findDuplicateAction(actionQueue, suggestion.text);
+        if (duplicate) {
+          dismissCrystallizedSuggestion(suggestion.id);
+          toast.success("Action already exists");
+          return;
+        }
+
         const now = Date.now();
         await createAction({
           projectId: project.id as Id<"objects">,
           title: suggestion.text,
           status: "suggested",
           sourceType: "manual",
-          sourceId: suggestion.sourceId,
-          rationale: `Crystallized from recent ${crystallizedSourceLabel(suggestion)}.`,
+          sourceId: suggestion.sourceId ?? suggestion.id,
+          rationale: `Crystallized from ${crystallizedSourceLabel(suggestion)}${suggestion.sourceId ? ` ${suggestion.sourceId}` : ""}; suggestion ${suggestion.id}.`,
           createdAt: now,
         });
         dismissCrystallizedSuggestion(suggestion.id);
@@ -342,7 +366,33 @@ export function ProjectPulse({
         await onUpdateCapture(suggestion.sourceId, { pinnedAsDecision: true, captureType: "decision" });
         dismissCrystallizedSuggestion(suggestion.id);
         toast.success("Pinned as decision");
+        return;
       }
+
+      if (!model.memory) {
+        toast.error("Generate memory before saving this suggestion");
+        return;
+      }
+
+      const now = Date.now();
+      const patch = buildAcceptedCrystallizedMemoryPatch({
+        memory: model.memory,
+        suggestion,
+        acceptedAt: now,
+      });
+      if (!Object.keys(patch).length) {
+        dismissCrystallizedSuggestion(suggestion.id);
+        toast.success("Already saved");
+        return;
+      }
+
+      await updateManualMemory({
+        projectId: project.id as Id<"objects">,
+        updatedAt: now,
+        ...patch,
+      });
+      dismissCrystallizedSuggestion(suggestion.id);
+      toast.success("Saved to memory");
     } catch (err) {
       console.error("[ProjectPulse] apply crystallized suggestion", err);
       toast.error("Could not apply suggestion");
@@ -663,7 +713,7 @@ export function ProjectPulse({
                     <div className="project-pulse-row-actions">
                       {canApplyCrystallizedSuggestion(suggestion) ? (
                         <button type="button" className="project-pulse-inline-btn project-pulse-inline-btn--primary" onClick={() => void handleApplyCrystallizedSuggestion(suggestion)}>
-                          {suggestion.kind === "decision" ? "Pin decision" : "Save action"}
+                          {crystallizedApplyLabel(suggestion)}
                         </button>
                       ) : null}
                       <button type="button" className="project-pulse-inline-btn" onClick={() => void handleCopyCrystallizedSuggestion(suggestion)}>

@@ -355,4 +355,31 @@ describe("compileBuilderBrief", () => {
     expect(packet).toContain("- User note on previous Cursor brief: Use this result as recent progress in the next Builder Brief.");
     expect(packet).not.toContain("Detailed log line. Detailed log line. Detailed log line. Detailed log line. Detailed log line.");
   });
+
+  it("renders accepted crystallized memory fields in Builder Brief sections", () => {
+    const packet = compileBuilderBrief({
+      project,
+      memory: {
+        ...memory,
+        constraints: [
+          ...(memory.constraints ?? []),
+          "Do not silently mutate durable state.",
+        ],
+        acceptanceCriteria: ["Accepted suggestions appear in future Builder Briefs."],
+        agentWarnings: ["Watch for duplicate accepted suggestions."],
+        handoffNotes: ["A returned agent result was accepted into project memory."],
+      },
+      captures,
+      actions,
+      agentEvents: [],
+      handoffs: [],
+      generatedAt: 123,
+    });
+
+    expect(packet).toContain("- Do not silently mutate durable state.");
+    expect(packet).toContain("- Accepted suggestions appear in future Builder Briefs.");
+    expect(packet).toContain("- Watch for duplicate accepted suggestions.");
+    expect(packet).toContain("- A returned agent result was accepted into project memory.");
+    expect(packet).not.toContain("Unaccepted suggestion");
+  });
 });

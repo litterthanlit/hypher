@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { AnyObject, Handoff, ProjectMemory } from "@/types";
-import { suggestCrystallizedUpdates } from "./crystallizeRecentActivity";
+import {
+  buildAcceptedCrystallizedMemoryPatch,
+  suggestCrystallizedUpdates,
+} from "./crystallizeRecentActivity";
 
 const baseCapture: AnyObject = {
   id: "capture-1",
@@ -123,6 +126,19 @@ describe("suggestCrystallizedUpdates", () => {
       recentChanges: [],
       importantDecisions: ["Decision: use the existing Builder Brief compiler."],
       constraints: [],
+      acceptanceCriteria: ["Done when npm test passes."],
+      agentWarnings: ["Watch out for auth drift."],
+      handoffNotes: ["Keep handoff notes bounded."],
+      acceptedCrystallizedSuggestions: [
+        {
+          kind: "constraint",
+          text: "The compiler must stay deterministic.",
+          sourceType: "capture",
+          sourceId: "capture-4",
+          suggestionId: "crystal-constraint-capture-capture-4-existing",
+          createdAt: 20,
+        },
+      ],
       openQuestions: [],
       nextActions: [],
       generatedAt: 1,
@@ -135,11 +151,108 @@ describe("suggestCrystallizedUpdates", () => {
         capture("capture-1", "Decision: use the existing Builder Brief compiler."),
         capture("capture-2", "Decision: use the existing Builder Brief compiler."),
         capture("capture-3", "Need to add a review panel."),
+        capture("capture-4", "The compiler must stay deterministic."),
+        capture("capture-5", "Done when npm test passes."),
+        capture("capture-6", "Watch out for auth drift."),
+        capture("capture-7", "Keep handoff notes bounded."),
       ],
       existingMemory,
     });
 
     expect(suggestions.map((item) => item.text)).toEqual(["Need to add a review panel."]);
+  });
+
+  it("does not suggest already pinned decisions or converted tasks", () => {
+    const suggestions = suggestCrystallizedUpdates({
+      captures: [
+        capture("capture-1", "Decision: keep the existing compiler.", { pinnedAsDecision: true }),
+        capture("capture-2", "Need to wire durable persistence.", { convertedToTask: true }),
+        capture("capture-3", "Need to add source metadata."),
+      ],
+    });
+
+    expect(suggestions.map((item) => item.text)).toEqual(["Need to add source metadata."]);
+  });
+
+  it("builds a durable memory patch for accepted crystallized suggestions", () => {
+    const memory: ProjectMemory = {
+      projectId: "project-1",
+      summary: "Existing memory.",
+      currentDirection: "Keep the loop review-first.",
+      recentChanges: [],
+      importantDecisions: ["Decision: existing decision."],
+      constraints: ["Existing constraint."],
+      openQuestions: [],
+      nextActions: [],
+      generatedAt: 1,
+      sourceUpdatedAt: 1,
+      model: "test",
+    };
+
+    const patch = buildAcceptedCrystallizedMemoryPatch({
+      memory,
+      suggestion: {
+        id: "crystal-acceptance-capture-capture-1-abc",
+        kind: "acceptance_criterion",
+        text: "Done when accepted suggestions appear in the Builder Brief.",
+        sourceType: "capture",
+        sourceId: "capture-1",
+      },
+      acceptedAt: 50,
+    });
+
+    expect(patch).toEqual({
+      acceptanceCriteria: ["Done when accepted suggestions appear in the Builder Brief."],
+      acceptedCrystallizedSuggestions: [
+        {
+          kind: "acceptance_criterion",
+          text: "Done when accepted suggestions appear in the Builder Brief.",
+          sourceType: "capture",
+          sourceId: "capture-1",
+          suggestionId: "crystal-acceptance-capture-capture-1-abc",
+          createdAt: 50,
+        },
+      ],
+    });
+  });
+
+  it("avoids duplicate accepted memory items", () => {
+    const memory: ProjectMemory = {
+      projectId: "project-1",
+      summary: "Existing memory.",
+      currentDirection: "Keep the loop review-first.",
+      recentChanges: [],
+      constraints: ["Do not expand MCP tools."],
+      acceptedCrystallizedSuggestions: [
+        {
+          kind: "do_not_do",
+          text: "Do not expand MCP tools.",
+          sourceType: "capture",
+          sourceId: "capture-1",
+          suggestionId: "crystal-do_not_do-capture-capture-1-abc",
+          createdAt: 20,
+        },
+      ],
+      openQuestions: [],
+      nextActions: [],
+      generatedAt: 1,
+      sourceUpdatedAt: 1,
+      model: "test",
+    };
+
+    const patch = buildAcceptedCrystallizedMemoryPatch({
+      memory,
+      suggestion: {
+        id: "crystal-do_not_do-capture-capture-1-abc",
+        kind: "do_not_do",
+        text: "Do not expand MCP tools.",
+        sourceType: "capture",
+        sourceId: "capture-1",
+      },
+      acceptedAt: 50,
+    });
+
+    expect(patch).toEqual({});
   });
 
   it("applies suggestion limits and keeps output deterministic", () => {
