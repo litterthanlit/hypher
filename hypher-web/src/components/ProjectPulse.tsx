@@ -9,6 +9,7 @@ import type { ActivityEntry, AgentEvent, AnyObject, Handoff, Project, ProjectAct
 import { getDisplayName } from "@/types";
 import { buildAgentEventNoteContent } from "@/lib/agentEvents";
 import { selectProjectActionQueue } from "@/lib/actions";
+import { suggestCrystallizedUpdates, type CrystallizedSuggestion } from "@/lib/crystallizeRecentActivity";
 import { buildHandoffResultUpdate } from "@/lib/handoffResults";
 import { compileProjectContextWithMeta } from "@/lib/projectContext";
 import {
@@ -43,6 +44,16 @@ interface Props {
 }
 
 const TARGET_TOOLS: TargetTool[] = ["ChatGPT", "Claude", "Cursor", "Windsurf", "Linear", "GitHub", "GitHub Copilot", "MCP tool", "Manual"];
+const CRYSTALLIZED_KIND_LABELS: Record<CrystallizedSuggestion["kind"], string> = {
+  decision: "Decision",
+  constraint: "Constraint",
+  do_not_do: "Do Not Do",
+  current_task: "Current Task",
+  open_action: "Open Action",
+  acceptance_criterion: "Acceptance Criterion",
+  agent_warning: "Agent Warning",
+  handoff_note: "Handoff Note",
+};
 
 function timeAgo(ts: number): string {
   const diff = Date.now() - ts;
@@ -82,6 +93,21 @@ function captureSummary(item: AnyObject): string {
   return item.name;
 }
 
+function crystallizedSourceLabel(suggestion: CrystallizedSuggestion): string {
+  switch (suggestion.sourceType) {
+    case "capture": return "capture";
+    case "returned_agent_output": return "agent result";
+    case "user_note": return "user note";
+    case "handoff": return "handoff";
+  }
+}
+
+function canApplyCrystallizedSuggestion(suggestion: CrystallizedSuggestion): boolean {
+  return suggestion.kind === "open_action"
+    || suggestion.kind === "current_task"
+    || (suggestion.kind === "decision" && suggestion.sourceType === "capture" && Boolean(suggestion.sourceId));
+}
+
 export function ProjectPulse({
   project,
   allObjects,
@@ -104,6 +130,8 @@ export function ProjectPulse({
   const [latestPacket, setLatestPacket] = useState("");
   const [mergeTarget, setMergeTarget] = useState("");
   const [handoffDrafts, setHandoffDrafts] = useState<Record<string, { returnedAgentOutput: string; userNotes: string }>>({});
+  const [showCrystallizedSuggestions, setShowCrystallizedSuggestions] = useState(false);
+  const [dismissedCrystallizedSuggestionIds, setDismissedCrystallizedSuggestionIds] = useState<string[]>([]);
   const memories = useQuery((api as any).projectMemories.listForDashboard) as ProjectMemory[] | undefined;
   const agentEvents = useQuery(
     (api as any).agentEvents.listForProject,
@@ -148,6 +176,20 @@ export function ProjectPulse({
   const actionQueue = useMemo(
     () => selectProjectActionQueue(projectActions ?? []),
     [projectActions]
+  );
+  const crystallizedSuggestions = useMemo(
+    () => suggestCrystallizedUpdates({
+      captures: model.latestCaptures,
+      handoffs: handoffs ?? [],
+      existingMemory: model.memory,
+      existingActions: actionQueue,
+      limits: { maxSuggestions: 8, maxSourceLength: 220 },
+    }),
+    [actionQueue, handoffs, model.latestCaptures, model.memory]
+  );
+  const visibleCrystallizedSuggestions = useMemo(
+    () => crystallizedSuggestions.filter((suggestion) => !dismissedCrystallizedSuggestionIds.includes(suggestion.id)),
+    [crystallizedSuggestions, dismissedCrystallizedSuggestionIds]
   );
   const otherProjects = useMemo(
     () => projects.filter((candidate) => candidate.id !== project.id),
@@ -261,6 +303,49 @@ export function ProjectPulse({
     } catch (err) {
       console.error("[ProjectPulse] create agent action", err);
       toast.error("Could not save action");
+    }
+  };
+
+  const dismissCrystallizedSuggestion = (suggestionId: string) => {
+    setDismissedCrystallizedSuggestionIds((ids) => ids.includes(suggestionId) ? ids : [...ids, suggestionId]);
+  };
+
+  const handleCopyCrystallizedSuggestion = async (suggestion: CrystallizedSuggestion) => {
+    try {
+      await navigator.clipboard.writeText(`${CRYSTALLIZED_KIND_LABELS[suggestion.kind]}: ${suggestion.text}`);
+      toast.success("Suggestion copied");
+    } catch (err) {
+      console.error("[ProjectPulse] copy crystallized suggestion", err);
+      toast.error("Could not copy suggestion");
+    }
+  };
+
+  const handleApplyCrystallizedSuggestion = async (suggestion: CrystallizedSuggestion) => {
+    try {
+      if (suggestion.kind === "open_action" || suggestion.kind === "current_task") {
+        const now = Date.now();
+        await createAction({
+          projectId: project.id as Id<"objects">,
+          title: suggestion.text,
+          status: "suggested",
+          sourceType: "manual",
+          sourceId: suggestion.sourceId,
+          rationale: `Crystallized from recent ${crystallizedSourceLabel(suggestion)}.`,
+          createdAt: now,
+        });
+        dismissCrystallizedSuggestion(suggestion.id);
+        toast.success("Saved as action");
+        return;
+      }
+
+      if (suggestion.kind === "decision" && suggestion.sourceType === "capture" && suggestion.sourceId) {
+        await onUpdateCapture(suggestion.sourceId, { pinnedAsDecision: true, captureType: "decision" });
+        dismissCrystallizedSuggestion(suggestion.id);
+        toast.success("Pinned as decision");
+      }
+    } catch (err) {
+      console.error("[ProjectPulse] apply crystallized suggestion", err);
+      toast.error("Could not apply suggestion");
     }
   };
 
@@ -547,6 +632,54 @@ export function ProjectPulse({
           ) : (
             <p className="project-pulse-muted">Generate memory to get a concrete next move.</p>
           )}
+        </section>
+
+        <section className="project-pulse-panel project-pulse-panel--crystallize">
+          <div className="project-pulse-panel-head">
+            <h2>Crystallize Recent Activity</h2>
+            <span>{visibleCrystallizedSuggestions.length}</span>
+          </div>
+          <div className="crystallize-review-head">
+            <p className="project-pulse-muted">Preview only until applied.</p>
+            <button
+              type="button"
+              className="project-pulse-inline-btn project-pulse-inline-btn--primary"
+              onClick={() => setShowCrystallizedSuggestions((value) => !value)}
+            >
+              {showCrystallizedSuggestions ? "Hide suggestions" : "Crystallize recent activity"}
+            </button>
+          </div>
+          {showCrystallizedSuggestions ? (
+            visibleCrystallizedSuggestions.length ? (
+              <div className="crystallized-suggestion-list">
+                {visibleCrystallizedSuggestions.map((suggestion) => (
+                  <article key={suggestion.id} className="crystallized-suggestion-row">
+                    <div className="crystallized-suggestion-meta">
+                      <span>{CRYSTALLIZED_KIND_LABELS[suggestion.kind]}</span>
+                      <span>{crystallizedSourceLabel(suggestion)}</span>
+                      {suggestion.confidence ? <span>{suggestion.confidence}</span> : null}
+                    </div>
+                    <p>{suggestion.text}</p>
+                    <div className="project-pulse-row-actions">
+                      {canApplyCrystallizedSuggestion(suggestion) ? (
+                        <button type="button" className="project-pulse-inline-btn project-pulse-inline-btn--primary" onClick={() => void handleApplyCrystallizedSuggestion(suggestion)}>
+                          {suggestion.kind === "decision" ? "Pin decision" : "Save action"}
+                        </button>
+                      ) : null}
+                      <button type="button" className="project-pulse-inline-btn" onClick={() => void handleCopyCrystallizedSuggestion(suggestion)}>
+                        Copy
+                      </button>
+                      <button type="button" className="project-pulse-inline-btn" onClick={() => dismissCrystallizedSuggestion(suggestion.id)}>
+                        Dismiss
+                      </button>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <p className="project-pulse-muted crystallize-empty">No new suggestions.</p>
+            )
+          ) : null}
         </section>
 
         <section className="project-pulse-panel project-pulse-panel--handoffs">

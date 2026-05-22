@@ -1,4 +1,4 @@
-import type { AgentEvent, AnyObject, Project, ProjectAction, ProjectMemory } from "@/types";
+import type { AgentEvent, AnyObject, Handoff, Project, ProjectAction, ProjectMemory } from "@/types";
 import { buildAgentContextApiResponse } from "./agentContextApi";
 import { selectProjectActionQueue } from "./actions";
 import { selectPrimaryNextAction } from "./projectMemory";
@@ -16,6 +16,7 @@ export interface HypherMcpProjectContext {
   captures: AnyObject[];
   actions: ProjectAction[];
   agentEvents: AgentEvent[];
+  handoffs?: Handoff[];
   subscription?: SubscriptionLike;
 }
 

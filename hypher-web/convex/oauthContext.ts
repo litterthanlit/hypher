@@ -21,6 +21,11 @@ function mapEvent(doc: any) {
   return { ...rest, id: String(_id) };
 }
 
+function mapHandoff(doc: any) {
+  const { _id, _creationTime, ...rest } = doc;
+  return { ...rest, id: String(_id) };
+}
+
 async function validateToken(ctx: any, args: { tokenHash: string; resource: string; scope: string; now: number }) {
   const token = await ctx.db
     .query("oauthAccessTokens")
@@ -78,6 +83,11 @@ export const dataForToken = query({
       .withIndex("by_user_project", (q) => q.eq("userId", token.userId).eq("projectId", project._id))
       .collect();
 
+    const handoffs = await ctx.db
+      .query("handoffs")
+      .withIndex("by_user_project", (q) => q.eq("userId", token.userId).eq("projectId", project._id))
+      .collect();
+
     const subscription = await ctx.db
       .query("subscriptions")
       .withIndex("by_user", (q) => q.eq("userId", token.userId))
@@ -95,6 +105,10 @@ export const dataForToken = query({
           .sort((a, b) => b.createdAt - a.createdAt)
           .slice(0, 12)
           .map(mapEvent),
+        handoffs: handoffs
+          .sort((a, b) => b.generatedAt - a.generatedAt)
+          .slice(0, 6)
+          .map(mapHandoff),
         subscription: subscription
           ? { status: subscription.status, plan: subscription.plan }
           : null,

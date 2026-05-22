@@ -3,7 +3,7 @@ import { auth } from "@clerk/nextjs/server";
 import { fetchMutation, fetchQuery } from "convex/nextjs";
 import { api } from "../../../../convex/_generated/api";
 import type { Id } from "../../../../convex/_generated/dataModel";
-import type { ActivityEntry, AgentEvent, AnyObject, Project, ProjectAction, ProjectMemory } from "@/types";
+import type { ActivityEntry, AgentEvent, AnyObject, Handoff, Project, ProjectAction, ProjectMemory } from "@/types";
 import { HYPHER_MCP_SCOPE, baseUrlFromRequest, sha256Base64url } from "@/lib/oauthBridge";
 import {
   buildMcpToolResult,
@@ -49,6 +49,10 @@ function bearerToken(req: NextRequest): string | null {
   return match?.[1]?.trim() || null;
 }
 
+function isMissingConvexFunctionError(err: unknown): boolean {
+  return err instanceof Error && err.message.includes("Could not find public function");
+}
+
 function mapProject(row: any): Project | null {
   if (!row || row.kind !== "project") return null;
   return {
@@ -79,10 +83,11 @@ async function getProjectContext(projectId: string, token: string): Promise<Hyph
     githubSummary?: string;
   };
 
-  const [memories, actions, agentEvents, subscription] = await Promise.all([
+  const [memories, actions, agentEvents, handoffs, subscription] = await Promise.all([
     fetchQuery((api as any).projectMemories.listForDashboard, {}, { token }) as Promise<ProjectMemory[]>,
     fetchQuery((api as any).actions.listForProject, { projectId: projectId as Id<"objects"> }, { token }) as Promise<ProjectAction[]>,
     fetchQuery((api as any).agentEvents.listForProject, { projectId: projectId as Id<"objects">, limit: 12 }, { token }) as Promise<AgentEvent[]>,
+    fetchQuery((api as any).handoffs.listForProject, { projectId: projectId as Id<"objects">, limit: 6 }, { token }) as Promise<Handoff[]>,
     fetchQuery((api as any).subscriptions.getMine, {}, { token }) as Promise<{ status?: string; plan?: string } | null>,
   ]);
 
@@ -92,6 +97,7 @@ async function getProjectContext(projectId: string, token: string): Promise<Hyph
     captures: generationInput.items,
     actions,
     agentEvents,
+    handoffs,
     subscription,
   };
 }
@@ -112,21 +118,39 @@ async function getMcpContextForAccessToken(accessToken: string, resource: string
   const tokenHash = sha256Base64url(accessToken);
   const now = Date.now();
 
-  const validated = await fetchMutation((api as any).oauth.validateAccessToken, {
-    tokenHash,
-    resource,
-    scope: HYPHER_MCP_SCOPE,
-    now,
-  });
+  let validated: unknown;
+  try {
+    validated = await fetchMutation((api as any).oauth.validateAccessToken, {
+      tokenHash,
+      resource,
+      scope: HYPHER_MCP_SCOPE,
+      now,
+    });
+  } catch (err) {
+    if (isMissingConvexFunctionError(err)) {
+      console.warn("[api/mcp] oauth.validateAccessToken is unavailable in the configured Convex backend");
+      return null;
+    }
+    throw err;
+  }
   if (!validated) return null;
 
-  const data = await fetchQuery((api as any).oauthContext.dataForToken, {
-    tokenHash,
-    resource,
-    scope: HYPHER_MCP_SCOPE,
-    projectId,
-    now,
-  }) as { projects: Project[]; projectContext: HypherMcpProjectContext | null } | null;
+  let data: { projects: Project[]; projectContext: HypherMcpProjectContext | null } | null;
+  try {
+    data = await fetchQuery((api as any).oauthContext.dataForToken, {
+      tokenHash,
+      resource,
+      scope: HYPHER_MCP_SCOPE,
+      projectId,
+      now,
+    }) as { projects: Project[]; projectContext: HypherMcpProjectContext | null } | null;
+  } catch (err) {
+    if (isMissingConvexFunctionError(err)) {
+      console.warn("[api/mcp] oauthContext.dataForToken is unavailable in the configured Convex backend");
+      return null;
+    }
+    throw err;
+  }
   if (!data) return null;
 
   return {

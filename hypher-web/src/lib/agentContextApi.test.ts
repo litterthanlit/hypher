@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { AgentEvent, AnyObject, Project, ProjectAction, ProjectMemory } from "@/types";
+import type { AgentEvent, AnyObject, Handoff, Project, ProjectAction, ProjectMemory } from "@/types";
 import { buildAgentContextApiResponse, getAgentContextLimits } from "./agentContextApi";
 
 const project: Project = {
@@ -74,6 +74,22 @@ const agentEvents: AgentEvent[] = [
   },
 ];
 
+const handoffs: Handoff[] = [
+  {
+    id: "handoff-1",
+    userId: "u1",
+    projectId: "p1",
+    generatedAt: 120,
+    targetTool: "Cursor",
+    packetContent: "# Builder Brief: Hypher\n\nOriginal brief",
+    sourceCaptures: ["note-1"],
+    requestedTask: "Wire Builder Brief parity",
+    status: "completed",
+    returnedAgentOutput: `Implemented the server context parity path. ${"Detailed implementation log. ".repeat(80)}`,
+    userNotes: "Keep this result visible in the next Builder Brief.",
+  },
+];
+
 describe("getAgentContextLimits", () => {
   it("keeps free packets smaller than paid packets", () => {
     expect(getAgentContextLimits(null)).toEqual({
@@ -117,6 +133,60 @@ describe("buildAgentContextApiResponse", () => {
     expect(response.context).toContain("Wire ChatGPT connector");
     expect(response.context).toContain("codex / handoff: Context endpoint planned.");
     expect(response.context).toContain("## Handoff Notes");
+  });
+
+  it("includes bounded returned agent output and user notes from handoff history", () => {
+    const response = buildAgentContextApiResponse({
+      project,
+      memory,
+      captures,
+      actions,
+      agentEvents: [],
+      handoffs,
+      subscription: { status: "active", plan: "pro_monthly" },
+    });
+
+    expect(response.context).toContain("- Previous Cursor brief was completed: Wire Builder Brief parity.");
+    expect(response.context).toContain("- Agent result from previous Cursor brief: Implemented the server context parity path.");
+    expect(response.context).toContain("- User note on previous Cursor brief: Keep this result visible in the next Builder Brief.");
+    expect(response.context).not.toContain("Detailed implementation log. Detailed implementation log. Detailed implementation log.");
+  });
+
+  it("handles no handoffs gracefully", () => {
+    const response = buildAgentContextApiResponse({
+      project,
+      memory,
+      captures,
+      actions: [],
+      agentEvents: [],
+      handoffs: [],
+      subscription: null,
+    });
+
+    expect(response.context).toContain("## Handoff Notes");
+    expect(response.context).toContain("- No handoff notes recorded yet.");
+  });
+
+  it("keeps handoffs without returned output as history only", () => {
+    const response = buildAgentContextApiResponse({
+      project,
+      memory,
+      captures,
+      actions,
+      agentEvents: [],
+      handoffs: [
+        {
+          ...handoffs[0]!,
+          returnedAgentOutput: undefined,
+          userNotes: undefined,
+        },
+      ],
+      subscription: { status: "active", plan: "pro_monthly" },
+    });
+
+    expect(response.context).toContain("- Previous Cursor brief was completed: Wire Builder Brief parity.");
+    expect(response.context).not.toContain("Agent result from previous Cursor brief");
+    expect(response.context).not.toContain("User note on previous Cursor brief");
   });
 
   it("labels inactive or missing subscriptions as free and applies free limits", () => {

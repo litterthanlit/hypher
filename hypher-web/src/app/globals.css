@@ -5220,6 +5220,10 @@ body:has(.capture-root) {
   grid-row: span 1;
 }
 
+.project-pulse-panel--crystallize {
+  grid-column: 1 / -1;
+}
+
 .project-pulse-panel-head {
   display: flex;
   justify-content: space-between;
@@ -5472,6 +5476,55 @@ body:has(.capture-root) {
 .project-memory-mini > div {
   display: grid;
   gap: 8px;
+}
+
+.crystallize-review-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.crystallized-suggestion-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.crystallized-suggestion-row {
+  padding: 12px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--bg-primary) 94%, var(--ice-blue));
+}
+
+.crystallized-suggestion-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-bottom: 8px;
+}
+
+.crystallized-suggestion-meta span {
+  padding: 3px 6px;
+  border: 1px solid var(--border-default);
+  border-radius: 6px;
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.crystallized-suggestion-row p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.crystallize-empty {
+  margin-top: 12px;
 }
 
 .handoff-history-list {

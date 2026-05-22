@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { AgentEvent, AnyObject, Project, ProjectAction, ProjectMemory } from "@/types";
+import type { AgentEvent, AnyObject, Handoff, Project, ProjectAction, ProjectMemory } from "@/types";
 import {
   buildMcpToolResult,
   getHypherMcpToolDescriptors,
@@ -78,6 +78,30 @@ const agentEvents: AgentEvent[] = [
   },
 ];
 
+const handoffs: Handoff[] = [
+  {
+    id: "h1",
+    userId: "u1",
+    projectId: "p1",
+    generatedAt: 60,
+    targetTool: "Cursor",
+    packetContent: "# Builder Brief: Hypher\n\nPrevious brief",
+    sourceCaptures: ["n1"],
+    requestedTask: "Build MCP Builder Brief parity",
+    status: "used",
+    returnedAgentOutput: "MCP now carries saved handoff result context into the Builder Brief.",
+    userNotes: "Use the same context as Project Pulse.",
+  },
+];
+
+const handoffWithoutResult: Handoff = {
+  ...handoffs[0]!,
+  id: "h2",
+  generatedAt: 55,
+  returnedAgentOutput: undefined,
+  userNotes: undefined,
+};
+
 const context: HypherMcpContext = {
   projects: [project],
   projectContexts: {
@@ -87,6 +111,7 @@ const context: HypherMcpContext = {
       captures,
       actions,
       agentEvents,
+      handoffs,
       subscription: { status: "active", plan: "pro_monthly" },
     },
   },
@@ -130,6 +155,25 @@ describe("buildMcpToolResult", () => {
     expect(result.structuredContent.projectId).toBe("p1");
     expect(result.structuredContent.context).toContain("# Builder Brief: Hypher");
     expect(result.structuredContent.context).toContain("Build the read-only MCP surface.");
+    expect(result.structuredContent.context).toContain("- Agent result from previous Cursor brief: MCP now carries saved handoff result context into the Builder Brief.");
+    expect(result.structuredContent.context).toContain("- User note on previous Cursor brief: Use the same context as Project Pulse.");
+  });
+
+  it("keeps MCP Builder Brief output stable when no handoff result exists", () => {
+    const result = buildMcpToolResult("get_project_context", { projectId: "p1" }, {
+      ...context,
+      projectContexts: {
+        p1: {
+          ...context.projectContexts.p1!,
+          agentEvents: [],
+          handoffs: [handoffWithoutResult],
+        },
+      },
+    });
+
+    expect(result.structuredContent.context).toContain("- Previous Cursor brief was used: Build MCP Builder Brief parity.");
+    expect(result.structuredContent.context).not.toContain("Agent result from previous Cursor brief");
+    expect(result.structuredContent.context).not.toContain("User note on previous Cursor brief");
   });
 
   it("returns focused current state and next move views", () => {
