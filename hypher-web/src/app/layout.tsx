@@ -36,7 +36,8 @@ const hypherDisplay = Archivo_Narrow({
 
 export const metadata: Metadata = {
   title: "Hypher",
-  description: "The workspace that knows what you're working on",
+  description:
+    "The project context layer for AI builders and agents.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

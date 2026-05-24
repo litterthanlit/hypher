@@ -36,8 +36,8 @@ export default function PricingPage() {
       <main className="tw-mx-auto tw-max-w-6xl tw-px-4 tw-pb-24 tw-pt-10 sm:tw-px-6 sm:tw-pt-12 lg:tw-px-8">
         <h1 className="tw-font-wordmark tw-text-3xl tw-font-normal tw-tracking-[0.04em] sm:tw-text-4xl">Pricing</h1>
         <p className="tw-mt-4 tw-max-w-2xl tw-text-pretty tw-text-lg tw-leading-relaxed tw-text-[var(--text-secondary)]">
-          Fourteen days on the house, then choose monthly Pro or a one-time lifetime license. Checkout is handled
-          by Stripe; subscription state syncs to your account for the product.
+          Fourteen days on the house, then choose monthly Pro or a one-time lifetime license. Pro unlocks larger
+          Builder Briefs and agent-context packets for Cursor, Codex, OpenClaw, and MCP-connected tools.
         </p>
         <div className="tw-mt-14">
           <PricingCards variant="expanded" />

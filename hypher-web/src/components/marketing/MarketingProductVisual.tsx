@@ -40,7 +40,7 @@ export function MarketingProductVisual() {
   return (
     <div
       className="marketing-product-visual tw-relative tw-overflow-hidden tw-rounded-[var(--radius-md)] tw-border tw-bg-[var(--bg-primary)]"
-      aria-label="Product preview: capture flows into projects, memory, and next actions"
+      aria-label="Product preview: capture flows into project memory, Builder Briefs, and agent writeback"
     >
       <GridBackdrop />
 
@@ -124,36 +124,42 @@ export function MarketingProductVisual() {
               Project memory
             </p>
             <div className="marketing-inset-panel marketing-inset-panel--sheet tw-flex tw-flex-1 tw-flex-col tw-rounded-[var(--radius-sm)] tw-p-3">
-              <div className="tw-text-[11px] tw-leading-relaxed tw-text-[var(--text-secondary)]">
+              <div className="tw-flex tw-items-center tw-justify-between tw-gap-2">
+                <span className="tw-font-mono tw-text-[10px] tw-uppercase tw-tracking-wider tw-text-[var(--text-tertiary)]">
+                  Builder Brief
+                </span>
+                <span className="tw-font-mono tw-text-[10px] tw-text-[var(--accent)]">ready</span>
+              </div>
+              <div className="tw-mt-2 tw-text-[11px] tw-leading-relaxed tw-text-[var(--text-secondary)]">
                 <p>
                   <span className="tw-font-medium tw-text-[var(--text-primary)]">Direction · </span>
-                  Ship a calm capture-first workspace narrative before widening beta.
+                  Agent loop on the landing page; dogfood handoffs every ship session.
                 </p>
                 <p className="tw-mt-2">
-                  <span className="tw-font-medium tw-text-[var(--text-primary)]">Open · </span>
-                  Digest empty-state + export fidelity for long blocks.
+                  <span className="tw-font-medium tw-text-[var(--text-primary)]">Do not · </span>
+                  Ship OAuth breadth before the brief contract is stable.
                 </p>
               </div>
               <div className="tw-mt-3 tw-border-t tw-border-dashed tw-border-[var(--border-default)] tw-pt-3">
                 <span className="tw-font-mono tw-text-[10px] tw-uppercase tw-tracking-wider tw-text-[var(--text-tertiary)]">
-                  Next
+                  Agent inbox
                 </span>
-                <div className="tw-mt-2 tw-inline-flex tw-max-w-full tw-items-center tw-rounded-[var(--radius-sm)] tw-border tw-border-[var(--accent-muted)] tw-bg-[var(--accent-subtle)] tw-px-2.5 tw-py-1 tw-text-[11px] tw-font-medium tw-text-[var(--text-primary)] tw-shadow-[var(--shadow-marketing-inset)]">
-                  Draft digest intro for first-time readers
-                </div>
+                <p className="tw-mt-2 tw-text-[11px] tw-leading-relaxed tw-text-[var(--text-secondary)]">
+                  <span className="tw-font-medium tw-text-[var(--text-primary)]">cursor · </span>
+                  Security audit shipped — capture tokens + scoped agent events.
+                </p>
               </div>
             </div>
 
             <div className="marketing-inset-panel tw-rounded-[var(--radius-sm)] tw-p-3">
               <div className="tw-flex tw-items-center tw-justify-between tw-gap-2">
                 <span className="tw-font-mono tw-text-[10px] tw-uppercase tw-tracking-wider tw-text-[var(--text-tertiary)]">
-                  Daily digest
+                  Crystallized
                 </span>
-                <span className="tw-font-mono tw-text-[10px] tw-text-[var(--text-quaternary)]">Apr 20</span>
+                <span className="tw-font-mono tw-text-[10px] tw-text-[var(--text-quaternary)]">accepted</span>
               </div>
               <p className="tw-mt-2 tw-text-[11px] tw-leading-relaxed tw-text-[var(--text-secondary)]">
-                Essays had no edits in 5 days — one suggested move: close the export thread or schedule a
-                20m review.
+                Stale memory must not appear in the next Builder Brief — you accept what becomes durable.
               </p>
             </div>
           </div>

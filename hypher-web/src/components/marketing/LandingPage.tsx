@@ -44,6 +44,9 @@ function PrimaryNavLinks() {
       <a href="#the-loop" className={navLinkClass}>
         How it works
       </a>
+      <a href="#agents" className={navLinkClass}>
+        For agents
+      </a>
       <a href="#product" className={navLinkClass}>
         Product
       </a>
@@ -90,12 +93,15 @@ export function LandingPage() {
         <section className="marketing-hero tw-border-b tw-border-[var(--border-default)]">
           <div className="tw-mx-auto tw-grid tw-max-w-6xl tw-gap-10 tw-px-4 tw-py-12 sm:tw-px-6 sm:tw-py-16 lg:tw-grid-cols-[minmax(0,1.02fr)_minmax(0,1fr)] lg:tw-items-center lg:tw-gap-14 lg:tw-px-8 lg:tw-py-20">
             <div className="tw-min-w-0">
-              <h1 className="tw-mt-0 tw-max-w-[22ch] tw-text-balance tw-font-wordmark tw-text-[2rem] tw-font-medium tw-leading-[1.12] tw-tracking-[0.04em] sm:tw-max-w-none sm:tw-text-4xl lg:tw-text-[2.85rem] lg:tw-leading-[1.08]">
-                Capture first. Hypher sorts the rest.
+              <h1 className="tw-mt-0 tw-max-w-[20ch] tw-text-balance tw-font-wordmark tw-text-[2rem] tw-font-medium tw-leading-[1.12] tw-tracking-[0.04em] sm:tw-max-w-none sm:tw-text-4xl lg:tw-text-[2.85rem] lg:tw-leading-[1.08]">
+                The project context layer for AI builders and agents.
               </h1>
-              <p className="tw-mt-5 tw-max-w-xl tw-text-pretty tw-text-base tw-leading-relaxed tw-text-[var(--text-secondary)] sm:tw-text-[17px]">
-                Drop ideas, notes, files, and half-formed plans into one calm workspace. Hypher suggests
-                where they belong, remembers project context, and helps you decide what to do next.
+              <p className="tw-mt-4 tw-max-w-xl tw-text-pretty tw-text-lg tw-font-medium tw-leading-snug tw-tracking-tight tw-text-[var(--text-primary)] sm:tw-text-xl">
+                Capture on the way in. Builder Briefs and agent writeback on the way out.
+              </p>
+              <p className="tw-mt-4 tw-max-w-xl tw-text-pretty tw-text-base tw-leading-relaxed tw-text-[var(--text-secondary)] sm:tw-text-[17px]">
+                Hypher turns messy notes, handoffs, and ship logs into durable project memory — then
+                compiles what your agents need to read and records what they did while building.
               </p>
               <div className="tw-mt-8 tw-flex tw-flex-col tw-gap-3 sm:tw-flex-row sm:tw-flex-wrap sm:tw-items-center">
                 <BetaCta />
@@ -118,51 +124,118 @@ export function LandingPage() {
               id="loop-heading"
               className="tw-text-balance tw-font-wordmark tw-text-2xl tw-font-normal tw-tracking-[0.04em] sm:tw-text-3xl"
             >
-              The loop that keeps projects alive.
+              The loop builders and agents share.
             </h2>
-            <div className="tw-mt-12 tw-grid tw-gap-8 md:tw-grid-cols-3 md:tw-gap-6 lg:tw-gap-10">
+            <p className="tw-mt-4 tw-max-w-2xl tw-text-pretty tw-text-sm tw-leading-relaxed tw-text-[var(--text-secondary)] sm:tw-text-base">
+              Capture is the front door. Project memory and Builder Briefs are the system of record. Agent
+              writeback keeps that record honest as you ship.
+            </p>
+            <div className="tw-mt-12 tw-grid tw-gap-8 sm:tw-grid-cols-2 lg:tw-grid-cols-4 lg:tw-gap-6">
               <LoopStep
                 step="01"
                 title="Capture anything"
-                body="Voice memos, screenshots, paragraphs, links — one inbox, no filing tax before you think."
+                body="Notes, screenshots, links, and agent output — one inbox, no filing tax before you think."
                 visual={<LoopVisualCapture />}
               />
               <LoopStep
                 step="02"
-                title="Sort with suggestions"
-                body="Hypher proposes a project, shows its reasoning, and you stay in control of every move."
-                visual={<LoopVisualSort />}
+                title="Context feed builds"
+                body="Captures, handoffs, and agent output stream into Project Pulse. You accept what becomes durable memory."
+                visual={<LoopVisualMemory />}
               />
               <LoopStep
                 step="03"
-                title="Return with memory and next actions"
-                body="Each visit surfaces direction, open questions, and one concrete next step — not a blank canvas."
-                visual={<LoopVisualReturn />}
+                title="Brief your agents"
+                body="Copy a Builder Brief or fetch agent context for Cursor, Codex, OpenClaw, and MCP tools."
+                visual={<LoopVisualBrief />}
+              />
+              <LoopStep
+                step="04"
+                title="Agents write back"
+                body="Handoffs and build logs land in your inbox, update memory, and feed the next brief."
+                visual={<LoopVisualWriteback />}
               />
             </div>
           </div>
         </section>
 
+        <section
+          id="agents"
+          className="tw-scroll-mt-24 tw-border-b tw-border-[var(--border-default)] tw-bg-[var(--bg-secondary)]"
+          aria-labelledby="agents-heading"
+        >
+          <div className="tw-mx-auto tw-max-w-6xl tw-px-4 tw-py-14 sm:tw-px-6 sm:tw-py-20 lg:tw-px-8">
+            <h2
+              id="agents-heading"
+              className="tw-text-balance tw-font-wordmark tw-text-2xl tw-font-normal tw-tracking-[0.04em] sm:tw-text-3xl"
+            >
+              Read and write project context, not just store notes.
+            </h2>
+            <p className="tw-mt-4 tw-max-w-2xl tw-text-pretty tw-text-sm tw-leading-relaxed tw-text-[var(--text-secondary)] sm:tw-text-base">
+              Hypher is the project memory layer your agents can read and update. Scoped API keys, capture
+              tokens, handoff skills, and a read-only MCP surface — hardened for beta, designed to stay
+              bounded.
+            </p>
+            <ul className="tw-mt-8 tw-flex tw-flex-wrap tw-gap-2" aria-label="Integrations">
+              {["Cursor", "Codex", "OpenClaw", "ChatGPT", "Chrome extension", "MCP", "REST capture"].map(
+                (label) => (
+                  <li
+                    key={label}
+                    className="tw-rounded-full tw-border tw-border-[var(--border-default)] tw-bg-[var(--bg-primary)] tw-px-3 tw-py-1 tw-font-mono tw-text-[11px] tw-text-[var(--text-secondary)]"
+                  >
+                    {label}
+                  </li>
+                )
+              )}
+            </ul>
+            <div className="tw-mt-10 tw-grid tw-gap-6 lg:tw-grid-cols-2">
+              <AgentFlowCard
+                title="Context feed (in)"
+                body="Captures, agent handoffs, build logs, returned agent output, and email replies flow into one project timeline. You review what becomes durable memory."
+                code="capture · agent/events · handoff results"
+              />
+              <AgentFlowCard
+                title="Builder Brief (out)"
+                body="Hypher compiles the feed into a bounded packet — direction, constraints, open questions, and what changed since the last session."
+                code="GET /api/projects/{id}/agent-context"
+              />
+            </div>
+            <p className="tw-mt-6 tw-max-w-3xl tw-text-sm tw-leading-relaxed tw-text-[var(--text-tertiary)]">
+              Agents write back with{" "}
+              <span className="tw-font-mono tw-text-[11px] tw-text-[var(--text-secondary)]">POST /api/agent/events</span>
+              . Project Pulse crystallizes the feed into decisions and constraints so stale context does not leak into the next brief.
+            </p>
+          </div>
+        </section>
+
         <section id="product" className="tw-scroll-mt-24" aria-labelledby="product-heading">
           <div className="tw-mx-auto tw-max-w-6xl tw-px-4 tw-py-14 sm:tw-px-6 sm:tw-py-20 lg:tw-px-8">
-            <h2 id="product-heading" className="tw-sr-only">
-              Product
+            <h2
+              id="product-heading"
+              className="tw-text-balance tw-font-wordmark tw-text-2xl tw-font-normal tw-tracking-[0.04em] sm:tw-text-3xl"
+            >
+              Everything around the loop.
             </h2>
-            <div className="tw-grid tw-gap-10 lg:tw-grid-cols-3 lg:tw-gap-8">
+            <div className="tw-mt-10 tw-grid tw-gap-10 lg:tw-grid-cols-2 lg:tw-gap-8">
               <FeatureBlock
                 title="Self-sorting capture"
                 body="Hypher suggests the right project, explains why, and lets you decide."
-                detail="Suggestions stay visible with confidence you can override — control without busywork."
+                detail="Web inbox, /capture URLs, Chrome highlight capture, and scoped capture tokens for scripts."
               />
               <FeatureBlock
-                title="Project memory"
-                body="Each project gets a living snapshot: direction, open questions, recent changes, and suggested next actions."
-                detail="Assembled from captures and edits you already made — not another doc to curate."
+                title="Crystallized memory"
+                body="Accept or dismiss suggested decisions, constraints, and warnings so stale context does not poison the next brief."
+                detail="Returned agent output can flow back into Project Pulse — you stay in control of what becomes durable."
+              />
+              <FeatureBlock
+                title="Spatial canvas"
+                body="See how notes cluster per project when you want spatial sense-making, not just lists."
+                detail="Connections, undo/redo, and canvas ask — the thinking layer when a brief is not enough."
               />
               <FeatureBlock
                 title="Daily digest"
-                body="A daily resurfacing loop keeps neglected work from disappearing."
-                detail="Short enough to scan between meetings; concrete enough to pick one next move."
+                body="A resurfacing loop for neglected projects — human-readable, separate from the agent packet."
+                detail="Optional email mirror for builders who want a morning scan without opening the app."
               />
             </div>
           </div>
@@ -203,8 +276,8 @@ export function LandingPage() {
               The first beta is about the core loop.
             </h2>
             <p className="tw-mt-4 tw-max-w-2xl tw-text-pretty tw-text-sm tw-leading-relaxed tw-text-[var(--text-secondary)] sm:tw-text-base">
-              I&apos;m approving a small group of builders manually so I can watch where capture, sorting,
-              project memory, and next actions help real work move forward.
+              I&apos;m approving a small group of builders manually so I can watch the full loop — capture,
+              Builder Briefs, agent writeback, and crystallized memory — with real shipping sessions.
             </p>
           </div>
         </section>
@@ -231,7 +304,7 @@ export function LandingPage() {
         <div className="tw-mx-auto tw-flex tw-max-w-6xl tw-flex-col tw-items-center tw-gap-6 tw-px-4 sm:tw-flex-row sm:tw-items-center sm:tw-justify-between sm:tw-px-6 lg:tw-px-8">
           <MarketingBrand size="sm" showTagline />
           <p className="tw-max-w-md tw-text-center tw-text-xs tw-leading-relaxed tw-text-[var(--text-tertiary)] sm:tw-text-right sm:tw-text-sm">
-            Capture-first workspace for solo builders.
+            Project context layer for AI builders and agents.
           </p>
         </div>
       </footer>
@@ -271,6 +344,18 @@ function FeatureBlock({ title, body, detail }: { title: string; body: string; de
       <p className="tw-mt-3 tw-flex-1 tw-text-sm tw-leading-relaxed tw-text-[var(--text-secondary)]">{body}</p>
       <p className="tw-mt-5 tw-border-t tw-border-[var(--border-default)] tw-pt-4 tw-text-xs tw-leading-relaxed tw-text-[var(--text-tertiary)]">
         {detail}
+      </p>
+    </article>
+  );
+}
+
+function AgentFlowCard({ title, body, code }: { title: string; body: string; code: string }) {
+  return (
+    <article className="marketing-surface-card tw-rounded-[var(--radius-md)] tw-p-6">
+      <h3 className="tw-text-base tw-font-medium tw-tracking-tight tw-text-[var(--text-primary)]">{title}</h3>
+      <p className="tw-mt-2 tw-text-sm tw-leading-relaxed tw-text-[var(--text-secondary)]">{body}</p>
+      <p className="tw-mt-4 tw-overflow-x-auto tw-rounded-[var(--radius-sm)] tw-border tw-border-[var(--border-default)] tw-bg-[var(--bg-root)] tw-px-3 tw-py-2 tw-font-mono tw-text-[11px] tw-text-[var(--text-tertiary)]">
+        {code}
       </p>
     </article>
   );
@@ -353,28 +438,56 @@ function LoopVisualSort() {
   );
 }
 
-function LoopVisualReturn() {
+function LoopVisualMemory() {
   return (
     <div className="tw-flex tw-h-full tw-min-h-[104px] tw-flex-col tw-justify-between tw-gap-2 tw-text-[10px]">
       <div className="tw-rounded tw-border tw-border-[var(--border-default)] tw-bg-[var(--bg-primary)] tw-p-2.5">
-        <div className="tw-flex tw-items-center tw-gap-2.5">
-          <div
-            className="tw-flex tw-h-9 tw-w-9 tw-shrink-0 tw-items-center tw-justify-center tw-rounded-full tw-border tw-border-[var(--border-default)] tw-bg-[var(--bg-secondary)] tw-font-mono tw-text-[9px] tw-tabular-nums tw-text-[var(--text-tertiary)]"
-            aria-hidden
-          >
-            72%
-          </div>
-          <div className="tw-min-w-0">
-            <p className="tw-font-medium tw-text-[var(--text-primary)]">Project memory</p>
-            <p className="tw-mt-0.5 tw-truncate tw-leading-snug tw-text-[var(--text-tertiary)]">
-              Direction + open questions updated
-            </p>
-          </div>
-        </div>
+        <p className="tw-font-mono tw-text-[9px] tw-uppercase tw-tracking-wider tw-text-[var(--text-tertiary)]">
+          Crystallized
+        </p>
+        <p className="tw-mt-1.5 tw-font-medium tw-text-[var(--text-primary)]">Do not widen OAuth yet</p>
+        <p className="tw-mt-1 tw-leading-snug tw-text-[var(--text-tertiary)]">Stabilize Builder Brief loop first</p>
       </div>
       <div className="tw-rounded tw-border tw-border-[var(--accent-muted)] tw-bg-[var(--accent-subtle)] tw-px-2 tw-py-1.5">
-        <p className="tw-font-mono tw-text-[9px] tw-uppercase tw-tracking-wide tw-text-[var(--text-tertiary)]">Next</p>
-        <p className="tw-mt-0.5 tw-font-medium tw-leading-tight tw-text-[var(--text-primary)]">Ship digest empty state</p>
+        <p className="tw-font-mono tw-text-[9px] tw-uppercase tw-tracking-wide tw-text-[var(--text-tertiary)]">Open</p>
+        <p className="tw-mt-0.5 tw-font-medium tw-leading-tight tw-text-[var(--text-primary)]">Digest empty state</p>
+      </div>
+    </div>
+  );
+}
+
+function LoopVisualBrief() {
+  return (
+    <div className="tw-flex tw-h-full tw-min-h-[104px] tw-flex-col tw-gap-2 tw-text-[10px]">
+      <span className="tw-font-mono tw-text-[9px] tw-uppercase tw-tracking-wider tw-text-[var(--text-tertiary)]">
+        Builder Brief
+      </span>
+      <div className="tw-flex-1 tw-rounded tw-border tw-border-[var(--border-default)] tw-bg-[var(--bg-primary)] tw-p-2.5 tw-font-mono tw-leading-snug tw-text-[var(--text-quaternary)]">
+        <p className="tw-text-[var(--text-secondary)]"># Ship v1</p>
+        <p className="tw-mt-1">Direction · invite gate + agent loop</p>
+        <p className="tw-mt-1">Do not · OAuth until brief is stable</p>
+      </div>
+      <p className="tw-text-[var(--accent)]">Copied to Cursor</p>
+    </div>
+  );
+}
+
+function LoopVisualWriteback() {
+  return (
+    <div className="tw-flex tw-h-full tw-min-h-[104px] tw-flex-col tw-gap-2 tw-text-[10px]">
+      <div className="tw-flex tw-items-center tw-justify-between tw-gap-2">
+        <span className="tw-font-mono tw-text-[9px] tw-uppercase tw-tracking-wider tw-text-[var(--text-tertiary)]">
+          Agent inbox
+        </span>
+        <span className="tw-rounded tw-bg-[var(--bg-tertiary)] tw-px-1.5 tw-py-0.5 tw-font-mono tw-text-[9px] tw-text-[var(--text-tertiary)]">
+          cursor
+        </span>
+      </div>
+      <div className="tw-rounded tw-border tw-border-[var(--border-default)] tw-bg-[var(--bg-primary)] tw-p-2.5">
+        <p className="tw-font-medium tw-text-[var(--text-primary)]">Security audit shipped</p>
+        <p className="tw-mt-1 tw-line-clamp-2 tw-leading-snug tw-text-[var(--text-tertiary)]">
+          Capture tokens hashed · agent events scoped · ready for next brief
+        </p>
       </div>
     </div>
   );

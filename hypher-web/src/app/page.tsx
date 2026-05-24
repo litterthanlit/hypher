@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import { LandingPage } from "@/components/marketing/LandingPage";
 
 export const metadata: Metadata = {
-  title: "Hypher — Capture first. Hypher sorts the rest.",
+  title: "Hypher — Project context for builders and agents",
   description:
-    "Private beta workspace for solo builders. Drop ideas, notes, and files into one calm place — Hypher suggests projects, remembers context, and surfaces what matters.",
+    "Hypher is the project context layer for AI builders and agents. Capture on the way in, Builder Briefs on the way out, and agent writeback that keeps every project current.",
 };
 
 export default function Home() {
