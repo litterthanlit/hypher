@@ -10,9 +10,9 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@clerk/nextjs/server";
 import { fetchQuery } from "convex/nextjs";
 import { api } from "../../../../convex/_generated/api";
+import { authErrorJson, requireBetaAccess } from "@/lib/serverAuth";
 
 export const runtime = "nodejs";
 
@@ -46,20 +46,17 @@ export async function OPTIONS(req: NextRequest) {
 }
 
 export async function GET(req: NextRequest) {
-  const { userId, getToken } = await auth();
-  if (!userId) {
-    return NextResponse.json({ error: "unauth" }, { status: 401 });
-  }
-
-  const token = await getToken({ template: "convex" });
-  if (!token) {
-    return NextResponse.json({ error: "missing_convex_token" }, { status: 401 });
+  let session;
+  try {
+    session = await requireBetaAccess();
+  } catch (error) {
+    return authErrorJson(error) as NextResponse;
   }
 
   let objects: Array<{ _id: string; kind: string; name?: string; content?: string }>;
   try {
     // api.objects.list returns all user objects; filter to kind==="project"
-    objects = await fetchQuery(api.objects.list, {}, { token }) as typeof objects;
+    objects = await fetchQuery(api.objects.list, {}, { token: session.convexToken }) as typeof objects;
   } catch (e) {
     console.error("[api/projects]", e);
     return NextResponse.json({ error: "fetch_failed" }, { status: 500 });

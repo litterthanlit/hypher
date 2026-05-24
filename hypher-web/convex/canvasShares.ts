@@ -1,7 +1,7 @@
 import { v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
 import { mutation, query } from "./_generated/server";
-import { requireUserId } from "./lib/auth";
+import { requireBetaAccess } from "./lib/auth";
 import bcrypt from "bcryptjs";
 
 const SLUG_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789";
@@ -45,7 +45,7 @@ function toClientConnection(doc: Doc<"connections">) {
 export const create = mutation({
   args: { projectId: v.string(), label: v.optional(v.string()) },
   handler: async (ctx, { projectId, label }) => {
-    const userId = await requireUserId(ctx);
+    const userId = await requireBetaAccess(ctx);
     const project = await ctx.db.get(projectId as Id<"objects">);
     if (!project || project.userId !== userId || project.kind !== "project") {
       throw new Error("Project not found");
@@ -80,7 +80,7 @@ export const create = mutation({
 export const listForProject = query({
   args: { projectId: v.string() },
   handler: async (ctx, { projectId }) => {
-    const userId = await requireUserId(ctx);
+    const userId = await requireBetaAccess(ctx);
     const rows = await ctx.db
       .query("canvasShares")
       .withIndex("by_user_project", (q) => q.eq("userId", userId).eq("projectId", projectId))
@@ -100,7 +100,7 @@ export const listForProject = query({
 export const revoke = mutation({
   args: { shareId: v.id("canvasShares") },
   handler: async (ctx, { shareId }) => {
-    const userId = await requireUserId(ctx);
+    const userId = await requireBetaAccess(ctx);
     const row = await ctx.db.get(shareId);
     if (!row || row.userId !== userId) throw new Error("Unauthorized");
     await ctx.db.patch(shareId, { revokedAt: Date.now() });

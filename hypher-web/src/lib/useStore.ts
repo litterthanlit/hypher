@@ -73,19 +73,14 @@ export function useStore() {
   const { isLoaded: clerkLoaded, isSignedIn } = useAuth();
   const skipConvex = !clerkLoaded || !isSignedIn;
 
-  const claimLegacyData = useMutation(api.legacy.claimLegacyData);
   const ensureDemoForUser = useMutation(api.seed.ensureDemoForUser);
   // typegen pending convex dev
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const ensureDefaultPrefs = useMutation((api as any).digestEmail.ensureDefaultPrefs);
-  const legacyStatus = useQuery(api.legacy.getLegacyStatus, skipConvex ? "skip" : {});
 
   useEffect(() => {
-    if (!clerkLoaded || !isSignedIn || legacyStatus === undefined) return;
+    if (!clerkLoaded || !isSignedIn) return;
     const run = async () => {
-      if (!legacyStatus.legacyClaimed) {
-        await claimLegacyData();
-      }
       await ensureDemoForUser();
       // Bootstrap digestPrefs row for new users (idempotent — no-op if row exists)
       const timezone =
@@ -96,7 +91,7 @@ export function useStore() {
       await (ensureDefaultPrefs as any)({ timezone });
     };
     void run();
-  }, [clerkLoaded, isSignedIn, legacyStatus?.legacyClaimed, claimLegacyData, ensureDemoForUser, ensureDefaultPrefs]);
+  }, [clerkLoaded, isSignedIn, ensureDemoForUser, ensureDefaultPrefs]);
 
   /* ── Reactive queries (replaces reload()) ─────────────────────── */
   const rawObjects = useQuery(api.objects.list, skipConvex ? "skip" : {});

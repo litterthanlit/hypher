@@ -4,7 +4,7 @@
  * Mirrors the pattern from hypher-web/src/lib/rateLimit.ts but runs in the
  * Convex Node action runtime (cannot import from src/).
  *
- * When Upstash env vars are absent, returns true (allowed) with a console warn.
+ * When Upstash env vars are absent, local/dev allows and production denies.
  */
 import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
@@ -23,6 +23,13 @@ function getRatelimitForBucket(
   const url = process.env.UPSTASH_REDIS_REST_URL;
   const token = process.env.UPSTASH_REDIS_REST_TOKEN;
   if (!url || !token) {
+    if (process.env.NODE_ENV === "production") {
+      console.error(
+        `[hypher/convex/rateLimit] Upstash Redis env missing — denying production request for bucket "${bucket}"`
+      );
+      cache.set(cacheKey, null);
+      return null;
+    }
     console.warn(
       `[hypher/convex/rateLimit] Upstash Redis env missing — rate limiting disabled for bucket "${bucket}"`
     );
@@ -54,7 +61,7 @@ function getRatelimitForBucket(
 
 /**
  * Returns true if the request is allowed, false if it should be rate-limited.
- * When Upstash is not configured, always returns true.
+ * When Upstash is not configured, local/dev returns true and production returns false.
  */
 export async function ratelimitConvex(
   key: string,
@@ -62,7 +69,7 @@ export async function ratelimitConvex(
   opts: { requests: number; window: string }
 ): Promise<boolean> {
   const rl = getRatelimitForBucket(bucket, opts.requests, opts.window);
-  if (!rl) return true;
+  if (!rl) return process.env.NODE_ENV !== "production";
   const result = await rl.limit(key);
   return result.success;
 }

@@ -6,8 +6,11 @@ import {
   baseUrlFromRequest,
   codeChallengeS256,
   generateOpaqueToken,
+  getRegisteredOAuthClient,
+  isRedirectUriRegistered,
   sha256Base64url,
 } from "@/lib/oauthBridge";
+import { ratelimitUser } from "@/lib/rateLimit";
 
 export const runtime = "nodejs";
 
@@ -45,6 +48,21 @@ export async function POST(req: NextRequest) {
   }
   if (!code || !redirectUri || !clientId || !codeVerifier) {
     return oauthError("invalid_request", "Missing code, redirect_uri, client_id, or code_verifier.");
+  }
+  const client = getRegisteredOAuthClient(clientId);
+  if (!client) {
+    return oauthError("unauthorized_client", "OAuth client is not registered with Hypher.", 401);
+  }
+  if (!isRedirectUriRegistered(client, redirectUri)) {
+    return oauthError("invalid_request", "redirect_uri is not registered for this OAuth client.");
+  }
+
+  const allowed = await ratelimitUser(clientId, "oauth-token", {
+    requests: 30,
+    window: "1h",
+  });
+  if (!allowed) {
+    return oauthError("slow_down", "Too many token exchange attempts.", 429);
   }
 
   const accessToken = generateOpaqueToken("hya");

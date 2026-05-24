@@ -16,6 +16,7 @@ export interface PendingCapture {
 }
 
 const HYPHER_APP = "https://hypher.app";
+const HYPHER_API = "https://adamant-pheasant-663.convex.site";
 const MAX_ATTEMPTS_DROP_AFTER_MS = 24 * 60 * 60 * 1000; // 24 hours
 const BACKOFF_BASE_MS = 2 * 60 * 1000; // 2 minutes base
 const BACKOFF_MAX_MS = 30 * 60 * 1000; // 30 minute cap
@@ -48,6 +49,14 @@ async function fetchWithTimeout(url: string, opts: RequestInit): Promise<Respons
 async function getHostOverride(): Promise<string> {
   const { hostOverride } = await chrome.storage.local.get("hostOverride");
   return (hostOverride as string) || HYPHER_APP;
+}
+
+async function getApiHostOverride(): Promise<string> {
+  const { apiHostOverride, hostOverride } = await chrome.storage.local.get([
+    "apiHostOverride",
+    "hostOverride",
+  ]);
+  return (apiHostOverride as string) || (hostOverride as string) || HYPHER_API;
 }
 
 export type AuthMode = "session" | "api-key";
@@ -106,8 +115,7 @@ async function sendCapture(
   host: string,
 ): Promise<Response> {
   if (auth.mode === "api-key" && auth.apiKey) {
-    // API-key path: POST to Convex HTTP endpoint, never cookies
-    // Hard-code the host check — never attach the key to any host other than *.convex.cloud
+    // API-key path: POST to the Convex HTTP endpoint, never cookies.
     const convexUrl = `${host}/api/capture`;
     return fetchWithTimeout(convexUrl, {
       method: "POST",
@@ -147,7 +155,7 @@ export async function captureToHypher(input: {
   const auth = await getAuthMode();
   const lastProject = await getLastProjectId();
   const projectId = input.projectId !== undefined ? input.projectId : lastProject;
-  const host = await getHostOverride();
+  const host = auth.mode === "api-key" ? await getApiHostOverride() : await getHostOverride();
 
   const body = {
     content: appendSourceFooter(input.content, input.sourceUrl, input.sourceTitle),
@@ -198,7 +206,7 @@ export async function replayQueue(): Promise<void> {
 
   const now = Date.now();
   const auth = await getAuthMode();
-  const host = await getHostOverride();
+  const host = auth.mode === "api-key" ? await getApiHostOverride() : await getHostOverride();
 
   const nextQueue: PendingCapture[] = [];
   let dropped = 0;

@@ -4,6 +4,7 @@ import { action } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
+import { requireActionBetaAccess } from "./lib/actionAuth";
 
 function parseRepoFromInput(input: string): string | null {
   const t = input.trim();
@@ -32,9 +33,7 @@ export const connectRepoToProject = action({
     | { ok: true; repo: string }
     | { ok: false; error: string }
   > => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error("Unauthorized");
-    const userId = identity.subject;
+    const userId = await requireActionBetaAccess(ctx);
 
     const repo = parseRepoFromInput(repoInput);
     if (!repo) {

@@ -10,10 +10,10 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@clerk/nextjs/server";
 import { fetchAction } from "convex/nextjs";
 import { api } from "../../../../convex/_generated/api";
 import { ratelimitUser } from "@/lib/rateLimit";
+import { authErrorJson, requireBetaAccess } from "@/lib/serverAuth";
 
 export const runtime = "nodejs";
 
@@ -49,18 +49,20 @@ export async function OPTIONS(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const { userId, getToken } = await auth();
-  if (!userId) {
-    return NextResponse.json({ error: "unauth" }, { status: 401 });
+  let session;
+  try {
+    session = await requireBetaAccess();
+  } catch (error) {
+    return authErrorJson(error) as NextResponse;
   }
 
   // Rate-limit: 60 tag-suggest calls per hour per user
-  const allowed = await ratelimitUser(userId, "tag-suggest", { requests: 60, window: "1h" });
+  const allowed = await ratelimitUser(session.userId, "tag-suggest", { requests: 60, window: "1h" });
   if (!allowed) {
     return NextResponse.json({ error: "rate-limited" }, { status: 429 });
   }
 
-  const token = await getToken({ template: "convex" });
+  const token = session.convexToken;
   if (!token) {
     return NextResponse.json({ error: "missing_convex_token" }, { status: 401 });
   }

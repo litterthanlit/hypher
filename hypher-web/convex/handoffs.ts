@@ -1,6 +1,6 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
-import { requireUserId } from "./lib/auth";
+import { requireBetaAccess } from "./lib/auth";
 
 const targetTool = v.union(
   v.literal("ChatGPT"),
@@ -42,7 +42,7 @@ async function requireProject(ctx: any, projectId: any, userId: string) {
 export const listForProject = query({
   args: { projectId: v.id("objects"), limit: v.optional(v.number()) },
   handler: async (ctx, { projectId, limit }) => {
-    const userId = await requireUserId(ctx);
+    const userId = await requireBetaAccess(ctx);
     await requireProject(ctx, projectId, userId);
     const rows = await ctx.db
       .query("handoffs")
@@ -68,7 +68,7 @@ export const create = mutation({
     returnedAgentOutput: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const userId = await requireUserId(ctx);
+    const userId = await requireBetaAccess(ctx);
     await requireProject(ctx, args.projectId, userId);
     return await ctx.db.insert("handoffs", { ...args, userId });
   },
@@ -80,7 +80,7 @@ export const updateStatus = mutation({
     status: handoffStatus,
   },
   handler: async (ctx, { handoffId, status }) => {
-    const userId = await requireUserId(ctx);
+    const userId = await requireBetaAccess(ctx);
     const handoff = await ctx.db.get(handoffId);
     if (!handoff || handoff.userId !== userId) throw new Error("Unauthorized");
     await ctx.db.patch(handoffId, { status });
@@ -94,7 +94,7 @@ export const updateNotes = mutation({
     returnedAgentOutput: v.optional(v.string()),
   },
   handler: async (ctx, { handoffId, userNotes, returnedAgentOutput }) => {
-    const userId = await requireUserId(ctx);
+    const userId = await requireBetaAccess(ctx);
     const handoff = await ctx.db.get(handoffId);
     if (!handoff || handoff.userId !== userId) throw new Error("Unauthorized");
     await ctx.db.patch(handoffId, stripUndefined({ userNotes, returnedAgentOutput }));

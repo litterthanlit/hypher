@@ -5,7 +5,7 @@ import {
   internalMutation,
 } from "./_generated/server";
 import { v } from "convex/values";
-import { requireUserId } from "./lib/auth";
+import { hasBetaAccess, requireBetaAccess } from "./lib/auth";
 import type { Id } from "./_generated/dataModel";
 import bcrypt from "bcryptjs";
 
@@ -30,14 +30,13 @@ function legacyHashFullKey(key: string): string {
   return `hk_${Math.abs(hash).toString(36)}`;
 }
 
-function generateKey(): string {
-  const chars =
-    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-  let key = "hyp_";
-  for (let i = 0; i < 32; i++) {
-    key += chars[Math.floor(Math.random() * chars.length)];
-  }
-  return key;
+export function generateApiKey(): string {
+  const bytes = new Uint8Array(32);
+  crypto.getRandomValues(bytes);
+  const entropy = Array.from(bytes, (byte) =>
+    byte.toString(16).padStart(2, "0")
+  ).join("");
+  return `hyp_${entropy}`;
 }
 
 function splitKey(plain: string): { prefix: string; remainder: string } | null {
@@ -58,11 +57,19 @@ function timingSafeEqualStr(a: string, b: string): boolean {
   return diff === 0;
 }
 
+export function isLegacyKeyValidationAllowed(
+  row: { createdAt: number; revokedAt?: number },
+  now = Date.now()
+): boolean {
+  if (row.revokedAt !== undefined) return false;
+  return now - row.createdAt <= LEGACY_HASH_SUNSET_MS;
+}
+
 export const create = mutation({
   args: { name: v.string() },
   handler: async (ctx, { name }) => {
-    const userId = await requireUserId(ctx);
-    const plainKey = generateKey();
+    const userId = await requireBetaAccess(ctx);
+    const plainKey = generateApiKey();
     const parts = splitKey(plainKey);
     if (!parts) throw new Error("Invalid generated key");
 
@@ -83,7 +90,7 @@ export const create = mutation({
 export const list = query({
   args: { includeRevoked: v.optional(v.boolean()) },
   handler: async (ctx, { includeRevoked }) => {
-    const userId = await requireUserId(ctx);
+    const userId = await requireBetaAccess(ctx);
     const keys = await ctx.db.query("apiKeys").collect();
     return keys
       .filter((k) => k.userId === userId)
@@ -104,7 +111,7 @@ export const list = query({
 export const revoke = mutation({
   args: { keyId: v.id("apiKeys") },
   handler: async (ctx, { keyId }) => {
-    const userId = await requireUserId(ctx);
+    const userId = await requireBetaAccess(ctx);
     const row = await ctx.db.get(keyId);
     if (!row || row.userId !== userId) {
       throw new Error("Unauthorized");
@@ -134,6 +141,7 @@ export const validate = internalQuery({
         if (!row.remainderBcrypt) continue;
         if (bcrypt.compareSync(parts.remainder, row.remainderBcrypt)) {
           if (!row.prefix) continue;
+          if (!(await hasBetaAccess(ctx, row.userId))) return null;
           return {
             userId: row.userId,
             keyId: row._id,
@@ -153,8 +161,10 @@ export const validate = internalQuery({
       byLegacyIndex &&
       byLegacyIndex.revokedAt === undefined &&
       byLegacyIndex.legacyFullKeyHash !== undefined &&
+      isLegacyKeyValidationAllowed(byLegacyIndex) &&
       timingSafeEqualStr(legacyFp, byLegacyIndex.legacyFullKeyHash)
     ) {
+      if (!(await hasBetaAccess(ctx, byLegacyIndex.userId))) return null;
       return {
         userId: byLegacyIndex.userId,
         keyId: byLegacyIndex._id,
@@ -171,8 +181,10 @@ export const validate = internalQuery({
       byOldKey &&
       byOldKey.revokedAt === undefined &&
       byOldKey.key !== undefined &&
+      isLegacyKeyValidationAllowed(byOldKey) &&
       timingSafeEqualStr(legacyFp, byOldKey.key)
     ) {
+      if (!(await hasBetaAccess(ctx, byOldKey.userId))) return null;
       return {
         userId: byOldKey.userId,
         keyId: byOldKey._id,

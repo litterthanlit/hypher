@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@clerk/nextjs/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { fetchMutation, fetchQuery } from "convex/nextjs";
 import { api } from "../../../../../convex/_generated/api";
@@ -10,6 +9,7 @@ import {
   prepareProjectMemoryInput,
 } from "@/lib/projectMemory";
 import { ratelimitUser } from "@/lib/rateLimit";
+import { authErrorJson, requireBetaAccess } from "@/lib/serverAuth";
 import type { ActivityEntry, AnyObject, Project, ProjectNextAction, TargetTool } from "@/types";
 
 export const runtime = "nodejs";
@@ -36,12 +36,14 @@ function asTargetTool(value: string | undefined): TargetTool | undefined {
 }
 
 export async function POST(req: NextRequest) {
-  const { userId, getToken } = await auth();
-  if (!userId) {
-    return NextResponse.json({ ok: false, error: "unauth" }, { status: 401 });
+  let session;
+  try {
+    session = await requireBetaAccess();
+  } catch (error) {
+    return authErrorJson(error) as NextResponse;
   }
 
-  const allowed = await ratelimitUser(userId, "project-memory-generate", {
+  const allowed = await ratelimitUser(session.userId, "project-memory-generate", {
     requests: 20,
     window: "1h",
   });
@@ -54,7 +56,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: "no-api-key" }, { status: 503 });
   }
 
-  const token = await getToken({ template: "convex" });
+  const token = session.convexToken;
   if (!token) {
     return NextResponse.json({ ok: false, error: "missing-convex-token" }, { status: 401 });
   }

@@ -1,7 +1,8 @@
 import { action, internalMutation, internalQuery, mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
-import { requireUserId } from "./lib/auth";
+import { requireBetaAccess } from "./lib/auth";
+import { ratelimitConvex } from "./lib/rateLimit";
 import type { Id } from "./_generated/dataModel";
 
 const eventKind = v.union(
@@ -150,6 +151,13 @@ export const createFromApiRequest = action({
     if (!validatedKey) {
       return { ok: false, status: 401, error: "Invalid API key" };
     }
+    const allowed = await ratelimitConvex(validatedKey.rateLimitKey, "agent-events", {
+      requests: 120,
+      window: "1h",
+    });
+    if (!allowed) {
+      return { ok: false, status: 429, error: "Rate limited" };
+    }
 
     const parsed = validatePayload(payload);
     if (!parsed.ok) {
@@ -209,7 +217,7 @@ export const listProjectsForApiUser = internalQuery({
 
 export const listInbox = query({
   handler: async (ctx) => {
-    const userId = await requireUserId(ctx);
+    const userId = await requireBetaAccess(ctx);
     const rows = await ctx.db
       .query("agentEvents")
       .withIndex("by_user_status", (q) => q.eq("userId", userId).eq("status", "new"))
@@ -224,7 +232,7 @@ export const listInbox = query({
 export const listForProject = query({
   args: { projectId: v.id("objects"), limit: v.optional(v.number()) },
   handler: async (ctx, { projectId, limit }) => {
-    const userId = await requireUserId(ctx);
+    const userId = await requireBetaAccess(ctx);
     const rows = await ctx.db
       .query("agentEvents")
       .withIndex("by_user_project", (q) => q.eq("userId", userId).eq("projectId", projectId))
@@ -240,7 +248,7 @@ export const listForProject = query({
 export const markReviewed = mutation({
   args: { eventId: v.id("agentEvents"), reviewedAt: v.number() },
   handler: async (ctx, { eventId, reviewedAt }) => {
-    const userId = await requireUserId(ctx);
+    const userId = await requireBetaAccess(ctx);
     await requireEvent(ctx, eventId, userId);
     await ctx.db.patch(eventId, { status: "reviewed", reviewedAt });
   },
@@ -249,7 +257,7 @@ export const markReviewed = mutation({
 export const dismiss = mutation({
   args: { eventId: v.id("agentEvents"), reviewedAt: v.number() },
   handler: async (ctx, { eventId, reviewedAt }) => {
-    const userId = await requireUserId(ctx);
+    const userId = await requireBetaAccess(ctx);
     await requireEvent(ctx, eventId, userId);
     await ctx.db.patch(eventId, { status: "dismissed", reviewedAt });
   },
@@ -258,7 +266,7 @@ export const dismiss = mutation({
 export const moveToProject = mutation({
   args: { eventId: v.id("agentEvents"), projectId: v.id("objects") },
   handler: async (ctx, { eventId, projectId }) => {
-    const userId = await requireUserId(ctx);
+    const userId = await requireBetaAccess(ctx);
     await requireEvent(ctx, eventId, userId);
     const project = await ctx.db.get(projectId);
     if (!project || project.userId !== userId || project.kind !== "project") {
@@ -276,7 +284,7 @@ export const saveAsNote = mutation({
     createdAt: v.number(),
   },
   handler: async (ctx, { eventId, projectId, content, createdAt }) => {
-    const userId = await requireUserId(ctx);
+    const userId = await requireBetaAccess(ctx);
     const event = await requireEvent(ctx, eventId, userId);
     const project = await ctx.db.get(projectId);
     if (!project || project.userId !== userId || project.kind !== "project") {

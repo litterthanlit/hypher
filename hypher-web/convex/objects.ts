@@ -1,6 +1,6 @@
 import { query, mutation, internalMutation, internalQuery } from "./_generated/server";
 import { v } from "convex/values";
-import { requireUserId } from "./lib/auth";
+import { requireBetaAccess } from "./lib/auth";
 
 const objectFields = {
   kind: v.union(v.literal("project"), v.literal("note"), v.literal("artifact")),
@@ -61,7 +61,7 @@ function stripUndefined<T extends Record<string, unknown>>(value: T): Partial<T>
 
 export const list = query({
   handler: async (ctx) => {
-    const userId = await requireUserId(ctx);
+    const userId = await requireBetaAccess(ctx);
     return await ctx.db
       .query("objects")
       .withIndex("by_user", (q) => q.eq("userId", userId))
@@ -72,7 +72,7 @@ export const list = query({
 export const listByProject = query({
   args: { projectId: v.string() },
   handler: async (ctx, { projectId }) => {
-    const userId = await requireUserId(ctx);
+    const userId = await requireBetaAccess(ctx);
     const rows = await ctx.db
       .query("objects")
       .withIndex("by_projectId", (q) => q.eq("projectId", projectId))
@@ -84,7 +84,7 @@ export const listByProject = query({
 export const get = query({
   args: { id: v.id("objects") },
   handler: async (ctx, { id }) => {
-    const userId = await requireUserId(ctx);
+    const userId = await requireBetaAccess(ctx);
     const doc = await ctx.db.get(id);
     if (!doc || doc.userId !== userId) return null;
     return doc;
@@ -95,7 +95,7 @@ export const get = query({
 export const getIfOwner = query({
   args: { id: v.id("objects") },
   handler: async (ctx, { id }) => {
-    const userId = await requireUserId(ctx);
+    const userId = await requireBetaAccess(ctx);
     const doc = await ctx.db.get(id);
     if (!doc || doc.userId !== userId) return null;
     return doc;
@@ -108,7 +108,7 @@ export const put = mutation({
     ...objectFields,
   },
   handler: async (ctx, args) => {
-    const userId = await requireUserId(ctx);
+    const userId = await requireBetaAccess(ctx);
     const { id, ...data } = args;
     if (id) {
       const existing = await ctx.db.get(id);
@@ -125,7 +125,7 @@ export const put = mutation({
 export const touchLastActivity = mutation({
   args: { id: v.id("objects"), timestamp: v.number() },
   handler: async (ctx, { id, timestamp }) => {
-    const userId = await requireUserId(ctx);
+    const userId = await requireBetaAccess(ctx);
     const existing = await ctx.db.get(id);
     if (!existing || existing.userId !== userId) {
       throw new Error("Unauthorized");
@@ -137,7 +137,7 @@ export const touchLastActivity = mutation({
 export const assignToProject = mutation({
   args: { id: v.id("objects"), projectId: v.id("objects"), timestamp: v.number() },
   handler: async (ctx, { id, projectId, timestamp }) => {
-    const userId = await requireUserId(ctx);
+    const userId = await requireBetaAccess(ctx);
     const existing = await ctx.db.get(id);
     if (!existing || existing.userId !== userId || existing.kind === "project") {
       throw new Error("Unauthorized");
@@ -159,7 +159,7 @@ export const assignToProject = mutation({
 export const markReviewed = mutation({
   args: { id: v.id("objects"), timestamp: v.number() },
   handler: async (ctx, { id, timestamp }) => {
-    const userId = await requireUserId(ctx);
+    const userId = await requireBetaAccess(ctx);
     const existing = await ctx.db.get(id);
     if (!existing || existing.userId !== userId || existing.kind === "project") {
       throw new Error("Unauthorized");
@@ -201,7 +201,7 @@ export const patchCaptureMetadata = mutation({
     stale: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
-    const userId = await requireUserId(ctx);
+    const userId = await requireBetaAccess(ctx);
     const { id, timestamp, ...patch } = args;
     const existing = await ctx.db.get(id);
     if (!existing || existing.userId !== userId || existing.kind === "project") {
@@ -217,7 +217,7 @@ export const patchCaptureMetadata = mutation({
 export const remove = mutation({
   args: { id: v.id("objects") },
   handler: async (ctx, { id }) => {
-    const userId = await requireUserId(ctx);
+    const userId = await requireBetaAccess(ctx);
     const existing = await ctx.db.get(id);
     if (!existing || existing.userId !== userId) {
       throw new Error("Unauthorized");

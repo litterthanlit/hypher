@@ -1,5 +1,5 @@
 import { mutation, query } from "./_generated/server";
-import { requireUserId } from "./lib/auth";
+import { requireAdmin, requireUserId } from "./lib/auth";
 
 const LEGACY_USER_ID = "default";
 
@@ -24,7 +24,7 @@ export const getLegacyStatus = query({
  */
 export const claimLegacyData = mutation({
   handler: async (ctx) => {
-    const userId = await requireUserId(ctx);
+    const userId = await requireAdmin(ctx);
 
     const meta = await ctx.db
       .query("userMeta")

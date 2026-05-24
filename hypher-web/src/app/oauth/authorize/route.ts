@@ -1,14 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@clerk/nextjs/server";
 import { fetchMutation } from "convex/nextjs";
 import { api } from "../../../../convex/_generated/api";
 import {
   baseUrlFromRequest,
+  buildOAuthConsentUrl,
   buildOAuthAuthorizeRedirect,
   generateOpaqueToken,
+  hasOAuthConsentApproval,
   sha256Base64url,
   validateOAuthAuthorizeParams,
 } from "@/lib/oauthBridge";
+import { requireBetaAccess, ServerAuthError } from "@/lib/serverAuth";
 
 export const runtime = "nodejs";
 
@@ -35,14 +37,23 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  const { userId, getToken } = await auth();
-  if (!userId) {
+  let session;
+  try {
+    session = await requireBetaAccess();
+  } catch (error) {
+    if (error instanceof ServerAuthError && error.status === 403) {
+      return errorRedirect(validation.redirectUri, "access_denied", "Beta access is required.", validation.state);
+    }
     const signIn = new URL("/sign-in", baseUrl);
     signIn.searchParams.set("redirect_url", `${req.nextUrl.pathname}${req.nextUrl.search}`);
     return NextResponse.redirect(signIn);
   }
 
-  const convexToken = await getToken({ template: "convex" });
+  if (!hasOAuthConsentApproval(req.nextUrl.searchParams)) {
+    return NextResponse.redirect(buildOAuthConsentUrl(baseUrl, validation));
+  }
+
+  const convexToken = session.convexToken;
   if (!convexToken) {
     return errorRedirect(validation.redirectUri, "server_error", "Missing Hypher auth token.", validation.state);
   }
@@ -55,6 +66,7 @@ export async function GET(req: NextRequest) {
     codeChallenge: validation.codeChallenge,
     resource: validation.resource,
     scope: validation.scope,
+    consentedAt: Date.now(),
     now: Date.now(),
   }, { token: convexToken });
 

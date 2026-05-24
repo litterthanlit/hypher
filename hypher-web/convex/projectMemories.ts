@@ -2,7 +2,7 @@ import { query, mutation } from "./_generated/server";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
 import { v } from "convex/values";
-import { requireUserId } from "./lib/auth";
+import { requireBetaAccess } from "./lib/auth";
 
 const nextActionValidator = v.object({
   id: v.string(),
@@ -77,7 +77,7 @@ function stripUndefined<T extends Record<string, unknown>>(value: T): Partial<T>
 
 export const listForDashboard = query({
   handler: async (ctx) => {
-    const userId = await requireUserId(ctx);
+    const userId = await requireBetaAccess(ctx);
     const rows = await ctx.db
       .query("projectMemories")
       .withIndex("by_user", (q) => q.eq("userId", userId))
@@ -89,7 +89,7 @@ export const listForDashboard = query({
 export const generationInput = query({
   args: { projectId: v.id("objects") },
   handler: async (ctx, { projectId }) => {
-    const userId = await requireUserId(ctx);
+    const userId = await requireBetaAccess(ctx);
     const project = await requireProject(ctx, userId, projectId);
 
     const objects = await ctx.db
@@ -156,7 +156,7 @@ export const upsertGenerated = mutation({
     model: v.string(),
   },
   handler: async (ctx, args) => {
-    const userId = await requireUserId(ctx);
+    const userId = await requireBetaAccess(ctx);
     await requireProject(ctx, userId, args.projectId);
 
     const existing = await ctx.db
@@ -213,7 +213,7 @@ export const updateManual = mutation({
     updatedAt: v.number(),
   },
   handler: async (ctx, args) => {
-    const userId = await requireUserId(ctx);
+    const userId = await requireBetaAccess(ctx);
     await requireProject(ctx, userId, args.projectId);
 
     const memory = await ctx.db
@@ -243,7 +243,7 @@ export const updateNextActionStatus = mutation({
     updatedAt: v.number(),
   },
   handler: async (ctx, { projectId, actionId, status, updatedAt }) => {
-    const userId = await requireUserId(ctx);
+    const userId = await requireBetaAccess(ctx);
     await requireProject(ctx, userId, projectId);
 
     const memory = await ctx.db

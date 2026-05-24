@@ -1,5 +1,5 @@
 import { mutation, query, type MutationCtx } from "./_generated/server";
-import { requireUserId } from "./lib/auth";
+import { requireBetaAccess } from "./lib/auth";
 
 type OnboardingPatch = {
   onboardingWelcomeSeenAt?: number;
@@ -30,7 +30,7 @@ async function patchUserMeta(
 
 export const getState = query({
   handler: async (ctx) => {
-    const userId = await requireUserId(ctx);
+    const userId = await requireBetaAccess(ctx);
     const meta = await ctx.db
       .query("userMeta")
       .withIndex("by_user", (q) => q.eq("userId", userId))
@@ -46,7 +46,7 @@ export const getState = query({
 
 export const markWelcomeSeen = mutation({
   handler: async (ctx) => {
-    const userId = await requireUserId(ctx);
+    const userId = await requireBetaAccess(ctx);
     const now = Date.now();
     await patchUserMeta(ctx, userId, { onboardingWelcomeSeenAt: now });
     return { onboardingWelcomeSeenAt: now };
@@ -55,7 +55,7 @@ export const markWelcomeSeen = mutation({
 
 export const markTourCompleted = mutation({
   handler: async (ctx) => {
-    const userId = await requireUserId(ctx);
+    const userId = await requireBetaAccess(ctx);
     const now = Date.now();
     await patchUserMeta(ctx, userId, {
       onboardingWelcomeSeenAt: now,

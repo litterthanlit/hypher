@@ -1,7 +1,7 @@
 import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
-import { requireUserId } from "./lib/auth";
+import { requireBetaAccess } from "./lib/auth";
 
 export const syncObjectTags = mutation({
   args: {
@@ -10,7 +10,7 @@ export const syncObjectTags = mutation({
     newTags: v.array(v.string()),
   },
   handler: async (ctx, { objectId, oldTags, newTags }) => {
-    const userId = await requireUserId(ctx);
+    const userId = await requireBetaAccess(ctx);
 
     for (const tag of oldTags) {
       if (!newTags.includes(tag)) {
@@ -56,7 +56,7 @@ export const syncObjectTags = mutation({
 
 export const listWithCounts = query({
   handler: async (ctx) => {
-    const userId = await requireUserId(ctx);
+    const userId = await requireBetaAccess(ctx);
     const tags = await ctx.db
       .query("tags")
       .withIndex("by_user", (q) => q.eq("userId", userId))
@@ -74,7 +74,7 @@ export const listWithCounts = query({
 export const getObjectsByTag = query({
   args: { tag: v.string() },
   handler: async (ctx, { tag }) => {
-    const userId = await requireUserId(ctx);
+    const userId = await requireBetaAccess(ctx);
     const tagDoc = await ctx.db
       .query("tags")
       .withIndex("by_name", (q) => q.eq("userId", userId).eq("name", tag))

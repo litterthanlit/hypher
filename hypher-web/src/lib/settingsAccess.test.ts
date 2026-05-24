@@ -7,10 +7,15 @@ describe("getSettingsAccessState", () => {
   });
 
   it("requires sign-in before protected settings queries run", () => {
-    expect(getSettingsAccessState({ isLoading: false, isAuthenticated: false })).toBe("sign_in_required");
+    expect(getSettingsAccessState({ isLoading: false, isAuthenticated: false, hasBetaAccess: false, isAdmin: false })).toBe("sign_in_required");
   });
 
-  it("allows settings when authenticated", () => {
-    expect(getSettingsAccessState({ isLoading: false, isAuthenticated: true })).toBe("settings");
+  it("HYP-SEC-002 blocks signed-in non-beta users from settings", () => {
+    expect(getSettingsAccessState({ isLoading: false, isAuthenticated: true, hasBetaAccess: false, isAdmin: false })).toBe("beta_required");
+  });
+
+  it("allows settings for beta users and admins", () => {
+    expect(getSettingsAccessState({ isLoading: false, isAuthenticated: true, hasBetaAccess: true, isAdmin: false })).toBe("settings");
+    expect(getSettingsAccessState({ isLoading: false, isAuthenticated: true, hasBetaAccess: false, isAdmin: true })).toBe("settings");
   });
 });

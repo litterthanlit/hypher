@@ -1,6 +1,6 @@
 import { mutation, query, type MutationCtx } from "./_generated/server";
 import { v } from "convex/values";
-import { requireUserId } from "./lib/auth";
+import { requireBetaAccess } from "./lib/auth";
 import { SAMPLE_PREVIEW_PROJECT_NAME } from "./lib/samplePreviewConstants";
 import {
   PROJECT_PULSE_VERIFICATION_ACCEPTED_MEMORY,
@@ -148,7 +148,7 @@ async function performSeed(
 /** Idempotent: seeds demo data once per user (auth). */
 export const ensureDemoForUser = mutation({
   handler: async (ctx) => {
-    const userId = await requireUserId(ctx);
+    const userId = await requireBetaAccess(ctx);
     return await performSeed(ctx, userId);
   },
 });
@@ -170,7 +170,7 @@ export const seedDemoAfterClerkSignup = mutation({
 
 export const getDemoDigest = query({
   handler: async (ctx) => {
-    const userId = await requireUserId(ctx);
+    const userId = await requireBetaAccess(ctx);
     const meta = await ctx.db
       .query("userMeta")
       .withIndex("by_user", (q) => q.eq("userId", userId))
@@ -183,7 +183,7 @@ export const getDemoDigest = query({
 export const createProjectPulseVerificationProject = mutation({
   args: {},
   handler: async (ctx) => {
-    const userId = await requireUserId(ctx);
+    const userId = await requireBetaAccess(ctx);
     const now = Date.now();
 
     const mine = await ctx.db
@@ -389,7 +389,7 @@ export const createProjectPulseVerificationProject = mutation({
 export const createSamplePreviewProject = mutation({
   args: {},
   handler: async (ctx) => {
-    const userId = await requireUserId(ctx);
+    const userId = await requireBetaAccess(ctx);
     const mine = await ctx.db
       .query("objects")
       .withIndex("by_user", (q) => q.eq("userId", userId))

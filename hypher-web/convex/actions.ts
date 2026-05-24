@@ -1,6 +1,6 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
-import { requireUserId } from "./lib/auth";
+import { requireBetaAccess } from "./lib/auth";
 
 const actionStatus = v.union(
   v.literal("suggested"),
@@ -49,7 +49,7 @@ async function findDuplicateAction(ctx: any, userId: string, projectId: any, tit
 export const listForProject = query({
   args: { projectId: v.id("objects") },
   handler: async (ctx, { projectId }) => {
-    const userId = await requireUserId(ctx);
+    const userId = await requireBetaAccess(ctx);
     await requireProject(ctx, projectId, userId);
     const rows = await ctx.db
       .query("actions")
@@ -70,7 +70,7 @@ export const create = mutation({
     createdAt: v.number(),
   },
   handler: async (ctx, args) => {
-    const userId = await requireUserId(ctx);
+    const userId = await requireBetaAccess(ctx);
     await requireProject(ctx, args.projectId, userId);
     const duplicate = await findDuplicateAction(ctx, userId, args.projectId, args.title);
     if (duplicate) return duplicate._id;
@@ -95,7 +95,7 @@ export const updateStatus = mutation({
     updatedAt: v.number(),
   },
   handler: async (ctx, { actionId, status, updatedAt }) => {
-    const userId = await requireUserId(ctx);
+    const userId = await requireBetaAccess(ctx);
     const action = await ctx.db.get(actionId);
     if (!action || action.userId !== userId) throw new Error("Unauthorized");
     await ctx.db.patch(actionId, {
@@ -114,7 +114,7 @@ export const createFromAgentSuggestion = mutation({
     createdAt: v.number(),
   },
   handler: async (ctx, { eventId, projectId, title, createdAt }) => {
-    const userId = await requireUserId(ctx);
+    const userId = await requireBetaAccess(ctx);
     await requireProject(ctx, projectId, userId);
     const event = await ctx.db.get(eventId);
     if (!event || event.userId !== userId) throw new Error("Invalid event");
@@ -143,7 +143,7 @@ export const createFromMemoryAction = mutation({
     createdAt: v.number(),
   },
   handler: async (ctx, args) => {
-    const userId = await requireUserId(ctx);
+    const userId = await requireBetaAccess(ctx);
     await requireProject(ctx, args.projectId, userId);
     const duplicate = await findDuplicateAction(ctx, userId, args.projectId, args.title);
     if (duplicate) return duplicate._id;

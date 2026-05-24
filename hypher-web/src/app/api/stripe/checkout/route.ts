@@ -2,6 +2,7 @@ import { auth, currentUser } from "@clerk/nextjs/server";
 import { fetchQuery } from "convex/nextjs";
 import { api } from "../../../../../convex/_generated/api";
 import Stripe from "stripe";
+import { ratelimitUser } from "@/lib/rateLimit";
 
 function getStripe(): Stripe {
   const key = process.env.STRIPE_SECRET_KEY;
@@ -21,6 +22,14 @@ export async function POST(req: Request) {
   const { userId, getToken } = await auth();
   if (!userId) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const allowed = await ratelimitUser(userId, "stripe-checkout", {
+    requests: 10,
+    window: "1h",
+  });
+  if (!allowed) {
+    return Response.json({ error: "rate_limited" }, { status: 429 });
   }
 
   const token = await getToken({ template: "convex" });

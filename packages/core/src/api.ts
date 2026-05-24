@@ -1,6 +1,6 @@
 import type { CaptureInput, Project, HypherConfig } from "./types";
 
-const DEFAULT_BASE_URL = "https://grandiose-manatee-518.eu-west-1.convex.site";
+const DEFAULT_BASE_URL = "https://adamant-pheasant-663.convex.site";
 
 export function createClient(config: HypherConfig) {
   const baseUrl = config.baseUrl || DEFAULT_BASE_URL;

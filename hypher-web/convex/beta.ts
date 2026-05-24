@@ -3,6 +3,7 @@ import type { MutationCtx } from "./_generated/server";
 import { v } from "convex/values";
 import bcrypt from "bcryptjs";
 import { requireUserId } from "./lib/auth";
+import { ratelimitConvex } from "./lib/rateLimit";
 
 type FeedbackCategory = "bug" | "friction" | "idea" | "praise";
 type FeedbackStatus = "new" | "reviewed" | "closed";
@@ -332,6 +333,13 @@ export const submitRequest = mutation({
   handler: async (ctx, args) => {
     const normalized = normalizeRequestInput(args);
     if (!normalized.ok) return { ok: false as const, error: normalized.error };
+
+    const allowed = await ratelimitConvex(
+      normalized.request.emailNorm,
+      "beta-request",
+      { requests: 3, window: "1h" }
+    );
+    if (!allowed) return { ok: false as const, error: "rate-limited" as const };
 
     const existing = await ctx.db
       .query("betaRequests")

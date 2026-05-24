@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@clerk/nextjs/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { formatProjects, buildDigestPrompt, type ProjectInput } from "../formatPrompt";
+import { authErrorJson, requireBetaAccess } from "@/lib/serverAuth";
+import { ratelimitUser } from "@/lib/rateLimit";
 
 export const runtime = "nodejs"; // explicit — Anthropic SDK needs Node.
 
@@ -9,6 +10,7 @@ export const runtime = "nodejs"; // explicit — Anthropic SDK needs Node.
 const MAX_NAME_LEN = 80;
 const MAX_BLOCKER_LEN = 500;
 const MAX_GITHUB_SUMMARY_LEN = 500;
+const MAX_PROJECTS = 50;
 
 function truncateInputs(projects: ProjectInput[]): ProjectInput[] {
   return projects.map((p) => ({
@@ -22,9 +24,19 @@ function truncateInputs(projects: ProjectInput[]): ProjectInput[] {
 }
 
 export async function POST(req: NextRequest) {
-  const { userId } = await auth();
-  if (!userId) {
-    return NextResponse.json({ error: "unauth" }, { status: 401 });
+  let session;
+  try {
+    session = await requireBetaAccess();
+  } catch (error) {
+    return authErrorJson(error) as NextResponse;
+  }
+
+  const allowed = await ratelimitUser(session.userId, "digest-stream", {
+    requests: 20,
+    window: "1h",
+  });
+  if (!allowed) {
+    return NextResponse.json({ error: "rate-limited" }, { status: 429 });
   }
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
@@ -39,7 +51,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "bad-body" }, { status: 400 });
   }
 
-  if (!Array.isArray(body.projects)) {
+  if (!Array.isArray(body.projects) || body.projects.length > MAX_PROJECTS) {
     return NextResponse.json({ error: "bad-body" }, { status: 400 });
   }
 

@@ -18,7 +18,15 @@ interface Props {
 export function ApiKeysPanel({ onClose, variant = "modal" }: Props) {
   const [includeRevoked, setIncludeRevoked] = useState(false);
   const { isLoading, isAuthenticated } = useConvexAuth();
-  const accessState = getSettingsAccessState({ isLoading, isAuthenticated });
+  const gateState = useQuery((api as any).beta.getGateState, isAuthenticated ? {} : "skip") as
+    | { hasAccess: boolean; isAdmin: boolean }
+    | undefined;
+  const accessState = getSettingsAccessState({
+    isLoading: isLoading || (isAuthenticated && gateState === undefined),
+    isAuthenticated,
+    hasBetaAccess: gateState?.hasAccess,
+    isAdmin: gateState?.isAdmin,
+  });
   const keys = useQuery(api.apiKeys.list, accessState === "settings" ? { includeRevoked } : "skip");
   const createKey = useMutation(api.apiKeys.create);
   const revokeKey = useMutation(api.apiKeys.revoke);
@@ -126,7 +134,7 @@ export function ApiKeysPanel({ onClose, variant = "modal" }: Props) {
 
       {authRequired ? (
         <div className="api-keys-auth-required">
-          <p>{accessState === "loading" ? "Checking sign-in..." : "Sign in to create and manage Hypher API keys."}</p>
+          <p>{accessState === "loading" ? "Checking sign-in..." : accessState === "beta_required" ? "Beta access is required to manage API keys." : "Sign in to create and manage Hypher API keys."}</p>
           {accessState === "sign_in_required" ? (
             <Link href="/sign-in?redirect_url=/app/settings/api-keys" className="settings-github-connect">
               Sign in

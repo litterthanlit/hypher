@@ -1,9 +1,23 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
-import { requireUserId } from "./lib/auth";
+import { hasBetaAccess, requireBetaAccess } from "./lib/auth";
 
 const CODE_TTL_MS = 10 * 60 * 1000;
 const TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+
+const OAUTH_CLIENTS = [
+  {
+    clientId: "https://chatgpt.com/oauth/client.json",
+    redirectUris: ["https://chatgpt.com/connector/oauth/callback"],
+  },
+];
+
+function isRegisteredRedirect(clientId: string, redirectUri: string): boolean {
+  return OAUTH_CLIENTS.some(
+    (client) =>
+      client.clientId === clientId && client.redirectUris.includes(redirectUri)
+  );
+}
 
 export const createAuthorizationCode = mutation({
   args: {
@@ -13,10 +27,14 @@ export const createAuthorizationCode = mutation({
     codeChallenge: v.string(),
     resource: v.string(),
     scope: v.string(),
+    consentedAt: v.number(),
     now: v.number(),
   },
   handler: async (ctx, args) => {
-    const userId = await requireUserId(ctx);
+    const userId = await requireBetaAccess(ctx);
+    if (!isRegisteredRedirect(args.clientId, args.redirectUri)) {
+      throw new Error("Unauthorized OAuth client");
+    }
     await ctx.db.insert("oauthAuthorizationCodes", {
       ...args,
       userId,
@@ -53,6 +71,8 @@ export const exchangeAuthorizationCode = mutation({
     ) {
       return null;
     }
+    if (!isRegisteredRedirect(args.clientId, args.redirectUri)) return null;
+    if (!(await hasBetaAccess(ctx, code.userId))) return null;
 
     await ctx.db.patch(code._id, { consumedAt: args.now });
     await ctx.db.insert("oauthAccessTokens", {
@@ -105,7 +125,7 @@ export const validateAccessToken = mutation({
 
 export const listConnections = query({
   handler: async (ctx) => {
-    const userId = await requireUserId(ctx);
+    const userId = await requireBetaAccess(ctx);
     const rows = await ctx.db.query("oauthAccessTokens").collect();
 
     return rows
@@ -120,5 +140,16 @@ export const listConnections = query({
         lastUsedAt: row.lastUsedAt,
       }))
       .sort((a, b) => b.createdAt - a.createdAt);
+  },
+});
+
+export const revokeConnection = mutation({
+  args: { tokenId: v.id("oauthAccessTokens") },
+  handler: async (ctx, { tokenId }) => {
+    const userId = await requireBetaAccess(ctx);
+    const row = await ctx.db.get(tokenId);
+    if (!row || row.userId !== userId) throw new Error("Unauthorized");
+    await ctx.db.patch(tokenId, { revokedAt: Date.now() });
+    return { ok: true as const };
   },
 });

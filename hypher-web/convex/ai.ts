@@ -1,14 +1,47 @@
 "use node";
 
-import { action } from "./_generated/server";
+import { action, internalAction } from "./_generated/server";
 import { v } from "convex/values";
 import Anthropic from "@anthropic-ai/sdk";
+import { requireActionBetaAccess } from "./lib/actionAuth";
+import { ratelimitConvex } from "./lib/rateLimit";
+
+const MAX_DIGEST_PROJECTS = 50;
+const MAX_TAG_CONTENT_LEN = 2000;
+const MAX_TAGS = 5;
 
 /* MIRROR of the other copy — keep in sync. See .specs/week-2-04-streaming-ai-tokens.md
  * The canonical source is hypher-web/src/app/api/digest/formatPrompt.ts
  * Convex cannot import files outside the convex/ directory at runtime,
  * so this is an intentional inline duplicate.
  */
+function truncate(value: string | undefined, limit: number): string | undefined {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed.slice(0, limit) : undefined;
+}
+
+function normalizeProjects(
+  projects: Array<{
+    name: string;
+    status?: string;
+    priority?: number;
+    blockers?: string;
+    lastActivity?: number;
+    itemCount: number;
+    githubRepo?: string;
+    githubSummary?: string;
+  }>
+) {
+  return projects.slice(0, MAX_DIGEST_PROJECTS).map((project) => ({
+    ...project,
+    name: truncate(project.name, 80) ?? "Untitled",
+    status: truncate(project.status, 40),
+    blockers: truncate(project.blockers, 500),
+    githubRepo: truncate(project.githubRepo, 120),
+    githubSummary: truncate(project.githubSummary, 500),
+  }));
+}
+
 function formatProjects(
   projects: Array<{
     name: string;
@@ -49,7 +82,7 @@ function formatProjects(
     .join("\n\n");
 }
 
-export const generateDigest = action({
+export const generateDigest = internalAction({
   args: {
     projects: v.array(
       v.object({
@@ -80,7 +113,7 @@ export const generateDigest = action({
       messages: [
         {
           role: "user",
-          content: `Here are my active projects:\n\n${formatProjects(projects)}\n\nGenerate a brief daily digest with:\n1. What's ready to ship or close to done\n2. What needs attention (blockers, stale high-priority, GitHub issues)\n3. Suggested focus for today (1-2 items max)\n4. Any GitHub blockers that need immediate action (failing CI, stale PRs)\n\nKeep it under 200 words.`,
+          content: `Here are my active projects:\n\n${formatProjects(normalizeProjects(projects))}\n\nGenerate a brief daily digest with:\n1. What's ready to ship or close to done\n2. What needs attention (blockers, stale high-priority, GitHub issues)\n3. Suggested focus for today (1-2 items max)\n4. Any GitHub blockers that need immediate action (failing CI, stale PRs)\n\nKeep it under 200 words.`,
         },
       ],
     });
@@ -92,8 +125,16 @@ export const generateDigest = action({
 
 export const generateTags = action({
   args: { content: v.string() },
-  handler: async (_ctx, { content }) => {
-    if (content.length < 10) return [];
+  handler: async (ctx, { content }) => {
+    const userId = await requireActionBetaAccess(ctx);
+    const allowed = await ratelimitConvex(userId, "ai-generate-tags", {
+      requests: 60,
+      window: "1h",
+    });
+    if (!allowed) throw new Error("Rate limit exceeded");
+
+    const boundedContent = content.trim().slice(0, MAX_TAG_CONTENT_LEN);
+    if (boundedContent.length < 10) return [];
 
     const apiKey = process.env.ANTHROPIC_API_KEY;
     if (!apiKey) return [];
@@ -105,13 +146,19 @@ export const generateTags = action({
       max_tokens: 100,
       system:
         'Generate 2-5 tags for the following content. Return ONLY a JSON array of lowercase strings, no explanation. Tags should be specific and useful for organization. Examples: ["ui-pattern", "react", "animation"] or ["meeting-notes", "q2-planning"]',
-      messages: [{ role: "user", content }],
+      messages: [{ role: "user", content: boundedContent }],
     });
 
     try {
       const text = response.content[0].type === "text" ? response.content[0].text : "[]";
       const parsed = JSON.parse(text);
-      if (Array.isArray(parsed)) return parsed.filter((t: unknown) => typeof t === "string");
+      if (Array.isArray(parsed)) {
+        return parsed
+          .filter((t: unknown) => typeof t === "string")
+          .map((t: string) => t.trim().slice(0, 40).toLowerCase())
+          .filter(Boolean)
+          .slice(0, MAX_TAGS);
+      }
       return [];
     } catch {
       return [];

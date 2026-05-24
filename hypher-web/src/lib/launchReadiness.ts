@@ -136,8 +136,11 @@ const nextGroupSpecs: GroupSpec[] = [
         id: "upstash-next",
         label: "Upstash Redis",
         vars: ["UPSTASH_REDIS_REST_URL", "UPSTASH_REDIS_REST_TOKEN"],
-        required: false,
-        note: "When missing, rate limiting is intentionally disabled and requests are allowed.",
+        required: (env) => env.NODE_ENV === "production",
+        note: (env) =>
+          env.NODE_ENV === "production"
+            ? "Upstash rate limiting is required in production."
+            : "When missing, rate limiting is disabled outside production.",
       },
     ],
   },

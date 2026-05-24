@@ -1,6 +1,6 @@
 import { query, mutation, internalMutation } from "./_generated/server";
 import { v } from "convex/values";
-import { requireUserId } from "./lib/auth";
+import { requireBetaAccess } from "./lib/auth";
 
 const connectionData = {
   sourceId: v.string(),
@@ -20,7 +20,7 @@ const connectionData = {
 
 export const list = query({
   handler: async (ctx) => {
-    const userId = await requireUserId(ctx);
+    const userId = await requireBetaAccess(ctx);
     return await ctx.db
       .query("connections")
       .withIndex("by_user", (q) => q.eq("userId", userId))
@@ -34,7 +34,7 @@ export const put = mutation({
     ...connectionData,
   },
   handler: async (ctx, args) => {
-    const userId = await requireUserId(ctx);
+    const userId = await requireBetaAccess(ctx);
     const { id, ...data } = args;
     if (id) {
       const existing = await ctx.db.get(id);
@@ -51,7 +51,7 @@ export const put = mutation({
 export const remove = mutation({
   args: { id: v.id("connections") },
   handler: async (ctx, { id }) => {
-    const userId = await requireUserId(ctx);
+    const userId = await requireBetaAccess(ctx);
     const existing = await ctx.db.get(id);
     if (!existing || existing.userId !== userId) {
       throw new Error("Unauthorized");

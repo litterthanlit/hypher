@@ -4,6 +4,7 @@ import { action, internalAction } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import crypto from "crypto";
+import { requireActionBetaAccess } from "./lib/actionAuth";
 
 function encryptionKey(): Buffer {
   const s = process.env.GITHUB_TOKEN_ENCRYPTION_KEY;
@@ -50,9 +51,7 @@ async function ghFetchUser(token: string): Promise<{ login: string }> {
 export const savePersonalAccessToken = action({
   args: { token: v.string() },
   handler: async (ctx, { token }) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error("Unauthorized");
-    const userId = identity.subject;
+    const userId = await requireActionBetaAccess(ctx);
     await ghFetchUser(token.trim());
     const ciphertext = encryptToken(token.trim());
     await ctx.runMutation(internal.githubTokens.upsertEncryptedToken, {

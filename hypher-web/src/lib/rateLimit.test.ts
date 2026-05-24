@@ -35,6 +35,7 @@ const { ratelimitUser } = await import("./rateLimit");
 describe("ratelimitUser", () => {
   beforeEach(() => {
     // Reset Upstash env vars to "present" before each test.
+    process.env.NODE_ENV = "test";
     process.env.UPSTASH_REDIS_REST_URL = "https://fake.upstash.io";
     process.env.UPSTASH_REDIS_REST_TOKEN = "fake-token";
     mockLimit.mockResolvedValue({ success: true });
@@ -59,7 +60,7 @@ describe("ratelimitUser", () => {
     expect(denied).toBe(false);
   });
 
-  it("returns true (rate limiting disabled) when env vars are missing", async () => {
+  it("allows local/test requests when env vars are missing", async () => {
     delete process.env.UPSTASH_REDIS_REST_URL;
     delete process.env.UPSTASH_REDIS_REST_TOKEN;
 
@@ -69,5 +70,17 @@ describe("ratelimitUser", () => {
       window: "1m",
     });
     expect(allowed).toBe(true);
+  });
+
+  it("HYP-REL-009 denies production requests when rate-limit env vars are missing", async () => {
+    process.env.NODE_ENV = "production";
+    delete process.env.UPSTASH_REDIS_REST_URL;
+    delete process.env.UPSTASH_REDIS_REST_TOKEN;
+
+    const allowed = await ratelimitUser("user_xyz", "bucket-prod-no-env", {
+      requests: 5,
+      window: "1m",
+    });
+    expect(allowed).toBe(false);
   });
 });

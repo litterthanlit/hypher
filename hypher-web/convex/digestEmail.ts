@@ -7,7 +7,7 @@ import {
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import { Resend } from "resend";
-import { requireUserId } from "./lib/auth";
+import { requireBetaAccess } from "./lib/auth";
 import { fetchClerkEmail } from "./lib/clerk";
 
 // typegen pending convex dev
@@ -311,7 +311,7 @@ export const disableViaToken = mutation({
 export const ensureDefaultPrefs = mutation({
   args: { timezone: v.string() },
   handler: async (ctx, { timezone }) => {
-    const userId = await requireUserId(ctx);
+    const userId = await requireBetaAccess(ctx);
     const existing = await ctx.db
       .query("digestPrefs")
       .withIndex("by_user", (q) => q.eq("userId", userId))
@@ -367,7 +367,7 @@ export const savePrefs = mutation({
     timezone: v.string(),
   },
   handler: async (ctx, { enabled, localHour, timezone }) => {
-    const userId = await requireUserId(ctx);
+    const userId = await requireBetaAccess(ctx);
     const existing = await ctx.db
       .query("digestPrefs")
       .withIndex("by_user", (q) => q.eq("userId", userId))

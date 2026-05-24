@@ -1,6 +1,6 @@
 "use node";
 
-import { action, internalAction } from "./_generated/server";
+import { internalAction } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import Anthropic from "@anthropic-ai/sdk";
@@ -71,7 +71,7 @@ async function ghFetch<T>(path: string, token: string): Promise<T> {
 
 /* ── Validate repo + token ──────────────────────────────────────── */
 
-export const validateRepo = action({
+export const validateRepo = internalAction({
   args: { repo: v.string(), token: v.string() },
   handler: async (_ctx, { repo, token }): Promise<{ valid: boolean; name?: string; description?: string; error?: string }> => {
     try {
@@ -169,7 +169,7 @@ async function fetchRepoContext(repo: string, token: string) {
 
 /* ── Generate docs ──────────────────────────────────────────────── */
 
-export const generateDocs = action({
+export const generateDocs = internalAction({
   args: { repo: v.string(), token: v.string() },
   handler: async (_ctx, { repo, token }): Promise<{ claude: string; roadmap: string; handoff: string }> => {
     const apiKey = process.env.ANTHROPIC_API_KEY;
@@ -234,7 +234,7 @@ Keep each section under 800 words. Be specific to this repo, not generic.`,
 
 /* ── Sync GitHub activity ───────────────────────────────────────── */
 
-export const syncRepo = action({
+export const syncRepo = internalAction({
   args: { repo: v.string(), token: v.string(), projectId: v.string(), projectName: v.string() },
   handler: async (ctx, { repo, token, projectId, projectName }) => {
     const [prs, issues, commits] = await Promise.all([

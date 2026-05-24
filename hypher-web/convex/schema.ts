@@ -373,6 +373,7 @@ export default defineSchema({
     codeChallenge: v.string(),
     resource: v.string(),
     scope: v.string(),
+    consentedAt: v.number(),
     createdAt: v.number(),
     expiresAt: v.number(),
     consumedAt: v.optional(v.number()),

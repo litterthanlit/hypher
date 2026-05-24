@@ -13,6 +13,7 @@ const CONVEX_URL =
   process.env.NEXT_PUBLIC_CONVEX_URL ??
   process.env.CONVEX_URL ??
   "https://adamant-pheasant-663.convex.cloud";
+const MAX_BODY_BYTES = 50_000;
 
 function bearerToken(req: Request): string | null {
   const header = req.headers.get("authorization") ?? "";
@@ -25,6 +26,11 @@ export async function OPTIONS() {
 }
 
 export async function POST(req: Request) {
+  const contentLength = Number(req.headers.get("content-length") ?? "0");
+  if (contentLength > MAX_BODY_BYTES) {
+    return Response.json({ ok: false, error: "Payload too large" }, { status: 413, headers: CORS_HEADERS });
+  }
+
   const apiKey = bearerToken(req);
   if (!apiKey) {
     return Response.json({ ok: false, error: "Missing API key" }, { status: 401, headers: CORS_HEADERS });

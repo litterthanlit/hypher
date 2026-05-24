@@ -102,17 +102,17 @@ describe("launch readiness env and route mapping", () => {
     });
   });
 
-  it("reports rate limiting disabled when Upstash envs are absent", () => {
+  it("HYP-REL-009 blocks production readiness when Upstash envs are absent", () => {
     const readiness = buildLaunchReadiness({
       ...fullEnv,
       UPSTASH_REDIS_REST_URL: undefined,
       UPSTASH_REDIS_REST_TOKEN: undefined,
     }, 123);
     expect(findItem(readiness, "upstash-next")).toMatchObject({
-      status: "warning",
+      status: "blocked",
       missing: ["UPSTASH_REDIS_REST_URL", "UPSTASH_REDIS_REST_TOKEN"],
     });
-    expect(findItem(readiness, "upstash-next").note).toContain("rate limiting is intentionally disabled");
+    expect(findItem(readiness, "upstash-next").note).toContain("required in production");
   });
 
   it("blocks production readiness when the beta gate is disabled", () => {

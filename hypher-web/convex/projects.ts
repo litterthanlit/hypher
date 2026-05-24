@@ -1,5 +1,5 @@
 import { query } from "./_generated/server";
-import { requireUserId } from "./lib/auth";
+import { requireBetaAccess } from "./lib/auth";
 
 /**
  * Returns the minimal input shape needed to compute health scores for every
@@ -8,7 +8,7 @@ import { requireUserId } from "./lib/auth";
  */
 export const healthInputs = query({
   handler: async (ctx) => {
-    const userId = await requireUserId(ctx);
+    const userId = await requireBetaAccess(ctx);
     const all = await ctx.db
       .query("objects")
       .withIndex("by_user", (q) => q.eq("userId", userId))

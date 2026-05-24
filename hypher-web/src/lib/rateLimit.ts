@@ -14,9 +14,14 @@ function getRatelimitForBucket(
   const url = process.env.UPSTASH_REDIS_REST_URL;
   const token = process.env.UPSTASH_REDIS_REST_TOKEN;
   if (!url || !token) {
-    console.warn(
-      `[hypher/rateLimit] Upstash Redis env missing — rate limiting disabled for bucket "${bucket}"`
-    );
+    if (process.env.NODE_ENV === "production") {
+      console.error(
+        `[hypher/rateLimit] Upstash Redis env missing — denying production request for bucket "${bucket}"`
+      );
+      cache.set(cacheKey, null);
+      return null;
+    }
+    console.warn(`[hypher/rateLimit] Upstash Redis env missing — rate limiting disabled for bucket "${bucket}"`);
     cache.set(cacheKey, null);
     return null;
   }
@@ -60,7 +65,7 @@ export async function ratelimitUser(
   opts: { requests: number; window: `${number}${"s" | "m" | "h" | "d"}` },
 ): Promise<boolean> {
   const rl = getRatelimitForBucket(bucket, opts);
-  if (!rl) return true; // disabled — allow
+  if (!rl) return process.env.NODE_ENV !== "production"; // local/test allow, production deny
 
   const key = `${userId}`;
   const result = await rl.limit(key);

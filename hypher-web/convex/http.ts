@@ -25,6 +25,9 @@ const CORS_HEADERS: Record<string, string> = {
   "Access-Control-Allow-Headers": "Authorization, Content-Type",
 };
 
+const MAX_CAPTURE_CONTENT = 10_000;
+const MAX_CAPTURE_TAGS = 10;
+
 function withCors(headers: Record<string, string>): Record<string, string> {
   return { ...headers, ...CORS_HEADERS };
 }
@@ -83,16 +86,29 @@ http.route({
     }
 
     const body = await request.json();
+    const content = typeof body.content === "string" ? body.content.trim() : "";
+    const tags = Array.isArray(body.tags)
+      ? body.tags.filter((tag: unknown): tag is string => typeof tag === "string").slice(0, MAX_CAPTURE_TAGS)
+      : undefined;
+    if (!content || content.length > MAX_CAPTURE_CONTENT) {
+      return new Response(
+        JSON.stringify({ error: "Invalid content" }),
+        {
+          status: 400,
+          headers: withCors({ "Content-Type": "application/json" }),
+        }
+      );
+    }
     const now = Date.now();
     const id = await ctx.runMutation(internal.objects.putForApiUser, {
       userId: validated.userId,
       kind: body.kind || "note",
-      content: body.content,
+      content,
       maturity: "fleeting",
       createdAt: now,
       modifiedAt: now,
       projectId: body.projectId || null,
-      tags: body.tags,
+      tags,
     });
 
     await ctx.runMutation(internal.apiKeys.touch, { keyId: validated.keyId });

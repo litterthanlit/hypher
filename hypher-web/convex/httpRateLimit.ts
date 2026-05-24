@@ -8,6 +8,11 @@ function getRatelimit(): Ratelimit | null {
   const url = process.env.UPSTASH_REDIS_REST_URL;
   const token = process.env.UPSTASH_REDIS_REST_TOKEN;
   if (!url || !token) {
+    if (process.env.NODE_ENV === "production") {
+      console.error("[hypher/http] Upstash Redis env missing — rejecting production API-key request");
+      cached = null;
+      return null;
+    }
     console.warn(
       "[hypher/http] Upstash Redis env missing — rate limiting disabled (set UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN)"
     );
@@ -30,7 +35,16 @@ export async function enforceApiKeyRateLimit(
   rateLimitKey: string
 ): Promise<Response | null> {
   const rl = getRatelimit();
-  if (!rl) return null;
+  if (!rl) {
+    if (process.env.NODE_ENV !== "production") return null;
+    return new Response(
+      JSON.stringify({ error: "rate_limit_unavailable" }),
+      {
+        status: 503,
+        headers: { "Content-Type": "application/json" },
+      }
+    );
+  }
 
   const result = await rl.limit(rateLimitKey);
   if (result.success) return null;

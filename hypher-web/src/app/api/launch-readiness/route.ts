@@ -1,13 +1,14 @@
 import { NextResponse } from "next/server";
-import { auth } from "@clerk/nextjs/server";
 import { buildLaunchReadiness } from "@/lib/launchReadiness";
+import { authErrorJson, requireAdmin } from "@/lib/serverAuth";
 
 export const runtime = "nodejs";
 
 export async function GET() {
-  const { userId } = await auth();
-  if (!userId) {
-    return NextResponse.json({ ok: false, error: "unauth" }, { status: 401 });
+  try {
+    await requireAdmin();
+  } catch (error) {
+    return authErrorJson(error) as NextResponse;
   }
 
   return NextResponse.json(buildLaunchReadiness(process.env), {

@@ -1,9 +1,10 @@
 "use node";
 
 import { action } from "./_generated/server";
-import { api, internal } from "./_generated/api";
+import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
+import { requireActionBetaAccess } from "./lib/actionAuth";
 
 type ValidateConnectResult =
   | { ok: true; name: string }
@@ -16,9 +17,7 @@ export const validateAndConnectRepo = action({
     pastedToken: v.optional(v.string()),
   },
   handler: async (ctx, { projectId, repo, pastedToken }): Promise<ValidateConnectResult> => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error("Unauthorized");
-    const userId = identity.subject;
+    const userId = await requireActionBetaAccess(ctx);
 
     let token = pastedToken?.trim();
     if (!token) {
@@ -66,9 +65,7 @@ export const generateProjectDocs = action({
     ctx,
     { projectId, pastedToken }
   ): Promise<{ claude: string; roadmap: string; handoff: string }> => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error("Unauthorized");
-    const userId = identity.subject;
+    const userId = await requireActionBetaAccess(ctx);
 
     const project = await ctx.runQuery(internal.objects.getProjectForUser, {
       projectId,
@@ -91,7 +88,7 @@ export const generateProjectDocs = action({
       );
     }
 
-    return await ctx.runAction(api.github.generateDocs, {
+    return await ctx.runAction((internal as any).github.generateDocs, {
       repo: project.githubRepo,
       token,
     });
@@ -113,9 +110,7 @@ export const syncProjectRepo = action({
     pastedToken: v.optional(v.string()),
   },
   handler: async (ctx, { projectId, pastedToken }): Promise<SyncRepoResult> => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error("Unauthorized");
-    const userId = identity.subject;
+    const userId = await requireActionBetaAccess(ctx);
 
     const project = await ctx.runQuery(internal.objects.getProjectForUser, {
       projectId,
@@ -138,7 +133,7 @@ export const syncProjectRepo = action({
       );
     }
 
-    const result = await ctx.runAction(api.github.syncRepo, {
+    const result = await ctx.runAction((internal as any).github.syncRepo, {
       repo: project.githubRepo,
       token,
       projectId: projectId as string,

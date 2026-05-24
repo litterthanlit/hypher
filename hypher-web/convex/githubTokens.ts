@@ -1,10 +1,10 @@
 import { query, mutation, internalQuery, internalMutation } from "./_generated/server";
 import { v } from "convex/values";
-import { requireUserId } from "./lib/auth";
+import { requireBetaAccess } from "./lib/auth";
 
 export const getStatus = query({
   handler: async (ctx) => {
-    const userId = await requireUserId(ctx);
+    const userId = await requireBetaAccess(ctx);
     const row = await ctx.db
       .query("githubTokens")
       .withIndex("by_user", (q) => q.eq("userId", userId))

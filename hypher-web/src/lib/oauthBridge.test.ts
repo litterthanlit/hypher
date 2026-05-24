@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildOAuthConsentUrl,
   buildOAuthAuthorizeRedirect,
   buildOAuthMetadata,
   buildProtectedResourceMetadata,
   codeChallengeS256,
+  hasOAuthConsentApproval,
   validateOAuthAuthorizeParams,
 } from "./oauthBridge";
 
@@ -31,7 +33,7 @@ describe("OAuth bridge metadata", () => {
 });
 
 describe("OAuth authorize params", () => {
-  it("accepts ChatGPT authorization requests with PKCE and resource binding", () => {
+  it("HYP-SEC-003 accepts registered ChatGPT authorization requests with PKCE and resource binding", () => {
     const params = new URLSearchParams({
       response_type: "code",
       client_id: "https://chatgpt.com/oauth/client.json",
@@ -50,10 +52,67 @@ describe("OAuth authorize params", () => {
     });
   });
 
+  it("HYP-SEC-003 rejects unknown OAuth clients", () => {
+    const params = new URLSearchParams({
+      response_type: "code",
+      client_id: "https://attacker.example/client.json",
+      redirect_uri: "https://attacker.example/callback",
+      code_challenge: "abc",
+      code_challenge_method: "S256",
+      resource: "https://hypher.app",
+    });
+
+    expect(validateOAuthAuthorizeParams(params, "https://hypher.app")).toEqual({
+      ok: false,
+      error: "unauthorized_client",
+      errorDescription: "OAuth client is not registered with Hypher.",
+    });
+  });
+
+  it("HYP-SEC-003 rejects redirect URIs not bound to the client", () => {
+    const params = new URLSearchParams({
+      response_type: "code",
+      client_id: "https://chatgpt.com/oauth/client.json",
+      redirect_uri: "https://attacker.example/callback",
+      code_challenge: "abc",
+      code_challenge_method: "S256",
+      resource: "https://hypher.app",
+    });
+
+    expect(validateOAuthAuthorizeParams(params, "https://hypher.app")).toEqual({
+      ok: false,
+      error: "invalid_request",
+      errorDescription: "redirect_uri is not registered for this OAuth client.",
+    });
+  });
+
+  it("HYP-SEC-003 requires explicit consent before issuing a code", () => {
+    const params = new URLSearchParams({
+      response_type: "code",
+      client_id: "https://chatgpt.com/oauth/client.json",
+      redirect_uri: "https://chatgpt.com/connector/oauth/callback",
+      code_challenge: "abc",
+      code_challenge_method: "S256",
+      resource: "https://hypher.app",
+      state: "state-1",
+      scope: "hypher.projects.read",
+    });
+    const validation = validateOAuthAuthorizeParams(params, "https://hypher.app");
+    expect(validation.ok).toBe(true);
+    if (!validation.ok) return;
+
+    expect(hasOAuthConsentApproval(params)).toBe(false);
+    params.set("consent", "approve");
+    expect(hasOAuthConsentApproval(params)).toBe(true);
+    expect(buildOAuthConsentUrl("https://hypher.app", validation)).toContain(
+      "/oauth/consent?"
+    );
+  });
+
   it("rejects requests without S256 PKCE", () => {
     const params = new URLSearchParams({
       response_type: "code",
-      client_id: "client",
+      client_id: "https://chatgpt.com/oauth/client.json",
       redirect_uri: "https://chatgpt.com/connector/oauth/callback",
       code_challenge: "abc",
       code_challenge_method: "plain",

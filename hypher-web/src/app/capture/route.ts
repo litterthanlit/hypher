@@ -1,4 +1,3 @@
-import { auth } from "@clerk/nextjs/server";
 import { fetchAction, fetchMutation, fetchQuery } from "convex/nextjs";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
@@ -9,6 +8,7 @@ import {
   generateEmbedding,
   suggestProjectFromData,
 } from "@/lib/engine";
+import { authErrorJson, requireBetaAccess } from "@/lib/serverAuth";
 
 export const runtime = "nodejs";
 
@@ -286,12 +286,21 @@ async function handleCapture(req: Request): Promise<Response> {
   const accept = req.headers.get("accept") ?? "";
   const wantsJson = accept.includes("application/json");
 
-  const { userId, getToken } = await auth();
-  if (!userId) {
+  let session;
+  try {
+    session = await requireBetaAccess();
+  } catch (error) {
+    if (error instanceof Error && error.message === "unauth") {
+      return redirectSignIn(req);
+    }
+    return authErrorJson(error);
+  }
+
+  if (!session.userId) {
     return redirectSignIn(req);
   }
 
-  const token = await getToken({ template: "convex" });
+  const token = session.convexToken;
   if (!token) {
     return Response.json(
       { success: false, error: "missing_convex_token" },

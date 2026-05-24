@@ -1,5 +1,5 @@
 import { query } from "./_generated/server";
-import { requireUserId } from "./lib/auth";
+import { requireAdmin } from "./lib/auth";
 
 type Status = "ready" | "warning" | "blocked";
 
@@ -46,7 +46,7 @@ function worst(statuses: Status[]): Status {
 
 export const getStatus = query({
   handler: async (ctx) => {
-    await requireUserId(ctx);
+    await requireAdmin(ctx);
 
     const items = [
       item({
@@ -74,8 +74,10 @@ export const getStatus = query({
         id: "convex-upstash",
         label: "Convex API rate limiting",
         vars: ["UPSTASH_REDIS_REST_URL", "UPSTASH_REDIS_REST_TOKEN"],
-        required: false,
-        note: "When missing, Convex API key rate limiting is intentionally disabled.",
+        required: process.env.NODE_ENV === "production",
+        note: process.env.NODE_ENV === "production"
+          ? "Convex API key rate limiting is required in production."
+          : "When missing, Convex API key rate limiting is disabled outside production.",
       }),
       item({
         id: "convex-resend",

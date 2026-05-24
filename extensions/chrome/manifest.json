@@ -14,10 +14,11 @@
   ],
   "host_permissions": [
     "https://hypher.app/*",
-    "https://*.convex.cloud/*"
+    "https://*.convex.cloud/*",
+    "https://*.convex.site/*"
   ],
   "background": {
-    "service_worker": "background.js",
+    "service_worker": "background.ts",
     "type": "module"
   },
   "action": {
