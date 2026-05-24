@@ -9,12 +9,14 @@ import {
   prepareProjectMemoryInput,
 } from "@/lib/projectMemory";
 import { ratelimitUser } from "@/lib/rateLimit";
+import { isRequestBodyTooLarge, readJsonWithLimit } from "@/lib/requestBody";
 import { authErrorJson, requireBetaAccess } from "@/lib/serverAuth";
 import type { ActivityEntry, AnyObject, Project, ProjectNextAction, TargetTool } from "@/types";
 
 export const runtime = "nodejs";
 
 const MODEL = "claude-sonnet-4-20250514";
+const MAX_BODY_BYTES = 10_000;
 
 function extractText(content: Anthropic.Messages.Message["content"]): string {
   return content
@@ -24,9 +26,15 @@ function extractText(content: Anthropic.Messages.Message["content"]): string {
 }
 
 function makeActionId(projectId: string, index: number): string {
-  const random = typeof crypto !== "undefined" && "randomUUID" in crypto
-    ? crypto.randomUUID()
-    : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  let random = `${Date.now()}-${projectId}-${index}`;
+  const cryptoRef = globalThis.crypto;
+  if (cryptoRef?.randomUUID) {
+    random = cryptoRef.randomUUID();
+  } else if (cryptoRef?.getRandomValues) {
+    const bytes = new Uint8Array(16);
+    cryptoRef.getRandomValues(bytes);
+    random = Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+  }
   return `${projectId}:action:${index}:${random}`;
 }
 
@@ -63,8 +71,11 @@ export async function POST(req: NextRequest) {
 
   let body: { projectId?: string };
   try {
-    body = (await req.json()) as { projectId?: string };
-  } catch {
+    body = await readJsonWithLimit<{ projectId?: string }>(req, MAX_BODY_BYTES);
+  } catch (error) {
+    if (isRequestBodyTooLarge(error)) {
+      return NextResponse.json({ ok: false, error: "payload-too-large" }, { status: 413 });
+    }
     return NextResponse.json({ ok: false, error: "bad-body" }, { status: 400 });
   }
 

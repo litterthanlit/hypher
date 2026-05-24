@@ -17,6 +17,25 @@ export interface HypherConfig {
   baseUrl?: string;
 }
 
+export interface HypherServerConfig {
+  apiKey: string;
+  baseUrl?: string;
+}
+
+export type CaptureTokenValue =
+  | string
+  | {
+      token: string;
+      expiresAt?: number;
+    };
+
+export type CaptureTokenProvider = () => CaptureTokenValue | Promise<CaptureTokenValue>;
+
+export interface HypherBrowserConfig {
+  tokenProvider: CaptureTokenProvider;
+  baseUrl?: string;
+}
+
 export interface HypherContextValue {
   capture: (input: CaptureInput) => Promise<{ id: string }>;
   projects: Project[];

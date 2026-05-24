@@ -365,6 +365,40 @@ export default defineSchema({
     .index("by_prefix", ["prefix"])
     .index("by_legacy_full", ["legacyFullKeyHash"]),
 
+  captureTokens: defineTable({
+    userId: v.string(),
+    tokenIdHash: v.string(),
+    tokenHash: v.string(),
+    scopes: v.array(v.union(v.literal("capture:create"), v.literal("projects:list"))),
+    projectId: v.optional(v.union(v.string(), v.null())),
+    allowedOrigin: v.optional(v.string()),
+    createdAt: v.number(),
+    expiresAt: v.number(),
+    lastUsedAt: v.optional(v.number()),
+    sourceApiKeyId: v.optional(v.id("apiKeys")),
+    mintedByUserId: v.optional(v.string()),
+    revokedAt: v.optional(v.number()),
+    revokedBy: v.optional(v.string()),
+    revokedReason: v.optional(v.string()),
+  })
+    .index("by_token_id_hash", ["tokenIdHash"])
+    .index("by_user", ["userId"]),
+
+  oauthConsentTransactions: defineTable({
+    userId: v.string(),
+    clientId: v.string(),
+    redirectUri: v.string(),
+    codeChallenge: v.string(),
+    resource: v.string(),
+    scope: v.string(),
+    state: v.optional(v.string()),
+    csrfTokenHash: v.string(),
+    createdAt: v.number(),
+    expiresAt: v.number(),
+    approvedAt: v.optional(v.number()),
+    codeIssuedAt: v.optional(v.number()),
+  }).index("by_user", ["userId"]),
+
   oauthAuthorizationCodes: defineTable({
     codeHash: v.string(),
     userId: v.string(),

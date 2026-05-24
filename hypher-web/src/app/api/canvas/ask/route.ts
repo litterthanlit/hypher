@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@clerk/nextjs/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { ratelimitUser } from "@/lib/rateLimit";
+import { isRequestBodyTooLarge, readJsonWithLimit } from "@/lib/requestBody";
+import { authErrorJson, requireBetaAccess } from "@/lib/serverAuth";
 
 export const runtime = "nodejs";
+const MAX_BODY_BYTES = 20_000;
 
 interface NearbyItem {
   kind: string;
@@ -13,9 +15,11 @@ interface NearbyItem {
 }
 
 export async function POST(req: NextRequest) {
-  const { userId } = await auth();
-  if (!userId) {
-    return NextResponse.json({ error: "unauth" }, { status: 401 });
+  let session: { userId: string };
+  try {
+    session = await requireBetaAccess();
+  } catch (error) {
+    return authErrorJson(error);
   }
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
@@ -25,8 +29,11 @@ export async function POST(req: NextRequest) {
 
   let body: { prompt: string; nearby: NearbyItem[] };
   try {
-    body = (await req.json()) as { prompt: string; nearby: NearbyItem[] };
-  } catch {
+    body = (await readJsonWithLimit(req, MAX_BODY_BYTES)) as { prompt: string; nearby: NearbyItem[] };
+  } catch (error) {
+    if (isRequestBodyTooLarge(error)) {
+      return NextResponse.json({ error: "too-large" }, { status: 413 });
+    }
     return NextResponse.json({ error: "bad-body" }, { status: 400 });
   }
 
@@ -36,9 +43,12 @@ export async function POST(req: NextRequest) {
   if (body.prompt.length > 1000 || body.nearby.length > 10) {
     return NextResponse.json({ error: "too-large" }, { status: 400 });
   }
+  if (!body.nearby.every(isNearbyItemWithinLimits)) {
+    return NextResponse.json({ error: "too-large" }, { status: 400 });
+  }
 
   // Per-user rate limit: 30 ambient-ask requests per hour.
-  const allowed = await ratelimitUser(userId, "ambient-ask", { requests: 30, window: "1h" });
+  const allowed = await ratelimitUser(session.userId, "ambient-ask", { requests: 30, window: "1h" });
   if (!allowed) {
     return NextResponse.json({ error: "rate-limited" }, { status: 429 });
   }
@@ -114,4 +124,19 @@ function htmlEscape(s: string): string {
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;");
+}
+
+function isNearbyItemWithinLimits(item: unknown): item is NearbyItem {
+  if (!item || typeof item !== "object") return false;
+  const record = item as Record<string, unknown>;
+  return (
+    typeof record.kind === "string" &&
+    record.kind.length <= 40 &&
+    typeof record.name === "string" &&
+    record.name.length <= 200 &&
+    (record.content === undefined || (typeof record.content === "string" && record.content.length <= 2_000)) &&
+    Array.isArray(record.tags) &&
+    record.tags.length <= 20 &&
+    record.tags.every((tag) => typeof tag === "string" && tag.length <= 80)
+  );
 }

@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildOAuthApproveConsentUrl,
   buildOAuthConsentUrl,
   buildOAuthAuthorizeRedirect,
   buildOAuthMetadata,
   buildProtectedResourceMetadata,
   codeChallengeS256,
-  hasOAuthConsentApproval,
+  parseOAuthConsentRequestParams,
   validateOAuthAuthorizeParams,
 } from "./oauthBridge";
 
@@ -86,7 +87,7 @@ describe("OAuth authorize params", () => {
     });
   });
 
-  it("HYP-SEC-003 requires explicit consent before issuing a code", () => {
+  it("HYP-SEC-003 builds a consent page URL from a server-created transaction", () => {
     const params = new URLSearchParams({
       response_type: "code",
       client_id: "https://chatgpt.com/oauth/client.json",
@@ -101,12 +102,26 @@ describe("OAuth authorize params", () => {
     expect(validation.ok).toBe(true);
     if (!validation.ok) return;
 
-    expect(hasOAuthConsentApproval(params)).toBe(false);
-    params.set("consent", "approve");
-    expect(hasOAuthConsentApproval(params)).toBe(true);
-    expect(buildOAuthConsentUrl("https://hypher.app", validation)).toContain(
-      "/oauth/consent?"
+    expect(
+      buildOAuthConsentUrl("https://hypher.app", {
+        consentId: "consent-1",
+        csrfToken: "csrf-1",
+      })
+    ).toBe("https://hypher.app/oauth/consent?consent_id=consent-1&csrf_token=csrf-1");
+    expect(buildOAuthApproveConsentUrl({ consentId: "consent-1", csrfToken: "csrf-1" })).toBe(
+      "/oauth/consent/approve?consent_id=consent-1&csrf_token=csrf-1"
     );
+  });
+
+  it("HYP-SEC-003 rejects query-flag-only consent approval", () => {
+    const params = new URLSearchParams({
+      consent: "approve",
+    });
+
+    expect(parseOAuthConsentRequestParams(params)).toEqual({
+      ok: false,
+      errorDescription: "Missing consent transaction.",
+    });
   });
 
   it("rejects requests without S256 PKCE", () => {

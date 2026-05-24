@@ -1,8 +1,12 @@
-import { auth, currentUser } from "@clerk/nextjs/server";
+import { currentUser } from "@clerk/nextjs/server";
 import { fetchQuery } from "convex/nextjs";
 import { api } from "../../../../../convex/_generated/api";
 import Stripe from "stripe";
 import { ratelimitUser } from "@/lib/rateLimit";
+import { isRequestBodyTooLarge, readJsonWithLimit } from "@/lib/requestBody";
+import { authErrorJson, requireBetaAccess } from "@/lib/serverAuth";
+
+const MAX_BODY_BYTES = 2_000;
 
 function getStripe(): Stripe {
   const key = process.env.STRIPE_SECRET_KEY;
@@ -19,12 +23,14 @@ export async function POST(req: Request) {
     return Response.json({ error: "Stripe not configured" }, { status: 501 });
   }
 
-  const { userId, getToken } = await auth();
-  if (!userId) {
-    return Response.json({ error: "Unauthorized" }, { status: 401 });
+  let session: Awaited<ReturnType<typeof requireBetaAccess>>;
+  try {
+    session = await requireBetaAccess();
+  } catch (error) {
+    return authErrorJson(error);
   }
 
-  const allowed = await ratelimitUser(userId, "stripe-checkout", {
+  const allowed = await ratelimitUser(session.userId, "stripe-checkout", {
     requests: 10,
     window: "1h",
   });
@@ -32,15 +38,18 @@ export async function POST(req: Request) {
     return Response.json({ error: "rate_limited" }, { status: 429 });
   }
 
-  const token = await getToken({ template: "convex" });
+  const token = session.convexToken;
   if (!token) {
     return Response.json({ error: "Missing Convex auth token" }, { status: 401 });
   }
 
   let body: { plan?: string };
   try {
-    body = await req.json();
-  } catch {
+    body = await readJsonWithLimit<{ plan?: string }>(req, MAX_BODY_BYTES);
+  } catch (error) {
+    if (isRequestBodyTooLarge(error)) {
+      return Response.json({ error: "Payload too large" }, { status: 413 });
+    }
     return Response.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
@@ -66,17 +75,17 @@ export async function POST(req: Request) {
     line_items: [{ price: priceId, quantity: 1 }],
     success_url: successUrl,
     cancel_url: cancelUrl,
-    client_reference_id: userId,
+    client_reference_id: session.userId,
     customer_creation:
       plan === "lifetime" && !existing?.stripeCustomerId ? "always" : undefined,
-    metadata: { clerkUserId: userId, plan },
+    metadata: { clerkUserId: session.userId, plan },
     subscription_data:
       plan === "pro_monthly"
-        ? { metadata: { clerkUserId: userId, plan: "pro_monthly" } }
+        ? { metadata: { clerkUserId: session.userId, plan: "pro_monthly" } }
         : undefined,
     payment_intent_data:
       plan === "lifetime"
-        ? { metadata: { clerkUserId: userId, plan: "lifetime" } }
+        ? { metadata: { clerkUserId: session.userId, plan: "lifetime" } }
         : undefined,
   };
 
@@ -86,11 +95,11 @@ export async function POST(req: Request) {
     sessionParams.customer_email = email;
   }
 
-  const session = await getStripe().checkout.sessions.create(sessionParams);
+  const checkoutSession = await getStripe().checkout.sessions.create(sessionParams);
 
-  if (!session.url) {
+  if (!checkoutSession.url) {
     return Response.json({ error: "No checkout URL" }, { status: 500 });
   }
 
-  return Response.json({ url: session.url });
+  return Response.json({ url: checkoutSession.url });
 }

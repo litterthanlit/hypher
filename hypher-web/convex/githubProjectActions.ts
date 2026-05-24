@@ -5,10 +5,36 @@ import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
 import { requireActionBetaAccess } from "./lib/actionAuth";
+import { ratelimitConvex } from "./lib/rateLimit";
 
 type ValidateConnectResult =
   | { ok: true; name: string }
   | { ok: false; error: string };
+
+const MAX_GITHUB_REPO_INPUT = 200;
+const MAX_GITHUB_TOKEN_INPUT = 2048;
+
+export function cleanGithubRepoInput(repo: string): string | null {
+  const cleaned = repo.trim();
+  if (!cleaned || cleaned.length > MAX_GITHUB_REPO_INPUT) return null;
+  return cleaned;
+}
+
+export function cleanGithubTokenInput(token: string | undefined): string | null | undefined {
+  if (token === undefined) return undefined;
+  const cleaned = token.trim();
+  if (!cleaned) return undefined;
+  if (cleaned.length > MAX_GITHUB_TOKEN_INPUT) return null;
+  return cleaned;
+}
+
+async function requireGithubActionAllowed(userId: string, bucket: string) {
+  const allowed = await ratelimitConvex(userId, bucket, {
+    requests: 20,
+    window: "1h",
+  });
+  if (!allowed) throw new Error("Rate limited");
+}
 
 export const validateAndConnectRepo = action({
   args: {
@@ -18,8 +44,17 @@ export const validateAndConnectRepo = action({
   },
   handler: async (ctx, { projectId, repo, pastedToken }): Promise<ValidateConnectResult> => {
     const userId = await requireActionBetaAccess(ctx);
+    await requireGithubActionAllowed(userId, "github-validate-connect");
 
-    let token = pastedToken?.trim();
+    const cleanedRepo = cleanGithubRepoInput(repo);
+    if (!cleanedRepo) {
+      return { ok: false as const, error: "Enter a valid repo (owner/name) or GitHub URL." };
+    }
+
+    let token = cleanGithubTokenInput(pastedToken);
+    if (token === null) {
+      return { ok: false as const, error: "Token is too long." };
+    }
     if (!token) {
       token =
         (await ctx.runAction(internal.githubPat.decryptTokenForUser, {
@@ -35,7 +70,7 @@ export const validateAndConnectRepo = action({
 
     const validated: { valid: true; name: string; description?: string } | { valid: false; error: string } =
       await ctx.runAction(internal.github.validateRepoInternal, {
-      repo: repo.trim(),
+      repo: cleanedRepo,
       token,
     });
     if (!validated.valid) {
@@ -48,7 +83,7 @@ export const validateAndConnectRepo = action({
     await ctx.runMutation(internal.objects.patchGithubFields, {
       projectId,
       userId,
-      githubRepo: repo.trim(),
+      githubRepo: cleanedRepo,
       githubLastSync: Date.now(),
     });
 
@@ -66,6 +101,7 @@ export const generateProjectDocs = action({
     { projectId, pastedToken }
   ): Promise<{ claude: string; roadmap: string; handoff: string }> => {
     const userId = await requireActionBetaAccess(ctx);
+    await requireGithubActionAllowed(userId, "github-generate-docs");
 
     const project = await ctx.runQuery(internal.objects.getProjectForUser, {
       projectId,
@@ -75,7 +111,10 @@ export const generateProjectDocs = action({
       throw new Error("Connect a GitHub repository first.");
     }
 
-    let token = pastedToken?.trim();
+    let token = cleanGithubTokenInput(pastedToken);
+    if (token === null) {
+      throw new Error("Token is too long.");
+    }
     if (!token) {
       token =
         (await ctx.runAction(internal.githubPat.decryptTokenForUser, {
@@ -88,8 +127,11 @@ export const generateProjectDocs = action({
       );
     }
 
+    const cleanedRepo = cleanGithubRepoInput(project.githubRepo);
+    if (!cleanedRepo) throw new Error("Connected GitHub repository is invalid.");
+
     return await ctx.runAction((internal as any).github.generateDocs, {
-      repo: project.githubRepo,
+      repo: cleanedRepo,
       token,
     });
   },
@@ -111,6 +153,7 @@ export const syncProjectRepo = action({
   },
   handler: async (ctx, { projectId, pastedToken }): Promise<SyncRepoResult> => {
     const userId = await requireActionBetaAccess(ctx);
+    await requireGithubActionAllowed(userId, "github-sync-project");
 
     const project = await ctx.runQuery(internal.objects.getProjectForUser, {
       projectId,
@@ -120,7 +163,10 @@ export const syncProjectRepo = action({
       throw new Error("Connect a GitHub repository first.");
     }
 
-    let token = pastedToken?.trim();
+    let token = cleanGithubTokenInput(pastedToken);
+    if (token === null) {
+      throw new Error("Token is too long.");
+    }
     if (!token) {
       token =
         (await ctx.runAction(internal.githubPat.decryptTokenForUser, {
@@ -133,8 +179,11 @@ export const syncProjectRepo = action({
       );
     }
 
+    const cleanedRepo = cleanGithubRepoInput(project.githubRepo);
+    if (!cleanedRepo) throw new Error("Connected GitHub repository is invalid.");
+
     const result = await ctx.runAction((internal as any).github.syncRepo, {
-      repo: project.githubRepo,
+      repo: cleanedRepo,
       token,
       projectId: projectId as string,
       projectName: project.name,

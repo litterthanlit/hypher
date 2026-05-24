@@ -8,9 +8,11 @@ import {
   generateEmbedding,
   suggestProjectFromData,
 } from "@/lib/engine";
+import { isRequestBodyTooLarge, readJsonWithLimit, readTextWithLimit } from "@/lib/requestBody";
 import { authErrorJson, requireBetaAccess } from "@/lib/serverAuth";
 
 export const runtime = "nodejs";
+const MAX_CAPTURE_BODY_BYTES = 25_000;
 
 // ── CORS helpers for Chrome extension ──────────────────────────────────────────
 // In dev, allow any chrome-extension:// origin.
@@ -115,7 +117,15 @@ async function parseCaptureInput(req: Request, url: URL): Promise<Parsed> {
 
   const ct = req.headers.get("content-type") ?? "";
   if (ct.includes("application/json")) {
-    const body = (await req.json()) as Record<string, unknown>;
+    let body: Record<string, unknown>;
+    try {
+      body = await readJsonWithLimit<Record<string, unknown>>(req, MAX_CAPTURE_BODY_BYTES);
+    } catch (error) {
+      if (isRequestBodyTooLarge(error)) {
+        return { content: "", projectId: null, error: "too_large" };
+      }
+      throw error;
+    }
     const content =
       typeof body.content === "string"
         ? body.content
@@ -135,6 +145,28 @@ async function parseCaptureInput(req: Request, url: URL): Promise<Parsed> {
           ? (body.tags as string[]).join(",")
           : null;
     return normalizeCaptureFields(content, projectRaw, tagsRaw);
+  }
+
+  if (ct.includes("application/x-www-form-urlencoded")) {
+    let body: URLSearchParams;
+    try {
+      body = new URLSearchParams(await readTextWithLimit(req, MAX_CAPTURE_BODY_BYTES));
+    } catch (error) {
+      if (isRequestBodyTooLarge(error)) {
+        return { content: "", projectId: null, error: "too_large" };
+      }
+      throw error;
+    }
+    return normalizeCaptureFields(
+      body.get("content") ?? body.get("text") ?? body.get("q") ?? "",
+      body.get("project"),
+      body.get("tags")
+    );
+  }
+
+  const contentLength = Number(req.headers.get("content-length") ?? "0");
+  if (contentLength > MAX_CAPTURE_BODY_BYTES) {
+    return { content: "", projectId: null, error: "too_large" };
   }
 
   const fd = await req.formData();
@@ -311,6 +343,9 @@ async function handleCapture(req: Request): Promise<Response> {
   const input = await parseCaptureInput(req, url);
 
   if (input.error) {
+    if (input.error === "too_large") {
+      return errorResponse(wantsJson, input.error, 413);
+    }
     return errorResponse(wantsJson, input.error, 400);
   }
 

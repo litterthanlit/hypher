@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   LEGACY_HASH_SUNSET_MS,
+  apiKeyProbeRateLimitKey,
   generateApiKey,
   isLegacyKeyValidationAllowed,
 } from "./apiKeys";
@@ -30,5 +31,11 @@ describe("HYP-SEC-005 API key generation and validation", () => {
     expect(
       isLegacyKeyValidationAllowed({ createdAt: now - 1_000, revokedAt: now }, now)
     ).toBe(false);
+  });
+
+  it("builds bounded generic rate-limit keys for API-key probes", () => {
+    expect(apiKeyProbeRateLimitKey("hyp_1234567890abcdef")).toBe("prefix:hyp_123456");
+    expect(apiKeyProbeRateLimitKey("x")).toBe("malformed");
+    expect(apiKeyProbeRateLimitKey("")).toBe("missing");
   });
 });

@@ -1,6 +1,9 @@
 import { fetchMutation } from "convex/nextjs";
 import { api } from "../../../../../convex/_generated/api";
 import Stripe from "stripe";
+import { isRequestBodyTooLarge, readTextWithLimit } from "@/lib/requestBody";
+
+const MAX_WEBHOOK_BODY_BYTES = 100_000;
 
 function getStripe(): Stripe {
   const key = process.env.STRIPE_SECRET_KEY;
@@ -43,7 +46,15 @@ export async function POST(req: Request) {
     return new Response("Missing signature", { status: 400 });
   }
 
-  const raw = await req.text();
+  let raw: string;
+  try {
+    raw = await readTextWithLimit(req, MAX_WEBHOOK_BODY_BYTES);
+  } catch (error) {
+    if (isRequestBodyTooLarge(error)) {
+      return new Response("Payload too large", { status: 413 });
+    }
+    return new Response("Invalid body", { status: 400 });
+  }
   let event: Stripe.Event;
   const stripe = getStripe();
   try {

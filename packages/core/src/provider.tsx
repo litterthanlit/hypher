@@ -1,26 +1,35 @@
 import React, { createContext, useContext, useEffect, useState, useMemo } from "react";
-import { createClient } from "./api";
-import type { HypherContextValue, Project } from "./types";
+import { createBrowserClient } from "./browser";
+import type { CaptureTokenProvider, HypherContextValue, Project } from "./types";
 
 const HypherContext = createContext<HypherContextValue | null>(null);
 
 export function HypherProvider({
   children,
+  tokenProvider,
   apiKey,
   baseUrl,
 }: {
   children: React.ReactNode;
-  apiKey: string;
+  tokenProvider?: CaptureTokenProvider;
+  /** @deprecated Use tokenProvider with POST /api/capture-tokens. */
+  apiKey?: string;
   baseUrl?: string;
 }) {
   const [projects, setProjects] = useState<Project[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
-  const client = useMemo(
-    () => createClient({ apiKey, baseUrl }),
-    [apiKey, baseUrl]
-  );
+  const client = useMemo(() => {
+    const provider = tokenProvider ?? (() => {
+      if (!apiKey) throw new Error("HypherProvider requires a capture token provider");
+      console.warn(
+        "[hypher] Browser apiKey usage is deprecated. Use tokenProvider with short-lived capture tokens."
+      );
+      return apiKey;
+    });
+    return createBrowserClient({ tokenProvider: provider, baseUrl });
+  }, [apiKey, baseUrl, tokenProvider]);
 
   useEffect(() => {
     client

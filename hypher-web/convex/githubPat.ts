@@ -5,6 +5,8 @@ import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import crypto from "crypto";
 import { requireActionBetaAccess } from "./lib/actionAuth";
+import { ratelimitConvex } from "./lib/rateLimit";
+import { cleanGithubTokenInput } from "./githubProjectActions";
 
 function encryptionKey(): Buffer {
   const s = process.env.GITHUB_TOKEN_ENCRYPTION_KEY;
@@ -52,8 +54,17 @@ export const savePersonalAccessToken = action({
   args: { token: v.string() },
   handler: async (ctx, { token }) => {
     const userId = await requireActionBetaAccess(ctx);
-    await ghFetchUser(token.trim());
-    const ciphertext = encryptToken(token.trim());
+    const allowed = await ratelimitConvex(userId, "github-save-pat", {
+      requests: 10,
+      window: "1h",
+    });
+    if (!allowed) throw new Error("Rate limited");
+
+    const cleanedToken = cleanGithubTokenInput(token);
+    if (!cleanedToken) throw new Error("Invalid token");
+
+    await ghFetchUser(cleanedToken);
+    const ciphertext = encryptToken(cleanedToken);
     await ctx.runMutation(internal.githubTokens.upsertEncryptedToken, {
       userId,
       ciphertext,

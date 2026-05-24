@@ -14,10 +14,12 @@ import { fetchAction } from "convex/nextjs";
 import { api } from "../../../../convex/_generated/api";
 import { ratelimitUser } from "@/lib/rateLimit";
 import { authErrorJson, requireBetaAccess } from "@/lib/serverAuth";
+import { isRequestBodyTooLarge, readJsonWithLimit } from "@/lib/requestBody";
 
 export const runtime = "nodejs";
 
 const MAX_CONTENT_LEN = 2000;
+const MAX_BODY_BYTES = 10_000;
 
 function corsHeaders(req: NextRequest): Record<string, string> {
   const origin = req.headers.get("origin") ?? "";
@@ -69,8 +71,11 @@ export async function POST(req: NextRequest) {
 
   let body: { content?: unknown };
   try {
-    body = (await req.json()) as { content?: unknown };
-  } catch {
+    body = await readJsonWithLimit<{ content?: unknown }>(req, MAX_BODY_BYTES);
+  } catch (error) {
+    if (isRequestBodyTooLarge(error)) {
+      return NextResponse.json({ error: "payload-too-large" }, { status: 413 });
+    }
     return NextResponse.json({ error: "bad-body" }, { status: 400 });
   }
 

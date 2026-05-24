@@ -3,6 +3,7 @@ import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import { requireBetaAccess } from "./lib/auth";
 import { ratelimitConvex } from "./lib/rateLimit";
+import { apiKeyProbeRateLimitKey } from "./apiKeys";
 import type { Id } from "./_generated/dataModel";
 
 const eventKind = v.union(
@@ -25,6 +26,19 @@ const _internal = internal as any;
 const eventKinds = ["handoff", "build_log", "question", "suggestion", "artifact", "next_action"] as const;
 type EventKind = (typeof eventKinds)[number];
 
+const STRING_LIMITS = {
+  source: 120,
+  project: 200,
+  title: 200,
+  body: 10_000,
+  repo: 200,
+  branch: 200,
+  commitSha: 80,
+  artifactUrl: 2_000,
+  suggestedAction: 500,
+} as const;
+const MAX_SUGGESTED_ACTIONS = 10;
+
 const createFields = {
   userId: v.string(),
   projectId: v.optional(v.id("objects")),
@@ -41,20 +55,37 @@ const createFields = {
   createdAt: v.number(),
 };
 
-function cleanString(value: unknown): string | undefined {
-  return typeof value === "string" ? value.trim() : undefined;
+function cleanString(
+  value: unknown,
+  field: keyof typeof STRING_LIMITS
+): { ok: true; value?: string } | { ok: false; error: string } {
+  if (typeof value !== "string") return { ok: true, value: undefined };
+  const cleaned = value.trim();
+  if (!cleaned) return { ok: true, value: undefined };
+  if (cleaned.length > STRING_LIMITS[field]) {
+    return { ok: false, error: `${field} is too long` };
+  }
+  return { ok: true, value: cleaned };
 }
 
-function cleanStringArray(value: unknown): string[] | undefined {
-  if (!Array.isArray(value)) return undefined;
+function cleanStringArray(value: unknown):
+  | { ok: true; value?: string[] }
+  | { ok: false; error: string } {
+  if (!Array.isArray(value)) return { ok: true, value: undefined };
+  if (value.length > MAX_SUGGESTED_ACTIONS) {
+    return { ok: false, error: "suggestedActions has too many items" };
+  }
   const cleaned = value
     .filter((item): item is string => typeof item === "string")
     .map((item) => item.trim())
     .filter(Boolean);
-  return cleaned.length > 0 ? cleaned : undefined;
+  if (cleaned.some((item) => item.length > STRING_LIMITS.suggestedAction)) {
+    return { ok: false, error: "suggestedActions item is too long" };
+  }
+  return { ok: true, value: cleaned.length > 0 ? cleaned : undefined };
 }
 
-function validatePayload(payload: unknown):
+export function validateAgentEventPayload(payload: unknown):
   | {
       ok: true;
       value: {
@@ -75,29 +106,44 @@ function validatePayload(payload: unknown):
     return { ok: false, error: "payload must be an object" };
   }
   const data = payload as Record<string, unknown>;
-  const source = cleanString(data.source);
-  if (!source) return { ok: false, error: "source is required" };
-  const title = cleanString(data.title);
-  if (!title) return { ok: false, error: "title is required" };
-  const body = cleanString(data.body);
-  if (!body) return { ok: false, error: "body is required" };
-  const kind = cleanString(data.kind);
-  if (!eventKinds.includes(kind as EventKind)) {
+  const source = cleanString(data.source, "source");
+  if (!source.ok) return source;
+  if (!source.value) return { ok: false, error: "source is required" };
+  const title = cleanString(data.title, "title");
+  if (!title.ok) return title;
+  if (!title.value) return { ok: false, error: "title is required" };
+  const body = cleanString(data.body, "body");
+  if (!body.ok) return body;
+  if (!body.value) return { ok: false, error: "body is required" };
+  const kind = typeof data.kind === "string" ? data.kind.trim() : undefined;
+  if (!kind || !eventKinds.includes(kind as EventKind)) {
     return { ok: false, error: `kind must be one of ${eventKinds.join(", ")}` };
   }
+  const project = cleanString(data.project, "project");
+  if (!project.ok) return project;
+  const suggestedActions = cleanStringArray(data.suggestedActions);
+  if (!suggestedActions.ok) return suggestedActions;
+  const repo = cleanString(data.repo, "repo");
+  if (!repo.ok) return repo;
+  const branch = cleanString(data.branch, "branch");
+  if (!branch.ok) return branch;
+  const commitSha = cleanString(data.commitSha, "commitSha");
+  if (!commitSha.ok) return commitSha;
+  const artifactUrl = cleanString(data.artifactUrl, "artifactUrl");
+  if (!artifactUrl.ok) return artifactUrl;
   return {
     ok: true,
     value: {
-      source,
-      project: cleanString(data.project),
+      source: source.value,
+      project: project.value,
       kind: kind as EventKind,
-      title,
-      body,
-      suggestedActions: cleanStringArray(data.suggestedActions),
-      repo: cleanString(data.repo),
-      branch: cleanString(data.branch),
-      commitSha: cleanString(data.commitSha),
-      artifactUrl: cleanString(data.artifactUrl),
+      title: title.value,
+      body: body.value,
+      suggestedActions: suggestedActions.value,
+      repo: repo.value,
+      branch: branch.value,
+      commitSha: commitSha.value,
+      artifactUrl: artifactUrl.value,
     },
   };
 }
@@ -147,9 +193,18 @@ export const createForApiUser = internalMutation({
 export const createFromApiRequest = action({
   args: { apiKey: v.string(), payload: v.any() },
   handler: async (ctx, { apiKey, payload }) => {
+    const probeAllowed = await ratelimitConvex(
+      apiKeyProbeRateLimitKey(apiKey),
+      "api-key-validation",
+      { requests: 30, window: "1m" }
+    );
+    if (!probeAllowed) {
+      return { ok: false, status: 429, error: "Rate limited" };
+    }
+
     const validatedKey = await ctx.runQuery(_internal.apiKeys.validate, { key: apiKey });
     if (!validatedKey) {
-      return { ok: false, status: 401, error: "Invalid API key" };
+      return { ok: false, status: 401, error: "Unauthorized" };
     }
     const allowed = await ratelimitConvex(validatedKey.rateLimitKey, "agent-events", {
       requests: 120,
@@ -159,7 +214,7 @@ export const createFromApiRequest = action({
       return { ok: false, status: 429, error: "Rate limited" };
     }
 
-    const parsed = validatePayload(payload);
+    const parsed = validateAgentEventPayload(payload);
     if (!parsed.ok) {
       return { ok: false, status: 400, error: parsed.error };
     }

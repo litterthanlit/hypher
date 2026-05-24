@@ -3,6 +3,8 @@
  * All state lives in chrome.storage.local so it survives service-worker restarts.
  */
 
+import { getConfiguredApiOrigin, getConfiguredAppOrigin } from "./origins";
+
 export interface PendingCapture {
   id: string;
   content: string;
@@ -15,8 +17,6 @@ export interface PendingCapture {
   nextRetryAt?: number;
 }
 
-const HYPHER_APP = "https://hypher.app";
-const HYPHER_API = "https://adamant-pheasant-663.convex.site";
 const MAX_ATTEMPTS_DROP_AFTER_MS = 24 * 60 * 60 * 1000; // 24 hours
 const BACKOFF_BASE_MS = 2 * 60 * 1000; // 2 minutes base
 const BACKOFF_MAX_MS = 30 * 60 * 1000; // 30 minute cap
@@ -40,23 +40,6 @@ async function fetchWithTimeout(url: string, opts: RequestInit): Promise<Respons
   } finally {
     clearTimeout(timer);
   }
-}
-
-/**
- * Returns the configured host (defaults to hypher.app).
- * Dev only: set chrome.storage.local.hostOverride to point at localhost.
- */
-async function getHostOverride(): Promise<string> {
-  const { hostOverride } = await chrome.storage.local.get("hostOverride");
-  return (hostOverride as string) || HYPHER_APP;
-}
-
-async function getApiHostOverride(): Promise<string> {
-  const { apiHostOverride, hostOverride } = await chrome.storage.local.get([
-    "apiHostOverride",
-    "hostOverride",
-  ]);
-  return (apiHostOverride as string) || (hostOverride as string) || HYPHER_API;
 }
 
 export type AuthMode = "session" | "api-key";
@@ -155,8 +138,6 @@ export async function captureToHypher(input: {
   const auth = await getAuthMode();
   const lastProject = await getLastProjectId();
   const projectId = input.projectId !== undefined ? input.projectId : lastProject;
-  const host = auth.mode === "api-key" ? await getApiHostOverride() : await getHostOverride();
-
   const body = {
     content: appendSourceFooter(input.content, input.sourceUrl, input.sourceTitle),
     projectId: projectId ?? null,
@@ -164,6 +145,7 @@ export async function captureToHypher(input: {
   };
 
   try {
+    const host = auth.mode === "api-key" ? await getConfiguredApiOrigin() : await getConfiguredAppOrigin();
     const res = await sendCapture(body, auth, host);
 
     // opaqueredirect = 302 to /sign-in (session-cookie path, signed-out user)
@@ -206,7 +188,6 @@ export async function replayQueue(): Promise<void> {
 
   const now = Date.now();
   const auth = await getAuthMode();
-  const host = auth.mode === "api-key" ? await getApiHostOverride() : await getHostOverride();
 
   const nextQueue: PendingCapture[] = [];
   let dropped = 0;
@@ -231,6 +212,7 @@ export async function replayQueue(): Promise<void> {
     };
 
     try {
+      const host = auth.mode === "api-key" ? await getConfiguredApiOrigin() : await getConfiguredAppOrigin();
       const res = await sendCapture(body, auth, host);
 
       if (res.type === "opaqueredirect" || res.status === 302 || res.status === 0) {

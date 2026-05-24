@@ -3,6 +3,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { formatProjects, buildDigestPrompt, type ProjectInput } from "../formatPrompt";
 import { authErrorJson, requireBetaAccess } from "@/lib/serverAuth";
 import { ratelimitUser } from "@/lib/rateLimit";
+import { isRequestBodyTooLarge, readJsonWithLimit } from "@/lib/requestBody";
 
 export const runtime = "nodejs"; // explicit — Anthropic SDK needs Node.
 
@@ -11,6 +12,7 @@ const MAX_NAME_LEN = 80;
 const MAX_BLOCKER_LEN = 500;
 const MAX_GITHUB_SUMMARY_LEN = 500;
 const MAX_PROJECTS = 50;
+const MAX_BODY_BYTES = 50_000;
 
 function truncateInputs(projects: ProjectInput[]): ProjectInput[] {
   return projects.map((p) => ({
@@ -46,8 +48,11 @@ export async function POST(req: NextRequest) {
 
   let body: { projects: ProjectInput[] };
   try {
-    body = (await req.json()) as { projects: ProjectInput[] };
-  } catch {
+    body = await readJsonWithLimit<{ projects: ProjectInput[] }>(req, MAX_BODY_BYTES);
+  } catch (error) {
+    if (isRequestBodyTooLarge(error)) {
+      return NextResponse.json({ error: "payload-too-large" }, { status: 413 });
+    }
     return NextResponse.json({ error: "bad-body" }, { status: 400 });
   }
 

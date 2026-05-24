@@ -3,11 +3,13 @@ import { v } from "convex/values";
 import { hasBetaAccess, requireBetaAccess } from "./lib/auth";
 
 const CODE_TTL_MS = 10 * 60 * 1000;
+const CONSENT_TTL_MS = 10 * 60 * 1000;
 const TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
 const OAUTH_CLIENTS = [
   {
     clientId: "https://chatgpt.com/oauth/client.json",
+    name: "ChatGPT",
     redirectUris: ["https://chatgpt.com/connector/oauth/callback"],
   },
 ];
@@ -19,28 +21,160 @@ function isRegisteredRedirect(clientId: string, redirectUri: string): boolean {
   );
 }
 
-export const createAuthorizationCode = mutation({
+function getClientName(clientId: string): string {
+  return OAUTH_CLIENTS.find((client) => client.clientId === clientId)?.name ?? clientId;
+}
+
+function requireOAuthServerSecret(serverSecret: string) {
+  const expected = process.env.HYPHER_OAUTH_CONSENT_SECRET;
+  if (!expected || serverSecret !== expected) {
+    throw new Error("Unauthorized OAuth server");
+  }
+}
+
+type PendingOAuthConsentForCodeIssue = {
+  userId: string;
+  clientId: string;
+  redirectUri: string;
+  csrfTokenHash: string;
+  expiresAt: number;
+  codeIssuedAt?: number;
+};
+
+export function validatePendingOAuthConsentForCodeIssue(args: {
+  consent: PendingOAuthConsentForCodeIssue | null;
+  userId: string;
+  csrfTokenHash: string;
+  now: number;
+  serverSecret?: string;
+  expectedServerSecret?: string;
+}): { ok: true } | { ok: false; reason: string } {
+  if (!args.expectedServerSecret || args.serverSecret !== args.expectedServerSecret) {
+    return { ok: false, reason: "server_secret" };
+  }
+  if (!args.consent) return { ok: false, reason: "not_found" };
+  if (args.consent.userId !== args.userId) return { ok: false, reason: "user" };
+  if (args.consent.expiresAt <= args.now) return { ok: false, reason: "expired" };
+  if (args.consent.codeIssuedAt !== undefined) return { ok: false, reason: "used" };
+  if (args.consent.csrfTokenHash !== args.csrfTokenHash) return { ok: false, reason: "csrf" };
+  if (!isRegisteredRedirect(args.consent.clientId, args.consent.redirectUri)) {
+    return { ok: false, reason: "client" };
+  }
+  return { ok: true };
+}
+
+export const createPendingConsent = mutation({
   args: {
-    codeHash: v.string(),
     clientId: v.string(),
     redirectUri: v.string(),
     codeChallenge: v.string(),
     resource: v.string(),
     scope: v.string(),
-    consentedAt: v.number(),
+    state: v.optional(v.string()),
+    csrfTokenHash: v.string(),
     now: v.number(),
+    serverSecret: v.string(),
   },
   handler: async (ctx, args) => {
     const userId = await requireBetaAccess(ctx);
+    requireOAuthServerSecret(args.serverSecret);
     if (!isRegisteredRedirect(args.clientId, args.redirectUri)) {
       throw new Error("Unauthorized OAuth client");
     }
-    await ctx.db.insert("oauthAuthorizationCodes", {
-      ...args,
+
+    const consentId = await ctx.db.insert("oauthConsentTransactions", {
       userId,
+      clientId: args.clientId,
+      redirectUri: args.redirectUri,
+      codeChallenge: args.codeChallenge,
+      resource: args.resource,
+      scope: args.scope,
+      state: args.state,
+      csrfTokenHash: args.csrfTokenHash,
+      createdAt: args.now,
+      expiresAt: args.now + CONSENT_TTL_MS,
+    });
+
+    return { consentId };
+  },
+});
+
+export const getPendingConsent = query({
+  args: {
+    consentId: v.id("oauthConsentTransactions"),
+    csrfTokenHash: v.string(),
+    now: v.number(),
+    serverSecret: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const userId = await requireBetaAccess(ctx);
+    requireOAuthServerSecret(args.serverSecret);
+    const consent = await ctx.db.get(args.consentId);
+    const validation = validatePendingOAuthConsentForCodeIssue({
+      consent,
+      userId,
+      csrfTokenHash: args.csrfTokenHash,
+      now: args.now,
+      serverSecret: args.serverSecret,
+      expectedServerSecret: process.env.HYPHER_OAUTH_CONSENT_SECRET,
+    });
+    if (!validation.ok || !consent) return null;
+
+    return {
+      clientId: consent.clientId,
+      clientName: getClientName(consent.clientId),
+      resource: consent.resource,
+      scope: consent.scope,
+      expiresAt: consent.expiresAt,
+    };
+  },
+});
+
+export const createAuthorizationCode = mutation({
+  args: {
+    codeHash: v.string(),
+    consentId: v.id("oauthConsentTransactions"),
+    csrfTokenHash: v.string(),
+    now: v.number(),
+    serverSecret: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const userId = await requireBetaAccess(ctx);
+    requireOAuthServerSecret(args.serverSecret);
+    const consent = await ctx.db.get(args.consentId);
+    const validation = validatePendingOAuthConsentForCodeIssue({
+      consent,
+      userId,
+      csrfTokenHash: args.csrfTokenHash,
+      now: args.now,
+      serverSecret: args.serverSecret,
+      expectedServerSecret: process.env.HYPHER_OAUTH_CONSENT_SECRET,
+    });
+    if (!validation.ok || !consent) {
+      return null;
+    }
+
+    await ctx.db.patch(args.consentId, {
+      approvedAt: args.now,
+      codeIssuedAt: args.now,
+    });
+    await ctx.db.insert("oauthAuthorizationCodes", {
+      codeHash: args.codeHash,
+      userId,
+      clientId: consent.clientId,
+      redirectUri: consent.redirectUri,
+      codeChallenge: consent.codeChallenge,
+      resource: consent.resource,
+      scope: consent.scope,
+      consentedAt: args.now,
       createdAt: args.now,
       expiresAt: args.now + CODE_TTL_MS,
     });
+
+    return {
+      redirectUri: consent.redirectUri,
+      state: consent.state,
+    };
   },
 });
 

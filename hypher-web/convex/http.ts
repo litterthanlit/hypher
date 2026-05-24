@@ -5,6 +5,7 @@ import { enforceApiKeyRateLimit } from "./httpRateLimit";
 import { Webhook } from "svix";
 import { stripQuotedReply } from "./lib/quotedReply";
 import { ratelimitConvex } from "./lib/rateLimit";
+import { apiKeyProbeRateLimitKey } from "./apiKeys";
 
 // typegen pending convex dev
 const _internal = internal as any;
@@ -27,9 +28,159 @@ const CORS_HEADERS: Record<string, string> = {
 
 const MAX_CAPTURE_CONTENT = 10_000;
 const MAX_CAPTURE_TAGS = 10;
+const MAX_CAPTURE_BODY_BYTES = 25_000;
 
 function withCors(headers: Record<string, string>): Record<string, string> {
   return { ...headers, ...CORS_HEADERS };
+}
+
+function withExactOriginCors(
+  headers: Record<string, string>,
+  origin: string | null | undefined,
+  allowedOrigin: string | null | undefined
+): Record<string, string> {
+  if (!origin || !allowedOrigin || origin !== allowedOrigin) return headers;
+  return {
+    ...headers,
+    "Access-Control-Allow-Origin": origin,
+    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Authorization, Content-Type",
+    "Vary": "Origin",
+  };
+}
+
+function bearerToken(request: Request): string | null {
+  const header = request.headers.get("Authorization") ?? "";
+  const match = header.match(/^Bearer\s+(.+)$/i);
+  return match?.[1] ?? null;
+}
+
+function clientProbeKey(request: Request, bearer: string | null): string {
+  const forwarded = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
+  const ip = forwarded || request.headers.get("x-real-ip") || "unknown";
+  return `${ip}:${apiKeyProbeRateLimitKey(bearer)}`;
+}
+
+async function enforceAuthProbeLimit(request: Request, bearer: string | null) {
+  const allowed = await ratelimitConvex(clientProbeKey(request, bearer), "api-key-validation", {
+    requests: 30,
+    window: "1m",
+  });
+  return allowed
+    ? null
+    : { ok: false as const, status: 429, error: "rate_limited", corsHeaders: withCors({}) };
+}
+
+async function readJsonWithLimit(request: Request, maxBytes: number): Promise<any> {
+  const contentLength = Number(request.headers.get("content-length") ?? "0");
+  if (contentLength > maxBytes) throw new Error("too-large");
+  const reader = request.body?.getReader();
+  if (!reader) {
+    const text = await request.text();
+    if (new TextEncoder().encode(text).byteLength > maxBytes) {
+      throw new Error("too-large");
+    }
+    return JSON.parse(text);
+  }
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > maxBytes) throw new Error("too-large");
+    chunks.push(value);
+  }
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return JSON.parse(new TextDecoder().decode(bytes));
+}
+
+async function validateCaptureAuth(
+  ctx: any,
+  request: Request,
+  args: {
+    requiredScope: "capture:create" | "projects:list";
+    projectId?: string | null;
+  }
+): Promise<
+  | {
+      ok: true;
+      authType: "apiKey";
+      userId: string;
+      keyId: any;
+      rateLimitKey: string;
+      corsHeaders: Record<string, string>;
+    }
+  | {
+      ok: true;
+      authType: "captureToken";
+      userId: string;
+      tokenId: any;
+      rateLimitKey: string;
+      scopedProjectId: string | null;
+      corsHeaders: Record<string, string>;
+    }
+  | { ok: false; status: number; error: string; corsHeaders: Record<string, string> }
+> {
+  const bearer = bearerToken(request);
+  if (!bearer || !bearer.startsWith("hct_")) {
+    const probeLimited = await enforceAuthProbeLimit(request, bearer);
+    if (probeLimited) return probeLimited;
+  }
+
+  if (!bearer) {
+    return { ok: false, status: 401, error: "Unauthorized", corsHeaders: withCors({}) };
+  }
+
+  if (bearer.startsWith("hct_")) {
+    const origin = request.headers.get("origin");
+    const validated = await ctx.runQuery(_internal.captureTokens.validate, {
+      token: bearer,
+      requiredScope: args.requiredScope,
+      projectId: args.projectId ?? null,
+      origin,
+    });
+    const corsHeaders = withExactOriginCors(
+      { "Content-Type": "application/json" },
+      origin,
+      validated?.allowedOrigin
+    );
+    if (!validated?.ok) {
+      return {
+        ok: false,
+        status: validated?.status ?? 401,
+        error: validated?.error ?? "invalid_token",
+        corsHeaders,
+      };
+    }
+    return {
+      ok: true,
+      authType: "captureToken",
+      userId: validated.userId,
+      tokenId: validated.tokenId,
+      rateLimitKey: validated.rateLimitKey,
+      scopedProjectId: validated.projectId ?? null,
+      corsHeaders,
+    };
+  }
+
+  const validated = await ctx.runQuery(_internal.apiKeys.validate, { key: bearer });
+  if (!validated) {
+    return { ok: false, status: 401, error: "Unauthorized", corsHeaders: withCors({}) };
+  }
+  return {
+    ok: true,
+    authType: "apiKey",
+    userId: validated.userId,
+    keyId: validated.keyId,
+    rateLimitKey: validated.rateLimitKey,
+    corsHeaders: withCors({ "Content-Type": "application/json" }),
+  };
 }
 
 // CORS preflight
@@ -54,38 +205,40 @@ http.route({
   path: "/api/capture",
   method: "POST",
   handler: httpAction(async (ctx, request) => {
-    const apiKey = request.headers.get("Authorization")?.replace("Bearer ", "");
-    if (!apiKey) {
+    let body: any;
+    try {
+      body = await readJsonWithLimit(request, MAX_CAPTURE_BODY_BYTES);
+    } catch {
       return new Response(
-        JSON.stringify({ error: "Missing API key" }),
+        JSON.stringify({ error: "Invalid JSON" }),
         {
-          status: 401,
+          status: 400,
           headers: withCors({ "Content-Type": "application/json" }),
         }
       );
     }
-
-    const validated = await ctx.runQuery(internal.apiKeys.validate, {
-      key: apiKey,
+    const requestedProjectId = typeof body.projectId === "string" ? body.projectId : null;
+    const auth = await validateCaptureAuth(ctx, request, {
+      requiredScope: "capture:create",
+      projectId: requestedProjectId,
     });
-    if (!validated) {
+    if (!auth.ok) {
       return new Response(
-        JSON.stringify({ error: "Invalid API key" }),
+        JSON.stringify({ error: auth.error }),
         {
-          status: 401,
-          headers: withCors({ "Content-Type": "application/json" }),
+          status: auth.status,
+          headers: auth.corsHeaders,
         }
       );
     }
 
-    const limited = await enforceApiKeyRateLimit(validated.rateLimitKey);
+    const limited = await enforceApiKeyRateLimit(auth.rateLimitKey);
     if (limited) {
       const h = new Headers(limited.headers);
-      for (const [k, v] of Object.entries(CORS_HEADERS)) h.set(k, v);
+      for (const [k, v] of Object.entries(auth.corsHeaders)) h.set(k, v);
       return new Response(limited.body, { status: limited.status, headers: h });
     }
 
-    const body = await request.json();
     const content = typeof body.content === "string" ? body.content.trim() : "";
     const tags = Array.isArray(body.tags)
       ? body.tags.filter((tag: unknown): tag is string => typeof tag === "string").slice(0, MAX_CAPTURE_TAGS)
@@ -95,29 +248,36 @@ http.route({
         JSON.stringify({ error: "Invalid content" }),
         {
           status: 400,
-          headers: withCors({ "Content-Type": "application/json" }),
+          headers: auth.corsHeaders,
         }
       );
     }
+    const projectId = auth.authType === "captureToken" && auth.scopedProjectId
+      ? auth.scopedProjectId
+      : requestedProjectId;
     const now = Date.now();
     const id = await ctx.runMutation(internal.objects.putForApiUser, {
-      userId: validated.userId,
+      userId: auth.userId,
       kind: body.kind || "note",
       content,
       maturity: "fleeting",
       createdAt: now,
       modifiedAt: now,
-      projectId: body.projectId || null,
+      projectId,
       tags,
     });
 
-    await ctx.runMutation(internal.apiKeys.touch, { keyId: validated.keyId });
+    if (auth.authType === "apiKey") {
+      await ctx.runMutation(_internal.apiKeys.touch, { keyId: auth.keyId });
+    } else {
+      await ctx.runMutation(_internal.captureTokens.touch, { tokenId: auth.tokenId });
+    }
 
     return new Response(
       JSON.stringify({ id, success: true }),
       {
         status: 200,
-        headers: withCors({ "Content-Type": "application/json" }),
+        headers: auth.corsHeaders,
       }
     );
   }),
@@ -128,42 +288,32 @@ http.route({
   path: "/api/projects",
   method: "GET",
   handler: httpAction(async (ctx, request) => {
-    const apiKey = request.headers.get("Authorization")?.replace("Bearer ", "");
-    if (!apiKey) {
-      return new Response(
-        JSON.stringify({ error: "Missing API key" }),
-        {
-          status: 401,
-          headers: withCors({ "Content-Type": "application/json" }),
-        }
-      );
-    }
-
-    const validated = await ctx.runQuery(internal.apiKeys.validate, {
-      key: apiKey,
+    const auth = await validateCaptureAuth(ctx, request, {
+      requiredScope: "projects:list",
     });
-    if (!validated) {
+    if (!auth.ok) {
       return new Response(
-        JSON.stringify({ error: "Unauthorized" }),
+        JSON.stringify({ error: auth.error }),
         {
-          status: 401,
-          headers: withCors({ "Content-Type": "application/json" }),
+          status: auth.status,
+          headers: auth.corsHeaders,
         }
       );
     }
 
-    const limited = await enforceApiKeyRateLimit(validated.rateLimitKey);
+    const limited = await enforceApiKeyRateLimit(auth.rateLimitKey);
     if (limited) {
       const h = new Headers(limited.headers);
-      for (const [k, v] of Object.entries(CORS_HEADERS)) h.set(k, v);
+      for (const [k, v] of Object.entries(auth.corsHeaders)) h.set(k, v);
       return new Response(limited.body, { status: limited.status, headers: h });
     }
 
     const allObjects = await ctx.runQuery(internal.objects.listForApiUser, {
-      userId: validated.userId,
+      userId: auth.userId,
     });
     const projects = allObjects
       .filter((o: { kind: string }) => o.kind === "project")
+      .filter((o: { _id: string }) => auth.authType !== "captureToken" || !auth.scopedProjectId || String(o._id) === auth.scopedProjectId)
       .map((o: { _id: string; name?: string; status?: string; priority?: number }) => ({
         id: o._id,
         name: o.name,
@@ -175,7 +325,7 @@ http.route({
       JSON.stringify({ projects }),
       {
         status: 200,
-        headers: withCors({ "Content-Type": "application/json" }),
+        headers: auth.corsHeaders,
       }
     );
   }),

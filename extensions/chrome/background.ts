@@ -10,6 +10,7 @@
  */
 
 import { captureToHypher, replayQueue } from "./lib/capture";
+import { HYPHER_PUBLIC_API_ORIGIN } from "./lib/origins";
 
 // ── Hotkey: Cmd+Shift+H ────────────────────────────────────────────────────────
 chrome.commands.onCommand.addListener(async (command) => {
@@ -93,7 +94,7 @@ chrome.alarms.onAlarm.addListener((alarm) => {
 chrome.notifications.onButtonClicked.addListener((notifId, buttonIndex) => {
   if (buttonIndex === 0) {
     // "Open hypher.app" button on the sign-in notification
-    chrome.tabs.create({ url: "https://hypher.app" });
+    chrome.tabs.create({ url: HYPHER_PUBLIC_API_ORIGIN });
   }
   chrome.notifications.clear(notifId);
 });

@@ -7,11 +7,9 @@ import bcrypt from "bcryptjs";
 const SLUG_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789";
 
 function randomSlug(length = 16): string {
-  let s = "";
-  for (let i = 0; i < length; i++) {
-    s += SLUG_CHARS[Math.floor(Math.random() * SLUG_CHARS.length)];
-  }
-  return s;
+  const bytes = new Uint8Array(length);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (byte) => SLUG_CHARS[byte % SLUG_CHARS.length]!).join("");
 }
 
 function randomSecret(): string {

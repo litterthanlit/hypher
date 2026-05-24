@@ -1,5 +1,6 @@
 import { fetchAction } from "convex/nextjs";
 import { api } from "../../../../../convex/_generated/api";
+import { isRequestBodyTooLarge, readJsonWithLimit } from "@/lib/requestBody";
 
 export const runtime = "nodejs";
 
@@ -12,7 +13,7 @@ const CORS_HEADERS: Record<string, string> = {
 const CONVEX_URL =
   process.env.NEXT_PUBLIC_CONVEX_URL ??
   process.env.CONVEX_URL ??
-  "https://adamant-pheasant-663.convex.cloud";
+  "https://build-placeholder.convex.cloud";
 const MAX_BODY_BYTES = 50_000;
 
 function bearerToken(req: Request): string | null {
@@ -33,13 +34,16 @@ export async function POST(req: Request) {
 
   const apiKey = bearerToken(req);
   if (!apiKey) {
-    return Response.json({ ok: false, error: "Missing API key" }, { status: 401, headers: CORS_HEADERS });
+    return Response.json({ ok: false, error: "Unauthorized" }, { status: 401, headers: CORS_HEADERS });
   }
 
   let payload: unknown;
   try {
-    payload = await req.json();
-  } catch {
+    payload = await readJsonWithLimit(req, MAX_BODY_BYTES);
+  } catch (error) {
+    if (isRequestBodyTooLarge(error)) {
+      return Response.json({ ok: false, error: "Payload too large" }, { status: 413, headers: CORS_HEADERS });
+    }
     return Response.json({ ok: false, error: "Invalid JSON" }, { status: 400, headers: CORS_HEADERS });
   }
 
@@ -54,7 +58,7 @@ export async function POST(req: Request) {
     const message = error instanceof Error ? error.message : "Agent event request failed";
     console.error("[agent/events]", message);
     return Response.json(
-      { ok: false, error: "Agent event request failed", detail: message },
+      { ok: false, error: "Agent event request failed" },
       { status: 500, headers: CORS_HEADERS }
     );
   }

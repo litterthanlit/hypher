@@ -3,13 +3,9 @@
  * The service worker uses these for project listing and tag suggestion.
  */
 
-const HYPHER_APP = "https://hypher.app";
-const FETCH_TIMEOUT_MS = 10_000;
+import { getConfiguredAppOrigin } from "./origins";
 
-async function getHost(): Promise<string> {
-  const { hostOverride } = await chrome.storage.local.get("hostOverride");
-  return (hostOverride as string) || HYPHER_APP;
-}
+const FETCH_TIMEOUT_MS = 10_000;
 
 function withTimeout(promise: Promise<Response>): Promise<Response> {
   return new Promise((resolve, reject) => {
@@ -31,7 +27,7 @@ export interface Project {
  * Requires the user to be signed into hypher.app in another tab.
  */
 export async function fetchProjects(): Promise<Project[]> {
-  const host = await getHost();
+  const host = await getConfiguredAppOrigin();
   const res = await withTimeout(
     fetch(`${host}/api/projects`, {
       method: "GET",
@@ -50,7 +46,7 @@ export async function fetchProjects(): Promise<Project[]> {
  * Request AI-suggested tags for the given content from the session-authed endpoint.
  */
 export async function fetchTagSuggestions(content: string): Promise<string[]> {
-  const host = await getHost();
+  const host = await getConfiguredAppOrigin();
   const res = await withTimeout(
     fetch(`${host}/api/tag-suggest`, {
       method: "POST",

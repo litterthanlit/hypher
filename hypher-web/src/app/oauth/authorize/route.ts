@@ -4,9 +4,8 @@ import { api } from "../../../../convex/_generated/api";
 import {
   baseUrlFromRequest,
   buildOAuthConsentUrl,
-  buildOAuthAuthorizeRedirect,
   generateOpaqueToken,
-  hasOAuthConsentApproval,
+  oauthConsentServerSecret,
   sha256Base64url,
   validateOAuthAuthorizeParams,
 } from "@/lib/oauthBridge";
@@ -49,30 +48,31 @@ export async function GET(req: NextRequest) {
     return NextResponse.redirect(signIn);
   }
 
-  if (!hasOAuthConsentApproval(req.nextUrl.searchParams)) {
-    return NextResponse.redirect(buildOAuthConsentUrl(baseUrl, validation));
-  }
-
   const convexToken = session.convexToken;
   if (!convexToken) {
     return errorRedirect(validation.redirectUri, "server_error", "Missing Hypher auth token.", validation.state);
   }
 
-  const code = generateOpaqueToken("hyc");
-  await fetchMutation((api as any).oauth.createAuthorizationCode, {
-    codeHash: sha256Base64url(code),
+  const serverSecret = oauthConsentServerSecret();
+  if (!serverSecret) {
+    return errorRedirect(validation.redirectUri, "server_error", "OAuth consent is not configured.", validation.state);
+  }
+
+  const csrfToken = generateOpaqueToken("hycsrf");
+  const pending = await fetchMutation((api as any).oauth.createPendingConsent, {
     clientId: validation.clientId,
     redirectUri: validation.redirectUri,
     codeChallenge: validation.codeChallenge,
     resource: validation.resource,
     scope: validation.scope,
-    consentedAt: Date.now(),
+    state: validation.state,
+    csrfTokenHash: sha256Base64url(csrfToken),
     now: Date.now(),
+    serverSecret,
   }, { token: convexToken });
 
-  return NextResponse.redirect(buildOAuthAuthorizeRedirect({
-    redirectUri: validation.redirectUri,
-    code,
-    state: validation.state,
+  return NextResponse.redirect(buildOAuthConsentUrl(baseUrl, {
+    consentId: String(pending.consentId),
+    csrfToken,
   }));
 }

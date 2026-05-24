@@ -5,6 +5,7 @@ import { api } from "../../../../convex/_generated/api";
 import type { Id } from "../../../../convex/_generated/dataModel";
 import type { ActivityEntry, AgentEvent, AnyObject, Handoff, Project, ProjectAction, ProjectMemory } from "@/types";
 import { HYPHER_MCP_SCOPE, baseUrlFromRequest, sha256Base64url } from "@/lib/oauthBridge";
+import { isRequestBodyTooLarge, readJsonWithLimit } from "@/lib/requestBody";
 import {
   buildMcpToolResult,
   getHypherMcpToolDescriptors,
@@ -13,6 +14,7 @@ import {
 } from "@/lib/mcpTools";
 
 export const runtime = "nodejs";
+const MAX_BODY_BYTES = 25_000;
 
 type JsonRpcRequest = {
   jsonrpc?: string;
@@ -177,8 +179,11 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   let body: JsonRpcRequest;
   try {
-    body = await req.json() as JsonRpcRequest;
-  } catch {
+    body = await readJsonWithLimit<JsonRpcRequest>(req, MAX_BODY_BYTES);
+  } catch (error) {
+    if (isRequestBodyTooLarge(error)) {
+      return jsonRpcError(null, -32700, "Request body too large", 413);
+    }
     return jsonRpcError(null, -32700, "Parse error", 400);
   }
 

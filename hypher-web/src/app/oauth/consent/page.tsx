@@ -1,7 +1,12 @@
+import { fetchQuery } from "convex/nextjs";
+import { api } from "../../../../convex/_generated/api";
 import {
-  baseUrlFromRequest,
-  validateOAuthAuthorizeParams,
+  buildOAuthApproveConsentUrl,
+  oauthConsentServerSecret,
+  parseOAuthConsentRequestParams,
+  sha256Base64url,
 } from "@/lib/oauthBridge";
+import { requireBetaAccess } from "@/lib/serverAuth";
 
 export default async function OAuthConsentPage({
   searchParams,
@@ -14,25 +19,47 @@ export default async function OAuthConsentPage({
     if (typeof value === "string") qs.set(key, value);
   }
 
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://hypher.app";
-  const validation = validateOAuthAuthorizeParams(qs, baseUrlFromRequest(baseUrl));
-  if (!validation.ok) {
+  const parsed = parseOAuthConsentRequestParams(qs);
+  const serverSecret = oauthConsentServerSecret();
+  let pendingConsent:
+    | {
+        clientName: string;
+        scope: string;
+      }
+    | null = null;
+
+  if (parsed.ok && serverSecret) {
+    try {
+      const session = await requireBetaAccess();
+      if (session.convexToken) {
+        pendingConsent = await fetchQuery((api as any).oauth.getPendingConsent, {
+          consentId: parsed.consentId as any,
+          csrfTokenHash: sha256Base64url(parsed.csrfToken),
+          now: Date.now(),
+          serverSecret,
+        }, { token: session.convexToken });
+      }
+    } catch {
+      pendingConsent = null;
+    }
+  }
+
+  if (!parsed.ok || !pendingConsent) {
     return (
       <main className="oauth-consent-page">
         <h1>Authorization request invalid</h1>
-        <p>{validation.errorDescription}</p>
+        <p>{parsed.ok ? "Consent transaction is invalid or expired." : parsed.errorDescription}</p>
       </main>
     );
   }
 
-  qs.set("consent", "approve");
-  const approveHref = `/oauth/authorize?${qs.toString()}`;
+  const approveHref = buildOAuthApproveConsentUrl(parsed);
 
   return (
     <main className="oauth-consent-page">
       <section className="oauth-consent-panel">
-        <h1>Authorize {validation.clientName}</h1>
-        <p>{validation.clientName} wants read-only access to your Hypher project context.</p>
+        <h1>Authorize {pendingConsent.clientName}</h1>
+        <p>{pendingConsent.clientName} wants read-only access to your Hypher project context.</p>
         <a href={approveHref} className="settings-github-connect">
           Authorize
         </a>

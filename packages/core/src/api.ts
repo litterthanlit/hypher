@@ -1,36 +1,12 @@
-import type { CaptureInput, Project, HypherConfig } from "./types";
+import { createServerClient } from "./server";
+import type { HypherConfig } from "./types";
 
-const DEFAULT_BASE_URL = "https://adamant-pheasant-663.convex.site";
-
+/** @deprecated Use `@hypher/core/server` for API-key clients. */
 export function createClient(config: HypherConfig) {
-  const baseUrl = config.baseUrl || DEFAULT_BASE_URL;
-  const headers = {
-    Authorization: `Bearer ${config.apiKey}`,
-    "Content-Type": "application/json",
-  };
-
-  return {
-    async capture(input: CaptureInput): Promise<{ id: string }> {
-      const res = await fetch(`${baseUrl}/api/capture`, {
-        method: "POST",
-        headers,
-        body: JSON.stringify(input),
-      });
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error(`Capture failed: ${text}`);
-      }
-      return res.json();
-    },
-
-    async getProjects(): Promise<Project[]> {
-      const res = await fetch(`${baseUrl}/api/projects`, { headers });
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error(`Failed to fetch projects: ${text}`);
-      }
-      const data = await res.json();
-      return data.projects;
-    },
-  };
+  if (typeof window !== "undefined") {
+    console.warn(
+      "[hypher] Browser API-key clients are deprecated. Use @hypher/core/browser with a short-lived capture token provider."
+    );
+  }
+  return createServerClient(config);
 }

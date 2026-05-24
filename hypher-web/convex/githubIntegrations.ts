@@ -5,8 +5,11 @@ import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
 import { requireActionBetaAccess } from "./lib/actionAuth";
+import { ratelimitConvex } from "./lib/rateLimit";
+import { cleanGithubRepoInput } from "./githubProjectActions";
 
 function parseRepoFromInput(input: string): string | null {
+  if (input.length > 500) return null;
   const t = input.trim();
   if (!t) return null;
   try {
@@ -34,9 +37,18 @@ export const connectRepoToProject = action({
     | { ok: false; error: string }
   > => {
     const userId = await requireActionBetaAccess(ctx);
+    const allowed = await ratelimitConvex(userId, "github-connect-repo", {
+      requests: 20,
+      window: "1h",
+    });
+    if (!allowed) throw new Error("Rate limited");
 
     const repo = parseRepoFromInput(repoInput);
     if (!repo) {
+      return { ok: false, error: "Enter a valid repo (owner/name) or GitHub URL." };
+    }
+    const cleanedRepo = cleanGithubRepoInput(repo);
+    if (!cleanedRepo) {
       return { ok: false, error: "Enter a valid repo (owner/name) or GitHub URL." };
     }
 
@@ -51,7 +63,7 @@ export const connectRepoToProject = action({
     }
 
     const validated = await ctx.runAction(internal.github.validateRepoInternal, {
-      repo,
+      repo: cleanedRepo,
       token,
     });
     if (!validated.valid) {
@@ -64,12 +76,12 @@ export const connectRepoToProject = action({
     await ctx.runMutation(internal.objects.patchGithubFields, {
       projectId,
       userId,
-      githubRepo: repo,
+      githubRepo: cleanedRepo,
       githubLastSync: Date.now(),
     });
 
     const sync = await ctx.runAction(internal.github.syncRepoInternal, {
-      repo,
+      repo: cleanedRepo,
       token,
       projectId: projectId as string,
       projectName: validated.name,

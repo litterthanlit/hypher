@@ -19,6 +19,7 @@ export const LEGACY_HASH_SUNSET_MS = 30 * 24 * 60 * 60 * 1000;
 
 const BCRYPT_COST = 10;
 const PREFIX_LEN = 8;
+const PROBE_PREFIX_LEN = 10;
 
 /** Legacy fingerprint of the full plaintext key (pre-bcrypt migration). */
 function legacyHashFullKey(key: string): string {
@@ -45,6 +46,13 @@ function splitKey(plain: string): { prefix: string; remainder: string } | null {
     prefix: plain.slice(0, PREFIX_LEN),
     remainder: plain.slice(PREFIX_LEN),
   };
+}
+
+export function apiKeyProbeRateLimitKey(key: string | undefined | null): string {
+  const trimmed = typeof key === "string" ? key.trim() : "";
+  if (!trimmed) return "missing";
+  if (trimmed.length < PREFIX_LEN || !trimmed.startsWith("hyp_")) return "malformed";
+  return `prefix:${trimmed.slice(0, PROBE_PREFIX_LEN)}`;
 }
 
 /** Constant-time compare for equal-length ASCII strings (Convex V8 — no Node `crypto`). */

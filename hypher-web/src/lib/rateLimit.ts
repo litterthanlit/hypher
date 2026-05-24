@@ -56,8 +56,7 @@ function getRatelimitForBucket(
  * @param opts    - { requests: max allowed calls, window: sliding window duration }.
  * @returns `true` if the request is allowed, `false` if it should be rate-limited (429).
  *
- * When Upstash env vars are not set, always returns `true` (rate limiting disabled)
- * with a console warning — this matches the behaviour of convex/httpRateLimit.ts.
+ * When Upstash env vars are not set, local/test allows and production denies.
  */
 export async function ratelimitUser(
   userId: string,

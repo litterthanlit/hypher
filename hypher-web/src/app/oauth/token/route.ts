@@ -11,8 +11,10 @@ import {
   sha256Base64url,
 } from "@/lib/oauthBridge";
 import { ratelimitUser } from "@/lib/rateLimit";
+import { isRequestBodyTooLarge, readTextWithLimit } from "@/lib/requestBody";
 
 export const runtime = "nodejs";
+const MAX_BODY_BYTES = 10_000;
 
 function oauthError(error: string, description: string, status = 400) {
   return NextResponse.json({ error, error_description: description }, {
@@ -24,16 +26,29 @@ function oauthError(error: string, description: string, status = 400) {
 export async function POST(req: NextRequest) {
   const contentType = req.headers.get("content-type") ?? "";
   const params = new URLSearchParams();
-  if (contentType.includes("application/json")) {
-    const body = await req.json() as Record<string, string>;
-    for (const [key, value] of Object.entries(body)) {
-      if (typeof value === "string") params.set(key, value);
+  let rawBody: string;
+  try {
+    rawBody = await readTextWithLimit(req, MAX_BODY_BYTES);
+  } catch (error) {
+    if (isRequestBodyTooLarge(error)) {
+      return oauthError("invalid_request", "Request body is too large.", 413);
     }
-  } else {
-    const body = await req.text();
-    for (const [key, value] of new URLSearchParams(body)) {
-      params.set(key, value);
+    return oauthError("invalid_request", "Invalid request body.");
+  }
+
+  try {
+    if (contentType.includes("application/json")) {
+      const body = JSON.parse(rawBody || "{}") as Record<string, string>;
+      for (const [key, value] of Object.entries(body)) {
+        if (typeof value === "string") params.set(key, value);
+      }
+    } else {
+      for (const [key, value] of new URLSearchParams(rawBody)) {
+        params.set(key, value);
+      }
     }
+  } catch {
+    return oauthError("invalid_request", "Invalid request body.");
   }
 
   const grantType = params.get("grant_type");

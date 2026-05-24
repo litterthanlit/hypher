@@ -1,7 +1,8 @@
 import { createHash, randomBytes } from "crypto";
 
 export const HYPHER_MCP_SCOPE = "hypher.projects.read";
-const CONSENT_PARAM = "consent";
+const CONSENT_ID_PARAM = "consent_id";
+const CSRF_TOKEN_PARAM = "csrf_token";
 
 export type RegisteredOAuthClient = {
   clientId: string;
@@ -36,6 +37,17 @@ export type OAuthAuthorizeValidation =
       errorDescription: string;
     };
 
+export type OAuthConsentRequestValidation =
+  | {
+      ok: true;
+      consentId: string;
+      csrfToken: string;
+    }
+  | {
+      ok: false;
+      errorDescription: string;
+    };
+
 export function baseUrlFromRequest(url: string): string {
   return process.env.NEXT_PUBLIC_APP_URL || new URL(url).origin;
 }
@@ -55,6 +67,10 @@ export function codeChallengeS256(verifier: string): string {
 export function generateOpaqueToken(prefix: string): string {
   const random = base64url(randomBytes(32));
   return `${prefix}_${random}`;
+}
+
+export function oauthConsentServerSecret(): string | null {
+  return process.env.HYPHER_OAUTH_CONSENT_SECRET || null;
 }
 
 export function registeredOAuthClients(): RegisteredOAuthClient[] {
@@ -158,24 +174,35 @@ export function validateOAuthAuthorizeParams(
   };
 }
 
-export function hasOAuthConsentApproval(params: URLSearchParams): boolean {
-  return params.get(CONSENT_PARAM) === "approve";
+export function parseOAuthConsentRequestParams(
+  params: URLSearchParams
+): OAuthConsentRequestValidation {
+  const consentId = params.get(CONSENT_ID_PARAM) ?? "";
+  const csrfToken = params.get(CSRF_TOKEN_PARAM) ?? "";
+  if (!consentId || !csrfToken) {
+    return { ok: false, errorDescription: "Missing consent transaction." };
+  }
+  return { ok: true, consentId, csrfToken };
 }
 
 export function buildOAuthConsentUrl(
   baseUrl: string,
-  validation: Extract<OAuthAuthorizeValidation, { ok: true }>
+  params: { consentId: string; csrfToken: string }
 ): string {
   const url = new URL("/oauth/consent", baseUrl);
-  url.searchParams.set("response_type", validation.responseType);
-  url.searchParams.set("client_id", validation.clientId);
-  url.searchParams.set("redirect_uri", validation.redirectUri);
-  url.searchParams.set("code_challenge", validation.codeChallenge);
-  url.searchParams.set("code_challenge_method", validation.codeChallengeMethod);
-  url.searchParams.set("resource", validation.resource);
-  url.searchParams.set("scope", validation.scope);
-  if (validation.state) url.searchParams.set("state", validation.state);
+  url.searchParams.set(CONSENT_ID_PARAM, params.consentId);
+  url.searchParams.set(CSRF_TOKEN_PARAM, params.csrfToken);
   return url.toString();
+}
+
+export function buildOAuthApproveConsentUrl(params: {
+  consentId: string;
+  csrfToken: string;
+}): string {
+  const qs = new URLSearchParams();
+  qs.set(CONSENT_ID_PARAM, params.consentId);
+  qs.set(CSRF_TOKEN_PARAM, params.csrfToken);
+  return `/oauth/consent/approve?${qs.toString()}`;
 }
 
 export function buildOAuthAuthorizeRedirect(params: {
