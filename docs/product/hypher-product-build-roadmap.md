@@ -1,164 +1,188 @@
 # Hypher Product Build Roadmap
 
-Last updated: May 6, 2026
+Last updated: May 25, 2026.
 
 ## Source Of Truth
 
-This roadmap merges the current strategic roadmap with the Hypher Agent Brief.
+This roadmap is the canonical product direction for Hypher. The agent-specific brief mirrors it here:
 
-The working product thesis is:
+- `../../hypher-web/docs/Hypher Agent Brief.md`
 
-> Hypher is an idea-capture-first, project-aware workspace for builders and agents.
+## Current Thesis
 
-The working motto is:
+Hypher is the **project context layer for AI builders and agents**.
 
-> Capture first. Projects stay aware.
+The original vision was an agentic assistant that remembers projects, keeps track of work, and reminds the user what matters. That vision is still correct. The context layer is now the main focus because it is the foundation that makes the assistant useful.
 
-The deeper promise is:
+The working promise:
 
-> Hypher keeps every project aware of what changed, what matters, and what should happen next.
+> Hypher captures messy project context, turns it into durable memory, and gives humans and agents the right brief when work needs to continue.
 
-The agent loop is the wedge, but the resume loop is the habit.
+The simple loop:
+
+```txt
+Capture anything -> build project memory -> brief agents -> receive writeback -> remind/resume better
+```
 
 ## Positioning
 
-Hypher should not feel like infrastructure first. The first user-facing reason to use Hypher is simple:
+Primary:
 
-> I had an idea. I want to capture it before I lose it.
+> The project context layer for AI builders and agents.
 
-The advanced builder reason is:
+Plain:
 
-> My captured ideas and project updates become reusable context for me and my AI agents.
+> Capture the messy work. Keep the project memory. Hand agents the context.
 
-Simple user-level pitch:
+Long-term:
 
-> Hypher helps you capture ideas and turn them into clear projects.
+> Hypher becomes an agentic project assistant that remembers what changed, tracks what matters, and helps you resume the right work.
 
-Advanced builder-level pitch:
-
-> Hypher turns your captured ideas and project updates into agent-ready context, so every AI tool you use understands what you are building.
+Do not position Hypher as only a capture app anymore. Capture is the input. Context is the product. Assistance is the long-term expression.
 
 ## Product Model
 
-Hypher has three layers.
+Hypher has four layers.
 
 ### 1. Capture Layer
 
-This is the front door and core habit.
+Capture is the front door and habit loop.
 
-Users should be able to quickly capture:
+Users should be able to save:
 
 - raw ideas
 - product thoughts
-- feature concepts
 - bugs
-- customer feedback
 - screenshots and files
 - links
 - meeting notes
 - chat exports
-- agent outputs
-- random thoughts that may become projects
+- agent output
+- build logs
+- GitHub/repo observations
+- random project fragments
 
-The capture experience should stay fast, low-friction, and forgiving. Users should not need to pick a project, category, tag, or workflow before saving the thought.
+Capture should stay fast and forgiving. Users should not need to pick a project or workflow before saving the thought.
 
-### 2. Clarity Layer
+### 2. Memory Layer
 
-Hypher turns captured material into useful project structure.
+Memory is the core data product.
 
-It should extract and maintain:
+Hypher turns captured and imported material into:
 
 - project summary
 - current direction
-- last meaningful change
-- goals
+- recent changes
 - key decisions
-- open questions
 - constraints
-- risks
-- relevant captures
-- next actions
-- stale or blocked work
+- open questions
+- active tasks
+- blockers
+- accepted actions
+- agent warnings
+- handoff notes
+- stale assumptions
 
-This layer powers Project Pulse, the human-facing resume surface.
+The memory layer must stay reviewable. Hypher can suggest, but the user controls what becomes durable context.
 
 ### 3. Context Layer
 
-Context is the upgrade and technical moat.
+Context is the current main focus and technical moat.
 
-Hypher packages project knowledge into context that agents can use:
+Hypher packages memory into:
 
-- agent-ready context packets
-- project handoffs
-- agent run summaries
-- decision logs
-- context exports
-- API access
-- NPM SDK later
-- MCP server later
+- Builder Briefs
+- agent-ready markdown packets
+- protected context API
+- read-only MCP tools
+- agent handoffs
+- returned agent output
+- context history
+- future SDK/client integrations
 
-The context layer should feel like a natural extension of capture, not a separate developer tool bolted on top.
+This layer should be deterministic, bounded, and tool-neutral.
+
+### 4. Assistant Layer
+
+The assistant layer is the long-term destination.
+
+Once memory and context are reliable, Hypher can proactively help:
+
+- remind users about stalled projects
+- flag stale assumptions or unresolved decisions
+- surface projects that need review
+- summarize what agents did
+- suggest the next best move
+- watch GitHub/build state
+- capture from Mac hotkey, iOS share sheet, and action button
+- coordinate agent writebacks through Hypher
+
+The assistant should not be generic chat first. It should be project-aware assistance powered by Hypher memory.
 
 ## Core Loops
 
-### Main Habit Loop
+### Human Resume Loop
 
-```text
-capture -> pulse -> resume -> act -> handoff -> pulse
+```txt
+capture -> memory -> Project Pulse -> next move -> act -> memory updates
 ```
 
-Plainly:
+Success means the user can open a project cold and know:
 
-1. User captures messy project context.
-2. Hypher turns it into project memory and actions.
-3. Agents send work updates.
-4. Project Pulse shows what changed.
-5. User resumes faster.
-6. User acts.
-7. The next handoff updates the pulse again.
+- what changed
+- what matters
+- what still needs review
+- what the next move is
 
-### MVP Context Loop
+### Agent Context Loop
 
-```text
-capture idea -> organize project -> generate agent context
+```txt
+memory -> Builder Brief -> agent works -> agent writes back -> memory improves
 ```
 
-This validates the context layer before building SDK or MCP infrastructure.
+Success means Codex, Cursor, Claude, ChatGPT, OpenClaw, Hermes, or another agent can start with useful project context and return useful state to Hypher.
+
+### Reminder Loop
+
+```txt
+memory changes -> Hypher detects drift/stale work/blockers -> user gets a useful reminder
+```
+
+This is not the first build target, but it is part of the original product vision and should stay in the roadmap.
 
 ## Current Validation Point
 
 The current product test is:
 
-> Can an agent send a useful handoff into Hypher, and can the user resume work faster from that handoff?
+> Can Hypher become the trusted source of project context for both the builder and their agents?
 
-This is the immediate production dogfood loop.
+Near-term validation:
 
-### P0 Production Smoke
+1. Use Hypher for real project captures.
+2. Generate or inspect Project Pulse.
+3. Copy or call a Builder Brief.
+4. Use that context in an agent.
+5. Send the agent result back into Hypher.
+6. Open the project later and resume faster.
 
-Run the live production loop before building wider:
+## Project Pulse
 
-1. Create a temporary production API key locally.
-2. Send matched handoff.
-3. Send unmatched handoff.
-4. Move unmatched event to the Hypher project.
-5. Convert a suggested action to a project action.
-6. Save one event as a note.
-7. Review or dismiss the event.
-8. Revoke the temporary key.
+Project Pulse is the human-facing resume surface.
 
-Do not paste the key into chat, docs, commits, or agent logs. Use local env only.
+It should answer:
 
-## Project Pulse v1: Resume Surface
-
-Project Pulse is the product experience builders should fall in love with.
-
-Capture is the input. Agents are the differentiator. Actions are the operational layer. Memory is the intelligence. Project Pulse is where the user feels the value.
+- where the project stands
+- what changed recently
+- what needs review
+- what agents did
+- what is blocked or stale
+- what to do next
 
 Pulse should lead with interpretation, not raw panels.
 
 Bad:
 
-```text
+```txt
 Agent updates
 Actions
 Memory
@@ -168,290 +192,155 @@ Inbox
 
 Better:
 
-```text
+```txt
 Where the project stands
 What needs attention
 What to do next
 What changed recently
 ```
 
-### 1. Current State
+## Builder Briefs
 
-Top of the page.
+Builder Briefs are the agent-facing context surface.
 
-Show:
-
-- one-sentence project summary
-- current direction
-- last meaningful change
-- stale memory warning if relevant
-
-Example:
-
-```text
-Hypher is in private beta, moving from capture workspace into a project-aware agent layer. Latest work shipped Agent Events, Agent Inbox, and first-class actions.
-```
-
-### 2. Next Move
-
-Show one primary next move, not a list of twelve.
-
-Example:
-
-```text
-Run production matched/unmatched handoff smoke and confirm actions can be created from agent suggestions.
-```
-
-### 3. Needs Review
-
-This is the operational section.
-
-Show:
-
-- new agent events
-- unmatched agent events
-- unsorted captures
-- stale project memory
-- blocked actions
-- GitHub/build issues later
-
-### 4. Action Queue
-
-Keep actions lightweight:
-
-- suggested
-- accepted
-- completed
-- dismissed
-
-Use source labels:
-
-- Memory
-- Agent
-- Manual
-- GitHub
-
-Do not add due dates, recurrence, priority systems, or full task-manager complexity yet.
-
-### 5. Recent Pulse
-
-A mixed project timeline:
-
-- captures
-- memory refreshes
-- agent events
-- actions created or completed
-- notes saved
-- GitHub sync events later
-
-### 6. Agent Updates
-
-Dedicated, but not dominant.
-
-It should answer:
-
-> What did agents do since I last checked?
-
-## Copy Agent Context v1
-
-The next context-layer feature should be simple:
-
-> Copy agent context
-
-This should generate a markdown context packet from a project.
-
-Include:
+A brief should include:
 
 - project summary
-- current state
+- current direction
 - current goal
+- recent changes
 - key decisions
 - constraints
 - open questions
-- next actions
-- relevant recent ideas
+- action queue
+- relevant captures
 - recent agent handoffs
-- instructions for the AI agent
+- returned agent output
+- instructions for the next agent
 - what the agent should avoid
 
-This validates agent-ready context without needing MCP or SDK first.
+The brief must be bounded and deterministic. Do not dump raw unbounded logs.
 
-## Agent Handoffs
+## Agent Writeback
 
-Agent handoffs matter because agents create new context. Resume matters because builders return when Hypher saves them time.
+Agents should not "chat" with each other in an open room first. They should coordinate through structured writeback into Hypher.
 
-For the next five real build sessions, end with a handoff:
+Useful event types:
 
-```text
-What changed?
-What passed?
-What failed?
-What is blocked?
-What should happen next?
+- handoff
+- build log
+- question
+- suggestion
+- artifact
+- next action
+
+The product goal is:
+
+```txt
+Agent A does work -> posts structured update -> Hypher updates memory/Pulse -> Agent B reads the next brief
 ```
 
-Then open Project Pulse cold the next day and ask:
+This is the clean version of "agents talking to each other using Hypher."
 
-> Did this help me resume faster?
+## Native And Reminder Roadmap
 
-If yes, Hypher is becoming valuable. If no, tighten Project Pulse before building wider.
+The assistant vision should return through practical workflow surfaces:
 
-### First Agent Workflow
+1. Mac menu bar capture and global hotkey.
+2. iOS share sheet and action button capture.
+3. Native inbox review.
+4. Read-only Project Pulse and daily digest on native.
+5. Useful reminders for stale projects, unresolved decisions, and missed agent results.
+6. Full native workspace/canvas only after the capture and reminder use cases prove themselves.
 
-Build and use one real installed workflow first:
-
-> OpenClaw handoff skill
-
-It should do one thing well:
-
-- summarize work
-- include repo, branch, and commit
-- include tests and build status
-- include blockers
-- include suggested next actions
-- post to Hypher
-
-Hermes can follow after the shape proves itself.
+Do not rewrite the web app in Swift now. The web app is the command center and contract proving ground. Native apps should start as capture/reminder companions.
 
 ## Developer Layer Order
 
-Do not build the SDK or MCP before dogfooding the handoff and context-packet loops.
+The developer layer exists to move context in and out of Hypher.
 
 Correct order:
 
-1. Prove the handoff script works.
-2. Use it manually.
-3. Use it through one agent skill.
-4. Build Copy Agent Context.
-5. Turn the stable client shape into `@hypher/core` or `@hypher/context`.
-6. Add MCP only after the context contract is stable.
+1. Keep Builder Brief and agent event contracts stable.
+2. Dogfood the handoff script on real sessions.
+3. Improve Agent Inbox and Project Pulse review flows.
+4. Package stable APIs into SDK/client helpers.
+5. Expand MCP/connector workflows after the context contract is trusted.
 
-Possible future SDK shape:
+Possible client shape:
 
 ```ts
-const hypher = new HypherClient({ apiKey });
-
 await hypher.capture({
   content: "Need to fix the onboarding empty state",
   project: "Hypher",
 });
 
 await hypher.agentEvent({
-  source: "openclaw",
+  source: "codex",
   project: "Hypher",
   kind: "handoff",
-  title: "Activation rail shipped",
-  body: "Implemented and verified.",
+  title: "Project Pulse tightened",
+  body: "Updated the resume surface and verified tests.",
   suggestedActions: ["Run production smoke"],
 });
 
-await hypher.handoff({
-  source: "openclaw",
-  project: "Hypher",
-  changed: ["Added Agent Inbox"],
-  passed: ["npm test", "npm run build"],
-  blocked: [],
-  next: ["Smoke test production"],
-});
+const brief = await hypher.context.forProject({ project: "Hypher" });
 ```
-
-`handoff(...)` can be a nicer wrapper around `agentEvent(...)`.
-
-## Recommended Next 7 Days
-
-### Day 1
-
-Run production handoff smoke tests.
-
-### Day 2-3
-
-Use `hypher-handoff` after real work sessions.
-
-Log what feels useful and what feels noisy.
-
-### Day 4-5
-
-Tighten Project Pulse v1:
-
-- Current State
-- Next Move
-- Needs Review
-- Action Queue
-- Recent Pulse
-- Agent Updates
-
-### Day 6
-
-Install and use one real OpenClaw handoff workflow.
-
-### Day 7
-
-Open Hypher cold and see whether it tells you exactly where to resume.
-
-If it does, the product is moving in the right direction. If it does not, fix Pulse before building wider.
 
 ## Build Priority
 
 ### P0
 
-- Production handoff smoke.
-- Five-session handoff dogfood.
-- Project Pulse v1 resume surface.
-- Copy Agent Context v1.
+- Align all docs and landing copy around context-first positioning.
+- Controlled beta with users who have real messy project context.
+- Dogfood Builder Briefs and agent writeback on real work.
+- Tighten Project Pulse as the human resume surface.
+- Keep capture fast because it feeds memory.
 
 ### P1
 
-- OpenClaw handoff skill.
-- Better inbox review for unmatched agent events and unsorted captures.
-- First-class action records with source labels.
-- Save agent event as note.
-- Review, dismiss, and move agent event flows.
+- Better inbox review for captures and unmatched agent events.
+- Clear action records with source labels.
+- Save/review/dismiss/move agent events.
+- Handoff result visibility.
+- GitHub context inside Pulse and briefs.
+- Context history.
 
 ### P2
 
-- `@hypher/core` or `@hypher/context`.
-- More polished browser capture.
-- GitHub/build context in Project Pulse.
-- Context export history.
-- Beta request funnel if launch flow needs it.
+- Mac hotkey/menu bar capture.
+- iOS share sheet/action button capture.
+- Proactive reminders and digest improvements.
+- ChatGPT/Claude/Cursor/Codex connector workflows.
+- SDK/MCP packaging.
 
 ### Later
 
-- MCP server.
-- Project Agent chat.
-- Mac app.
-- Voice capture.
-- Notion import polish.
-- Graph view.
+- Full project assistant chat.
+- Native workspace/canvas.
+- Advanced graph view.
 - Full task manager.
-- Public launch.
-- Product Hunt.
+- Public team collaboration.
 
 ## What Not To Build Yet
 
 Avoid:
 
-- full MCP
-- Project Agent chat
-- Mac app
-- voice capture
-- Notion import polish
-- graph view
-- full task manager
-- public launch
-- Product Hunt
+- generic assistant chat before memory is trusted
+- full native rewrite
+- full MCP marketplace
+- heavy task management
+- complex graph UI
+- public team workspace
+- agent orchestration that creates noise
 
 These are not wrong. They are early.
 
-Right now the product gets stronger by making the existing loop indispensable.
-
 ## Product Bar
 
-"Builders can't live without it" does not mean users like the UI.
+"Builders can't live without it" means:
 
-It means:
-
-> They trust Hypher as the place to resume a project.
+> They trust Hypher as the place to resume a project and brief an agent.
 
 After using Hypher for a week, a builder should feel:
 
@@ -459,6 +348,7 @@ After using Hypher for a week, a builder should feel:
 - I know what the agent did.
 - I know what still needs review.
 - I know the next move.
-- I do not have to reconstruct context from chats, commits, notes, and memory.
+- I can hand this project to an agent without reconstructing context.
+- I do not have to remember every project manually.
 
 That is the bar.

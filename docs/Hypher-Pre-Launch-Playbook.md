@@ -1,5 +1,7 @@
 # Hypher — Pre-Launch Playbook
 
+> **Historical note, May 25, 2026:** This April audit is no longer the canonical product direction. It is useful history, but several blockers listed here have since been addressed. Current direction: Hypher is the project context layer for builders and agents. Capture remains the input, while Project Pulse, Builder Briefs, and agent writeback are the core loop. Use `product/hypher-product-build-roadmap.md` and `../hypher-web/docs/Hypher Agent Brief.md` for current guidance.
+
 > Repo audit, pre-launch checklist, and the bleeding-edge features that will sell this.
 
 **Prepared for:** Nick

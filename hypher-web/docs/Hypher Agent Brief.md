@@ -1,478 +1,255 @@
 # Hypher Agent Brief
 
-Merged with the current product roadmap on May 6, 2026.
+Last updated: May 25, 2026.
 
 Canonical roadmap:
 
 - `../../docs/product/hypher-product-build-roadmap.md`
 
-Current operating priority:
+## Current Product Direction
 
-1. Run production matched/unmatched handoff smoke.
-2. Dogfood handoffs for five real build sessions.
-3. Tighten Project Pulse v1 as the resume surface.
-4. Build Copy Agent Context v1.
-5. Install one real OpenClaw handoff workflow.
-6. Defer SDK/MCP until the handoff and context-packet contracts are stable.
+Hypher is the **project context layer for builders and their agents**.
 
-## Product Direction
-
-Hypher is primarily an **idea capture and project clarity product** for builders.
-
-The core product should stay focused on helping users capture messy ideas, organize them, and turn them into clear project direction. The context layer should be positioned as a powerful add-on and selling point, not as a replacement for idea capture.
+The original assistant vision still matters: Hypher should remember project context, track what changed, remind the user about important work, and fit into native workflows. The current product focus is narrower because the context layer is what makes that assistant useful.
 
 In simple terms:
 
-> Hypher helps builders capture ideas, shape them into projects, and give their agents the context they need to help build.
+> Hypher captures messy project context, turns it into durable project memory, and gives humans and agents the right brief when work needs to continue.
 
-## Core Thesis
+Do not describe context as a side add-on anymore. Context is the core. Capture, Project Pulse, reminders, native capture, GitHub, and agent writeback are all supporting layers around it.
 
-Builders do not only need another note-taking app or another agent builder. They need a place where raw ideas can become durable project context.
+## Product Thesis
 
-Most AI builders lose context across tools. They brainstorm in ChatGPT, code in Cursor, organize in Notion, manage tasks elsewhere, and then have to keep re-explaining the project to every new agent or assistant.
+Builders lose context across notes, chats, repos, AI sessions, screenshots, docs, and half-finished thoughts. Each new agent or assistant starts cold unless the builder manually re-explains the project.
 
-Hypher solves this by starting with the natural behavior — capturing ideas — and then turning those ideas into reusable project context.
+Hypher solves this by becoming the shared project memory:
+
+- humans capture raw context quickly
+- Hypher organizes it into projects
+- Project Pulse shows what matters now
+- Builder Briefs give agents clean context
+- agents write results back into Hypher
+- future reminders and native apps turn that memory into proactive assistance
+
+The assistant vision should be built on top of this memory, not beside it.
 
 ## Strategic Positioning
 
-Hypher should be positioned as:
+Primary positioning:
 
-> The idea capture layer that becomes your project context layer.
+> The project context layer for AI builders and agents.
 
-Alternative positioning lines:
+Plain-language version:
 
-- Capture ideas. Build with context.
-- Turn messy ideas into agent-ready project context.
-- The project brain for builders and their AI agents.
-- Capture the thought. Keep the context.
-- Give every project a memory your agents can use.
+> Capture the messy work. Keep the project memory. Hand agents the context.
 
-## Important Product Decision
+Assistant-vision version:
 
-Do not make Hypher feel like infrastructure first.
+> Hypher is an agentic project assistant that remembers what changed, tracks what matters, and helps you resume the right work.
 
-The user-facing entry point should be simple and emotional:
+Useful supporting lines:
 
-> “I had an idea. I want to capture it before I lose it.”
-
-The advanced value is:
-
-> “Now that idea becomes structured context that my agents can use later.”
-
-This keeps Hypher approachable for creators, founders, indie builders, and product teams while still creating a strong technical moat.
+- Project memory for builders and their agents.
+- Builder Briefs for every project.
+- Your shared project brain across Codex, Cursor, Claude, ChatGPT, GitHub, and your own notes.
+- Capture first. Hypher turns it into context.
+- The context layer that makes project assistants useful.
 
 ## Product Model
 
-Hypher should have three layers:
+Hypher has four layers.
 
 ### 1. Capture Layer
 
-This is the core experience.
+Capture is still the front door. Users should be able to quickly save:
 
-Users can quickly capture:
+- raw ideas
+- project notes
+- screenshots and files
+- links
+- voice notes
+- meeting notes
+- chat exports
+- agent output
+- build logs
+- GitHub or repo observations
+- random thoughts that may become projects
 
-- Raw ideas
-- Voice notes
-- Product thoughts
-- Feature concepts
-- Bugs
-- Customer feedback
-- Screenshots
-- Links
-- Meeting notes
-- Chat exports
-- Agent outputs
-- Random thoughts that might become projects
+Capture should stay low-friction. Do not force project setup before the user can save a thought.
 
-The capture experience should be fast, low-friction, and forgiving. The user should not need to decide where everything belongs up front.
+### 2. Memory Layer
 
-### 2. Clarity Layer
+This is the core product layer.
 
-Hypher turns captured material into useful project structure.
+Hypher turns captured and imported material into durable project memory:
 
-It should extract and maintain:
+- project summary
+- current direction
+- recent changes
+- key decisions
+- constraints
+- open questions
+- blockers
+- accepted actions
+- agent warnings
+- handoff notes
+- stale assumptions
 
-- Project summary
-- Goals
-- Key decisions
-- Open questions
-- Tasks
-- Constraints
-- Risks
-- User personas
-- Feature ideas
-- Next actions
-- Important context
-
-This layer powers the human-facing product experience, including Project Pulse.
+This memory must be reviewable. The user stays in control of what becomes durable context.
 
 ### 3. Context Layer
 
-This is the add-on and developer-facing selling point.
+This is the main focus and the technical moat.
 
-Hypher packages the project’s structured knowledge into context that agents can use.
+Hypher packages memory into context that humans and agents can use:
 
-This can eventually include:
+- Builder Briefs
+- agent-ready markdown packets
+- protected context API
+- read-only MCP tools
+- agent handoff history
+- returned agent output
+- future SDK/client integrations
 
-- Agent-ready context packets
-- MCP server
-- NPM SDK
-- API access
-- Context graph
-- Agent run summaries
-- Project handoffs
-- Decision logs
-- Context exports
+The context layer should be deterministic, bounded, and tool-neutral. It should work with ChatGPT, Claude, Codex, Cursor, Windsurf, GitHub Copilot, OpenClaw, Hermes, and future agents.
 
-The context layer should feel like a natural extension of idea capture, not a separate product bolted on randomly.
+### 4. Assistant Layer
 
-## Core User Journey
+This is the long-term product expression.
 
-1. User captures a messy idea.
-2. Hypher summarizes and organizes it.
-3. Hypher detects whether it belongs to an existing project or should become a new project.
-4. Hypher updates the project’s current state.
-5. Hypher suggests next actions.
-6. When the user works with an AI agent, Hypher can provide the right context for that task.
+Once memory and context are reliable, Hypher can become more proactive:
 
-Example:
+- reminders about stalled projects
+- alerts for stale memory or unresolved decisions
+- daily or weekly project digest
+- "what should I work on next?"
+- "what did agents do while I was away?"
+- native Mac hotkey capture
+- iOS share sheet and action button capture
+- GitHub build overseer
+- agent-to-Hypher writeback workflows
 
-```txt
-User captures:
-“I think Hypher should still be about ideas, but maybe the context layer is the dev-facing add-on.”
+Do not build the assistant as generic chat first. Build it as project-aware assistance powered by Hypher memory.
 
-Hypher extracts:
-- Product decision: Idea capture remains core.
-- Strategic direction: Context layer becomes add-on/selling point.
-- Positioning: Capture ideas, convert them into agent-ready context.
-- Next action: Update product brief and landing page messaging.
-```
+## Core Loops
 
-## What the Agent Should Help Build
-
-The agent should help build Hypher as an idea-first product with an optional context layer.
-
-Prioritize features in this order:
-
-1. Fast idea capture
-2. Project organization
-3. Project Pulse / current state
-4. Structured extraction from captured ideas
-5. Context packets for agents
-6. Context export
-7. MCP / SDK integrations
-8. Advanced automation
-
-## Product Principles
-
-### Capture First
-
-The first user action should always be easy capture. Do not force setup, categories, tags, or project structure before the user can save an idea.
-
-### Structure After Capture
-
-Hypher should organize after the user captures. The system should do the work of turning messy thoughts into useful project knowledge.
-
-### Context Is the Upgrade
-
-Context should be the feature that makes Hypher uniquely valuable to AI builders. The product should not lead with technical infrastructure unless targeting developers specifically.
-
-### Do Not Become Another Agent Builder
-
-Hypher should help agents work better, but it should not try to replace OpenAI, Claude, Cursor, LangChain, CrewAI, or other agent frameworks.
-
-Hypher’s role is to provide the project brain.
-
-### Do Not Become Another Notion
-
-Hypher should not become a blank workspace where users manually organize everything. It should be capture-native and AI-organized.
-
-### Make Project State Obvious
-
-At any point, a user should be able to open a project and understand:
-
-- What this project is
-- What changed recently
-- What decisions have been made
-- What still needs attention
-- What to do next
-- What context an agent would need
-
-## Feature Set
-
-### Idea Capture
-
-Required capabilities:
-
-- Text capture
-- Voice capture
-- Link capture
-- Screenshot or file capture
-- Quick capture from anywhere
-- Inbox for uncategorized ideas
-- Ability to attach capture to a project
-- AI-generated title and summary
-- AI-detected project relevance
-
-### Project Pulse
-
-Project Pulse should show:
-
-- Current state
-- Recent updates
-- Key decisions
-- Open questions
-- Action queue
-- Needs review
-- Suggested next move
-- Relevant captured ideas
-
-### Context Add-On
-
-The Context add-on should eventually allow users to generate an agent-ready context packet.
-
-A context packet should include:
-
-- Project summary
-- Current goal
-- Relevant decisions
-- Constraints
-- Recent changes
-- Open questions
-- Task-specific instructions
-- Files or artifacts to consider
-- What the agent should avoid
-
-Example context packet:
+### Human Resume Loop
 
 ```txt
-Project: Hypher
-Task: Improve landing page messaging
-
-Current direction:
-Hypher is an idea capture product for builders. The context layer is an add-on that turns captured ideas into reusable project context for agents.
-
-Important decisions:
-- Keep idea capture as the core product.
-- Position context as the advanced selling point.
-- Avoid sounding like generic project management.
-- Avoid becoming a full agent builder.
-
-Suggested messaging:
-Capture ideas. Build with context.
-
-Open questions:
-- Should the context add-on be part of Pro pricing?
-- Should developers get an npm package first or an MCP server first?
+capture -> memory -> Project Pulse -> next move -> act -> update memory
 ```
 
-## NPM / MCP Direction
+Goal: the user can open a project cold and know what changed, what matters, and what to do next.
 
-The developer-facing layer can be introduced later through:
-
-```bash
-npm install @hypher/context
-```
-
-Potential SDK usage:
-
-```ts
-import { Hypher } from "@hypher/context";
-
-const hypher = new Hypher({
-  apiKey: process.env.HYPHER_API_KEY,
-  projectId: "project_id"
-});
-
-const context = await hypher.context.forTask({
-  task: "Write the landing page hero copy",
-  maxTokens: 4000
-});
-```
-
-Potential MCP command:
-
-```bash
-npx @hypher/mcp
-```
-
-The SDK and MCP server should not be the first user experience unless the target user is a developer. They should be the technical extension of the capture product.
-
-## Recommended MVP
-
-The MVP should include:
-
-### Capture Inbox
-
-A simple place where users can dump ideas quickly.
-
-### Project Creation From Ideas
-
-Hypher should be able to turn one or more captured ideas into a project.
-
-### Project Pulse
-
-Each project should have a generated pulse that summarizes the project’s current state.
-
-### Decision Extraction
-
-Hypher should identify important product or project decisions from captured ideas.
-
-### Open Questions
-
-Hypher should maintain unresolved questions that need the user’s attention.
-
-### Context Export
-
-The first version of the context add-on can simply be a button:
-
-> Copy agent context
-
-This produces a clean markdown context packet that the user can paste into ChatGPT, Claude, Cursor, or another agent.
-
-This is simpler than building the full SDK immediately and validates the context-layer value quickly.
-
-## Suggested MVP Flow
+### Agent Context Loop
 
 ```txt
-1. User captures an idea.
-2. Hypher saves it to the inbox.
-3. Hypher summarizes it.
-4. Hypher suggests a project or creates a new one.
-5. Hypher updates Project Pulse.
-6. User clicks “Copy agent context.”
-7. Hypher generates a markdown context packet for the user’s agent.
+capture/update -> Builder Brief -> agent works -> agent writes back -> memory improves
 ```
 
-## Landing Page Direction
+Goal: every agent starts with the right project context and returns useful state to Hypher.
 
-Hero message:
+### Future Reminder Loop
 
 ```txt
-Capture ideas. Build with context.
+memory changes -> Hypher detects drift/stale work/blockers -> user gets a useful reminder
 ```
 
-Supporting copy:
+Goal: Hypher becomes the assistant that notices projects before the user has to remember them.
 
-```txt
-Hypher turns raw ideas, notes, and project updates into a living project brain — so you and your AI agents always know what matters, what changed, and what to do next.
-```
+## What Is Already Built
 
-Value props:
+The current app already supports a meaningful version of the context loop:
 
-- Capture messy ideas before they disappear.
-- Turn notes into project summaries, decisions, and next actions.
-- Give your AI agents the context they need to help you build.
+- capture and project sorting
+- Project Pulse
+- project memory generation
+- crystallized suggestions and accepted memory
+- action queue
+- agent events and Agent Inbox
+- agent handoff script
+- returned agent output loop
+- Builder Brief compiler
+- protected agent context API
+- read-only MCP route
+- API keys and capture tokens
+- GitHub PAT/repo connection path
+- beta gate, feedback, settings, and launch readiness
 
-## Pricing Direction
+Do not tell future agents this is only a note-taking prototype. It is already a context/memory system with agent writeback.
 
-Possible pricing structure:
+## Current Priorities
 
-### Free
+P0:
 
-- Capture ideas
-- Basic project organization
-- Limited Project Pulse
+1. Keep the landing/docs aligned around context-first positioning.
+2. Dogfood the agent handoff and Builder Brief loop on real work.
+3. Tighten Project Pulse as the human resume surface.
+4. Make agent writeback useful, not noisy.
+5. Run controlled beta with users who have real project context.
 
-### Pro
+P1:
 
-- Unlimited projects
-- Advanced Project Pulse
-- Context export
-- Decision tracking
-- Open questions
-- More captures
+1. Improve inbox review for captures and unmatched agent events.
+2. Strengthen action records and source labels.
+3. Add better context history and handoff result visibility.
+4. Use GitHub context inside Project Pulse and Builder Briefs.
+5. Polish API key, capture token, and integration setup flows.
 
-### Builder / Team
+P2:
 
-- Shared projects
-- Agent context packets
-- MCP server
-- NPM SDK
-- Integrations
-- Agent run history
+1. Native capture companion: Mac hotkey/menu bar first.
+2. iOS share sheet and action button capture.
+3. Proactive reminders and digest improvements.
+4. ChatGPT/Claude/Cursor/Codex connector workflows.
+5. SDK/MCP packaging after contracts are stable.
 
-The Context layer can become the main reason users upgrade.
+## What To Avoid
 
-## What to Avoid
+Avoid making Hypher:
 
-Avoid positioning Hypher as:
+- a generic notes app
+- a generic task manager
+- a blank Notion-style workspace
+- a full agent builder
+- a generic MCP marketplace
+- a chat app with no durable memory
+- a native rewrite before the web/context loop is proven
 
-- A generic notes app
-- A generic task manager
-- A generic project management dashboard
-- A full agent-building framework
-- A memory API with no clear user experience
-- A developer tool only
+Avoid language that says:
 
-Avoid adding too much complexity too early:
+- context is only an add-on
+- agents are only a future idea
+- capture is the whole product
+- the assistant vision has been abandoned
 
-- Complex graph UI
-- Heavy integrations before capture works
-- Multi-agent orchestration
-- Custom agent builder
-- Overly technical onboarding
-- Required setup before first capture
+The correct framing is:
+
+> Capture feeds memory. Memory powers context. Context makes the assistant useful.
 
 ## Agent Behavior Guidelines
 
-When helping with Hypher, the agent should:
+When helping with Hypher:
 
-1. Preserve the idea-capture-first strategy.
-2. Treat context as the differentiating add-on.
-3. Keep UX simple and capture-native.
-4. Suggest MVP paths before complex infrastructure.
-5. Translate vague ideas into product decisions, user stories, and build tasks.
-6. Maintain a clear distinction between human-facing Project Pulse and agent-facing Context Packets.
-7. Avoid turning Hypher into an overly broad productivity suite.
-8. Prefer practical implementation steps over abstract strategy.
+1. Treat the context layer as the main focus.
+2. Preserve fast capture because it feeds context.
+3. Keep Project Pulse as the human-facing resume surface.
+4. Keep Builder Briefs as the agent-facing context surface.
+5. Prefer bounded, reviewable memory over opaque automation.
+6. Build agent writeback as structured updates, not free-form agent chat first.
+7. Keep native Mac/iOS work focused on capture and reminders before full workspace parity.
+8. Suggest assistant features only when they use Hypher memory to do something concrete.
 
 ## Current Strategic Decision
 
-The current product decision is:
+Hypher started as an agentic assistant that remembers projects and reminds the user what matters. That remains the long-term vision.
 
-> Hypher remains an idea capture product, but its strongest selling point is that captured ideas become reusable context for builders and their AI agents.
+The current center of gravity is:
 
-This means the product should be explained in two levels:
+> Hypher is the project context layer that makes that assistant possible.
 
-### Simple User-Level Pitch
-
-```txt
-Hypher helps you capture ideas and turn them into clear projects.
-```
-
-### Advanced Builder-Level Pitch
+Everything should support this product shape:
 
 ```txt
-Hypher turns your captured ideas and project updates into agent-ready context, so every AI tool you use understands what you are building.
+Capture anything -> build project memory -> brief agents -> receive writeback -> remind/resume better
 ```
-
-## Next Recommended Build Step
-
-Build the first version of **Copy Agent Context**.
-
-This feature should let a user open a project and generate a markdown context packet containing:
-
-- Project summary
-- Current state
-- Decisions
-- Open questions
-- Next actions
-- Relevant recent ideas
-- Instructions for an AI agent
-
-This validates the context-layer concept without requiring a full SDK or MCP server immediately.
-
-## Working Summary For The Agent
-
-Hypher is not just a place to save ideas. It is a system that turns ideas into project clarity.
-
-The product starts with capture because that is the user’s natural behavior. The context layer becomes the premium capability because it makes those captured ideas useful to AI agents.
-
-The simplest version is:
-
-```txt
-Capture idea → Organize project → Generate agent context
-```
-
-Everything built for Hypher should support that loop.
