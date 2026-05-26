@@ -36,7 +36,8 @@ struct NoteFormView: View {
             }
             .padding()
         }
-        .frame(width: 400, minHeight: 250)
+        .frame(width: 400)
+        .frame(minHeight: 250)
     }
 
     private func save() {

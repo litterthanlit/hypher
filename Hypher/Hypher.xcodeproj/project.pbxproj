@@ -33,6 +33,14 @@
 		B10000000000000000000018 /* VectorMath.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000018 /* VectorMath.swift */; };
 		B10000000000000000000019 /* HypherApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000019 /* HypherApp.swift */; };
 		B1000000000000000000001B /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000001B /* Assets.xcassets */; };
+		B1000000000000000000001C /* CaptureProject.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000001C /* CaptureProject.swift */; };
+		B1000000000000000000001D /* CaptureDraft.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000001D /* CaptureDraft.swift */; };
+		B1000000000000000000001E /* CaptureSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000001E /* CaptureSettings.swift */; };
+		B1000000000000000000001F /* CaptureClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000001F /* CaptureClient.swift */; };
+		B10000000000000000000020 /* ActiveContextService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000020 /* ActiveContextService.swift */; };
+		B10000000000000000000021 /* HotkeyService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000021 /* HotkeyService.swift */; };
+		B10000000000000000000022 /* QuickCaptureView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000022 /* QuickCaptureView.swift */; };
+		B10000000000000000000023 /* CaptureSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000023 /* CaptureSettingsView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -63,6 +71,14 @@
 		A10000000000000000000019 /* HypherApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HypherApp.swift; sourceTree = "<group>"; };
 		A1000000000000000000001A /* Hypher.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Hypher.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A1000000000000000000001B /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		A1000000000000000000001C /* CaptureProject.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureProject.swift; sourceTree = "<group>"; };
+		A1000000000000000000001D /* CaptureDraft.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureDraft.swift; sourceTree = "<group>"; };
+		A1000000000000000000001E /* CaptureSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureSettings.swift; sourceTree = "<group>"; };
+		A1000000000000000000001F /* CaptureClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureClient.swift; sourceTree = "<group>"; };
+		A10000000000000000000020 /* ActiveContextService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActiveContextService.swift; sourceTree = "<group>"; };
+		A10000000000000000000021 /* HotkeyService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotkeyService.swift; sourceTree = "<group>"; };
+		A10000000000000000000022 /* QuickCaptureView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickCaptureView.swift; sourceTree = "<group>"; };
+		A10000000000000000000023 /* CaptureSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureSettingsView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -107,6 +123,9 @@
 				A10000000000000000000004 /* Note.swift */,
 				A10000000000000000000005 /* Artifact.swift */,
 				A10000000000000000000006 /* Connection.swift */,
+				A1000000000000000000001C /* CaptureProject.swift */,
+				A1000000000000000000001D /* CaptureDraft.swift */,
+				A1000000000000000000001E /* CaptureSettings.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -116,6 +135,9 @@
 			children = (
 				A10000000000000000000007 /* EmbeddingService.swift */,
 				A10000000000000000000008 /* ConnectionEngine.swift */,
+				A1000000000000000000001F /* CaptureClient.swift */,
+				A10000000000000000000020 /* ActiveContextService.swift */,
+				A10000000000000000000021 /* HotkeyService.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -129,6 +151,7 @@
 				C10000000000000000000008 /* Suggestions */,
 				C10000000000000000000009 /* Forms */,
 				C1000000000000000000000A /* Shared */,
+				C1000000000000000000000E /* Capture */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -203,6 +226,15 @@
 				A1000000000000000000001A /* Hypher.app */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		C1000000000000000000000E /* Capture */ = {
+			isa = PBXGroup;
+			children = (
+				A10000000000000000000022 /* QuickCaptureView.swift */,
+				A10000000000000000000023 /* CaptureSettingsView.swift */,
+			);
+			path = Capture;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -294,6 +326,14 @@
 				B10000000000000000000017 /* EmptyStateView.swift in Sources */,
 				B10000000000000000000018 /* VectorMath.swift in Sources */,
 				B10000000000000000000019 /* HypherApp.swift in Sources */,
+				B1000000000000000000001C /* CaptureProject.swift in Sources */,
+				B1000000000000000000001D /* CaptureDraft.swift in Sources */,
+				B1000000000000000000001E /* CaptureSettings.swift in Sources */,
+				B1000000000000000000001F /* CaptureClient.swift in Sources */,
+				B10000000000000000000020 /* ActiveContextService.swift in Sources */,
+				B10000000000000000000021 /* HotkeyService.swift in Sources */,
+				B10000000000000000000022 /* QuickCaptureView.swift in Sources */,
+				B10000000000000000000023 /* CaptureSettingsView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
