@@ -8,9 +8,11 @@ struct QuickCaptureView: View {
     @State private var status = ""
 
     private let client = CaptureClient()
+    private let onOpenSettings: () -> Void
 
-    init(settings: CaptureSettings, draft: CaptureDraft) {
+    init(settings: CaptureSettings, draft: CaptureDraft, onOpenSettings: @escaping () -> Void = {}) {
         self.settings = settings
+        self.onOpenSettings = onOpenSettings
         _draft = State(initialValue: draft)
     }
 
@@ -40,6 +42,11 @@ struct QuickCaptureView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Spacer()
+                if !settings.hasApiKey {
+                    Button("Settings") {
+                        openSettingsForMissingApiKey()
+                    }
+                }
                 Button(isSaving ? "Saving..." : "Save") {
                     Task { await save() }
                 }
@@ -74,10 +81,23 @@ struct QuickCaptureView: View {
                     .font(.caption)
                     .lineLimit(4)
             }
+            if draft.needsAccessibilityPermission {
+                Label(
+                    "Allow Accessibility in System Settings to capture selected text and window titles. Clipboard and manual capture still work.",
+                    systemImage: "exclamationmark.triangle"
+                )
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
         }
     }
 
     private func loadProjects() async {
+        guard settings.hasApiKey else {
+            openSettingsForMissingApiKey()
+            return
+        }
         do {
             projects = try await client.fetchProjects(settings: settings)
         } catch {
@@ -86,6 +106,10 @@ struct QuickCaptureView: View {
     }
 
     private func save() async {
+        guard settings.hasApiKey else {
+            openSettingsForMissingApiKey()
+            return
+        }
         isSaving = true
         defer { isSaving = false }
         do {
@@ -95,5 +119,10 @@ struct QuickCaptureView: View {
         } catch {
             status = error.localizedDescription
         }
+    }
+
+    private func openSettingsForMissingApiKey() {
+        status = "Add a Hypher API key in Settings."
+        onOpenSettings()
     }
 }

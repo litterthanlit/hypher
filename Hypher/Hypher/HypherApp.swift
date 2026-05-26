@@ -50,7 +50,9 @@ struct HypherApp: App {
         }
 
         Window("Capture to Hypher", id: "capture") {
-            QuickCaptureView(settings: settings, draft: latestDraft)
+            QuickCaptureView(settings: settings, draft: latestDraft) {
+                openSettingsWindow()
+            }
                 .id(latestDraft)
         }
         .defaultSize(width: 420, height: 420)
@@ -80,6 +82,14 @@ struct HypherApp: App {
             for window in NSApplication.shared.windows where window.title == "Capture to Hypher" {
                 window.makeKeyAndOrderFront(nil)
             }
+        }
+    }
+
+    @MainActor
+    private func openSettingsWindow() {
+        NSApplication.shared.activate(ignoringOtherApps: true)
+        if !NSApplication.shared.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil) {
+            NSApplication.shared.sendAction(Selector(("showPreferencesWindow:")), to: nil, from: nil)
         }
     }
 }

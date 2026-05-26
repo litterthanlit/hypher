@@ -63,6 +63,9 @@ struct CaptureClient {
         guard let http = response as? HTTPURLResponse else { throw CaptureClientError.invalidResponse }
         guard (200..<300).contains(http.statusCode) else {
             let message = (try? JSONDecoder().decode([String: String].self, from: data)["error"]) ?? "Hypher request failed."
+            if http.statusCode == 429 || message == "rate_limited" {
+                throw CaptureClientError.server("Try again in a minute.")
+            }
             throw CaptureClientError.server(message)
         }
     }

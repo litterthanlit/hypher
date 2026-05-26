@@ -7,6 +7,7 @@ struct CaptureDraft: Equatable, Hashable {
     var selectedText: String
     var thought: String
     var projectId: String?
+    var needsAccessibilityPermission = false
 
     var hasContent: Bool {
         !source.trimmed.isEmpty || !selectedText.trimmed.isEmpty || !thought.trimmed.isEmpty

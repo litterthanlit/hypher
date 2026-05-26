@@ -1,4 +1,5 @@
 import AppKit
+import ApplicationServices
 import Foundation
 
 struct ActiveAppContext: Equatable {
@@ -6,6 +7,7 @@ struct ActiveAppContext: Equatable {
     var windowTitle: String
     var selectedText: String
     var clipboardText: String
+    var needsAccessibilityPermission: Bool
 
     func draft() -> CaptureDraft {
         let text = selectedText.trimmed.isEmpty ? clipboardText : selectedText
@@ -16,7 +18,8 @@ struct ActiveAppContext: Equatable {
             source: source,
             selectedText: source.isEmpty ? text : "",
             thought: "",
-            projectId: nil
+            projectId: nil,
+            needsAccessibilityPermission: needsAccessibilityPermission
         )
     }
 }
@@ -25,15 +28,23 @@ struct ActiveContextService {
     func read() -> ActiveAppContext {
         let app = NSWorkspace.shared.frontmostApplication
         let appName = app?.localizedName ?? ""
-        let windowTitle = focusedWindowTitle(processIdentifier: app?.processIdentifier)
-        let selectedText = selectedText(processIdentifier: app?.processIdentifier)
+        let canUseAccessibility = accessibilityTrustedOrPrompt()
+        let windowTitle = canUseAccessibility ? focusedWindowTitle(processIdentifier: app?.processIdentifier) : ""
+        let selectedText = canUseAccessibility ? selectedText(processIdentifier: app?.processIdentifier) : ""
         let clipboardText = NSPasteboard.general.string(forType: .string) ?? ""
         return ActiveAppContext(
             appName: appName,
             windowTitle: windowTitle,
             selectedText: selectedText,
-            clipboardText: clipboardText
+            clipboardText: clipboardText,
+            needsAccessibilityPermission: !canUseAccessibility
         )
+    }
+
+    private func accessibilityTrustedOrPrompt() -> Bool {
+        if AXIsProcessTrusted() { return true }
+        let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
+        return AXIsProcessTrustedWithOptions(options)
     }
 
     private func focusedWindowTitle(processIdentifier: pid_t?) -> String {
