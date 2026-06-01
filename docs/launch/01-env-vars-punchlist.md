@@ -116,6 +116,30 @@ Project memory and streaming UI calls go through Next.js route handlers. Some ex
 
 ---
 
+## Section 3.5 — OpenAI (voice capture)
+
+**Blocks:** Voice capture transcription.
+
+- [ ] `OPENAI_API_KEY`
+
+**Where to get it:**
+1. platform.openai.com → **API keys** → **Create new secret key**
+2. Name it `hypher-voice`
+3. Copy it once and keep it server-side only
+
+**Where to put it:**
+
+`.env.local` AND Vercel prod:
+```
+OPENAI_API_KEY=sk-...
+```
+
+**Verify:**
+- [ ] Restart `npm run dev` → `/app` → click `record voice` → stop recording → transcript appears as a captured note
+- [ ] OpenAI usage dashboard shows a transcription request
+
+---
+
 ## Section 4 — Upstash Redis (rate limiting)
 
 **Blocks:** Production-safe rate limiting on `/api/capture`, `/api/canvas/ask`, `/api/digest/stream`. Without this, features work but abuse is trivial.

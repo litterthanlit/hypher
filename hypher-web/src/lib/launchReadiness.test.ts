@@ -16,6 +16,7 @@ const fullEnv = {
   CONVEX_DEPLOY_KEY: "prod:secret-value",
   SEED_WEBHOOK_SECRET: "seed-secret-value",
   ANTHROPIC_API_KEY: "sk-ant-secret-value",
+  OPENAI_API_KEY: "sk-openai-secret-value",
   UPSTASH_REDIS_REST_URL: "https://upstash.example",
   UPSTASH_REDIS_REST_TOKEN: "upstash-secret-value",
   STRIPE_SECRET_KEY: "sk_live_stripe-secret-value",
@@ -49,6 +50,15 @@ describe("launch readiness classification", () => {
     expect(findItem(readiness, "anthropic-next")).toMatchObject({
       status: "blocked",
       missing: ["ANTHROPIC_API_KEY"],
+    });
+  });
+
+  it("blocks when voice transcription env is missing", () => {
+    const readiness = buildLaunchReadiness({ ...fullEnv, OPENAI_API_KEY: undefined }, 123);
+    expect(readiness.ok).toBe(false);
+    expect(findItem(readiness, "openai-voice-next")).toMatchObject({
+      status: "blocked",
+      missing: ["OPENAI_API_KEY"],
     });
   });
 

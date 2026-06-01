@@ -7136,6 +7136,43 @@ body:has(.capture-root) {
   border-color: var(--border-default);
 }
 
+.home-quick-mock:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.home-quick-mock--voice.is-recording {
+  color: #b91c1c;
+  background: #fef2f2;
+  border-color: #fecaca;
+}
+
+.home-quick-recording-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #dc2626;
+  box-shadow: 0 0 0 4px rgba(220, 38, 38, 0.12);
+  animation: voice-recording-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes voice-recording-pulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(0.76);
+    opacity: 0.7;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-quick-recording-dot {
+    animation: none;
+  }
+}
+
 .first-use-rail {
   width: min(100%, 560px);
   margin: 22px auto 0;

@@ -126,6 +126,13 @@ const nextGroupSpecs: GroupSpec[] = [
         required: true,
         note: "Powers project memory, ambient ask, and digest generation in Next.js routes.",
       },
+      {
+        id: "openai-voice-next",
+        label: "OpenAI API key",
+        vars: ["OPENAI_API_KEY"],
+        required: true,
+        note: "Powers voice capture transcription in the Next.js voice route.",
+      },
     ],
   },
   {

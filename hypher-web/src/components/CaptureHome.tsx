@@ -10,6 +10,7 @@ import { ProjectAssignPopup } from "./ProjectAssignPopup";
 import { ONBOARDING_TARGETS } from "@/lib/onboarding";
 import { HealthRing } from "./HealthRing";
 import { getCaptureEmptyState, getFirstUseActivationRail } from "@/lib/activation";
+import { toast } from "sonner";
 
 interface Props {
   projects: Project[];
@@ -32,8 +33,10 @@ interface Props {
 }
 
 type CaptureStep = "idle" | "assigning";
+type VoiceCaptureState = "idle" | "recording" | "transcribing";
 
 const FIRST_USE_RAIL_STORAGE_KEY = "hypher-first-use-activation-complete";
+const RECORDER_MIME_TYPES = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4"];
 
 function weekdayPart(): string {
   const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -70,6 +73,26 @@ function itemLabel(o: AnyObject): string {
   return "Item";
 }
 
+function getRecorderMimeType(): string | undefined {
+  if (typeof MediaRecorder === "undefined" || typeof MediaRecorder.isTypeSupported !== "function") return undefined;
+  return RECORDER_MIME_TYPES.find((type) => MediaRecorder.isTypeSupported(type));
+}
+
+function extensionForMimeType(mimeType: string): string {
+  if (mimeType.includes("mp4")) return "m4a";
+  return "webm";
+}
+
+function voiceErrorMessage(error: unknown): string {
+  if (!(error instanceof Error)) return "Voice capture failed.";
+  if (error.message === "no-openai-api-key") return "Voice capture needs OPENAI_API_KEY on the server.";
+  if (error.message === "audio-too-large") return "Voice capture is limited to 25 MB.";
+  if (error.message === "rate-limited") return "Voice capture is rate-limited. Try again soon.";
+  if (error.message === "empty-transcript") return "No speech was detected.";
+  if (error.name === "NotAllowedError") return "Microphone access was blocked.";
+  return "Voice capture failed.";
+}
+
 export function CaptureHome({
   projects,
   allObjects,
@@ -97,12 +120,17 @@ export function CaptureHome({
   const [capturedText, setCapturedText] = useState("");
   const [capturedNoteId, setCapturedNoteId] = useState<string | null>(null);
   const [isDragNear, setIsDragNear] = useState(false);
+  const [voiceState, setVoiceState] = useState<VoiceCaptureState>("idle");
   const [activationRailHidden, setActivationRailHidden] = useState(() => {
     if (typeof window === "undefined") return false;
     return localStorage.getItem(FIRST_USE_RAIL_STORAGE_KEY) === "true";
   });
   const inputRef = useRef<HTMLInputElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const voiceChunksRef = useRef<Blob[]>([]);
+  const voiceStreamRef = useRef<MediaStream | null>(null);
+  const voiceAbortRef = useRef<AbortController | null>(null);
   const memories = useQuery((api as any).projectMemories.listForDashboard) as ProjectMemory[] | undefined;
 
   const sortedProjects = useMemo(
@@ -135,19 +163,141 @@ export function CaptureHome({
   }, []);
 
   useEffect(() => {
+    return () => {
+      voiceAbortRef.current?.abort();
+      const recorder = mediaRecorderRef.current;
+      if (recorder?.state === "recording") {
+        recorder.onstop = null;
+        recorder.stop();
+      }
+      voiceStreamRef.current?.getTracks().forEach((track) => track.stop());
+    };
+  }, []);
+
+  useEffect(() => {
     if (step === "idle") inputRef.current?.focus();
   }, [step]);
 
-  const handleSubmit = useCallback(async () => {
-    const trimmed = text.trim();
-    if (!trimmed) return;
+  const captureTextForReview = useCallback(async (trimmed: string) => {
     setCapturedText(trimmed);
     const result = await onCapture(trimmed, null);
     setCapturedNoteId(result.noteId);
     setAiSuggestions(result.suggestions);
-    setText("");
     setStep("assigning");
-  }, [text, onCapture]);
+  }, [onCapture]);
+
+  const handleSubmit = useCallback(async () => {
+    const trimmed = text.trim();
+    if (!trimmed || voiceState === "transcribing") return;
+    await captureTextForReview(trimmed);
+    setText("");
+  }, [captureTextForReview, text, voiceState]);
+
+  const transcribeVoice = useCallback(async (blob: Blob) => {
+    const mimeType = blob.type || "audio/webm";
+    const extension = extensionForMimeType(mimeType);
+    const file = new File([blob], `hypher-voice-${Date.now()}.${extension}`, { type: mimeType });
+    const form = new FormData();
+    form.append("audio", file);
+
+    const controller = new AbortController();
+    voiceAbortRef.current = controller;
+
+    try {
+      const response = await fetch("/api/voice/transcribe", {
+        method: "POST",
+        body: form,
+        signal: controller.signal,
+      });
+      const payload = await response.json().catch(() => ({})) as { text?: unknown; error?: unknown };
+      if (!response.ok) {
+        throw new Error(typeof payload.error === "string" ? payload.error : "transcription-failed");
+      }
+      const captureText = typeof payload.text === "string" ? payload.text.trim() : "";
+      if (!captureText) throw new Error("empty-transcript");
+      await captureTextForReview(captureText);
+    } catch (error) {
+      if (!(error instanceof DOMException && error.name === "AbortError")) {
+        toast.error(voiceErrorMessage(error));
+      }
+    } finally {
+      voiceAbortRef.current = null;
+      setVoiceState("idle");
+    }
+  }, [captureTextForReview]);
+
+  const stopVoiceStream = useCallback(() => {
+    voiceStreamRef.current?.getTracks().forEach((track) => track.stop());
+    voiceStreamRef.current = null;
+  }, []);
+
+  const startVoiceRecording = useCallback(async () => {
+    if (step !== "idle" || voiceState !== "idle") return;
+    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
+      toast.error("Voice capture is not supported in this browser.");
+      return;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+        },
+      });
+      const mimeType = getRecorderMimeType();
+      const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+
+      voiceStreamRef.current = stream;
+      voiceChunksRef.current = [];
+      mediaRecorderRef.current = recorder;
+
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) voiceChunksRef.current.push(event.data);
+      };
+      recorder.onerror = () => {
+        stopVoiceStream();
+        setVoiceState("idle");
+        toast.error("Voice capture failed.");
+      };
+      recorder.onstop = () => {
+        const chunks = voiceChunksRef.current;
+        voiceChunksRef.current = [];
+        mediaRecorderRef.current = null;
+        stopVoiceStream();
+
+        if (chunks.length === 0) {
+          setVoiceState("idle");
+          toast.error("No audio was recorded.");
+          return;
+        }
+
+        setVoiceState("transcribing");
+        void transcribeVoice(new Blob(chunks, { type: recorder.mimeType || mimeType || "audio/webm" }));
+      };
+
+      recorder.start();
+      setVoiceState("recording");
+    } catch (error) {
+      stopVoiceStream();
+      setVoiceState("idle");
+      toast.error(voiceErrorMessage(error));
+    }
+  }, [step, stopVoiceStream, transcribeVoice, voiceState]);
+
+  const stopVoiceRecording = useCallback(() => {
+    const recorder = mediaRecorderRef.current;
+    if (!recorder || recorder.state !== "recording") return;
+    recorder.stop();
+  }, []);
+
+  const handleVoiceClick = useCallback(() => {
+    if (voiceState === "recording") {
+      stopVoiceRecording();
+      return;
+    }
+    void startVoiceRecording();
+  }, [startVoiceRecording, stopVoiceRecording, voiceState]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -257,6 +407,13 @@ export function CaptureHome({
 
   const itemCount = (pid: string) =>
     allObjects.filter((o) => o.projectId === pid && o.kind !== "project").length;
+  const captureDisabled = step === "assigning" || voiceState === "transcribing";
+  const voiceButtonLabel =
+    voiceState === "recording"
+      ? "stop recording"
+      : voiceState === "transcribing"
+        ? "transcribing voice..."
+        : "record voice";
 
   return (
     <div className="capture-home capture-home-mock">
@@ -342,14 +499,14 @@ export function CaptureHome({
               onChange={(e) => setText(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder="dump a thought, bug, decision, or agent output..."
-              disabled={step === "assigning"}
+              disabled={captureDisabled}
             />
             <button
               type="button"
               className="home-input-submit-mock"
               aria-label="Capture"
               title="Capture"
-              disabled={step === "assigning"}
+              disabled={captureDisabled}
               onClick={() => void handleSubmit()}
             >
               <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -369,6 +526,27 @@ export function CaptureHome({
                   paste from clipboard
                 </button>
               ) : null}
+              <button
+                type="button"
+                className={[
+                  "home-quick-mock",
+                  "home-quick-mock--voice",
+                  voiceState === "recording" ? "is-recording" : "",
+                ].filter(Boolean).join(" ")}
+                onClick={handleVoiceClick}
+                disabled={voiceState === "transcribing"}
+                aria-pressed={voiceState === "recording"}
+                aria-label={voiceButtonLabel}
+                title={voiceButtonLabel}
+              >
+                {voiceState === "recording" ? <span className="home-quick-recording-dot" aria-hidden /> : (
+                  <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                    <path d="M8 2.5a2 2 0 0 0-2 2v3a2 2 0 0 0 4 0v-3a2 2 0 0 0-2-2z" />
+                    <path d="M4.5 7.5a3.5 3.5 0 0 0 7 0M8 11v2.5M6 13.5h4" />
+                  </svg>
+                )}
+                {voiceButtonLabel}
+              </button>
               {onAddFiles ? (
                 <button type="button" className="home-quick-mock" onClick={() => fileRef.current?.click()}>
                   <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
