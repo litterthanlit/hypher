@@ -1,0 +1,23 @@
+{
+  "name": "hypher-workspace",
+  "private": true,
+  "scripts": {
+    "build": "npm run build:web && npm run build:extension && npm run build:core",
+    "build:core": "npm --prefix packages/core run build",
+    "build:extension": "npm --prefix extensions/chrome run build",
+    "build:web": "npm --prefix hypher-web run build",
+    "test": "npm run test:web && npm run test:extension && npm run test:core",
+    "test:core": "npm --prefix packages/core test",
+    "test:extension": "npm --prefix extensions/chrome test",
+    "test:web": "npm --prefix hypher-web test",
+    "typecheck": "npm run typecheck:web && npm run typecheck:extension && npm run typecheck:core",
+    "typecheck:core": "npm --prefix packages/core run typecheck",
+    "typecheck:extension": "npm --prefix extensions/chrome run typecheck",
+    "typecheck:web": "npm --prefix hypher-web run typecheck"
+  },
+  "workspaces": [
+    "hypher-web",
+    "extensions/chrome",
+    "packages/core"
+  ]
+}

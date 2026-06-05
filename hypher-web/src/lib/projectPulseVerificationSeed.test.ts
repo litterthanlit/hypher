@@ -34,7 +34,7 @@ const captures: AnyObject[] = [
     id: captureId(capture.key),
     kind: "note" as const,
     content: capture.text,
-    maturity: "developing",
+    maturity: "developing" as const,
     projectId: project.id,
     captureType: capture.captureType,
     captureStatus: "sorted" as const,

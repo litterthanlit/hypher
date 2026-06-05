@@ -12,6 +12,12 @@
 import { captureToHypher, replayQueue } from "./lib/capture";
 import { HYPHER_PUBLIC_API_ORIGIN } from "./lib/origins";
 
+type PageSelectionResult = {
+  selection: string;
+  pageTitle: string;
+  pageUrl: string;
+};
+
 // ── Hotkey: Cmd+Shift+H ────────────────────────────────────────────────────────
 chrome.commands.onCommand.addListener(async (command) => {
   if (command !== "capture-highlight") return;
@@ -20,7 +26,7 @@ chrome.commands.onCommand.addListener(async (command) => {
   if (!tab?.id) return;
 
   // Inject the selection helper on-demand (not auto-injected).
-  let result: Array<{ result: { selection: string; pageTitle: string; pageUrl: string } | null }>;
+  let result: chrome.scripting.InjectionResult<PageSelectionResult>[];
   try {
     result = await chrome.scripting.executeScript({
       target: { tabId: tab.id },

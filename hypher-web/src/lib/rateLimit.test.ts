@@ -35,7 +35,7 @@ const { ratelimitUser } = await import("./rateLimit");
 describe("ratelimitUser", () => {
   beforeEach(() => {
     // Reset Upstash env vars to "present" before each test.
-    process.env.NODE_ENV = "test";
+    vi.stubEnv("NODE_ENV", "test");
     process.env.UPSTASH_REDIS_REST_URL = "https://fake.upstash.io";
     process.env.UPSTASH_REDIS_REST_TOKEN = "fake-token";
     mockLimit.mockResolvedValue({ success: true });
@@ -73,7 +73,7 @@ describe("ratelimitUser", () => {
   });
 
   it("HYP-REL-009 denies production requests when rate-limit env vars are missing", async () => {
-    process.env.NODE_ENV = "production";
+    vi.stubEnv("NODE_ENV", "production");
     delete process.env.UPSTASH_REDIS_REST_URL;
     delete process.env.UPSTASH_REDIS_REST_TOKEN;
 
