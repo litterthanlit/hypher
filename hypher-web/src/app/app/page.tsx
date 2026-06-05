@@ -113,7 +113,29 @@ function SignInRequired() {
 }
 
 function HypherApp({ gateState }: { gateState: BetaGateState }) {
-  const store = useStore();
+  const [appMode, setAppMode] = useState<AppMode>("capture");
+  const [contentMode, setContentMode] = useState<ContentMode>("pulse");
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+  const [showSearch, setShowSearch] = useState(false);
+  const [showDigest, setShowDigest] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [showCreateProject, setShowCreateProject] = useState(false);
+  const [welcomeBusy, setWelcomeBusy] = useState(false);
+  const [welcomeDismissedThisSession, setWelcomeDismissedThisSession] = useState(false);
+  const [tourActive, setTourActive] = useState(false);
+  const [tourStepIndex, setTourStepIndex] = useState(0);
+  const [showFeedback, setShowFeedback] = useState(false);
+  const needsAllObjects =
+    appMode === "capture" ||
+    contentMode === "inbox" ||
+    showSearch ||
+    showDigest;
+  const store = useStore({
+    selectedProjectId,
+    subscribeAllObjects: needsAllObjects,
+    subscribeAllActivity: false,
+  });
   const skipTags = !store.clerkLoaded || !store.isSignedIn;
   const tagsList = useQuery(api.tags.listWithCounts, skipTags ? "skip" : {});
   const demoDigestText = useQuery(api.seed.getDemoDigest, skipTags ? "skip" : {});
@@ -153,20 +175,6 @@ function HypherApp({ gateState }: { gateState: BetaGateState }) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const markTourCompleted = useMutation((api as any).onboarding.markTourCompleted);
   const tags = useMemo(() => tagsList ?? [], [tagsList]);
-  const [appMode, setAppMode] = useState<AppMode>("capture");
-  const [contentMode, setContentMode] = useState<ContentMode>("pulse");
-  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
-  const [showSearch, setShowSearch] = useState(false);
-  const [showDigest, setShowDigest] = useState(false);
-  const [dragOver, setDragOver] = useState(false);
-  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
-  const [showCreateProject, setShowCreateProject] = useState(false);
-  const [welcomeBusy, setWelcomeBusy] = useState(false);
-  const [welcomeDismissedThisSession, setWelcomeDismissedThisSession] = useState(false);
-  const [tourActive, setTourActive] = useState(false);
-  const [tourStepIndex, setTourStepIndex] = useState(0);
-  const [showFeedback, setShowFeedback] = useState(false);
-
   const onboardingReady = skipTags || onboardingState !== undefined;
   const welcomeVisible =
     !welcomeDismissedThisSession &&
@@ -330,6 +338,7 @@ function HypherApp({ gateState }: { gateState: BetaGateState }) {
 
   // Rediscovery
   useEffect(() => {
+    if (!store.hasFullObjectSubscription) return;
     const surface = () => {
       const item = store.getRediscovery();
       if (!item) return;
@@ -346,7 +355,7 @@ function HypherApp({ gateState }: { gateState: BetaGateState }) {
     const initial = setTimeout(surface, 3000);
     const interval = setInterval(surface, 600000);
     return () => { clearTimeout(initial); clearInterval(interval); };
-  }, [store.objects.length > 0]);
+  }, [store.hasFullObjectSubscription, store.objects.length > 0]);
 
   const ingestLocalFiles = useCallback(
     (
@@ -933,8 +942,6 @@ function HypherApp({ gateState }: { gateState: BetaGateState }) {
         ) : contentMode === "dashboard" ? (
           <ProjectDashboard
             projects={store.projects}
-            allObjects={store.objects}
-            activity={store.activity}
             onSelectProject={(id) => {
               setSelectedProjectId(id);
               store.setSelectedId(id);
@@ -984,7 +991,7 @@ function HypherApp({ gateState }: { gateState: BetaGateState }) {
         ) : contentMode === "pulse" && currentProject ? (
           <ProjectPulse
             project={currentProject}
-            allObjects={store.objects}
+            allObjects={projectItems}
             activity={store.activity}
             healthScore={toolbarHealthScore}
             projects={store.projects}
@@ -1060,7 +1067,7 @@ function HypherApp({ gateState }: { gateState: BetaGateState }) {
         />
       )}
 
-      {showDigest && (
+      {showDigest && store.hasFullObjectSubscription && (
         <AppErrorBoundary label="Digest">
           <DailyDigest
             projects={store.projects}

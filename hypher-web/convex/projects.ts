@@ -1,6 +1,28 @@
 import { query } from "./_generated/server";
 import { requireBetaAccess } from "./lib/auth";
 
+function toClientProject(doc: any) {
+  const { _id, _creationTime, userId, ...rest } = doc;
+  return { ...rest, id: String(_id) };
+}
+
+export function selectProjects(rows: any[], userId: string) {
+  return rows
+    .filter((row) => row.userId === userId && row.kind === "project")
+    .map(toClientProject);
+}
+
+export const list = query({
+  handler: async (ctx) => {
+    const userId = await requireBetaAccess(ctx);
+    const rows = await ctx.db
+      .query("objects")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .collect();
+    return selectProjects(rows, userId);
+  },
+});
+
 /**
  * Returns the minimal input shape needed to compute health scores for every
  * active project owned by the current user. Reactive — any write to objects

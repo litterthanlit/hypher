@@ -5,11 +5,10 @@ import { motion } from "framer-motion";
 import { useMutation, useQuery } from "convex/react";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 import { api } from "../../convex/_generated/api";
-import type { ActivityEntry, Project, ProjectStatus, AnyObject, ProjectMemory } from "@/types";
-import { computeHealthScore, type HealthResult } from "@/lib/health";
+import type { Project, ProjectStatus, ProjectMemory } from "@/types";
+import { computeHealthScore, type HealthInputs, type HealthResult } from "@/lib/health";
 import {
   canGenerateProjectMemory,
-  computeProjectMemorySourceUpdatedAt,
   getProjectMemoryStatus,
   selectPrimaryNextAction,
 } from "@/lib/projectMemory";
@@ -19,8 +18,6 @@ import { toast } from "sonner";
 
 interface Props {
   projects: Project[];
-  allObjects: AnyObject[];
-  activity: ActivityEntry[];
   onSelectProject: (id: string) => void;
 }
 
@@ -76,7 +73,7 @@ function memoryStatusLabel(status: ReturnType<typeof getProjectMemoryStatus>): s
   }
 }
 
-export function ProjectDashboard({ projects, allObjects, activity, onSelectProject }: Props) {
+export function ProjectDashboard({ projects, onSelectProject }: Props) {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [priorityFilter, setPriorityFilter] = useState<PriorityFilter>("all");
   const [blockersOnly, setBlockersOnly] = useState(false);
@@ -101,33 +98,21 @@ export function ProjectDashboard({ projects, allObjects, activity, onSelectProje
     }
   }
 
-  const projectItemsMap = useMemo(() => {
-    const byProject: Record<string, AnyObject[]> = {};
-    for (const obj of allObjects) {
-      if (obj.projectId) {
-        (byProject[obj.projectId] ??= []).push(obj);
-      }
+  const healthInputsMap = useMemo(() => {
+    const byProject: Record<string, HealthInputs> = {};
+    for (const input of (healthInputsList ?? []) as HealthInputs[]) {
+      byProject[input.projectId] = input;
     }
     return byProject;
-  }, [allObjects]);
-
-  const activityMap = useMemo(() => {
-    const byProject: Record<string, ActivityEntry[]> = {};
-    for (const entry of activity) {
-      if (entry.projectId) {
-        (byProject[entry.projectId] ??= []).push(entry);
-      }
-    }
-    return byProject;
-  }, [activity]);
+  }, [healthInputsList]);
 
   const itemCounts = useMemo(() => {
     const counts: Record<string, number> = {};
-    for (const [projectId, items] of Object.entries(projectItemsMap)) {
-      counts[projectId] = items.length;
+    for (const [projectId, input] of Object.entries(healthInputsMap)) {
+      counts[projectId] = input.items.length;
     }
     return counts;
-  }, [projectItemsMap]);
+  }, [healthInputsMap]);
 
   const memoryMap = useMemo(() => {
     const byProject: Record<string, ProjectMemory> = {};
@@ -324,14 +309,10 @@ export function ProjectDashboard({ projects, allObjects, activity, onSelectProje
             const pri = project.priority ?? 3;
             const isInactive = project.status === "archived" || project.status === "shipped";
             const healthResult = healthMap[project.id];
-            const projectItems = projectItemsMap[project.id] ?? [];
-            const projectActivity = activityMap[project.id] ?? [];
+            const healthInput = healthInputsMap[project.id];
             const memory = memoryMap[project.id] ?? null;
-            const sourceUpdatedAt = computeProjectMemorySourceUpdatedAt({
-              project,
-              items: projectItems,
-              activities: projectActivity,
-            });
+            const itemUpdatedAt = Math.max(...(healthInput?.items.map((item) => item.modifiedAt) ?? [0]));
+            const sourceUpdatedAt = Math.max(project.modifiedAt ?? 0, project.lastActivity ?? 0, itemUpdatedAt);
             const memoryStatus = getProjectMemoryStatus({
               memory,
               sourceUpdatedAt,

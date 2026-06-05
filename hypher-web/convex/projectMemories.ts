@@ -66,7 +66,12 @@ async function requireProject(ctx: QueryCtx | MutationCtx, userId: string, proje
 
 function mapMemory(doc: any) {
   const { _id, _creationTime, userId, ...rest } = doc;
-  return { ...rest, id: _id };
+  return { ...rest, id: String(_id) };
+}
+
+export function selectProjectMemory(rows: any[], userId: string, projectId: string) {
+  const memory = rows.find((row) => row.userId === userId && String(row.projectId) === projectId);
+  return memory ? mapMemory(memory) : null;
 }
 
 function stripUndefined<T extends Record<string, unknown>>(value: T): Partial<T> {
@@ -83,6 +88,19 @@ export const listForDashboard = query({
       .withIndex("by_user", (q) => q.eq("userId", userId))
       .collect();
     return rows.map(mapMemory);
+  },
+});
+
+export const getForProject = query({
+  args: { projectId: v.id("objects") },
+  handler: async (ctx, { projectId }) => {
+    const userId = await requireBetaAccess(ctx);
+    await requireProject(ctx, userId, projectId);
+    const row = await ctx.db
+      .query("projectMemories")
+      .withIndex("by_user_project", (q) => q.eq("userId", userId).eq("projectId", projectId))
+      .unique();
+    return row ? mapMemory(row) : null;
   },
 });
 

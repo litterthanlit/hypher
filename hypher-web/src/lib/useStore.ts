@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import { useAuth } from "@clerk/nextjs";
-import { useQuery, useMutation, useAction } from "convex/react";
+import { useQuery, useMutation, useAction, useConvex } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
 import type { AnyObject, CaptureResult, Connection, Project, ProjectSuggestion, Note, Artifact, ActivityEntry } from "@/types";
@@ -20,8 +20,9 @@ import {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mapObject(doc: any): AnyObject {
+  if (doc && typeof doc.id === "string" && !doc._id) return doc as AnyObject;
   const { _id, _creationTime, ...rest } = doc;
-  return { ...rest, id: _id } as AnyObject;
+  return { ...rest, id: String(_id) } as AnyObject;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -32,8 +33,9 @@ function mapConnection(doc: any): Connection {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mapActivity(doc: any): ActivityEntry {
+  if (doc && typeof doc.id === "string" && !doc._id) return doc as ActivityEntry;
   const { _id, _creationTime, ...rest } = doc;
-  return { ...rest, id: _id } as ActivityEntry;
+  return { ...rest, id: String(_id) } as ActivityEntry;
 }
 
 /* ── App type → Convex mutation args ────────────────────────────── */
@@ -59,9 +61,27 @@ function convexUpdateArgs(obj: AnyObject): any {
   return { id: id as Id<"objects">, ...stripUndefined(rest) };
 }
 
-export function useStore() {
+interface UseStoreOptions {
+  selectedProjectId?: string | null;
+  subscribeAllObjects?: boolean;
+  subscribeAllActivity?: boolean;
+}
+
+function mergeObjects(...groups: AnyObject[][]): AnyObject[] {
+  const byId = new Map<string, AnyObject>();
+  for (const group of groups) {
+    for (const object of group) byId.set(object.id, object);
+  }
+  return Array.from(byId.values());
+}
+
+export function useStore(options: UseStoreOptions = {}) {
   const { isLoaded: clerkLoaded, isSignedIn } = useAuth();
+  const convex = useConvex();
   const skipConvex = !clerkLoaded || !isSignedIn;
+  const selectedProjectId = options.selectedProjectId ?? null;
+  const subscribeAllObjects = options.subscribeAllObjects ?? true;
+  const subscribeAllActivity = options.subscribeAllActivity ?? subscribeAllObjects;
 
   const ensureDemoForUser = useMutation(api.seed.ensureDemoForUser);
   // typegen pending convex dev
@@ -84,21 +104,54 @@ export function useStore() {
   }, [clerkLoaded, isSignedIn, ensureDemoForUser, ensureDefaultPrefs]);
 
   /* ── Reactive queries (replaces reload()) ─────────────────────── */
-  const rawObjects = useQuery(api.objects.list, skipConvex ? "skip" : {});
+  const rawAllObjects = useQuery(api.objects.list, skipConvex || !subscribeAllObjects ? "skip" : {});
+  const rawProjects = useQuery(api.projects.list, skipConvex ? "skip" : {});
+  const rawInboxObjects = useQuery(api.objects.listInbox, skipConvex ? "skip" : {});
+  const rawRecentObjects = useQuery(api.objects.listRecent, skipConvex ? "skip" : { limit: 8 });
+  const rawProjectObjects = useQuery(
+    api.objects.listForProject,
+    skipConvex || !selectedProjectId ? "skip" : { projectId: selectedProjectId as Id<"objects"> }
+  );
   const rawConnections = useQuery(api.connections.list, skipConvex ? "skip" : {});
-  const rawActivity = useQuery(api.activity.list, skipConvex ? "skip" : {});
+  const rawActivity = useQuery(api.activity.list, skipConvex || !subscribeAllActivity ? "skip" : {});
+  const rawProjectActivity = useQuery(
+    api.activity.recentForProject,
+    skipConvex || !selectedProjectId ? "skip" : { projectId: selectedProjectId as Id<"objects">, limit: 5 }
+  );
 
+  const projectObjects = useMemo(
+    (): Project[] => (rawProjects ?? []).map(mapObject).filter((o): o is Project => o.kind === "project"),
+    [rawProjects]
+  );
+  const inboxObjects = useMemo(
+    (): AnyObject[] => (rawInboxObjects ?? []).map(mapObject),
+    [rawInboxObjects]
+  );
+  const recentObjects = useMemo(
+    (): AnyObject[] => (rawRecentObjects ?? []).map(mapObject),
+    [rawRecentObjects]
+  );
+  const selectedProjectObjects = useMemo(
+    (): AnyObject[] => (rawProjectObjects ?? []).map(mapObject),
+    [rawProjectObjects]
+  );
   const rawMappedObjects = useMemo(
-    (): AnyObject[] => (rawObjects ?? []).map(mapObject),
-    [rawObjects]
+    (): AnyObject[] => {
+      if (rawAllObjects !== undefined) return rawAllObjects.map(mapObject);
+      return mergeObjects(projectObjects, inboxObjects, recentObjects, selectedProjectObjects);
+    },
+    [inboxObjects, projectObjects, rawAllObjects, recentObjects, selectedProjectObjects]
   );
   const connections = useMemo(
     (): Connection[] => (rawConnections ?? []).map(mapConnection),
     [rawConnections]
   );
   const activity = useMemo(
-    (): ActivityEntry[] => (rawActivity ?? []).map(mapActivity),
-    [rawActivity]
+    (): ActivityEntry[] => {
+      if (rawActivity !== undefined) return rawActivity.map(mapActivity);
+      return (rawProjectActivity ?? []).map(mapActivity);
+    },
+    [rawActivity, rawProjectActivity]
   );
 
   /* ── Convex mutations ─────────────────────────────────────────── */
@@ -134,7 +187,7 @@ export function useStore() {
   // Clear overrides when Convex data updates
   useEffect(() => {
     setPositionOverrides({});
-  }, [rawObjects]);
+  }, [rawAllObjects, rawProjectObjects]);
 
   // Ref for latest objects (used in debounced writes)
   const objectsRef = useRef(rawMappedObjects);
@@ -173,13 +226,18 @@ export function useStore() {
 
   /* ── Derived data ─────────────────────────────────────────────── */
   const selected = objects.find((o) => o.id === selectedId) ?? null;
-  const projects = objects.filter((o): o is Project => o.kind === "project");
+  const projects = useMemo(
+    () => (rawProjects !== undefined ? projectObjects : objects.filter((o): o is Project => o.kind === "project")),
+    [objects, projectObjects, rawProjects]
+  );
   const notes = objects.filter((o): o is Note => o.kind === "note");
   const artifacts = objects.filter((o): o is Artifact => o.kind === "artifact");
 
   const inboxItems = useMemo(
-    () => objects.filter((o) => o.kind !== "project" && !o.projectId && o.captureStatus !== "archived"),
-    [objects]
+    () => rawInboxObjects !== undefined
+      ? inboxObjects
+      : objects.filter((o) => o.kind !== "project" && !o.projectId && o.captureStatus !== "archived"),
+    [inboxObjects, objects, rawInboxObjects]
   );
 
   const reviewItems = useMemo(
@@ -189,16 +247,23 @@ export function useStore() {
 
   const recentItems = useMemo(
     () =>
-      [...objects]
-        .filter((o) => o.kind !== "project")
-        .sort((a, b) => b.createdAt - a.createdAt)
-        .slice(0, 8),
-    [objects]
+      rawRecentObjects !== undefined
+        ? recentObjects
+        : [...objects]
+            .filter((o) => o.kind !== "project")
+            .sort((a, b) => b.createdAt - a.createdAt)
+            .slice(0, 8),
+    [objects, rawRecentObjects, recentObjects]
   );
 
   const objectsForProject = useCallback(
-    (projectId: string) => objects.filter((o) => o.projectId === projectId && o.captureStatus !== "archived"),
-    [objects]
+    (projectId: string) => {
+      if (projectId === selectedProjectId && rawProjectObjects !== undefined) {
+        return selectedProjectObjects;
+      }
+      return objects.filter((o) => o.projectId === projectId && o.captureStatus !== "archived");
+    },
+    [objects, rawProjectObjects, selectedProjectId, selectedProjectObjects]
   );
 
   const suggestionsFor = (id: string) =>
@@ -288,6 +353,12 @@ export function useStore() {
     }
   };
 
+  const loadSuggestionObjects = useCallback(async (): Promise<AnyObject[]> => {
+    if (rawAllObjects !== undefined) return objects;
+    const rows = await convex.query(api.objects.list, {});
+    return rows.map(mapObject);
+  }, [convex, objects, rawAllObjects]);
+
   /* ── Object mutations ─────────────────────────────────────────── */
 
   const addObject = async (obj: AnyObject): Promise<string> => {
@@ -305,8 +376,9 @@ export function useStore() {
       await putObjectMut(convexUpdateArgs(embedded));
 
       // Compute and save suggestions
+      const suggestionObjects = await loadSuggestionObjects();
       const allObjs = [
-        ...objects.filter((o) => o.id !== (convexId as string)),
+        ...suggestionObjects.filter((o) => o.id !== (convexId as string)),
         embedded,
       ];
       await saveSuggestionsAndToast(allObjs, connections);
@@ -360,9 +432,10 @@ export function useStore() {
 
       await logActivity("created", note, undefined, "capture");
 
+      const suggestionObjects = await loadSuggestionObjects();
       const enrichment = await enrichCapture({
         capture: note,
-        allObjects: objects.filter((o) => o.id !== (convexId as string)),
+        allObjects: suggestionObjects.filter((o) => o.id !== (convexId as string)),
         connections,
         projectId: input.projectId,
         embedCapture: generateEmbedding,
@@ -475,8 +548,9 @@ export function useStore() {
       await putObjectMut(convexUpdateArgs(embedded));
 
       // Recompute suggestions
+      const suggestionObjects = await loadSuggestionObjects();
       const allObjs = [
-        ...objects.filter((o) => o.id !== obj.id),
+        ...suggestionObjects.filter((o) => o.id !== obj.id),
         embedded,
       ];
       await saveSuggestionsAndToast(allObjs, connections);
@@ -597,7 +671,7 @@ export function useStore() {
   const refreshSuggestions = async () => {
     setIsProcessing(true);
     try {
-      await saveSuggestionsAndToast(objects, connections);
+      await saveSuggestionsAndToast(await loadSuggestionObjects(), connections);
     } finally {
       setIsProcessing(false);
     }
@@ -645,6 +719,7 @@ export function useStore() {
   const REDISCOVERY_INTERVALS = [1, 3, 7, 14, 30].map((d) => d * 86400000);
 
   const getRediscovery = useCallback((): AnyObject | null => {
+    if (rawAllObjects === undefined) return null;
     const now = Date.now();
     const candidates = objects.filter((obj) => {
       if (obj.kind === "project") return false;
@@ -666,7 +741,7 @@ export function useStore() {
       (a, b) => (a.lastSurfacedAt ?? 0) - (b.lastSurfacedAt ?? 0)
     );
     return candidates[0] ?? null;
-  }, [objects]);
+  }, [objects, rawAllObjects]);
 
   const markSurfaced = async (id: string) => {
     const obj = objects.find((o) => o.id === id);
@@ -743,6 +818,7 @@ export function useStore() {
 
   /* ── Search ───────────────────────────────────────────────────── */
   const search = (query: string): AnyObject[] => {
+    if (rawAllObjects === undefined) return [];
     if (!query.trim()) return [];
     const q = query.toLowerCase();
     return objects.filter((obj) => {
@@ -761,14 +837,20 @@ export function useStore() {
 
   const convexDataLoading =
     !skipConvex &&
-    (rawObjects === undefined ||
+    (rawProjects === undefined ||
+      rawInboxObjects === undefined ||
+      rawRecentObjects === undefined ||
       rawConnections === undefined ||
-      rawActivity === undefined);
+      (subscribeAllObjects && rawAllObjects === undefined) ||
+      (subscribeAllActivity && rawActivity === undefined) ||
+      (selectedProjectId != null && rawProjectObjects === undefined) ||
+      (selectedProjectId != null && rawProjectActivity === undefined));
 
   return {
     clerkLoaded,
     isSignedIn: isSignedIn ?? false,
     convexDataLoading,
+    hasFullObjectSubscription: rawAllObjects !== undefined,
     objects,
     projects,
     notes,

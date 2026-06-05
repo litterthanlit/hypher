@@ -182,7 +182,10 @@ export function ProjectPulse({
   const [handoffDrafts, setHandoffDrafts] = useState<Record<string, { returnedAgentOutput: string; userNotes: string }>>({});
   const [showCrystallizedSuggestions, setShowCrystallizedSuggestions] = useState(false);
   const [dismissedCrystallizedSuggestionIds, setDismissedCrystallizedSuggestionIds] = useState<string[]>([]);
-  const memories = useQuery((api as any).projectMemories.listForDashboard) as ProjectMemory[] | undefined;
+  const memory = useQuery(
+    (api as any).projectMemories.getForProject,
+    { projectId: project.id as Id<"objects"> }
+  ) as ProjectMemory | null | undefined;
   const agentEvents = useQuery(
     (api as any).agentEvents.listForProject,
     { projectId: project.id as Id<"objects">, limit: 5 }
@@ -209,8 +212,8 @@ export function ProjectPulse({
   const updateHandoffNotes = useMutation((api as any).handoffs.updateNotes);
 
   const model = useMemo(
-    () => buildProjectPulseModel({ project, allObjects, activity, memories }),
-    [project, allObjects, activity, memories]
+    () => buildProjectPulseModel({ project, allObjects, activity, memories: memory ? [memory] : [] }),
+    [project, allObjects, activity, memory]
   );
 
   const sourceUpdatedAt = computeProjectMemorySourceUpdatedAt({

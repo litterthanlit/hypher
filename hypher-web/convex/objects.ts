@@ -59,6 +59,41 @@ function stripUndefined<T extends Record<string, unknown>>(value: T): Partial<T>
   ) as Partial<T>;
 }
 
+function toClientObject(doc: any) {
+  const { _id, _creationTime, userId, ...rest } = doc;
+  return { ...rest, id: String(_id) };
+}
+
+export function selectInboxObjects(rows: any[], userId: string) {
+  return rows
+    .filter((row) => (
+      row.userId === userId &&
+      row.kind !== "project" &&
+      !row.projectId &&
+      row.captureStatus !== "archived"
+    ))
+    .map(toClientObject);
+}
+
+export function selectObjectsForProject(rows: any[], userId: string, projectId: string) {
+  return rows
+    .filter((row) => (
+      row.userId === userId &&
+      row.kind !== "project" &&
+      row.projectId === projectId &&
+      row.captureStatus !== "archived"
+    ))
+    .map(toClientObject);
+}
+
+export function selectRecentObjects(rows: any[], userId: string, limit = 8) {
+  return rows
+    .filter((row) => row.userId === userId && row.kind !== "project")
+    .sort((a, b) => b.createdAt - a.createdAt)
+    .slice(0, limit)
+    .map(toClientObject);
+}
+
 export const list = query({
   handler: async (ctx) => {
     const userId = await requireBetaAccess(ctx);
@@ -66,6 +101,41 @@ export const list = query({
       .query("objects")
       .withIndex("by_user", (q) => q.eq("userId", userId))
       .collect();
+  },
+});
+
+export const listInbox = query({
+  handler: async (ctx) => {
+    const userId = await requireBetaAccess(ctx);
+    const rows = await ctx.db
+      .query("objects")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .collect();
+    return selectInboxObjects(rows, userId);
+  },
+});
+
+export const listForProject = query({
+  args: { projectId: v.id("objects") },
+  handler: async (ctx, { projectId }) => {
+    const userId = await requireBetaAccess(ctx);
+    const rows = await ctx.db
+      .query("objects")
+      .withIndex("by_projectId", (q) => q.eq("projectId", String(projectId)))
+      .collect();
+    return selectObjectsForProject(rows, userId, String(projectId));
+  },
+});
+
+export const listRecent = query({
+  args: { limit: v.optional(v.number()) },
+  handler: async (ctx, { limit }) => {
+    const userId = await requireBetaAccess(ctx);
+    const rows = await ctx.db
+      .query("objects")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .collect();
+    return selectRecentObjects(rows, userId, limit ?? 8);
   },
 });
 

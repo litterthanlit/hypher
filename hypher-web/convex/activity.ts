@@ -2,6 +2,24 @@ import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
 import { requireBetaAccess } from "./lib/auth";
 
+function toClientActivity(doc: any) {
+  const { _id, _creationTime, userId, ...rest } = doc;
+  return { ...rest, id: String(_id) };
+}
+
+export function selectRecentActivityForProject(
+  rows: any[],
+  userId: string,
+  projectId: string,
+  limit = 5
+) {
+  return rows
+    .filter((row) => row.userId === userId && row.projectId === projectId)
+    .sort((a, b) => b.timestamp - a.timestamp)
+    .slice(0, limit)
+    .map(toClientActivity);
+}
+
 export const list = query({
   handler: async (ctx) => {
     const userId = await requireBetaAccess(ctx);
@@ -10,6 +28,19 @@ export const list = query({
       .withIndex("by_user_time", (q) => q.eq("userId", userId))
       .order("desc")
       .collect();
+  },
+});
+
+export const recentForProject = query({
+  args: { projectId: v.id("objects"), limit: v.optional(v.number()) },
+  handler: async (ctx, { projectId, limit }) => {
+    const userId = await requireBetaAccess(ctx);
+    const rows = await ctx.db
+      .query("activity")
+      .withIndex("by_project", (q) => q.eq("projectId", String(projectId)))
+      .order("desc")
+      .collect();
+    return selectRecentActivityForProject(rows, userId, String(projectId), limit ?? 5);
   },
 });
 
