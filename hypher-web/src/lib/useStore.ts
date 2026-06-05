@@ -11,9 +11,8 @@ import { toast } from "sonner";
 import {
   computeSuggestionsForObject,
   computeSuggestionsFromData,
-  generateEmbedding,
   suggestProjectFromData,
-} from "./engine";
+} from "./suggestions";
 import { reportConvexActionFailed } from "./convexActionFailed";
 import {
   enrichCapture,
@@ -79,6 +78,14 @@ function mergeObjects(...groups: AnyObject[][]): AnyObject[] {
     for (const object of group) byId.set(object.id, object);
   }
   return Array.from(byId.values());
+}
+
+type EngineModule = typeof import("./engine");
+let engineModulePromise: Promise<EngineModule> | null = null;
+
+function loadEngine(): Promise<EngineModule> {
+  engineModulePromise ??= import("./engine");
+  return engineModulePromise;
 }
 
 export function useStore(options: UseStoreOptions = {}) {
@@ -387,6 +394,7 @@ export function useStore(options: UseStoreOptions = {}) {
       await logActivity("created", saved, undefined, "capture");
 
       // Generate embedding and update the object
+      const { generateEmbedding } = await loadEngine();
       const embedded = await generateEmbedding(saved);
       await putObjectMut(convexUpdateArgs(embedded));
 
@@ -448,6 +456,7 @@ export function useStore(options: UseStoreOptions = {}) {
       await logActivity("created", note, undefined, "capture");
 
       const suggestionObjects = await loadSuggestionObjects();
+      const { computeSuggestionsForObject, generateEmbedding, suggestProjectFromData } = await loadEngine();
       const enrichment = await safeEnrichCapture(
         () => enrichCapture({
           capture: note,
@@ -562,6 +571,7 @@ export function useStore(options: UseStoreOptions = {}) {
       await logActivity("updated", obj, undefined, "edit");
 
       // Generate embedding and update
+      const { generateEmbedding } = await loadEngine();
       const embedded = await generateEmbedding(obj);
       await putObjectMut(convexUpdateArgs(embedded));
 

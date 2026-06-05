@@ -29,7 +29,7 @@ import { CardContextMenu, CanvasContextMenu } from "./canvas/features/ContextMen
 import { AmbientAskPanel } from "./AmbientAskPanel";
 import { SuggestionChip } from "./SuggestionChip";
 import { computeNearby } from "@/lib/spatial";
-import { suggestRelatedOnDrop } from "@/lib/engine";
+import { suggestRelatedOnDrop } from "@/lib/suggestions";
 import { ConnectionLines } from "./canvas/features/ConnectionLines";
 import { useAnchorDrag } from "./canvas/features/useAnchorDrag";
 import { AnchorPoints } from "./canvas/features/AnchorPoints";
