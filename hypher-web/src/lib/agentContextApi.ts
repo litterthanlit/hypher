@@ -1,4 +1,4 @@
-import type { AgentEvent, AnyObject, Handoff, Project, ProjectAction, ProjectMemory } from "@/types";
+import type { ActivityEntry, AgentEvent, AnyObject, Handoff, Project, ProjectAction, ProjectMemory } from "@/types";
 import { compileProjectContext } from "./projectContext";
 
 type SubscriptionLike = {
@@ -32,6 +32,7 @@ export function buildAgentContextApiResponse(params: {
   project: Project;
   memory?: ProjectMemory | null;
   captures: AnyObject[];
+  activity?: ActivityEntry[];
   actions: ProjectAction[];
   agentEvents: AgentEvent[];
   handoffs?: Handoff[];
@@ -45,6 +46,7 @@ export function buildAgentContextApiResponse(params: {
     project: params.project,
     memory: params.memory,
     captures: params.captures,
+    activity: params.activity,
     actions: params.actions,
     agentEvents: params.agentEvents,
     handoffs: params.handoffs,

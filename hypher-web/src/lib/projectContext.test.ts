@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { AgentEvent, AnyObject, Handoff, Project, ProjectAction, ProjectMemory } from "@/types";
 import { compileBuilderBrief, compileProjectContext, compileProjectContextWithMeta } from "./projectContext";
 
@@ -148,6 +148,44 @@ const handoffs: Handoff[] = [
 ];
 
 describe("compileBuilderBrief", () => {
+  it("builds Builder Brief v2 as an agent-ready context packet", () => {
+    const packet = compileBuilderBrief({
+      project,
+      memory: {
+        ...memory,
+        activeTasks: ["Milestone: Builder Brief v2 beta", ...(memory.activeTasks ?? [])],
+      },
+      captures,
+      actions,
+      agentEvents,
+      handoffs,
+      generatedAt: 123,
+    });
+
+    const sections = [
+      "# Builder Brief: Hypher",
+      "## Project identity",
+      "## Goal / direction",
+      "## Recent changes",
+      "## Active decisions",
+      "## Open questions / blockers",
+      "## Action queue",
+      "## Agent instructions",
+      "## Source/context hygiene",
+    ];
+
+    const indexes = sections.map((section) => packet.indexOf(section));
+    expect(indexes.every((index) => index >= 0)).toBe(true);
+    expect([...indexes].sort((a, b) => a - b)).toEqual(indexes);
+    expect(packet).toContain("- Project name: Hypher");
+    expect(packet).toContain("- Active milestone: Builder Brief v2 beta");
+    expect(packet).toContain("- [capture:decision] Don't build MCP yet. Builder Brief comes before delivery integrations.");
+    expect(packet).toContain("- [agent:codex/handoff] Current build audited.");
+    expect(packet).toContain("- [handoff:Cursor/used] Previous Cursor brief was used: Ship Copy Agent Context v1.");
+    expect(packet).toContain("- Freshness timestamp: 1970-01-01T00:00:00.123Z");
+    expect(packet).toContain("- Compact mode: off");
+  });
+
   it("builds the Builder Brief sections in a fixed order", () => {
     const packet = compileBuilderBrief({
       project,
@@ -161,18 +199,14 @@ describe("compileBuilderBrief", () => {
 
     const sections = [
       "# Builder Brief: Hypher",
-      "## Mission",
-      "## Current Objective",
-      "## Current Task",
-      "## Plan",
-      "## Crystallized Decisions",
-      "## Constraints",
-      "## Do Not Do",
-      "## Recent Progress",
-      "## Open Actions",
-      "## Agent Warnings",
-      "## Acceptance Criteria",
-      "## Handoff Notes",
+      "## Project identity",
+      "## Goal / direction",
+      "## Recent changes",
+      "## Active decisions",
+      "## Open questions / blockers",
+      "## Action queue",
+      "## Agent instructions",
+      "## Source/context hygiene",
     ];
 
     const indexes = sections.map((section) => packet.indexOf(section));
@@ -194,17 +228,17 @@ describe("compileBuilderBrief", () => {
     expect(packet).toContain("Hypher keeps AI builder agents on track");
     expect(packet).toContain("Ship the first Builder Brief workflow inside Project Pulse.");
     expect(packet).toContain("Implement Copy Builder Brief in Project Pulse");
-    expect(packet).toContain("1. [accepted] Implement Copy Builder Brief in Project Pulse");
-    expect(packet).toContain("- The Builder Brief is the core product primitive.");
-    expect(packet).toContain("- Don't build MCP yet. Builder Brief comes before delivery integrations.");
-    expect(packet).toContain("- The compiler must remain pure and deterministic.");
-    expect(packet).toContain("- Do not build OAuth yet.");
-    expect(packet).toContain("- Do not introduce a new state manager unless necessary.");
-    expect(packet).toContain("- Project Pulse already saves handoff packets");
-    expect(packet).toContain("- [accepted] Add Builder Brief compiler tests");
-    expect(packet).toContain("- Stale assumption: Agent Context Packet is still the preferred product name.");
-    expect(packet).toContain("- Current Task is completed or clearly blocked with reasons.");
-    expect(packet).toContain("- Previous Cursor brief was used: Ship Copy Agent Context v1.");
+    expect(packet).toContain("- Next action: [next:accepted] Implement Copy Builder Brief in Project Pulse");
+    expect(packet).toContain("- [memory:decision] The Builder Brief is the core product primitive.");
+    expect(packet).toContain("- [capture:decision] Don't build MCP yet. Builder Brief comes before delivery integrations.");
+    expect(packet).toContain("- [memory:constraint] The compiler must remain pure and deterministic.");
+    expect(packet).toContain("- [memory:constraint] Do not build OAuth yet.");
+    expect(packet).toContain("- [memory:constraint] Do not introduce a new state manager unless necessary.");
+    expect(packet).toContain("- [memory:recent_change] Project Pulse already saves handoff packets");
+    expect(packet).toContain("- [action:accepted] Add Builder Brief compiler tests");
+    expect(packet).toContain("- [memory:stale_assumption] Do not assume: Agent Context Packet is still the preferred product name.");
+    expect(packet).toContain("- [criteria] Current Task is completed or clearly blocked with reasons.");
+    expect(packet).toContain("- [handoff:Cursor/used] Previous Cursor brief was used: Ship Copy Agent Context v1.");
     expect(packet).not.toContain("Old dismissed action");
   });
 
@@ -223,6 +257,21 @@ describe("compileBuilderBrief", () => {
     expect(compileProjectContext(params)).toBe(compileBuilderBrief(params));
   });
 
+  it("defaults freshness timestamp from sources instead of wall clock time", () => {
+    try {
+      vi.useFakeTimers();
+      vi.setSystemTime(1_000);
+      const first = compileBuilderBrief({ project, memory, captures, actions, agentEvents, handoffs });
+      vi.setSystemTime(9_000);
+      const second = compileBuilderBrief({ project, memory, captures, actions, agentEvents, handoffs });
+
+      expect(first).toBe(second);
+      expect(first).toContain("- Freshness timestamp: 1970-01-01T00:00:00.100Z");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("uses clear empty states when optional data is missing", () => {
     const packet = compileBuilderBrief({
       project: { ...project, description: "" },
@@ -233,15 +282,15 @@ describe("compileBuilderBrief", () => {
     });
 
     expect(packet).toContain("# Builder Brief: Hypher");
-    expect(packet).toContain("No mission captured yet.");
-    expect(packet).toContain("No current objective captured yet.");
+    expect(packet).toContain("No short summary captured yet.");
+    expect(packet).toContain("No product direction captured yet.");
     expect(packet).toContain("No current task captured yet.");
-    expect(packet).toContain("- No approved plan captured yet.");
-    expect(packet).toContain("- No crystallized decisions recorded yet.");
+    expect(packet).toContain("- No active tasks recorded yet.");
+    expect(packet).toContain("- No accepted decisions captured yet.");
     expect(packet).toContain("- No constraints recorded yet.");
     expect(packet).toContain("- No explicit Do Not Do items recorded yet.");
-    expect(packet).toContain("- No recent progress recorded yet.");
-    expect(packet).toContain("- No open actions recorded yet.");
+    expect(packet).toContain("- No recent changes captured yet.");
+    expect(packet).toContain("- No unresolved questions captured yet.");
     expect(packet).toContain("- No agent warnings recorded yet.");
     expect(packet).toContain("- No task-specific acceptance criteria recorded yet.");
     expect(packet).toContain("- No handoff notes recorded yet.");
@@ -268,11 +317,13 @@ describe("compileBuilderBrief", () => {
       generatedAt: 123,
     });
 
-    expect(packet).toContain("- The Builder Brief is the core product primitive.");
-    expect(packet).not.toContain("Raw capture 7");
+    expect(packet).toContain("- [memory:decision] The Builder Brief is the core product primitive.");
+    expect(packet).toContain("- [capture:note] Raw capture 7");
+    expect(packet).toContain("- [capture:note] Raw capture 6");
+    expect(packet).not.toContain("Raw capture 5");
     expect(packet).not.toContain("Raw capture 0");
-    expect(packet).not.toContain("- Captures:");
-    expect(packet).toContain("- [accepted] Add Builder Brief compiler tests");
+    expect(packet).toContain("- [action:accepted] Add Builder Brief compiler tests");
+    expect(packet).toContain("- Compact mode: on");
   });
 
   it("normalizes messy markdown content without leaking private ids", () => {
@@ -294,8 +345,8 @@ describe("compileBuilderBrief", () => {
     });
 
     expect(packet).toContain("Line one ```secret-ish block``` # pasted heading");
-    expect(packet).toContain("- # Customer pasted heading ```ts const token = 'redacted'; ```");
-    expect(packet).toContain("- Keep whitespace readable.");
+    expect(packet).toContain("- [memory:decision] # Customer pasted heading ```ts const token = 'redacted'; ```");
+    expect(packet).toContain("- [memory:constraint] Keep whitespace readable.");
     expect(packet).not.toContain("internal-note-id");
     expect(packet).not.toContain("action-secret-id");
     expect(packet).not.toContain("event-secret-id");
@@ -351,8 +402,8 @@ describe("compileBuilderBrief", () => {
       generatedAt: 123,
     });
 
-    expect(packet).toContain("- Agent result from previous Cursor brief: Implemented the Copy Builder Brief button and tests.");
-    expect(packet).toContain("- User note on previous Cursor brief: Use this result as recent progress in the next Builder Brief.");
+    expect(packet).toContain("- [handoff:Cursor/result] Agent result from previous Cursor brief: Implemented the Copy Builder Brief button and tests.");
+    expect(packet).toContain("- [handoff:Cursor/result] User note on previous Cursor brief: Use this result as recent progress in the next Builder Brief.");
     expect(packet).not.toContain("Detailed log line. Detailed log line. Detailed log line. Detailed log line. Detailed log line.");
   });
 
@@ -376,10 +427,10 @@ describe("compileBuilderBrief", () => {
       generatedAt: 123,
     });
 
-    expect(packet).toContain("- Do not silently mutate durable state.");
-    expect(packet).toContain("- Accepted suggestions appear in future Builder Briefs.");
-    expect(packet).toContain("- Watch for duplicate accepted suggestions.");
-    expect(packet).toContain("- A returned agent result was accepted into project memory.");
+    expect(packet).toContain("- [memory:constraint] Do not silently mutate durable state.");
+    expect(packet).toContain("- [memory:acceptance_criterion] Accepted suggestions appear in future Builder Briefs.");
+    expect(packet).toContain("- [memory:agent_warning] Watch for duplicate accepted suggestions.");
+    expect(packet).toContain("- [memory:handoff_note] A returned agent result was accepted into project memory.");
     expect(packet).not.toContain("Unaccepted suggestion");
   });
 
@@ -478,12 +529,12 @@ describe("compileBuilderBrief", () => {
       generatedAt: 123,
     });
 
-    expect(packet).toContain("- Decision: keep active memory.");
-    expect(packet).toContain("- Keep the compiler deterministic.");
-    expect(packet).toContain("- Active criteria stay visible.");
-    expect(packet).toContain("- Watch active warning.");
-    expect(packet).toContain("- Active handoff note.");
-    expect(packet).toContain("- Accepted source metadata still renders when the string array is missing.");
+    expect(packet).toContain("- [memory:decision] Decision: keep active memory.");
+    expect(packet).toContain("- [memory:constraint] Keep the compiler deterministic.");
+    expect(packet).toContain("- [memory:acceptance_criterion] Active criteria stay visible.");
+    expect(packet).toContain("- [memory:agent_warning] Watch active warning.");
+    expect(packet).toContain("- [memory:handoff_note] Active handoff note.");
+    expect(packet).toContain("- [accepted memory:constraint] Accepted source metadata still renders when the string array is missing.");
     expect(packet).not.toContain("stale memory should not guide agents");
     expect(packet).not.toContain("Do not use stale delivery advice");
     expect(packet).not.toContain("Excluded criteria should not appear");

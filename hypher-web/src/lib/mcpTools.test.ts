@@ -155,8 +155,8 @@ describe("buildMcpToolResult", () => {
     expect(result.structuredContent.projectId).toBe("p1");
     expect(result.structuredContent.context).toContain("# Builder Brief: Hypher");
     expect(result.structuredContent.context).toContain("Build the read-only MCP surface.");
-    expect(result.structuredContent.context).toContain("- Agent result from previous Cursor brief: MCP now carries saved handoff result context into the Builder Brief.");
-    expect(result.structuredContent.context).toContain("- User note on previous Cursor brief: Use the same context as Project Pulse.");
+    expect(result.structuredContent.context).toContain("- [handoff:Cursor/result] Agent result from previous Cursor brief: MCP now carries saved handoff result context into the Builder Brief.");
+    expect(result.structuredContent.context).toContain("- [handoff:Cursor/result] User note on previous Cursor brief: Use the same context as Project Pulse.");
   });
 
   it("keeps MCP Builder Brief output stable when no handoff result exists", () => {
@@ -171,7 +171,7 @@ describe("buildMcpToolResult", () => {
       },
     });
 
-    expect(result.structuredContent.context).toContain("- Previous Cursor brief was used: Build MCP Builder Brief parity.");
+    expect(result.structuredContent.context).toContain("- [handoff:Cursor/used] Previous Cursor brief was used: Build MCP Builder Brief parity.");
     expect(result.structuredContent.context).not.toContain("Agent result from previous Cursor brief");
     expect(result.structuredContent.context).not.toContain("User note on previous Cursor brief");
   });

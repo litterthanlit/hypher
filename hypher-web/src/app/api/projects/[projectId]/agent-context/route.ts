@@ -56,6 +56,7 @@ export async function GET(req: NextRequest, context: RouteContext) {
       project: generationInput.project,
       memory,
       captures: generationInput.items,
+      activity: generationInput.activities,
       actions,
       agentEvents,
       handoffs,

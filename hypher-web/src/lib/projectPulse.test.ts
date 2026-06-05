@@ -129,6 +129,7 @@ describe("buildProjectContextInput", () => {
       project,
       memory,
       captures: [objects[2], objects[1]],
+      activity: [activity[0]],
       actions,
       agentEvents,
     });

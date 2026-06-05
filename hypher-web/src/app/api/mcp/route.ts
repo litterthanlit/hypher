@@ -97,6 +97,7 @@ async function getProjectContext(projectId: string, token: string): Promise<Hyph
     project: generationInput.project,
     memory: memories.find((item) => item.projectId === projectId) ?? null,
     captures: generationInput.items,
+    activity: generationInput.activities,
     actions,
     agentEvents,
     handoffs,

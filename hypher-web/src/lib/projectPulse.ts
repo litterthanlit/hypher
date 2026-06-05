@@ -42,6 +42,7 @@ export function buildProjectContextInput(params: {
     project: params.project,
     memory: params.model.memory,
     captures: params.model.latestCaptures,
+    activity: params.model.recentActivity,
     actions: params.actionQueue,
     agentEvents: params.agentEvents,
   };

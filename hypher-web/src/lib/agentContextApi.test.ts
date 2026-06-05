@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { AgentEvent, AnyObject, Handoff, Project, ProjectAction, ProjectMemory } from "@/types";
+import type { ActivityEntry, AgentEvent, AnyObject, Handoff, Project, ProjectAction, ProjectMemory } from "@/types";
 import { buildAgentContextApiResponse, getAgentContextLimits } from "./agentContextApi";
 
 const project: Project = {
@@ -74,6 +74,19 @@ const agentEvents: AgentEvent[] = [
   },
 ];
 
+const activity: ActivityEntry[] = [
+  {
+    id: "activity-1",
+    action: "updated",
+    objectId: "note-1",
+    objectKind: "note",
+    objectName: "Builder Brief source note",
+    timestamp: 130,
+    projectId: "p1",
+    summary: "Builder Brief source note was accepted into project memory.",
+  },
+];
+
 const handoffs: Handoff[] = [
   {
     id: "handoff-1",
@@ -115,6 +128,7 @@ describe("buildAgentContextApiResponse", () => {
       project,
       memory,
       captures,
+      activity,
       actions,
       agentEvents,
       subscription: { status: "active", plan: "pro_monthly" },
@@ -130,9 +144,10 @@ describe("buildAgentContextApiResponse", () => {
     expect(response.context).toContain("Expose clean Builder Briefs to agents.");
     expect(response.context).toContain("Build read-only context endpoint");
     expect(response.context).toContain("Expose Builder Briefs through the existing server route.");
+    expect(response.context).toContain("[activity:updated] Builder Brief source note was accepted into project memory.");
     expect(response.context).toContain("Wire ChatGPT connector");
-    expect(response.context).toContain("codex / handoff: Context endpoint planned.");
-    expect(response.context).toContain("## Handoff Notes");
+    expect(response.context).toContain("[agent:codex/handoff] Context endpoint planned.");
+    expect(response.context).toContain("### Handoff notes");
   });
 
   it("includes bounded returned agent output and user notes from handoff history", () => {
@@ -146,9 +161,9 @@ describe("buildAgentContextApiResponse", () => {
       subscription: { status: "active", plan: "pro_monthly" },
     });
 
-    expect(response.context).toContain("- Previous Cursor brief was completed: Wire Builder Brief parity.");
-    expect(response.context).toContain("- Agent result from previous Cursor brief: Implemented the server context parity path.");
-    expect(response.context).toContain("- User note on previous Cursor brief: Keep this result visible in the next Builder Brief.");
+    expect(response.context).toContain("- [handoff:Cursor/completed] Previous Cursor brief was completed: Wire Builder Brief parity.");
+    expect(response.context).toContain("- [handoff:Cursor/result] Agent result from previous Cursor brief: Implemented the server context parity path.");
+    expect(response.context).toContain("- [handoff:Cursor/result] User note on previous Cursor brief: Keep this result visible in the next Builder Brief.");
     expect(response.context).not.toContain("Detailed implementation log. Detailed implementation log. Detailed implementation log.");
   });
 
@@ -163,7 +178,7 @@ describe("buildAgentContextApiResponse", () => {
       subscription: null,
     });
 
-    expect(response.context).toContain("## Handoff Notes");
+    expect(response.context).toContain("### Handoff notes");
     expect(response.context).toContain("- No handoff notes recorded yet.");
   });
 
@@ -184,7 +199,7 @@ describe("buildAgentContextApiResponse", () => {
       subscription: { status: "active", plan: "pro_monthly" },
     });
 
-    expect(response.context).toContain("- Previous Cursor brief was completed: Wire Builder Brief parity.");
+    expect(response.context).toContain("- [handoff:Cursor/completed] Previous Cursor brief was completed: Wire Builder Brief parity.");
     expect(response.context).not.toContain("Agent result from previous Cursor brief");
     expect(response.context).not.toContain("User note on previous Cursor brief");
   });
@@ -203,6 +218,6 @@ describe("buildAgentContextApiResponse", () => {
     expect(response.limits.captures).toBe(3);
     expect(response.context).toContain("# Builder Brief: Hypher");
     expect(response.context).toContain("- No explicit Do Not Do items recorded yet.");
-    expect(response.context).not.toContain("- Capture 2");
+    expect(response.context).not.toContain("- [capture:note] Capture 2");
   });
 });

@@ -487,6 +487,7 @@ export function ProjectPulse({
         }),
         handoffs: handoffs ?? [],
         targetTool: targetTool === "Auto" ? undefined : targetTool,
+        generatedAt: Date.now(),
       });
       const handoffId = await createHandoff({
         projectId: project.id as Id<"objects">,
