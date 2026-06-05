@@ -12,6 +12,10 @@ import { Redis } from "@upstash/redis";
 // Per-process cache of Ratelimit instances by bucket key
 const cache = new Map<string, Ratelimit | null>();
 
+function hasUsableRedisEnv(url: string | undefined, token: string | undefined): url is string {
+  return Boolean(url?.startsWith("https://") && !url.includes("...") && token && token !== "...");
+}
+
 function getRatelimitForBucket(
   bucket: string,
   requests: number,
@@ -22,16 +26,16 @@ function getRatelimitForBucket(
 
   const url = process.env.UPSTASH_REDIS_REST_URL;
   const token = process.env.UPSTASH_REDIS_REST_TOKEN;
-  if (!url || !token) {
+  if (!hasUsableRedisEnv(url, token)) {
     if (process.env.NODE_ENV === "production") {
       console.error(
-        `[hypher/convex/rateLimit] Upstash Redis env missing — denying production request for bucket "${bucket}"`
+        `[hypher/convex/rateLimit] Upstash Redis env missing or invalid — denying production request for bucket "${bucket}"`
       );
       cache.set(cacheKey, null);
       return null;
     }
     console.warn(
-      `[hypher/convex/rateLimit] Upstash Redis env missing — rate limiting disabled for bucket "${bucket}"`
+      `[hypher/convex/rateLimit] Upstash Redis env missing or invalid — rate limiting disabled for bucket "${bucket}"`
     );
     cache.set(cacheKey, null);
     return null;

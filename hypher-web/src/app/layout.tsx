@@ -38,6 +38,9 @@ export const metadata: Metadata = {
   title: "Hypher",
   description:
     "The project context layer for AI builders and agents.",
+  icons: {
+    icon: "/hypher-logo.svg",
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

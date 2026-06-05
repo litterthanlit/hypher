@@ -130,8 +130,8 @@ export const generateTags = action({
     const allowed = await ratelimitConvex(userId, "ai-generate-tags", {
       requests: 60,
       window: "1h",
-    });
-    if (!allowed) throw new Error("Rate limit exceeded");
+    }).catch(() => false);
+    if (!allowed) return [];
 
     const boundedContent = content.trim().slice(0, MAX_TAG_CONTENT_LEN);
     if (boundedContent.length < 10) return [];
