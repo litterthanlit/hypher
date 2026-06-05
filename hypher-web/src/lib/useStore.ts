@@ -5,11 +5,16 @@ import { useAuth } from "@clerk/nextjs";
 import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
-import type { AnyObject, CaptureResult, CaptureType, Connection, Project, ProjectSuggestion, Note, Artifact, ActivityEntry } from "@/types";
+import type { AnyObject, CaptureResult, Connection, Project, ProjectSuggestion, Note, Artifact, ActivityEntry } from "@/types";
 import { getDisplayName } from "@/types";
 import { toast } from "sonner";
 import { generateEmbedding, computeSuggestionsFromData, suggestProjectFromData } from "./engine";
 import { reportConvexActionFailed } from "./convexActionFailed";
+import {
+  enrichCapture,
+  normalizeCaptureInput,
+  prepareCaptureObject,
+} from "../../shared/capture";
 
 /* ── Convex doc → app type mappers ──────────────────────────────── */
 
@@ -39,21 +44,6 @@ function stripUndefined(obj: Record<string, unknown>): Record<string, unknown> {
     if (v !== undefined) out[k] = v;
   }
   return out;
-}
-
-function inferCaptureType(text: string): CaptureType {
-  const lower = text.toLowerCase();
-  if (/\b(decided|decision|we will|ship|choose|chosen)\b/.test(lower)) return "decision";
-  if (/\b(bug|broken|error|fails|regression|crash)\b/.test(lower)) return "bug";
-  if (/\b(todo|task|need to|follow up|fix|implement)\b/.test(lower)) return "task";
-  if (/\b(design|ux|ui|mock|visual)\b/.test(lower)) return "design_note";
-  if (/\b(code|api|component|schema|route|function)\b/.test(lower)) return "code_note";
-  if (/\b(meeting|call|standup|sync)\b/.test(lower)) return "meeting_note";
-  if (/\b(user|customer|feedback|insight)\b/.test(lower)) return "user_insight";
-  if (/\b(agent|claude|chatgpt|cursor|windsurf|copilot)\b/.test(lower)) return "agent_output";
-  if (/https?:\/\//.test(lower)) return "link_reference";
-  if (text.trim().endsWith("?")) return "open_question";
-  return "thought";
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -281,6 +271,12 @@ export function useStore() {
     allConns: Connection[]
   ) => {
     const newConns = computeSuggestionsFromData(allObjects, allConns);
+    await saveConnectionSuggestionsAndToast(newConns);
+  };
+
+  const saveConnectionSuggestionsAndToast = async (
+    newConns: Omit<Connection, "id">[]
+  ) => {
     for (const conn of newConns) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       await putConnectionMut(conn as any);
@@ -337,84 +333,66 @@ export function useStore() {
     projectId?: string | null
   ): Promise<CaptureResult> => {
     const now = Date.now();
+    const input = normalizeCaptureInput({
+      content: text,
+      projectId: projectId ?? null,
+      validateProjectId: false,
+    });
+    if (!input.ok) throw new Error(input.error);
+
     setIsProcessing(true);
     setModelLoading(true);
 
     try {
-      // Insert note into Convex
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const convexId = await putObjectMut({
-        kind: "note" as const,
-        content: text,
-        maturity: "fleeting",
-        source: "manual",
-        captureType: inferCaptureType(text),
-        captureStatus: projectId ? "sorted" : "unsorted",
-        confirmedProjectId: projectId ?? null,
-        createdAt: now,
-        modifiedAt: now,
-        projectId: projectId ?? null,
-        ...(projectId ? { reviewedAt: now } : {}),
-      } as any);
+      const prepared = prepareCaptureObject({
+        content: input.content,
+        projectId: input.projectId,
+        now,
+        includeClientFields: true,
+      });
 
-      const note: Note = {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const convexId = await putObjectMut(prepared as any);
+      const note = {
         id: convexId as string,
-        kind: "note",
-        content: text,
-        maturity: "fleeting",
-        source: "manual",
-        captureType: inferCaptureType(text),
-        captureStatus: projectId ? "sorted" : "unsorted",
-        confirmedProjectId: projectId ?? null,
-        createdAt: now,
-        modifiedAt: now,
-        projectId: projectId ?? null,
-        ...(projectId ? { reviewedAt: now } : {}),
-      };
+        ...prepared,
+      } as Note;
 
       await logActivity("created", note, undefined, "capture");
 
-      // Generate embedding and update
-      const embedded = await generateEmbedding(note);
+      const enrichment = await enrichCapture({
+        capture: note,
+        allObjects: objects.filter((o) => o.id !== (convexId as string)),
+        connections,
+        projectId: input.projectId,
+        embedCapture: generateEmbedding,
+        suggestProjects: suggestProjectFromData,
+        computeConnections: computeSuggestionsFromData,
+      });
+      const embedded = enrichment.capture ?? note;
       await putObjectMut(convexUpdateArgs(embedded));
 
-      // Project suggestions (if not already assigned)
-      let suggestions: {
-        projectId: string;
-        projectName: string;
-        confidence: number;
-        reason: string;
-      }[] = [];
-      const allObjs = [
-        ...objects.filter((o) => o.id !== (convexId as string)),
-        embedded,
-      ];
-      if (!projectId && embedded.embedding) {
-        suggestions = suggestProjectFromData(embedded, allObjs);
-      }
-
-      if (!projectId && suggestions[0]) {
+      if (!input.projectId && enrichment.suggestions[0]) {
         await patchCaptureMetadataMut({
           id: convexId as Id<"objects">,
           timestamp: now,
-          suggestedProjectId: suggestions[0].projectId,
-          confidence: suggestions[0].confidence,
+          suggestedProjectId: enrichment.suggestions[0].projectId,
+          confidence: enrichment.suggestions[0].confidence,
         });
       }
 
-      // Connection suggestions
-      await saveSuggestionsAndToast(allObjs, connections);
+      await saveConnectionSuggestionsAndToast(enrichment.connectionsToCreate);
 
       // Non-blocking: generate AI tags
-      if (text.length >= 10) {
-        generateTagsAction({ content: text }).then((tags) => {
+      if (input.content.length >= 10) {
+        generateTagsAction({ content: input.content }).then((tags) => {
           if (tags.length > 0) {
             putObjectMut({ id: convexId as Id<"objects">, ...convexInsertArgs({ ...embedded, tags } as AnyObject) } as any);
           }
         }).catch((e) => reportConvexActionFailed("ai.generateTags", e));
       }
 
-      return { noteId: convexId as string, suggestions };
+      return { noteId: convexId as string, suggestions: enrichment.suggestions };
     } finally {
       setIsProcessing(false);
       setModelLoading(false);

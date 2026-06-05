@@ -6,6 +6,7 @@ import { Webhook } from "svix";
 import { stripQuotedReply } from "./lib/quotedReply";
 import { ratelimitConvex } from "./lib/rateLimit";
 import { apiKeyProbeRateLimitKey } from "./apiKeys";
+import { normalizeCaptureInput, prepareCaptureObject } from "../shared/capture";
 
 // typegen pending convex dev
 const _internal = internal as any;
@@ -26,8 +27,6 @@ const CORS_HEADERS: Record<string, string> = {
   "Access-Control-Allow-Headers": "Authorization, Content-Type",
 };
 
-const MAX_CAPTURE_CONTENT = 10_000;
-const MAX_CAPTURE_TAGS = 10;
 const MAX_CAPTURE_BODY_BYTES = 25_000;
 
 function withCors(headers: Record<string, string>): Record<string, string> {
@@ -239,11 +238,14 @@ http.route({
       return new Response(limited.body, { status: limited.status, headers: h });
     }
 
-    const content = typeof body.content === "string" ? body.content.trim() : "";
-    const tags = Array.isArray(body.tags)
-      ? body.tags.filter((tag: unknown): tag is string => typeof tag === "string").slice(0, MAX_CAPTURE_TAGS)
-      : undefined;
-    if (!content || content.length > MAX_CAPTURE_CONTENT) {
+    const input = normalizeCaptureInput({
+      content: body.content,
+      projectId: requestedProjectId,
+      tags: body.tags,
+      tagMode: "api",
+      validateProjectId: false,
+    });
+    if (!input.ok) {
       return new Response(
         JSON.stringify({ error: "Invalid content" }),
         {
@@ -254,17 +256,25 @@ http.route({
     }
     const projectId = auth.authType === "captureToken" && auth.scopedProjectId
       ? auth.scopedProjectId
-      : requestedProjectId;
+      : input.projectId;
     const now = Date.now();
+    const capture = prepareCaptureObject({
+      content: input.content,
+      projectId,
+      now,
+      tags: input.tags,
+      includeClientFields: false,
+      markReviewedOnProject: false,
+    });
     const id = await ctx.runMutation(internal.objects.putForApiUser, {
       userId: auth.userId,
-      kind: body.kind || "note",
-      content,
-      maturity: "fleeting",
-      createdAt: now,
-      modifiedAt: now,
-      projectId,
-      tags,
+      kind: body.kind || capture.kind,
+      content: capture.content,
+      maturity: capture.maturity,
+      createdAt: capture.createdAt,
+      modifiedAt: capture.modifiedAt,
+      projectId: capture.projectId,
+      tags: capture.tags,
     });
 
     if (auth.authType === "apiKey") {

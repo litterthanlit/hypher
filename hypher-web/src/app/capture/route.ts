@@ -10,6 +10,14 @@ import {
 } from "@/lib/engine";
 import { isRequestBodyTooLarge, readJsonWithLimit, readTextWithLimit } from "@/lib/requestBody";
 import { authErrorJson, requireBetaAccess } from "@/lib/serverAuth";
+import {
+  enrichCapture,
+  normalizeCaptureInput,
+  prepareCaptureObject,
+  safeEnrichCapture,
+  type CaptureInputError,
+  type CaptureEnrichmentResult,
+} from "../../../shared/capture";
 
 export const runtime = "nodejs";
 const MAX_CAPTURE_BODY_BYTES = 25_000;
@@ -43,16 +51,12 @@ export async function OPTIONS(req: Request) {
 }
 // ──────────────────────────────────────────────────────────────────────────────
 
-const MAX_CONTENT = 10_000;
-const PROJECT_RE = /^[a-zA-Z0-9_-]{6,64}$/;
-const MAX_TAGS = 10;
-
 type Parsed = {
   content: string;
   projectId: string | null;
-  tags?: string[];
-  error?: string;
-};
+  tags: string[] | undefined;
+  ok: true;
+} | { ok: false; error: CaptureInputError | "too_large" };
 
 function mapObject(doc: any): AnyObject {
   const { _id, _creationTime, ...rest } = doc;
@@ -64,55 +68,17 @@ function mapConnection(doc: any): Connection {
   return { ...rest, id: String(_id) } as Connection;
 }
 
-function normalizeCaptureFields(
-  content: string,
-  projectRaw: string | null,
-  tagsRaw: string | null
-): Parsed {
-  const trimmed = content.trim();
-  if (!trimmed) {
-    return { content: "", projectId: null, error: "content_required" };
-  }
-  if (trimmed.length > MAX_CONTENT) {
-    return { content: "", projectId: null, error: "content_too_long" };
-  }
-
-  let projectId: string | null = null;
-  if (projectRaw != null && projectRaw.trim() !== "") {
-    const p = projectRaw.trim();
-    if (!PROJECT_RE.test(p)) {
-      return { content: "", projectId: null, error: "invalid_project" };
-    }
-    projectId = p;
-  }
-
-  let tags: string[] | undefined;
-  if (tagsRaw != null && tagsRaw.trim() !== "") {
-    tags = tagsRaw
-      .split(",")
-      .map((t) => t.trim())
-      .filter(Boolean);
-    if (tags.length > MAX_TAGS) {
-      return { content: "", projectId: null, error: "too_many_tags" };
-    }
-  }
-
-  return { content: trimmed, projectId, tags };
-}
-
 async function parseCaptureInput(req: Request, url: URL): Promise<Parsed> {
   const method = req.method.toUpperCase();
   if (method === "GET") {
-    const content =
-      url.searchParams.get("content") ??
-      url.searchParams.get("text") ??
-      url.searchParams.get("q") ??
-      "";
-    return normalizeCaptureFields(
-      content,
-      url.searchParams.get("project"),
-      url.searchParams.get("tags")
-    );
+    return normalizeCaptureInput({
+      content: url.searchParams.get("content"),
+      text: url.searchParams.get("text"),
+      q: url.searchParams.get("q"),
+      project: url.searchParams.get("project"),
+      projectId: url.searchParams.get("projectId"),
+      tags: url.searchParams.get("tags"),
+    });
   }
 
   const ct = req.headers.get("content-type") ?? "";
@@ -122,29 +88,17 @@ async function parseCaptureInput(req: Request, url: URL): Promise<Parsed> {
       body = await readJsonWithLimit<Record<string, unknown>>(req, MAX_CAPTURE_BODY_BYTES);
     } catch (error) {
       if (isRequestBodyTooLarge(error)) {
-        return { content: "", projectId: null, error: "too_large" };
+        return { ok: false, error: "too_large" };
       }
       throw error;
     }
-    const content =
-      typeof body.content === "string"
-        ? body.content
-        : typeof body.text === "string"
-          ? body.text
-          : "";
-    const projectRaw =
-      typeof body.project === "string"
-        ? body.project
-        : typeof body.projectId === "string"
-          ? body.projectId
-          : null;
-    const tagsRaw =
-      typeof body.tags === "string"
-        ? body.tags
-        : Array.isArray(body.tags)
-          ? (body.tags as string[]).join(",")
-          : null;
-    return normalizeCaptureFields(content, projectRaw, tagsRaw);
+    return normalizeCaptureInput({
+      content: body.content,
+      text: body.text,
+      project: body.project,
+      projectId: body.projectId,
+      tags: body.tags,
+    });
   }
 
   if (ct.includes("application/x-www-form-urlencoded")) {
@@ -153,31 +107,36 @@ async function parseCaptureInput(req: Request, url: URL): Promise<Parsed> {
       body = new URLSearchParams(await readTextWithLimit(req, MAX_CAPTURE_BODY_BYTES));
     } catch (error) {
       if (isRequestBodyTooLarge(error)) {
-        return { content: "", projectId: null, error: "too_large" };
+        return { ok: false, error: "too_large" };
       }
       throw error;
     }
-    return normalizeCaptureFields(
-      body.get("content") ?? body.get("text") ?? body.get("q") ?? "",
-      body.get("project"),
-      body.get("tags")
-    );
+    return normalizeCaptureInput({
+      content: body.get("content"),
+      text: body.get("text"),
+      q: body.get("q"),
+      project: body.get("project"),
+      projectId: body.get("projectId"),
+      tags: body.get("tags"),
+    });
   }
 
   const contentLength = Number(req.headers.get("content-length") ?? "0");
   if (contentLength > MAX_CAPTURE_BODY_BYTES) {
-    return { content: "", projectId: null, error: "too_large" };
+    return { ok: false, error: "too_large" };
   }
 
   const fd = await req.formData();
-  const content = String(fd.get("content") ?? fd.get("text") ?? fd.get("q") ?? "");
-  const projectRaw = fd.get("project");
-  const tagsRaw = fd.get("tags");
-  return normalizeCaptureFields(
-    content,
-    typeof projectRaw === "string" ? projectRaw : null,
-    typeof tagsRaw === "string" ? tagsRaw : null
-  );
+  const contentField = fd.get("content") ?? fd.get("text") ?? fd.get("q") ?? "";
+  const projectField = fd.get("project");
+  const projectIdField = fd.get("projectId");
+  const tagsField = fd.get("tags");
+  return normalizeCaptureInput({
+    content: typeof contentField === "string" ? contentField : String(contentField),
+    project: typeof projectField === "string" ? projectField : null,
+    projectId: typeof projectIdField === "string" ? projectIdField : null,
+    tags: typeof tagsField === "string" ? tagsField : null,
+  });
 }
 
 function redirectSignIn(req: Request): Response {
@@ -232,34 +191,40 @@ async function enrichCapturedNote(params: {
   token: string;
   note: Note;
   projectConvexId: string | null;
-}): Promise<{ enriched: boolean; suggestions: ProjectSuggestion[] }> {
-  const [embedded, generatedTags] = await Promise.all([
-    generateEmbedding(params.note),
-    params.note.tags?.length || params.note.content.length < 10
-      ? Promise.resolve([] as string[])
-      : fetchAction(api.ai.generateTags, { content: params.note.content }, { token: params.token }).catch(() => [] as string[]),
+}): Promise<CaptureEnrichmentResult> {
+  const [rawObjects, rawConnections] = await Promise.all([
+    fetchQuery(api.objects.list, {}, { token: params.token }),
+    fetchQuery(api.connections.list, {}, { token: params.token }),
   ]);
 
-  const tags = params.note.tags?.length
-    ? params.note.tags
-    : generatedTags.length > 0
-      ? generatedTags
-      : undefined;
+  const enrichment = await enrichCapture({
+    capture: params.note,
+    allObjects: rawObjects.map(mapObject),
+    connections: rawConnections.map(mapConnection),
+    projectId: params.projectConvexId,
+    embedCapture: generateEmbedding,
+    generateTags: (content) =>
+      fetchAction(api.ai.generateTags, { content }, { token: params.token })
+        .catch(() => [] as string[]),
+    suggestProjects: suggestProjectFromData,
+    computeConnections: computeSuggestionsFromData,
+  });
+  const embedded = enrichment.capture ?? params.note;
 
   await fetchMutation(
     api.objects.put,
     {
       id: params.note.id as Id<"objects">,
       kind: "note",
-      content: params.note.content,
-      maturity: params.note.maturity,
-      createdAt: params.note.createdAt,
+      content: embedded.content,
+      maturity: embedded.maturity,
+      createdAt: embedded.createdAt,
       modifiedAt: embedded.modifiedAt,
-      projectId: params.note.projectId ?? null,
-      reviewedAt: params.note.reviewedAt,
+      projectId: embedded.projectId ?? null,
+      reviewedAt: embedded.reviewedAt,
       embedding: embedded.embedding,
       embeddingText: embedded.embeddingText,
-      tags,
+      tags: embedded.tags,
     },
     { token: params.token }
   );
@@ -289,28 +254,13 @@ async function enrichCapturedNote(params: {
     );
   }
 
-  const [rawObjects, rawConnections] = await Promise.all([
-    fetchQuery(api.objects.list, {}, { token: params.token }),
-    fetchQuery(api.connections.list, {}, { token: params.token }),
-  ]);
-  const allObjects = rawObjects
-    .map(mapObject)
-    .map((obj) => (obj.id === params.note.id ? embedded : obj));
-  const connections = rawConnections.map(mapConnection);
-
-  const suggestions =
-    params.projectConvexId || !embedded.embedding
-      ? []
-      : suggestProjectFromData(embedded, allObjects);
-
-  const newConnections = computeSuggestionsFromData(allObjects, connections);
   await Promise.all(
-    newConnections.map((conn) =>
+    enrichment.connectionsToCreate.map((conn) =>
       fetchMutation(api.connections.put, conn, { token: params.token })
     )
   );
 
-  return { enriched: true, suggestions };
+  return enrichment;
 }
 
 async function handleCapture(req: Request): Promise<Response> {
@@ -342,7 +292,7 @@ async function handleCapture(req: Request): Promise<Response> {
 
   const input = await parseCaptureInput(req, url);
 
-  if (input.error) {
+  if (!input.ok) {
     if (input.error === "too_large") {
       return errorResponse(wantsJson, input.error, 413);
     }
@@ -369,39 +319,30 @@ async function handleCapture(req: Request): Promise<Response> {
 
   const now = Date.now();
   try {
+    const prepared = prepareCaptureObject({
+      content: input.content,
+      projectId: projectConvexId,
+      now,
+      tags: input.tags,
+      includeClientFields: false,
+    });
+    const { id: _preparedId, ...preparedInsert } = prepared;
+
     const noteId = await fetchMutation(
       api.objects.put,
-      {
-        kind: "note",
-        content: input.content,
-        maturity: "fleeting",
-        createdAt: now,
-        modifiedAt: now,
-        projectId: projectConvexId,
-        ...(projectConvexId ? { reviewedAt: now } : {}),
-        tags: input.tags,
-      },
+      preparedInsert,
       { token }
     );
 
     const note: Note = {
       id: String(noteId),
-      kind: "note",
-      content: input.content,
-      maturity: "fleeting",
-      createdAt: now,
-      modifiedAt: now,
-      projectId: projectConvexId,
-      tags: input.tags,
-      ...(projectConvexId ? { reviewedAt: now } : {}),
+      ...preparedInsert,
     };
 
-    let enrichment: { enriched: boolean; suggestions?: ProjectSuggestion[] } = { enriched: false, suggestions: [] };
-    try {
-      enrichment = await enrichCapturedNote({ token, note, projectConvexId });
-    } catch (e) {
-      console.error("[capture:enrich]", e);
-    }
+    const enrichment = await safeEnrichCapture(
+      () => enrichCapturedNote({ token, note, projectConvexId }),
+      (error) => console.error("[capture:enrich]", error)
+    );
 
     return successRedirect(url.origin, projectConvexId, wantsJson, String(noteId), enrichment);
   } catch (e) {
