@@ -209,9 +209,9 @@ describe("capture enrichment", () => {
       embedCapture: async (capture) => ({ ...capture, embedding: [1, 0], embeddingText: capture.content, modifiedAt: 456 }),
       generateTags: async () => ["capture", "flow"],
       suggestProjects: () => [{ projectId: "project-1", projectName: "Project", confidence: 0.8, reason: "Matches" }],
-      computeConnections: (allObjects: AnyObject[]) => [{
-        sourceId: allObjects[0]!.id,
-        targetId: allObjects[1]!.id,
+      computeConnections: (changedObject: AnyObject, candidateObjects: AnyObject[]) => [{
+        sourceId: changedObject.id,
+        targetId: candidateObjects[0]!.id,
         sourceKind: "note",
         targetKind: "note",
         type: "ai_suggested",
@@ -236,6 +236,24 @@ describe("capture enrichment", () => {
     const fallback = await safeEnrichCapture(() => {
       throw new Error("model unavailable");
     });
+
+    expect(fallback).toEqual({ enriched: false, suggestions: [], connectionsToCreate: [] });
+  });
+
+  it("falls back cleanly when embedding generation fails", async () => {
+    const captured = note("created", "Embedding model unavailable");
+    const fallback = await safeEnrichCapture(() =>
+      enrichCapture({
+        capture: captured,
+        allObjects: [],
+        connections: [],
+        embedCapture: async () => {
+          throw new Error("model unavailable");
+        },
+        suggestProjects: vi.fn(),
+        computeConnections: vi.fn(),
+      })
+    );
 
     expect(fallback).toEqual({ enriched: false, suggestions: [], connectionsToCreate: [] });
   });

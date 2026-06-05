@@ -1,15 +1,22 @@
 import type { AnyObject, Connection, ProjectSuggestion } from "@/types";
 import { getEmbeddingText, getDisplayName } from "@/types";
-import { embed, cosineSimilarity } from "./embeddings";
+import {
+  browserEmbeddingProvider,
+  cosineSimilarity,
+  type EmbeddingProvider,
+} from "./embeddings";
 
 const SIMILARITY_THRESHOLD = 0.45; // MiniLM scores are lower than Apple NLEmbedding
 
-export async function generateEmbedding(obj: AnyObject): Promise<AnyObject> {
+export async function generateEmbedding(
+  obj: AnyObject,
+  provider: Pick<EmbeddingProvider, "embed"> = browserEmbeddingProvider
+): Promise<AnyObject> {
   const text = getEmbeddingText(obj);
   if (!text) return obj;
   if (obj.embeddingText === text && obj.embedding) return obj;
 
-  const vector = await embed(text);
+  const vector = await provider.embed(text);
   return { ...obj, embedding: vector, embeddingText: text, modifiedAt: Date.now() };
 }
 
@@ -23,11 +30,7 @@ export function computeSuggestionsFromData(
 ): Omit<Connection, "id">[] {
   const embedded = allObjects.filter((o) => o.embedding && o.embedding.length > 0);
 
-  const existingPairs = new Set<string>();
-  for (const conn of existingConnections) {
-    existingPairs.add(pairKey(conn.sourceId, conn.targetId));
-  }
-
+  const existingPairs = connectionPairSet(existingConnections);
   const newConnections: Omit<Connection, "id">[] = [];
 
   for (let i = 0; i < embedded.length; i++) {
@@ -40,18 +43,36 @@ export function computeSuggestionsFromData(
 
       const similarity = cosineSimilarity(a.embedding!, b.embedding!);
       if (similarity >= SIMILARITY_THRESHOLD) {
-        newConnections.push({
-          sourceId: a.id,
-          targetId: b.id,
-          sourceKind: a.kind,
-          targetKind: b.kind,
-          type: "ai_suggested",
-          confidence: similarity,
-          reason: `Similarity: ${Math.round(similarity * 100)}% — related themes between "${getDisplayName(a)}" and "${getDisplayName(b)}"`,
-          createdAt: Date.now(),
-        });
+        newConnections.push(buildSuggestionConnection(a, b, similarity));
         existingPairs.add(key);
       }
+    }
+  }
+
+  return newConnections;
+}
+
+export function computeSuggestionsForObject(
+  changedObject: AnyObject,
+  candidateObjects: AnyObject[],
+  existingConnections: Connection[]
+): Omit<Connection, "id">[] {
+  if (!changedObject.embedding || changedObject.embedding.length === 0) return [];
+
+  const existingPairs = connectionPairSet(existingConnections);
+  const newConnections: Omit<Connection, "id">[] = [];
+
+  for (const candidate of candidateObjects) {
+    if (candidate.id === changedObject.id) continue;
+    if (!candidate.embedding || candidate.embedding.length === 0) continue;
+
+    const key = pairKey(changedObject.id, candidate.id);
+    if (existingPairs.has(key)) continue;
+
+    const similarity = cosineSimilarity(changedObject.embedding, candidate.embedding);
+    if (similarity >= SIMILARITY_THRESHOLD) {
+      newConnections.push(buildSuggestionConnection(changedObject, candidate, similarity));
+      existingPairs.add(key);
     }
   }
 
@@ -109,6 +130,27 @@ export function suggestProjectFromData(
 
 function pairKey(a: string, b: string): string {
   return [a, b].sort().join("|");
+}
+
+function connectionPairSet(connections: Connection[]): Set<string> {
+  return new Set(connections.map((conn) => pairKey(conn.sourceId, conn.targetId)));
+}
+
+function buildSuggestionConnection(
+  source: AnyObject,
+  target: AnyObject,
+  similarity: number
+): Omit<Connection, "id"> {
+  return {
+    sourceId: source.id,
+    targetId: target.id,
+    sourceKind: source.kind,
+    targetKind: target.kind,
+    type: "ai_suggested",
+    confidence: similarity,
+    reason: `Similarity: ${Math.round(similarity * 100)}% — related themes between "${getDisplayName(source)}" and "${getDisplayName(target)}"`,
+    createdAt: Date.now(),
+  };
 }
 
 // ── Drop-to-suggest chip ──────────────────────────────────────────────────────

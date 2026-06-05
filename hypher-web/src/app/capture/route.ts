@@ -4,7 +4,7 @@ import type { Id } from "../../../convex/_generated/dataModel";
 import type { AnyObject, Connection, Note, ProjectSuggestion } from "@/types";
 import { getDisplayName } from "@/types";
 import {
-  computeSuggestionsFromData,
+  computeSuggestionsForObject,
   generateEmbedding,
   suggestProjectFromData,
 } from "@/lib/engine";
@@ -207,7 +207,7 @@ async function enrichCapturedNote(params: {
       fetchAction(api.ai.generateTags, { content }, { token: params.token })
         .catch(() => [] as string[]),
     suggestProjects: suggestProjectFromData,
-    computeConnections: computeSuggestionsFromData,
+    computeConnections: computeSuggestionsForObject,
   });
   const embedded = enrichment.capture ?? params.note;
 

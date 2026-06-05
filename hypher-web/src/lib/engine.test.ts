@@ -19,7 +19,12 @@ vi.mock("./embeddings", () => ({
   },
 }));
 
-import { suggestProjectFromData, suggestRelatedOnDrop } from "./engine";
+import {
+  computeSuggestionsForObject,
+  generateEmbedding,
+  suggestProjectFromData,
+  suggestRelatedOnDrop,
+} from "./engine";
 import type { AnyObject, Note, Project } from "@/types";
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
@@ -282,5 +287,39 @@ describe("suggestProjectFromData", () => {
 
     expect(metadataSuggestion?.reason).toMatch(/Matches the project/);
     expect(childSuggestion?.reason).toMatch(/Related to/);
+  });
+});
+
+describe("generateEmbedding", () => {
+  it("uses the injected embedding provider boundary", async () => {
+    const source = makeNote("note", 0, 0);
+    const provider = {
+      embed: vi.fn().mockResolvedValue([0.25, 0.75]),
+    };
+
+    const result = await generateEmbedding(source, provider);
+
+    expect(provider.embed).toHaveBeenCalledWith("content of note");
+    expect(result).toMatchObject({
+      id: "note",
+      embedding: [0.25, 0.75],
+      embeddingText: "content of note",
+    });
+  });
+});
+
+describe("computeSuggestionsForObject", () => {
+  it("compares one changed object against candidates without candidate-to-candidate suggestions", () => {
+    const changed = makeNote("changed", 0, 0, orthogonalVec());
+    const firstCandidate = makeNote("candidate-a", 0, 0, unitVec());
+    const secondCandidate = makeNote("candidate-b", 0, 0, unitVec());
+
+    const result = computeSuggestionsForObject(
+      changed,
+      [firstCandidate, secondCandidate],
+      []
+    );
+
+    expect(result).toEqual([]);
   });
 });

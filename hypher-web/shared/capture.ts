@@ -72,7 +72,8 @@ export interface EnrichCaptureArgs {
   generateTags?: (content: string) => Promise<string[]>;
   suggestProjects: (capture: Note, allObjects: AnyObject[]) => ProjectSuggestion[];
   computeConnections: (
-    allObjects: AnyObject[],
+    changedObject: AnyObject,
+    candidateObjects: AnyObject[],
     connections: Connection[]
   ) => Omit<Connection, "id">[];
 }
@@ -239,6 +240,7 @@ export async function enrichCapture(args: EnrichCaptureArgs): Promise<CaptureEnr
       : undefined;
   const capture = tags ? { ...embedded, tags } : embedded;
   const allObjects = mergeCaptureObject(args.allObjects, capture);
+  const candidateObjects = allObjects.filter((object) => object.id !== capture.id);
 
   return {
     enriched: true,
@@ -249,7 +251,7 @@ export async function enrichCapture(args: EnrichCaptureArgs): Promise<CaptureEnr
       projectId: args.projectId ?? capture.projectId ?? null,
       suggestProjects: args.suggestProjects,
     }),
-    connectionsToCreate: args.computeConnections(allObjects, args.connections),
+    connectionsToCreate: args.computeConnections(capture, candidateObjects, args.connections),
   };
 }
 

@@ -1,4 +1,9 @@
-import { pipeline, type FeatureExtractionPipeline } from "@huggingface/transformers";
+import type { FeatureExtractionPipeline } from "@huggingface/transformers";
+
+export interface EmbeddingProvider {
+  embed(text: string): Promise<number[]>;
+  isLoading(): boolean;
+}
 
 let extractor: FeatureExtractionPipeline | null = null;
 let loading = false;
@@ -12,6 +17,7 @@ async function loadModel() {
   }
   loading = true;
   loadPromise = (async () => {
+    const { pipeline } = await import("@huggingface/transformers");
     extractor = await pipeline(
       "feature-extraction",
       "Xenova/all-MiniLM-L6-v2",
@@ -19,7 +25,13 @@ async function loadModel() {
     ) as FeatureExtractionPipeline;
     loading = false;
   })();
-  await loadPromise;
+  try {
+    await loadPromise;
+  } catch (error) {
+    loading = false;
+    loadPromise = null;
+    throw error;
+  }
 }
 
 export function isLoading(): boolean {
@@ -31,6 +43,11 @@ export async function embed(text: string): Promise<number[]> {
   const output = await extractor!(text, { pooling: "mean", normalize: true });
   return Array.from(output.data as Float32Array);
 }
+
+export const browserEmbeddingProvider: EmbeddingProvider = {
+  embed,
+  isLoading,
+};
 
 export function cosineSimilarity(a: number[], b: number[]): number {
   if (a.length !== b.length || a.length === 0) return 0;

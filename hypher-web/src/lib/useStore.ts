@@ -8,12 +8,18 @@ import type { Id } from "../../convex/_generated/dataModel";
 import type { AnyObject, CaptureResult, Connection, Project, ProjectSuggestion, Note, Artifact, ActivityEntry } from "@/types";
 import { getDisplayName } from "@/types";
 import { toast } from "sonner";
-import { generateEmbedding, computeSuggestionsFromData, suggestProjectFromData } from "./engine";
+import {
+  computeSuggestionsForObject,
+  computeSuggestionsFromData,
+  generateEmbedding,
+  suggestProjectFromData,
+} from "./engine";
 import { reportConvexActionFailed } from "./convexActionFailed";
 import {
   enrichCapture,
   normalizeCaptureInput,
   prepareCaptureObject,
+  safeEnrichCapture,
 } from "../../shared/capture";
 
 /* ── Convex doc → app type mappers ──────────────────────────────── */
@@ -339,6 +345,15 @@ export function useStore(options: UseStoreOptions = {}) {
     await saveConnectionSuggestionsAndToast(newConns);
   };
 
+  const saveSuggestionsForObjectAndToast = async (
+    changedObject: AnyObject,
+    candidateObjects: AnyObject[],
+    allConns: Connection[]
+  ) => {
+    const newConns = computeSuggestionsForObject(changedObject, candidateObjects, allConns);
+    await saveConnectionSuggestionsAndToast(newConns);
+  };
+
   const saveConnectionSuggestionsAndToast = async (
     newConns: Omit<Connection, "id">[]
   ) => {
@@ -375,13 +390,13 @@ export function useStore(options: UseStoreOptions = {}) {
       const embedded = await generateEmbedding(saved);
       await putObjectMut(convexUpdateArgs(embedded));
 
-      // Compute and save suggestions
+      // Compute and save suggestions for the new object only
       const suggestionObjects = await loadSuggestionObjects();
-      const allObjs = [
-        ...suggestionObjects.filter((o) => o.id !== (convexId as string)),
+      await saveSuggestionsForObjectAndToast(
         embedded,
-      ];
-      await saveSuggestionsAndToast(allObjs, connections);
+        suggestionObjects.filter((o) => o.id !== (convexId as string)),
+        connections
+      );
 
       // Non-blocking: generate AI tags
       const tagContent = obj.kind === "note" ? (obj as Note).content : obj.kind === "artifact" ? (obj as Artifact).name : "";
@@ -433,15 +448,18 @@ export function useStore(options: UseStoreOptions = {}) {
       await logActivity("created", note, undefined, "capture");
 
       const suggestionObjects = await loadSuggestionObjects();
-      const enrichment = await enrichCapture({
-        capture: note,
-        allObjects: suggestionObjects.filter((o) => o.id !== (convexId as string)),
-        connections,
-        projectId: input.projectId,
-        embedCapture: generateEmbedding,
-        suggestProjects: suggestProjectFromData,
-        computeConnections: computeSuggestionsFromData,
-      });
+      const enrichment = await safeEnrichCapture(
+        () => enrichCapture({
+          capture: note,
+          allObjects: suggestionObjects.filter((o) => o.id !== (convexId as string)),
+          connections,
+          projectId: input.projectId,
+          embedCapture: generateEmbedding,
+          suggestProjects: suggestProjectFromData,
+          computeConnections: computeSuggestionsForObject,
+        }),
+        (error) => reportConvexActionFailed("capture.enrich", error)
+      );
       const embedded = enrichment.capture ?? note;
       await putObjectMut(convexUpdateArgs(embedded));
 
@@ -547,13 +565,13 @@ export function useStore(options: UseStoreOptions = {}) {
       const embedded = await generateEmbedding(obj);
       await putObjectMut(convexUpdateArgs(embedded));
 
-      // Recompute suggestions
+      // Recompute suggestions for the changed object only
       const suggestionObjects = await loadSuggestionObjects();
-      const allObjs = [
-        ...suggestionObjects.filter((o) => o.id !== obj.id),
+      await saveSuggestionsForObjectAndToast(
         embedded,
-      ];
-      await saveSuggestionsAndToast(allObjs, connections);
+        suggestionObjects.filter((o) => o.id !== obj.id),
+        connections
+      );
     } finally {
       setIsProcessing(false);
     }
