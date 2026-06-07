@@ -1,10 +1,16 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { SignUpButton } from "@clerk/nextjs";
 import { toast } from "sonner";
 
 type Variant = "compact" | "expanded";
+
+// Hypher is in invite-only private beta. While true, the pricing page is
+// informational only: paid checkout is disabled so nobody can pay and then
+// hit the invite gate at /app. Flip to false when self-serve billing opens.
+const BETA_INVITE_ONLY = true;
 
 export function PricingCards({ variant }: { variant: Variant }) {
   const [loading, setLoading] = useState<"pro" | "lifetime" | null>(null);
@@ -39,6 +45,9 @@ export function PricingCards({ variant }: { variant: Variant }) {
   const cardBase =
     "marketing-surface-card tw-flex tw-flex-col tw-rounded-2xl tw-p-8";
   const desc = variant === "expanded" ? "tw-mt-3 tw-text-[15px] tw-leading-relaxed tw-text-[var(--text-secondary)]" : "tw-mt-2 tw-text-sm tw-leading-relaxed tw-text-[var(--text-secondary)]";
+  const listClass = `tw-mt-6 tw-space-y-2 tw-text-sm tw-text-[var(--text-secondary)] ${variant === "expanded" ? "tw-min-h-[120px]" : ""}`;
+  const lockedBtn =
+    "tw-w-full tw-rounded-full tw-border tw-border-[var(--border-default)] tw-bg-[var(--bg-root)] tw-px-5 tw-py-2.5 tw-text-sm tw-font-medium tw-text-[var(--text-tertiary)] tw-cursor-default";
 
   return (
     <div className="tw-grid tw-gap-6 md:tw-grid-cols-3">
@@ -48,23 +57,32 @@ export function PricingCards({ variant }: { variant: Variant }) {
         <p className="tw-mt-1 tw-text-sm tw-text-[var(--text-tertiary)]">14 days</p>
         {variant === "expanded" && (
           <p className={desc}>
-            Full workspace access to try capture, canvas, and search. No card required to start exploring Hypher.
+            Full access while you trial Hypher: capture, project memory, and Builder Briefs for your agents. No card to start.
           </p>
         )}
-        <ul className={`tw-mt-6 tw-space-y-2 tw-text-sm tw-text-[var(--text-secondary)] ${variant === "expanded" ? "tw-min-h-[120px]" : ""}`}>
-          <li>• Capture &amp; canvas</li>
-          <li>• Project graph</li>
+        <ul className={listClass}>
+          <li>• Capture &amp; project memory</li>
+          <li>• Builder Briefs for agents</li>
           <li>• Daily digest</li>
         </ul>
         <div className="tw-mt-8">
-          <SignUpButton mode="modal">
-            <button
-              type="button"
-              className="tw-w-full tw-rounded-full tw-border tw-border-black/[0.08] tw-bg-[var(--bg-root)] tw-px-5 tw-py-2.5 tw-text-sm tw-font-medium tw-text-[var(--text-primary)] tw-transition hover:tw-border-electric hover:tw-text-electric"
+          {BETA_INVITE_ONLY ? (
+            <Link
+              href="/beta/request"
+              className="tw-block tw-w-full tw-rounded-full tw-bg-electric tw-px-5 tw-py-2.5 tw-text-center tw-text-sm tw-font-medium tw-text-[var(--text-on-accent)] tw-no-underline tw-shadow-sm tw-transition hover:tw-bg-electric-dim hover:tw-no-underline"
             >
-              Start free
-            </button>
-          </SignUpButton>
+              Request beta access
+            </Link>
+          ) : (
+            <SignUpButton mode="modal">
+              <button
+                type="button"
+                className="tw-w-full tw-rounded-full tw-border tw-border-black/[0.08] tw-bg-[var(--bg-root)] tw-px-5 tw-py-2.5 tw-text-sm tw-font-medium tw-text-[var(--text-primary)] tw-transition hover:tw-border-electric hover:tw-text-electric"
+              >
+                Start free
+              </button>
+            </SignUpButton>
+          )}
         </div>
       </div>
 
@@ -74,24 +92,35 @@ export function PricingCards({ variant }: { variant: Variant }) {
         <p className="tw-mt-1 tw-text-sm tw-text-[var(--text-tertiary)]">Billed monthly</p>
         {variant === "expanded" && (
           <p className={desc}>
-            For builders shipping every week: keep GitHub context, API capture, and AI digest in one calm surface.
+            For builders shipping every week: larger Builder Briefs, agent-context packets, and GitHub context in one calm surface.
           </p>
         )}
-        <ul className={`tw-mt-6 tw-space-y-2 tw-text-sm tw-text-[var(--text-secondary)] ${variant === "expanded" ? "tw-min-h-[120px]" : ""}`}>
+        <ul className={listClass}>
           <li>• Everything in Free</li>
-          <li>• API capture &amp; integrations</li>
-          <li>• Priority roadmap input</li>
+          <li>• Larger Builder Briefs &amp; agent context</li>
+          <li>• API capture, MCP &amp; GitHub context</li>
         </ul>
         <div className="tw-mt-8 tw-space-y-2">
-          <button
-            type="button"
-            disabled={loading !== null}
-            onClick={() => void startCheckout("pro_monthly")}
-            className="tw-w-full tw-rounded-full tw-bg-electric tw-px-5 tw-py-2.5 tw-text-sm tw-font-medium tw-text-[var(--text-on-accent)] tw-shadow-sm tw-transition hover:tw-bg-electric-dim disabled:tw-opacity-60"
-          >
-            {loading === "pro" ? "Redirecting…" : "Subscribe"}
-          </button>
-          <p className="tw-text-center tw-text-xs tw-text-[var(--text-tertiary)]">Stripe Checkout</p>
+          {BETA_INVITE_ONLY ? (
+            <>
+              <button type="button" disabled className={lockedBtn}>
+                Opens after beta
+              </button>
+              <p className="tw-text-center tw-text-xs tw-text-[var(--text-tertiary)]">Free while in private beta</p>
+            </>
+          ) : (
+            <>
+              <button
+                type="button"
+                disabled={loading !== null}
+                onClick={() => void startCheckout("pro_monthly")}
+                className="tw-w-full tw-rounded-full tw-bg-electric tw-px-5 tw-py-2.5 tw-text-sm tw-font-medium tw-text-[var(--text-on-accent)] tw-shadow-sm tw-transition hover:tw-bg-electric-dim disabled:tw-opacity-60"
+              >
+                {loading === "pro" ? "Redirecting…" : "Subscribe"}
+              </button>
+              <p className="tw-text-center tw-text-xs tw-text-[var(--text-tertiary)]">Stripe Checkout</p>
+            </>
+          )}
         </div>
       </div>
 
@@ -101,24 +130,35 @@ export function PricingCards({ variant }: { variant: Variant }) {
         <p className="tw-mt-1 tw-text-sm tw-text-[var(--text-tertiary)]">Pay once</p>
         {variant === "expanded" && (
           <p className={desc}>
-            Lock in Hypher for your solo stack. Best if you already know this is your home base for ideas and shipping.
+            Lock in Hypher as the context layer for your solo stack. One payment, every Pro capability, no recurring fees.
           </p>
         )}
-        <ul className={`tw-mt-6 tw-space-y-2 tw-text-sm tw-text-[var(--text-secondary)] ${variant === "expanded" ? "tw-min-h-[120px]" : ""}`}>
+        <ul className={listClass}>
           <li>• All Pro features</li>
           <li>• No recurring fees</li>
           <li>• Early supporter pricing</li>
         </ul>
         <div className="tw-mt-8 tw-space-y-2">
-          <button
-            type="button"
-            disabled={loading !== null}
-            onClick={() => void startCheckout("lifetime")}
-            className="tw-w-full tw-rounded-full tw-border tw-border-electric tw-bg-white tw-px-5 tw-py-2.5 tw-text-sm tw-font-medium tw-text-electric tw-transition hover:tw-bg-electric/5 disabled:tw-opacity-60"
-          >
-            {loading === "lifetime" ? "Redirecting…" : "Buy lifetime"}
-          </button>
-          <p className="tw-text-center tw-text-xs tw-text-[var(--text-tertiary)]">Stripe Checkout</p>
+          {BETA_INVITE_ONLY ? (
+            <>
+              <button type="button" disabled className={lockedBtn}>
+                Opens after beta
+              </button>
+              <p className="tw-text-center tw-text-xs tw-text-[var(--text-tertiary)]">Early supporter pricing at launch</p>
+            </>
+          ) : (
+            <>
+              <button
+                type="button"
+                disabled={loading !== null}
+                onClick={() => void startCheckout("lifetime")}
+                className="tw-w-full tw-rounded-full tw-border tw-border-electric tw-bg-white tw-px-5 tw-py-2.5 tw-text-sm tw-font-medium tw-text-electric tw-transition hover:tw-bg-electric/5 disabled:tw-opacity-60"
+              >
+                {loading === "lifetime" ? "Redirecting…" : "Buy lifetime"}
+              </button>
+              <p className="tw-text-center tw-text-xs tw-text-[var(--text-tertiary)]">Stripe Checkout</p>
+            </>
+          )}
         </div>
       </div>
     </div>

@@ -93,13 +93,16 @@ export function LandingPage() {
         <section className="marketing-hero tw-border-b tw-border-[var(--border-default)]">
           <div className="tw-mx-auto tw-grid tw-max-w-6xl tw-gap-10 tw-px-4 tw-py-12 sm:tw-px-6 sm:tw-py-16 lg:tw-grid-cols-[minmax(0,1.02fr)_minmax(0,1fr)] lg:tw-items-center lg:tw-gap-14 lg:tw-px-8 lg:tw-py-20">
             <div className="tw-min-w-0">
-              <h1 className="tw-mt-0 tw-max-w-[20ch] tw-text-balance tw-font-wordmark tw-text-[2rem] tw-font-medium tw-leading-[1.12] tw-tracking-[0.04em] sm:tw-max-w-none sm:tw-text-4xl lg:tw-text-[2.85rem] lg:tw-leading-[1.08]">
-                The project context layer for AI builders and agents.
+              <h1 className="tw-mt-0 tw-max-w-xl tw-text-balance tw-font-wordmark tw-text-[2rem] tw-font-medium tw-leading-[1.1] tw-tracking-[0.04em] sm:tw-text-[2.35rem] lg:tw-text-[2.65rem] lg:tw-leading-[1.08]">
+                <span className="tw-block tw-text-[var(--text-primary)]">The project context layer</span>
+                <span className="tw-mt-2 tw-block tw-font-sans tw-text-[0.58em] tw-font-normal tw-leading-snug tw-tracking-normal tw-text-[var(--text-secondary)] sm:tw-mt-2.5">
+                  for AI builders and agents.
+                </span>
               </h1>
-              <p className="tw-mt-4 tw-max-w-xl tw-text-pretty tw-text-lg tw-font-medium tw-leading-snug tw-tracking-tight tw-text-[var(--text-primary)] sm:tw-text-xl">
-                Capture on the way in. Builder Briefs and agent writeback on the way out.
+              <p className="tw-mt-6 tw-max-w-lg tw-text-pretty tw-text-base tw-font-normal tw-leading-relaxed tw-text-[var(--text-secondary)] sm:tw-mt-7 sm:tw-text-[17px]">
+                Capture the messy work. Keep the project memory. Hand your agents the context.
               </p>
-              <p className="tw-mt-4 tw-max-w-xl tw-text-pretty tw-text-base tw-leading-relaxed tw-text-[var(--text-secondary)] sm:tw-text-[17px]">
+              <p className="tw-mt-3 tw-max-w-lg tw-text-pretty tw-text-sm tw-leading-relaxed tw-text-[var(--text-tertiary)] sm:tw-text-[15px]">
                 Hypher turns messy notes, handoffs, and ship logs into durable project memory — then
                 compiles what your agents need to read and records what they did while building.
               </p>
@@ -140,7 +143,7 @@ export function LandingPage() {
               <LoopStep
                 step="02"
                 title="Context feed builds"
-                body="Captures, handoffs, and agent output stream into Project Pulse. You accept what becomes durable memory."
+                body="Captures, handoffs, and agent output stream into Project Pulse — your project's living memory. You accept what becomes durable."
                 visual={<LoopVisualMemory />}
               />
               <LoopStep
@@ -177,7 +180,7 @@ export function LandingPage() {
               bounded.
             </p>
             <ul className="tw-mt-8 tw-flex tw-flex-wrap tw-gap-2" aria-label="Integrations">
-              {["Cursor", "Codex", "OpenClaw", "ChatGPT", "Chrome extension", "MCP", "REST capture"].map(
+              {["Cursor", "Codex", "OpenClaw", "ChatGPT", "MCP", "REST capture"].map(
                 (label) => (
                   <li
                     key={label}
@@ -220,7 +223,7 @@ export function LandingPage() {
               <FeatureBlock
                 title="Self-sorting capture"
                 body="Hypher suggests the right project, explains why, and lets you decide."
-                detail="Web inbox, /capture URLs, Chrome highlight capture, and scoped capture tokens for scripts."
+                detail="Web inbox, /capture URLs, and scoped capture tokens for scripts and agents."
               />
               <FeatureBlock
                 title="Crystallized memory"

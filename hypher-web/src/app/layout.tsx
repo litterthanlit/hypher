@@ -35,9 +35,12 @@ const hypherDisplay = Archivo_Narrow({
 });
 
 export const metadata: Metadata = {
-  title: "Hypher",
+  title: {
+    default: "Hypher — The project context layer for AI builders and agents",
+    template: "%s — Hypher",
+  },
   description:
-    "The project context layer for AI builders and agents.",
+    "The project context layer for AI builders and agents. Capture the messy work, keep durable project memory, and hand your agents clean Builder Briefs.",
   icons: {
     icon: "/hypher-logo.svg",
   },
