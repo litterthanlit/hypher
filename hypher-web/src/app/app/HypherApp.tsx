@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useStore } from "@/lib/useStore";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
@@ -21,6 +21,13 @@ import { HealthRing } from "@/components/HealthRing";
 import { InboxReviewPanel } from "@/components/InboxReviewPanel";
 import { BetaFeedbackModal } from "@/components/BetaFeedbackModal";
 import { CreateForm } from "@/components/CreateForm";
+import { WorkspaceLayoutBanner } from "@/components/WorkspaceLayoutBanner";
+import { buildWorkspaceSignals } from "@/lib/buildWorkspaceSignals";
+import {
+  isProjectContentMode,
+  resolveWorkspaceLayout,
+} from "@/lib/workspaceLayout";
+import { writeLocalViewMode } from "@/lib/workspacePrefsClient";
 import { generateSeedData } from "@/lib/notion-seed";
 import {
   getWorkspaceChromeState,
@@ -37,7 +44,7 @@ import {
 } from "@/lib/onboarding";
 import { toast } from "sonner";
 import { computeHealthScore, type HealthInputs } from "@/lib/health";
-import type { AgentEvent, AnyObject, ArtifactType, ObjectKind } from "@/types";
+import type { AgentEvent, AnyObject, ArtifactType, ObjectKind, ProjectMemory } from "@/types";
 import type { BetaGateState } from "@/lib/beta";
 
 function guessArtifactType(filename: string): ArtifactType {
@@ -68,6 +75,9 @@ export function HypherApp({ gateState }: { gateState: BetaGateState }) {
   const [tourActive, setTourActive] = useState(false);
   const [tourStepIndex, setTourStepIndex] = useState(0);
   const [showFeedback, setShowFeedback] = useState(false);
+  const [layoutBanner, setLayoutBanner] = useState<string | null>(null);
+  const [emphasizeAgentSection, setEmphasizeAgentSection] = useState(false);
+  const layoutDismissKeyRef = useRef<string | null>(null);
   const needsAllObjects =
     appMode === "capture" ||
     contentMode === "inbox" ||
@@ -79,6 +89,18 @@ export function HypherApp({ gateState }: { gateState: BetaGateState }) {
     subscribeAllActivity: false,
   });
   const skipTags = !store.clerkLoaded || !store.isSignedIn;
+  const workspaceGlobalPrefs = useQuery(api.workspacePrefs.getGlobal, skipTags ? "skip" : {});
+  const workspaceProjectPrefs = useQuery(
+    api.workspacePrefs.getProject,
+    skipTags || !selectedProjectId ? "skip" : { projectId: selectedProjectId }
+  );
+  const setLastManualMode = useMutation(api.workspacePrefs.setLastManualMode);
+  const pinProjectMode = useMutation(api.workspacePrefs.pinMode);
+  const projectMemories = useQuery(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (api as any).projectMemories.listForDashboard,
+    skipTags ? "skip" : {}
+  ) as ProjectMemory[] | undefined;
   const tagsList = useQuery(api.tags.listWithCounts, skipTags ? "skip" : {});
   const demoDigestText = useQuery(api.seed.getDemoDigest, skipTags ? "skip" : {});
   const createProjectPulseVerificationProject = useMutation(
@@ -98,6 +120,24 @@ export function HypherApp({ gateState }: { gateState: BetaGateState }) {
     }
     return m;
   }, [healthInputsList]);
+
+  const activationCounts = useMemo(() => {
+    const projectIds = new Set(store.projects.map((project) => project.id));
+    const memories = projectMemories ?? [];
+    return {
+      memoryCount: memories.filter(
+        (memory) => projectIds.has(memory.projectId) && Boolean(memory.summary?.trim())
+      ).length,
+      reviewedNextActionCount: memories.reduce(
+        (count, memory) =>
+          count +
+          memory.nextActions.filter(
+            (action) => action.status === "accepted" || action.status === "dismissed"
+          ).length,
+        0
+      ),
+    };
+  }, [projectMemories, store.projects]);
 
   const digestPreviewText = useMemo(() => {
     const raw = demoDigestText;
@@ -134,10 +174,10 @@ export function HypherApp({ gateState }: { gateState: BetaGateState }) {
     const params = new URLSearchParams(window.location.search);
     const pid = params.get("project");
     if (pid) {
+      layoutDismissKeyRef.current = null;
       setSelectedProjectId(pid);
       store.setSelectedId(pid);
       setAppMode("workspace");
-      setContentMode("pulse");
     }
     if (params.get("toast") === "captured") {
       toast.success("Captured");
@@ -166,11 +206,10 @@ export function HypherApp({ gateState }: { gateState: BetaGateState }) {
       try {
         const result = await createProjectPulseVerificationProject() as { projectId?: string } | null;
         if (cancelled || !result?.projectId) return;
+        layoutDismissKeyRef.current = null;
         setSelectedProjectId(result.projectId);
         store.setSelectedId(result.projectId);
         setAppMode("workspace");
-        setContentMode("pulse");
-        localStorage.setItem(`hypher-view-mode-${result.projectId}`, "pulse");
         toast.success("Project Pulse demo ready");
       } catch (err) {
         console.error("[seed] project pulse verification", err);
@@ -220,22 +259,89 @@ export function HypherApp({ gateState }: { gateState: BetaGateState }) {
     setSelectedProjectId(null);
   }, [tourActive, tourStep?.id, tourStep?.destination]);
 
-  // Load content mode from localStorage when project changes
   useEffect(() => {
-    if (selectedProjectId) {
-      const saved = localStorage.getItem(`hypher-view-mode-${selectedProjectId}`);
-      if (saved === "pulse" || saved === "canvas" || saved === "list") setContentMode(saved);
-      else setContentMode("pulse");
-    }
+    layoutDismissKeyRef.current = null;
+    setLayoutBanner(null);
   }, [selectedProjectId]);
 
-  // Save content mode to localStorage
+  const selectContentMode = useCallback(
+    (mode: ContentMode, options?: { manual?: boolean }) => {
+      setContentMode(mode);
+      setLayoutBanner(null);
+      layoutDismissKeyRef.current = selectedProjectId ?? "__global__";
+      setEmphasizeAgentSection(false);
+      if (options?.manual !== false && selectedProjectId && isProjectContentMode(mode)) {
+        writeLocalViewMode(selectedProjectId, mode);
+        void setLastManualMode({ projectId: selectedProjectId, mode });
+      }
+    },
+    [selectedProjectId, setLastManualMode]
+  );
+
+  useEffect(() => {
+    if (appMode !== "workspace" || tourActive) return;
+    if (workspaceGlobalPrefs === undefined) return;
+    if (selectedProjectId && workspaceProjectPrefs === undefined) return;
+
+    const dismissKey = selectedProjectId ?? "__global__";
+    if (layoutDismissKeyRef.current === dismissKey) return;
+
+    const signals = buildWorkspaceSignals({
+      projects: store.projects,
+      allObjects: store.objects,
+      inboxCount: store.inboxItems.length,
+      agentInboxCount: agentInbox?.length ?? 0,
+      selectedProjectId,
+      projectHealthScore:
+        selectedProjectId && projectHealthScores[selectedProjectId] != null
+          ? projectHealthScores[selectedProjectId]!
+          : null,
+      memoryCount: activationCounts.memoryCount,
+      reviewedNextActionCount: activationCounts.reviewedNextActionCount,
+    });
+
+    const result = resolveWorkspaceLayout({
+      signals,
+      globalDefaultMode: workspaceGlobalPrefs?.globalDefaultMode ?? "pulse",
+      projectPrefs: selectedProjectId ? workspaceProjectPrefs ?? null : null,
+      now: Date.now(),
+    });
+
+    setEmphasizeAgentSection(result.emphasizeAgentSection);
+    setContentMode(result.contentMode);
+    setLayoutBanner(result.autoSwitched && result.reason ? result.reason : null);
+  }, [
+    appMode,
+    tourActive,
+    selectedProjectId,
+    workspaceGlobalPrefs,
+    workspaceProjectPrefs,
+    store.inboxItems.length,
+    store.projects.length,
+    store.objects,
+    agentInbox?.length,
+    projectHealthScores,
+    activationCounts,
+  ]);
+
   const toggleContentMode = useCallback(() => {
     if (!selectedProjectId) return;
     const next = contentMode === "canvas" ? "list" : "canvas";
-    setContentMode(next);
-    if (selectedProjectId) localStorage.setItem(`hypher-view-mode-${selectedProjectId}`, next);
-  }, [contentMode, selectedProjectId]);
+    selectContentMode(next);
+  }, [contentMode, selectedProjectId, selectContentMode]);
+
+  const handlePinLayout = useCallback(() => {
+    if (!selectedProjectId || !isProjectContentMode(contentMode)) return;
+    void pinProjectMode({ projectId: selectedProjectId, mode: contentMode });
+    setLayoutBanner(null);
+    layoutDismissKeyRef.current = selectedProjectId;
+    toast.success(`Pinned ${contentMode} for this project`);
+  }, [contentMode, pinProjectMode, selectedProjectId]);
+
+  const dismissLayoutBanner = useCallback(() => {
+    setLayoutBanner(null);
+    layoutDismissKeyRef.current = selectedProjectId ?? "__global__";
+  }, [selectedProjectId]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -258,9 +364,9 @@ export function HypherApp({ gateState }: { gateState: BetaGateState }) {
       }
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === "p" || e.key === "P")) {
         e.preventDefault();
-        setContentMode("dashboard");
         setSelectedProjectId(null);
         if (appMode !== "workspace") setAppMode("workspace");
+        selectContentMode("dashboard");
       }
       if (e.key === "Escape" && showSearch) {
         setShowSearch(false);
@@ -276,7 +382,7 @@ export function HypherApp({ gateState }: { gateState: BetaGateState }) {
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [showSearch, appMode, store, toggleContentMode]);
+  }, [showSearch, appMode, store, toggleContentMode, selectContentMode]);
 
   // Rediscovery
   useEffect(() => {
@@ -440,11 +546,10 @@ export function HypherApp({ gateState }: { gateState: BetaGateState }) {
     const id = await store.addObject(obj);
     setShowCreateProject(false);
     if (obj.kind === "project") {
+      layoutDismissKeyRef.current = null;
       setSelectedProjectId(id);
       store.setSelectedId(id);
-      setContentMode("pulse");
       setAppMode("workspace");
-      localStorage.setItem(`hypher-view-mode-${id}`, "pulse");
     }
   }, [store]);
 
@@ -471,9 +576,9 @@ export function HypherApp({ gateState }: { gateState: BetaGateState }) {
       await store.assignToProject(child.id, targetProjectId);
     }
     await store.updateObject({ ...current, status: "archived", modifiedAt: Date.now() });
+    layoutDismissKeyRef.current = null;
     setSelectedProjectId(targetProjectId);
     store.setSelectedId(targetProjectId);
-    setContentMode("pulse");
   }, [selectedProjectId, store]);
 
   const handleStartOnboardingTour = useCallback(async () => {
@@ -605,10 +710,9 @@ export function HypherApp({ gateState }: { gateState: BetaGateState }) {
           onNavigateToWorkspace={() => setAppMode("workspace")}
           onCreateProject={() => setShowCreateProject(true)}
           onProjectClick={(id) => {
+            layoutDismissKeyRef.current = null;
             setSelectedProjectId(id);
             store.setSelectedId(id);
-            setContentMode("pulse");
-            localStorage.setItem(`hypher-view-mode-${id}`, "pulse");
             setAppMode("workspace");
           }}
           onClipboardCapture={store.captureFromClipboard}
@@ -661,10 +765,11 @@ export function HypherApp({ gateState }: { gateState: BetaGateState }) {
                 localStorage.setItem("hypher-last-digest-date", new Date().toISOString().slice(0, 10));
               }}
               onSelectProject={(id) => {
+                layoutDismissKeyRef.current = null;
                 setSelectedProjectId(id);
                 store.setSelectedId(id);
-                setContentMode("canvas");
                 setAppMode("workspace");
+                selectContentMode("canvas");
               }}
             />
           </AppErrorBoundary>
@@ -694,19 +799,28 @@ export function HypherApp({ gateState }: { gateState: BetaGateState }) {
         selectedProjectId={selectedProjectId}
         selectedObjectId={store.selectedId}
         onSelectProject={(id) => {
+          layoutDismissKeyRef.current = null;
           setSelectedProjectId(id);
           store.setSelectedId(id);
-          setContentMode("pulse");
-          localStorage.setItem(`hypher-view-mode-${id}`, "pulse");
         }}
-        onSelectInboxItem={(id) => { store.setSelectedId(id); setSelectedProjectId(null); setContentMode("inbox"); }}
+        onSelectInboxItem={(id) => {
+          store.setSelectedId(id);
+          setSelectedProjectId(null);
+          selectContentMode("inbox");
+        }}
         onSelectRecent={(id) => { store.setSelectedId(id); }}
         onAdd={store.addObject}
         onGoHome={() => { setMobileSidebarOpen(false); setAppMode("capture"); }}
-        onDashboard={() => { setContentMode("dashboard"); setSelectedProjectId(null); }}
+        onDashboard={() => {
+          setSelectedProjectId(null);
+          selectContentMode("dashboard");
+        }}
         onDigest={() => setShowDigest(true)}
         agentInboxCount={agentInbox?.length ?? 0}
-        onAgentInbox={() => { setContentMode("agent-inbox"); setSelectedProjectId(null); }}
+        onAgentInbox={() => {
+          setSelectedProjectId(null);
+          selectContentMode("agent-inbox");
+        }}
         onFeedback={() => setShowFeedback(true)}
         showBetaAdmin={gateState.isAdmin}
         className={mobileSidebarOpen ? "sidebar--drawer-open" : undefined}
@@ -768,10 +882,7 @@ export function HypherApp({ gateState }: { gateState: BetaGateState }) {
                   role="tab"
                   aria-selected={contentMode === "pulse"}
                   className={contentMode === "pulse" ? "is-active" : ""}
-                  onClick={() => {
-                    setContentMode("pulse");
-                    if (selectedProjectId) localStorage.setItem(`hypher-view-mode-${selectedProjectId}`, "pulse");
-                  }}
+                  onClick={() => selectContentMode("pulse")}
                 >
                   <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden>
                     <path d="M2.5 8h2l1.25-3 2.5 6 1.5-3H13.5" />
@@ -783,10 +894,7 @@ export function HypherApp({ gateState }: { gateState: BetaGateState }) {
                   role="tab"
                   aria-selected={contentMode === "canvas"}
                   className={contentMode === "canvas" ? "is-active" : ""}
-                  onClick={() => {
-                    setContentMode("canvas");
-                    if (selectedProjectId) localStorage.setItem(`hypher-view-mode-${selectedProjectId}`, "canvas");
-                  }}
+                  onClick={() => selectContentMode("canvas")}
                 >
                   <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden>
                     <circle cx="4" cy="4" r="1.5" />
@@ -801,10 +909,7 @@ export function HypherApp({ gateState }: { gateState: BetaGateState }) {
                   role="tab"
                   aria-selected={contentMode === "list"}
                   className={contentMode === "list" ? "is-active" : ""}
-                  onClick={() => {
-                    setContentMode("list");
-                    if (selectedProjectId) localStorage.setItem(`hypher-view-mode-${selectedProjectId}`, "list");
-                  }}
+                  onClick={() => selectContentMode("list")}
                 >
                   <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden>
                     <line x1="3" y1="4" x2="13" y2="4" />
@@ -866,6 +971,23 @@ export function HypherApp({ gateState }: { gateState: BetaGateState }) {
           </div>
         </div>
 
+        {layoutBanner ? (
+          <WorkspaceLayoutBanner
+            reason={layoutBanner}
+            mode={contentMode}
+            projectId={selectedProjectId}
+            pinned={
+              Boolean(
+                selectedProjectId &&
+                  workspaceProjectPrefs?.pinnedMode &&
+                  workspaceProjectPrefs.pinnedMode === contentMode
+              )
+            }
+            onDismiss={dismissLayoutBanner}
+            onPin={handlePinLayout}
+          />
+        ) : null}
+
         {workspaceEmptyState ? (
           <div className="workspace-empty">
             <p>{workspaceEmptyState.title}</p>
@@ -885,10 +1007,9 @@ export function HypherApp({ gateState }: { gateState: BetaGateState }) {
           <ProjectDashboard
             projects={store.projects}
             onSelectProject={(id) => {
+              layoutDismissKeyRef.current = null;
               setSelectedProjectId(id);
               store.setSelectedId(id);
-              setContentMode("pulse");
-              localStorage.setItem(`hypher-view-mode-${id}`, "pulse");
             }}
           />
         ) : contentMode === "agent-inbox" ? (
@@ -937,19 +1058,12 @@ export function HypherApp({ gateState }: { gateState: BetaGateState }) {
             activity={store.activity}
             healthScore={toolbarHealthScore}
             projects={store.projects}
-            onOpenCanvas={() => {
-              setContentMode("canvas");
-              if (selectedProjectId) localStorage.setItem(`hypher-view-mode-${selectedProjectId}`, "canvas");
-            }}
-            onOpenList={() => {
-              setContentMode("list");
-              if (selectedProjectId) localStorage.setItem(`hypher-view-mode-${selectedProjectId}`, "list");
-            }}
+            onOpenCanvas={() => selectContentMode("canvas")}
+            onOpenList={() => selectContentMode("list")}
             onCapture={() => setAppMode("capture")}
             onSelectItem={(id) => {
               store.setSelectedId(id);
-              setContentMode("list");
-              if (selectedProjectId) localStorage.setItem(`hypher-view-mode-${selectedProjectId}`, "list");
+              selectContentMode("list");
             }}
             onMoveCapture={async (objectId, projectId) => {
               await store.assignToProject(objectId, projectId);
@@ -960,6 +1074,7 @@ export function HypherApp({ gateState }: { gateState: BetaGateState }) {
             onUpdateCapture={store.updateCaptureMeta}
             onCreateProjectFromCapture={handleCreateProjectFromCapture}
             onMergeProject={handleMergeCurrentProject}
+            emphasizeAgentSection={emphasizeAgentSection}
           />
         ) : contentMode === "canvas" ? (
           <AppErrorBoundary label="Canvas">
@@ -1020,10 +1135,9 @@ export function HypherApp({ gateState }: { gateState: BetaGateState }) {
               localStorage.setItem("hypher-last-digest-date", new Date().toISOString().slice(0, 10));
             }}
             onSelectProject={(id) => {
+              layoutDismissKeyRef.current = null;
               setSelectedProjectId(id);
               store.setSelectedId(id);
-              setContentMode("pulse");
-              localStorage.setItem(`hypher-view-mode-${id}`, "pulse");
               if (appMode !== "workspace") setAppMode("workspace");
             }}
           />

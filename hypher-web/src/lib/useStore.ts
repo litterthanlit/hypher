@@ -100,6 +100,8 @@ export function useStore(options: UseStoreOptions = {}) {
   // typegen pending convex dev
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const ensureDefaultPrefs = useMutation((api as any).digestEmail.ensureDefaultPrefs);
+  const ensureWorkspacePrefs = useMutation(api.workspacePrefs.ensureDefaults);
+  const migrateWorkspacePrefs = useMutation(api.workspacePrefs.migrateFromLocal);
 
   useEffect(() => {
     if (!clerkLoaded || !isSignedIn) return;
@@ -112,9 +114,26 @@ export function useStore(options: UseStoreOptions = {}) {
           : "UTC";
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       await (ensureDefaultPrefs as any)({ timezone });
+      await ensureWorkspacePrefs();
+      const { collectLocalViewModes, hasMigratedWorkspacePrefs, markWorkspacePrefsMigrated } =
+        await import("./workspacePrefsClient");
+      if (!hasMigratedWorkspacePrefs()) {
+        const entries = collectLocalViewModes();
+        if (entries.length > 0) {
+          await migrateWorkspacePrefs({ entries });
+        }
+        markWorkspacePrefsMigrated();
+      }
     };
     void run();
-  }, [clerkLoaded, isSignedIn, ensureDemoForUser, ensureDefaultPrefs]);
+  }, [
+    clerkLoaded,
+    isSignedIn,
+    ensureDemoForUser,
+    ensureDefaultPrefs,
+    ensureWorkspacePrefs,
+    migrateWorkspacePrefs,
+  ]);
 
   /* ── Reactive queries (replaces reload()) ─────────────────────── */
   const rawAllObjects = useQuery(api.objects.list, skipConvex || !subscribeAllObjects ? "skip" : {});

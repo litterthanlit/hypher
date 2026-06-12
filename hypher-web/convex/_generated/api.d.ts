@@ -48,6 +48,7 @@ import type * as projects from "../projects.js";
 import type * as seed from "../seed.js";
 import type * as subscriptions from "../subscriptions.js";
 import type * as tags from "../tags.js";
+import type * as workspacePrefs from "../workspacePrefs.js";
 
 import type {
   ApiFromModules,
@@ -96,6 +97,7 @@ declare const fullApi: ApiFromModules<{
   seed: typeof seed;
   subscriptions: typeof subscriptions;
   tags: typeof tags;
+  workspacePrefs: typeof workspacePrefs;
 }>;
 
 /**

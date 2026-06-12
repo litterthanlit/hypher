@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { toast } from "sonner";
 import { api } from "../../convex/_generated/api";
@@ -59,6 +59,7 @@ interface Props {
   onUpdateCapture: (objectId: string, patch: Partial<AnyObject>) => Promise<void>;
   onCreateProjectFromCapture: (objectId: string, projectName: string) => Promise<void>;
   onMergeProject: (targetProjectId: string) => Promise<void>;
+  emphasizeAgentSection?: boolean;
 }
 
 const TARGET_TOOLS: TargetTool[] = ["ChatGPT", "Claude", "Cursor", "Windsurf", "Linear", "GitHub", "GitHub Copilot", "MCP tool", "Manual"];
@@ -173,7 +174,9 @@ export function ProjectPulse({
   onUpdateCapture,
   onCreateProjectFromCapture,
   onMergeProject,
+  emphasizeAgentSection = false,
 }: Props) {
+  const agentPanelRef = useRef<HTMLElement | null>(null);
   const [generating, setGenerating] = useState(false);
   const [packetBusy, setPacketBusy] = useState(false);
   const [targetTool, setTargetTool] = useState<TargetTool | "Auto">("Auto");
@@ -198,6 +201,11 @@ export function ProjectPulse({
     (api as any).actions.listForProject,
     { projectId: project.id as Id<"objects"> }
   ) as ProjectAction[] | undefined;
+  useEffect(() => {
+    if (!emphasizeAgentSection) return;
+    agentPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }, [emphasizeAgentSection, project.id]);
+
   const updateNextActionStatus = useMutation((api as any).projectMemories.updateNextActionStatus);
   const dismissAgentEvent = useMutation((api as any).agentEvents.dismiss);
   const markAgentEventReviewed = useMutation((api as any).agentEvents.markReviewed);
@@ -631,7 +639,9 @@ export function ProjectPulse({
   };
 
   return (
-    <section className="project-pulse">
+    <section
+      className={`project-pulse${emphasizeAgentSection ? " project-pulse--emphasize-agent" : ""}`}
+    >
       <header className="project-pulse-hero">
         <div>
           <p className="project-pulse-kicker">Project Pulse</p>
@@ -1083,7 +1093,10 @@ export function ProjectPulse({
           )}
         </section>
 
-        <section className="project-pulse-panel project-pulse-panel--agent">
+        <section
+          ref={agentPanelRef}
+          className="project-pulse-panel project-pulse-panel--agent"
+        >
           <div className="project-pulse-panel-head">
             <h2>Agent Updates</h2>
             <span>{agentEvents?.length ?? 0}</span>

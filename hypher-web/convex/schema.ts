@@ -467,6 +467,24 @@ export default defineSchema({
     .index("by_project", ["projectId"])
     .index("by_user_time", ["userId", "timestamp"]),
 
+  // Adaptive workspace: global + per-project layout preferences
+  workspacePrefs: defineTable({
+    userId: v.string(),
+    projectId: v.optional(v.string()),
+    globalDefaultMode: v.optional(
+      v.union(v.literal("pulse"), v.literal("canvas"), v.literal("list"))
+    ),
+    pinnedMode: v.optional(
+      v.union(v.literal("pulse"), v.literal("canvas"), v.literal("list"))
+    ),
+    lastManualMode: v.optional(
+      v.union(v.literal("pulse"), v.literal("canvas"), v.literal("list"))
+    ),
+    lastManualAt: v.optional(v.number()),
+  })
+    .index("by_user", ["userId"])
+    .index("by_user_project", ["userId", "projectId"]),
+
   // Spec #07: daily digest email preferences
   digestPrefs: defineTable({
     userId: v.string(),
