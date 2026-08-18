@@ -53,6 +53,26 @@ describe("OAuth authorize params", () => {
     });
   });
 
+  it("HYP-SEC-003 accepts registered Cursor authorization requests with PKCE and resource binding", () => {
+    const params = new URLSearchParams({
+      response_type: "code",
+      client_id: "hypher-cursor",
+      redirect_uri: "http://localhost:8787/callback",
+      code_challenge: "abc",
+      code_challenge_method: "S256",
+      resource: "https://hypher.app",
+      state: "state-1",
+      scope: "hypher.projects.read",
+    });
+
+    expect(validateOAuthAuthorizeParams(params, "https://hypher.app")).toMatchObject({
+      ok: true,
+      clientId: "hypher-cursor",
+      clientName: "Cursor",
+      scope: "hypher.projects.read",
+    });
+  });
+
   it("HYP-SEC-003 rejects unknown OAuth clients", () => {
     const params = new URLSearchParams({
       response_type: "code",

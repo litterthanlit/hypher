@@ -1,22 +1,16 @@
 import { createHash, randomBytes } from "crypto";
+import {
+  HYPHER_MCP_SCOPE,
+  getRegisteredOAuthClient as lookupRegisteredOAuthClient,
+  isRedirectUriRegistered as clientHasRedirectUri,
+  registeredOAuthClients as loadRegisteredOAuthClients,
+  type RegisteredOAuthClient,
+} from "../../shared/oauthClients";
 
-export const HYPHER_MCP_SCOPE = "hypher.projects.read";
+export { HYPHER_MCP_SCOPE };
+export type { RegisteredOAuthClient };
 const CONSENT_ID_PARAM = "consent_id";
 const CSRF_TOKEN_PARAM = "csrf_token";
-
-export type RegisteredOAuthClient = {
-  clientId: string;
-  name: string;
-  redirectUris: string[];
-};
-
-const DEFAULT_OAUTH_CLIENTS: RegisteredOAuthClient[] = [
-  {
-    clientId: "https://chatgpt.com/oauth/client.json",
-    name: "ChatGPT",
-    redirectUris: ["https://chatgpt.com/connector/oauth/callback"],
-  },
-];
 
 export type OAuthAuthorizeValidation =
   | {
@@ -74,30 +68,15 @@ export function oauthConsentServerSecret(): string | null {
 }
 
 export function registeredOAuthClients(): RegisteredOAuthClient[] {
-  const raw = process.env.HYPHER_OAUTH_CLIENTS_JSON;
-  if (!raw) return DEFAULT_OAUTH_CLIENTS;
-  try {
-    const parsed = JSON.parse(raw) as RegisteredOAuthClient[];
-    if (!Array.isArray(parsed)) return DEFAULT_OAUTH_CLIENTS;
-    const clients = parsed.filter(
-      (client) =>
-        typeof client.clientId === "string" &&
-        typeof client.name === "string" &&
-        Array.isArray(client.redirectUris) &&
-        client.redirectUris.every((uri) => typeof uri === "string")
-    );
-    return clients.length > 0 ? clients : DEFAULT_OAUTH_CLIENTS;
-  } catch {
-    return DEFAULT_OAUTH_CLIENTS;
-  }
+  return loadRegisteredOAuthClients(process.env.HYPHER_OAUTH_CLIENTS_JSON);
 }
 
 export function getRegisteredOAuthClient(clientId: string): RegisteredOAuthClient | null {
-  return registeredOAuthClients().find((client) => client.clientId === clientId) ?? null;
+  return lookupRegisteredOAuthClient(clientId, registeredOAuthClients());
 }
 
 export function isRedirectUriRegistered(client: RegisteredOAuthClient, redirectUri: string): boolean {
-  return client.redirectUris.includes(redirectUri);
+  return clientHasRedirectUri(client, redirectUri);
 }
 
 export function buildProtectedResourceMetadata(baseUrl: string) {

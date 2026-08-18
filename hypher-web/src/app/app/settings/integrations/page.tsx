@@ -1,16 +1,27 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import Link from "next/link";
 import { useQuery, useAction } from "convex/react";
 import { toast } from "sonner";
 import { api } from "../../../../../convex/_generated/api";
 import type { Id } from "../../../../../convex/_generated/dataModel";
+import {
+  buildCursorMcpInstallDeeplink,
+  cursorConnectionStatus,
+} from "@/lib/cursorPlugin";
 
 export default function IntegrationsPage() {
   const status = useQuery(api.githubTokens.getStatus);
   const savePat = useAction(api.githubPat.savePersonalAccessToken);
   const connectRepo = useAction(api.githubIntegrations.connectRepoToProject);
+  const oauthConnections = useQuery(api.oauth.listConnections);
+
+  const cursorStatus = useMemo(
+    () => cursorConnectionStatus(oauthConnections ?? [], Date.now()),
+    [oauthConnections]
+  );
+  const cursorDeeplink = buildCursorMcpInstallDeeplink();
 
   const projects = useQuery(api.objects.list);
   const projectList =
@@ -76,11 +87,39 @@ export default function IntegrationsPage() {
         </div>
 
         <p className="api-keys-desc">
-          Connect GitHub with a personal access token (classic or fine-grained with repo read). The token is encrypted at rest.{" "}
+          Connect Cursor so coding sessions start with a Builder Brief and end in Project Pulse.
+          GitHub still uses a personal access token (classic or fine-grained with repo read). The token is encrypted at rest.{" "}
           <a href="https://github.com/settings/tokens" target="_blank" rel="noreferrer" className="integrations-docs-link">
             Create a token
           </a>
         </p>
+
+        <section className="integrations-section">
+          <h4 className="integrations-section-title">Cursor</h4>
+          <p className="integrations-status">
+            Status:{" "}
+            <strong>
+              {oauthConnections === undefined ? "…" : cursorStatus.connected ? "Connected" : "Not connected"}
+            </strong>
+          </p>
+          <p className="api-keys-desc">
+            Install the Hypher plugin in Cursor, then authorize with your Hypher account. Opening a linked repo
+            loads the Builder Brief; `/hypher-handoff` writes back to Agent Inbox.
+          </p>
+          <div className="integrations-pat-form">
+            <a href={cursorDeeplink} className="settings-github-connect">
+              Add to Cursor
+            </a>
+            <a
+              href="https://github.com/litterthanlit/hypher/tree/main/extensions/cursor"
+              target="_blank"
+              rel="noreferrer"
+              className="integrations-docs-link"
+            >
+              Local install docs
+            </a>
+          </div>
+        </section>
 
         <section className="integrations-section">
           <h4 className="integrations-section-title">GitHub</h4>

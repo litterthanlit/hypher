@@ -1,0 +1,17 @@
+{
+  "name": "hypher",
+  "owner": {
+    "name": "Hypher"
+  },
+  "metadata": {
+    "description": "Hypher Cursor plugin — Builder Briefs in, session handoffs out.",
+    "version": "0.1.0"
+  },
+  "plugins": [
+    {
+      "name": "hypher",
+      "source": "extensions/cursor",
+      "description": "Load Hypher Builder Briefs at session start and write handoffs back to Project Pulse."
+    }
+  ]
+}

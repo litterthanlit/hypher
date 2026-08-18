@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import type { AgentEvent, AnyObject, Handoff, Project, ProjectAction, ProjectMemory } from "@/types";
 import {
   buildMcpToolResult,
+  formatAgentEventWriteResult,
   getHypherMcpToolDescriptors,
+  parsePostAgentEventArgs,
   type HypherMcpContext,
 } from "./mcpTools";
 
@@ -118,15 +120,22 @@ const context: HypherMcpContext = {
 };
 
 describe("Hypher MCP tool descriptors", () => {
-  it("defines the first read-only tool surface", () => {
+  it("defines the read surface plus v1 resolve and write tools", () => {
     expect(getHypherMcpToolDescriptors().map((tool) => tool.name)).toEqual([
       "list_projects",
       "get_project_context",
       "get_current_state",
       "get_next_move",
       "prepare_handoff",
+      "resolve_project_for_repo",
+      "post_agent_event",
     ]);
-    expect(getHypherMcpToolDescriptors().every((tool) => tool.annotations.readOnlyHint)).toBe(true);
+    expect(
+      getHypherMcpToolDescriptors()
+        .filter((tool) => tool.name !== "post_agent_event")
+        .every((tool) => tool.annotations.readOnlyHint)
+    ).toBe(true);
+    expect(getHypherMcpToolDescriptors().find((tool) => tool.name === "post_agent_event")?.annotations.readOnlyHint).toBe(false);
   });
 });
 
@@ -192,7 +201,66 @@ describe("buildMcpToolResult", () => {
   it("prepares a concise handoff with account-linking wording", () => {
     const result = buildMcpToolResult("prepare_handoff", { projectId: "p1" }, context);
 
-    expect(result.structuredContent.handoff).toContain("Connect your Hypher account to ChatGPT");
+    expect(result.structuredContent.handoff).toContain("Connect your Hypher account to Cursor");
     expect(result.structuredContent.handoff).not.toContain("connect ChatGPT subscription");
+  });
+
+  it("resolves a GitHub repo URL to the linked Hypher project", () => {
+    const result = buildMcpToolResult(
+      "resolve_project_for_repo",
+      { repo: "git@github.com:litterthanlit/hypher.git", branch: "main" },
+      context
+    );
+
+    expect(result.structuredContent).toMatchObject({
+      matched: true,
+      projectId: "p1",
+      projectName: "Hypher",
+    });
+  });
+
+  it("returns an unmatched repo with an Integrations link", () => {
+    const result = buildMcpToolResult(
+      "resolve_project_for_repo",
+      { repo: "acme/unknown" },
+      context
+    );
+
+    expect(result.structuredContent).toMatchObject({
+      matched: false,
+      projectId: null,
+      integrationsUrl: "https://hypher.app/app/settings/integrations",
+    });
+  });
+
+  it("defaults post_agent_event source to cursor", () => {
+    expect(
+      parsePostAgentEventArgs({
+        kind: "handoff",
+        title: "Session wrap",
+        body: "Shipped the Cursor plugin slice.",
+        projectId: "p1",
+        repo: "litterthanlit/hypher",
+      })
+    ).toMatchObject({
+      projectId: "p1",
+      payload: {
+        source: "cursor",
+        kind: "handoff",
+        title: "Session wrap",
+      },
+    });
+  });
+
+  it("formats a successful writeback confirmation", () => {
+    expect(
+      formatAgentEventWriteResult({
+        ok: true,
+        eventId: "e1",
+        matchedProjectId: "p1",
+        matchedProjectName: "Hypher",
+        needsReview: false,
+      }).content[0]?.text
+    ).toContain("Logged to Hypher → Project Pulse (Hypher) / Agent Inbox.");
   });
 });

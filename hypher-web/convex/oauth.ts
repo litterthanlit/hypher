@@ -1,28 +1,23 @@
-import { mutation, query } from "./_generated/server";
+import { internalQuery, mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { hasBetaAccess, requireBetaAccess } from "./lib/auth";
+import {
+  getRegisteredOAuthClient,
+  isRedirectUriRegistered,
+  registeredOAuthClients,
+} from "../shared/oauthClients";
 
 const CODE_TTL_MS = 10 * 60 * 1000;
 const CONSENT_TTL_MS = 10 * 60 * 1000;
 const TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
-const OAUTH_CLIENTS = [
-  {
-    clientId: "https://chatgpt.com/oauth/client.json",
-    name: "ChatGPT",
-    redirectUris: ["https://chatgpt.com/connector/oauth/callback"],
-  },
-];
-
 function isRegisteredRedirect(clientId: string, redirectUri: string): boolean {
-  return OAUTH_CLIENTS.some(
-    (client) =>
-      client.clientId === clientId && client.redirectUris.includes(redirectUri)
-  );
+  const client = getRegisteredOAuthClient(clientId, registeredOAuthClients());
+  return client ? isRedirectUriRegistered(client, redirectUri) : false;
 }
 
 function getClientName(clientId: string): string {
-  return OAUTH_CLIENTS.find((client) => client.clientId === clientId)?.name ?? clientId;
+  return getRegisteredOAuthClient(clientId, registeredOAuthClients())?.name ?? clientId;
 }
 
 function requireOAuthServerSecret(serverSecret: string) {
@@ -227,6 +222,36 @@ export const exchangeAuthorizationCode = mutation({
   },
 });
 
+async function lookupAccessToken(
+  ctx: { db: any },
+  args: { tokenHash: string; resource: string; scope: string; now: number },
+  touch: boolean
+) {
+  const token = await ctx.db
+    .query("oauthAccessTokens")
+    .withIndex("by_tokenHash", (q: any) => q.eq("tokenHash", args.tokenHash))
+    .unique();
+
+  if (!token || token.revokedAt !== undefined || token.expiresAt <= args.now) {
+    return null;
+  }
+  if (token.resource !== args.resource || !token.scope.split(/\s+/).includes(args.scope)) {
+    return null;
+  }
+  if (!(await hasBetaAccess(ctx as any, token.userId))) {
+    return null;
+  }
+  if (touch) {
+    await ctx.db.patch(token._id, { lastUsedAt: args.now });
+  }
+  return {
+    userId: token.userId,
+    clientId: token.clientId,
+    scope: token.scope,
+    expiresAt: token.expiresAt,
+  };
+}
+
 export const validateAccessToken = mutation({
   args: {
     tokenHash: v.string(),
@@ -235,25 +260,20 @@ export const validateAccessToken = mutation({
     now: v.number(),
   },
   handler: async (ctx, args) => {
-    const token = await ctx.db
-      .query("oauthAccessTokens")
-      .withIndex("by_tokenHash", (q) => q.eq("tokenHash", args.tokenHash))
-      .unique();
+    return await lookupAccessToken(ctx, args, true);
+  },
+});
 
-    if (!token || token.revokedAt !== undefined || token.expiresAt <= args.now) {
-      return null;
-    }
-    if (token.resource !== args.resource || !token.scope.split(/\s+/).includes(args.scope)) {
-      return null;
-    }
-
-    await ctx.db.patch(token._id, { lastUsedAt: args.now });
-    return {
-      userId: token.userId,
-      clientId: token.clientId,
-      scope: token.scope,
-      expiresAt: token.expiresAt,
-    };
+export const userIdForAccessToken = internalQuery({
+  args: {
+    tokenHash: v.string(),
+    resource: v.string(),
+    scope: v.string(),
+    now: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const token = await lookupAccessToken(ctx, args, false);
+    return token ? { userId: token.userId } : null;
   },
 });
 
