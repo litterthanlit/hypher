@@ -410,8 +410,21 @@ export function compileProjectContextWithMeta(params: CompileProjectContextParam
     ...agentHandoffLines,
     ...recentHandoffLines,
   ]).slice(0, limits.recentChanges + limits.captures + limits.agentEvents + limits.handoffs);
+  const agentQuestionLines = params.agentEvents
+    .filter((event) => (
+      event.kind === "question"
+      && event.status !== "accepted"
+      && event.status !== "dismissed"
+    ))
+    .sort((a, b) => b.createdAt - a.createdAt)
+    .map((event) => labeledLine(
+      `agent:${normalizeText(event.source)}/question`,
+      truncate(event.title, 180),
+      180
+    ));
   const openQuestionLines = uniqueLines([
     ...(memory?.openQuestions ?? []).map((item) => labeledLine("memory:question", item, 180)),
+    ...agentQuestionLines,
   ]).slice(0, limits.openQuestions);
   const blockerLines = uniqueLines([
     ...(memory?.blockers ?? []).map((item) => labeledLine("memory:blocker", item, 180)),

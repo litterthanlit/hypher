@@ -296,6 +296,29 @@ describe("compileBuilderBrief", () => {
     expect(packet).toContain("- No handoff notes recorded yet.");
   });
 
+  it("puts unanswered agent questions under Unresolved questions", () => {
+    const packet = compileBuilderBrief({
+      project,
+      memory: { ...memory, openQuestions: [] },
+      captures,
+      actions,
+      agentEvents: [{
+        id: "q1",
+        userId: "u1",
+        projectId: "p1",
+        source: "cursor",
+        kind: "question",
+        title: "Should failing CI land in Pulse?",
+        body: "The thin GitHub loop should ask a human.",
+        status: "new",
+        createdAt: 200,
+      }],
+      generatedAt: 123,
+    });
+
+    expect(packet).toContain("- [agent:cursor/question] Should failing CI land in Pulse?");
+  });
+
   it("applies item limits and keeps raw captures from overwhelming crystallized state", () => {
     const noisyCaptures = Array.from({ length: 8 }, (_, index): AnyObject => ({
       id: `n-${index}`,

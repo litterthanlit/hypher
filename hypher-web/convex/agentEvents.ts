@@ -5,6 +5,7 @@ import { requireBetaAccess } from "./lib/auth";
 import { ratelimitConvex } from "./lib/rateLimit";
 import { apiKeyProbeRateLimitKey } from "./apiKeys";
 import type { Id } from "./_generated/dataModel";
+import { GITHUB_LOOP_SOURCE, planGithubLoopWrites } from "./lib/githubAgentEvents";
 
 const eventKind = v.union(
   v.literal("handoff"),
@@ -36,6 +37,7 @@ const STRING_LIMITS = {
   commitSha: 80,
   artifactUrl: 2_000,
   suggestedAction: 500,
+  externalKey: 200,
 } as const;
 const MAX_SUGGESTED_ACTIONS = 10;
 
@@ -53,6 +55,9 @@ const createFields = {
   artifactUrl: v.optional(v.string()),
   status: eventStatus,
   createdAt: v.number(),
+  reviewedAt: v.optional(v.number()),
+  externalKey: v.optional(v.string()),
+  autoResolved: v.optional(v.boolean()),
 };
 
 function cleanString(
@@ -170,6 +175,28 @@ function matchProject(
     return name.length > 0 && (projectName.includes(name) || name.includes(projectName));
   });
   return contains ? { id: contains.id, name: contains.name ?? "Project" } : null;
+}
+
+function prioritizeForPulse<T extends { status: string; kind: string; createdAt: number }>(
+  events: T[],
+  limit: number
+): T[] {
+  const rank = (event: T): number => {
+    if (event.status === "new" && event.kind === "question") return 0;
+    if (event.status === "new" && event.kind === "next_action") return 1;
+    if (event.status === "new") return 2;
+    if (event.kind === "question") return 3;
+    return 4;
+  };
+  return events
+    .filter((event) => event.status !== "dismissed")
+    .slice()
+    .sort((a, b) => {
+      const delta = rank(a) - rank(b);
+      if (delta !== 0) return delta;
+      return b.createdAt - a.createdAt;
+    })
+    .slice(0, limit);
 }
 
 function toClientEvent(event: any) {
@@ -292,11 +319,32 @@ export const listForProject = query({
       .query("agentEvents")
       .withIndex("by_user_project", (q) => q.eq("userId", userId).eq("projectId", projectId))
       .collect();
-    return rows
-      .filter((event) => event.status !== "dismissed")
-      .sort((a, b) => b.createdAt - a.createdAt)
-      .slice(0, limit ?? 5)
-      .map(toClientEvent);
+    return prioritizeForPulse(rows, limit ?? 8).map(toClientEvent);
+  },
+});
+
+export const needsYouCounts = query({
+  args: { projectId: v.id("objects") },
+  returns: v.object({
+    questions: v.number(),
+    nextActions: v.number(),
+    unmatched: v.number(),
+  }),
+  handler: async (ctx, { projectId }) => {
+    const userId = await requireBetaAccess(ctx);
+    const projectRows = await ctx.db
+      .query("agentEvents")
+      .withIndex("by_user_project", (q) => q.eq("userId", userId).eq("projectId", projectId))
+      .collect();
+    const inboxRows = await ctx.db
+      .query("agentEvents")
+      .withIndex("by_user_status", (q) => q.eq("userId", userId).eq("status", "new"))
+      .collect();
+    return {
+      questions: projectRows.filter((event) => event.status === "new" && event.kind === "question").length,
+      nextActions: projectRows.filter((event) => event.status === "new" && event.kind === "next_action").length,
+      unmatched: inboxRows.filter((event) => event.projectId === undefined).length,
+    };
   },
 });
 
@@ -362,5 +410,294 @@ export const saveAsNote = mutation({
     });
     await ctx.db.patch(eventId, { status: "accepted", reviewedAt: createdAt, projectId });
     return noteId;
+  },
+});
+
+function normalizeTitle(value: string): string {
+  return value.trim().replace(/\s+/g, " ");
+}
+
+function uniqueStrings(values: string[]): string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const value of values) {
+    const cleaned = normalizeTitle(value);
+    const key = cleaned.toLowerCase();
+    if (!cleaned || seen.has(key)) continue;
+    seen.add(key);
+    result.push(cleaned);
+  }
+  return result;
+}
+
+function summarizeEvent(title: string, body: string): string {
+  const heading = normalizeTitle(title);
+  const details = normalizeTitle(body);
+  if (!details || details === heading) return heading.slice(0, 180);
+  const combined = `${heading}. ${details}`;
+  return combined.length <= 180 ? combined : `${combined.slice(0, 179).trimEnd()}...`;
+}
+
+export const createSessionStub = mutation({
+  args: {
+    projectId: v.id("objects"),
+    source: v.string(),
+    title: v.string(),
+    body: v.string(),
+    repo: v.optional(v.string()),
+    branch: v.optional(v.string()),
+    createdAt: v.number(),
+  },
+  returns: v.id("agentEvents"),
+  handler: async (ctx, args) => {
+    const userId = await requireBetaAccess(ctx);
+    const project = await ctx.db.get(args.projectId);
+    if (!project || project.userId !== userId || project.kind !== "project") {
+      throw new Error("Invalid project");
+    }
+    return await ctx.db.insert("agentEvents", {
+      userId,
+      projectId: args.projectId,
+      source: args.source,
+      kind: "handoff",
+      title: args.title,
+      body: args.body,
+      ...(args.repo ? { repo: args.repo } : {}),
+      ...(args.branch ? { branch: args.branch } : {}),
+      status: "reviewed",
+      createdAt: args.createdAt,
+      reviewedAt: args.createdAt,
+    });
+  },
+});
+
+export const accept = mutation({
+  args: {
+    eventId: v.id("agentEvents"),
+    projectId: v.id("objects"),
+    acceptedAt: v.number(),
+  },
+  returns: v.object({
+    actionCount: v.number(),
+    memoryUpdated: v.boolean(),
+    handoffUpdated: v.boolean(),
+  }),
+  handler: async (ctx, { eventId, projectId, acceptedAt }) => {
+    const userId = await requireBetaAccess(ctx);
+    const event = await requireEvent(ctx, eventId, userId);
+    const project = await ctx.db.get(projectId);
+    if (!project || project.userId !== userId || project.kind !== "project") {
+      throw new Error("Invalid project");
+    }
+
+    const suggested = uniqueStrings(event.suggestedActions ?? []);
+    const actionTitles = suggested.length > 0
+      ? suggested
+      : (event.kind === "next_action" || event.kind === "suggestion")
+        ? uniqueStrings([event.title])
+        : [];
+
+    const existingActions = await ctx.db
+      .query("actions")
+      .withIndex("by_user_project", (q) => q.eq("userId", userId).eq("projectId", projectId))
+      .collect();
+    let actionCount = 0;
+    for (const title of actionTitles) {
+      const key = title.toLowerCase();
+      const duplicate = existingActions.find((action) => (
+        action.status !== "completed"
+        && action.status !== "dismissed"
+        && normalizeTitle(action.title).toLowerCase() === key
+      ));
+      if (duplicate) continue;
+      const inserted = await ctx.db.insert("actions", {
+        userId,
+        projectId,
+        title,
+        status: "suggested",
+        sourceType: "agent_event",
+        sourceId: String(eventId),
+        createdAt: acceptedAt,
+        updatedAt: acceptedAt,
+      });
+      existingActions.push({
+        _id: inserted,
+        userId,
+        projectId,
+        title,
+        status: "suggested",
+        sourceType: "agent_event",
+        sourceId: String(eventId),
+        createdAt: acceptedAt,
+        updatedAt: acceptedAt,
+      } as typeof existingActions[number]);
+      actionCount += 1;
+    }
+
+    const summary = summarizeEvent(event.title, event.body);
+    const memory = await ctx.db
+      .query("projectMemories")
+      .withIndex("by_user_project", (q) => q.eq("userId", userId).eq("projectId", projectId))
+      .unique();
+
+    let memoryUpdated = false;
+    const memoryPatch: Record<string, unknown> = {
+      lastUpdatedAt: acceptedAt,
+      generatedAt: acceptedAt,
+    };
+
+    if (event.kind === "question" && summary) {
+      const openQuestions = [...(memory?.openQuestions ?? [])];
+      if (!openQuestions.some((item) => normalizeTitle(item).toLowerCase() === summary.toLowerCase())) {
+        openQuestions.push(summary);
+        memoryPatch.openQuestions = openQuestions;
+        memoryUpdated = true;
+      }
+    }
+
+    if (
+      (event.kind === "handoff" || event.kind === "build_log" || event.kind === "artifact")
+      && summary
+    ) {
+      const handoffNotes = [...(memory?.handoffNotes ?? [])];
+      if (!handoffNotes.some((item) => normalizeTitle(item).toLowerCase() === summary.toLowerCase())) {
+        handoffNotes.push(summary);
+        memoryPatch.handoffNotes = handoffNotes;
+        memoryUpdated = true;
+      }
+      const accepted = [...(memory?.acceptedCrystallizedSuggestions ?? [])];
+      const already = accepted.some((item) => item.sourceId === String(eventId) && item.kind === "handoff_note");
+      if (!already) {
+        accepted.push({
+          kind: "handoff_note",
+          text: summary,
+          sourceType: "handoff",
+          sourceId: String(eventId),
+          suggestionId: `accept-${String(eventId)}`,
+          createdAt: acceptedAt,
+          status: "active",
+          updatedAt: acceptedAt,
+        });
+        memoryPatch.acceptedCrystallizedSuggestions = accepted;
+        memoryUpdated = true;
+      }
+    }
+
+    if (memoryUpdated) {
+      if (memory) {
+        await ctx.db.patch(memory._id, {
+          ...memoryPatch,
+          model: memory.model === "manual" ? "manual" : `${memory.model}+manual`,
+        });
+      } else {
+        await ctx.db.insert("projectMemories", {
+          userId,
+          projectId,
+          summary: "Accepted from agent writeback.",
+          currentDirection: "",
+          recentChanges: [],
+          openQuestions: (memoryPatch.openQuestions as string[] | undefined) ?? [],
+          ...(memoryPatch.handoffNotes ? { handoffNotes: memoryPatch.handoffNotes as string[] } : {}),
+          ...(memoryPatch.acceptedCrystallizedSuggestions
+            ? { acceptedCrystallizedSuggestions: memoryPatch.acceptedCrystallizedSuggestions as NonNullable<typeof memory>["acceptedCrystallizedSuggestions"] }
+            : {}),
+          nextActions: [],
+          generatedAt: acceptedAt,
+          sourceUpdatedAt: acceptedAt,
+          lastUpdatedAt: acceptedAt,
+          model: "manual",
+        });
+      }
+    }
+
+    const handoffs = await ctx.db
+      .query("handoffs")
+      .withIndex("by_user_project", (q) => q.eq("userId", userId).eq("projectId", projectId))
+      .collect();
+    const pending = handoffs
+      .filter((row) => row.status === "pending")
+      .sort((a, b) => b.generatedAt - a.generatedAt)[0];
+    let handoffUpdated = false;
+    if (pending && summary) {
+      await ctx.db.patch(pending._id, {
+        returnedAgentOutput: summary,
+        ...(event.kind === "handoff" ? { status: "used" as const } : {}),
+      });
+      handoffUpdated = true;
+    }
+
+    await ctx.db.patch(eventId, {
+      status: "accepted",
+      reviewedAt: acceptedAt,
+      projectId,
+    });
+
+    return { actionCount, memoryUpdated, handoffUpdated };
+  },
+});
+
+const githubSignalValidator = v.object({
+  externalKey: v.string(),
+  kind: v.union(v.literal("question"), v.literal("build_log")),
+  title: v.string(),
+  body: v.string(),
+});
+
+export const upsertGithubLoopEvents = internalMutation({
+  args: {
+    userId: v.string(),
+    projectId: v.id("objects"),
+    repo: v.string(),
+    createdAt: v.number(),
+    signals: v.array(githubSignalValidator),
+  },
+  handler: async (ctx, args) => {
+    const project = await ctx.db.get(args.projectId);
+    if (!project || project.userId !== args.userId || project.kind !== "project") {
+      throw new Error("Invalid project");
+    }
+    const rows = await ctx.db
+      .query("agentEvents")
+      .withIndex("by_user_project", (q) => q.eq("userId", args.userId).eq("projectId", args.projectId))
+      .collect();
+    const existing = rows.filter((row) => row.source === GITHUB_LOOP_SOURCE && row.externalKey);
+    const writes = planGithubLoopWrites({
+      signals: args.signals,
+      existing: existing.map((row) => ({
+        externalKey: row.externalKey,
+        status: row.status,
+        autoResolved: row.autoResolved,
+        title: row.title,
+        body: row.body,
+      })),
+    });
+
+    for (const write of writes) {
+      if (write.op === "insert") {
+        await ctx.db.insert("agentEvents", {
+          userId: args.userId,
+          projectId: args.projectId,
+          source: GITHUB_LOOP_SOURCE,
+          kind: write.signal.kind,
+          title: write.signal.title,
+          body: write.signal.body,
+          repo: args.repo,
+          externalKey: write.signal.externalKey,
+          autoResolved: false,
+          status: "new",
+          createdAt: args.createdAt,
+        });
+        continue;
+      }
+      const row = existing.find((item) => item.externalKey === write.externalKey);
+      if (!row) continue;
+      const patch: Record<string, unknown> = {};
+      if (write.status) patch.status = write.status;
+      if (write.autoResolved !== undefined) patch.autoResolved = write.autoResolved;
+      if (write.title) patch.title = write.title;
+      if (write.body) patch.body = write.body;
+      if (write.status === "dismissed") patch.reviewedAt = args.createdAt;
+      await ctx.db.patch(row._id, patch);
+    }
   },
 });

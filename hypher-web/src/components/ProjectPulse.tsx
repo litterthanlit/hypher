@@ -21,6 +21,8 @@ import type {
 import { getDisplayName } from "@/types";
 import { buildAgentEventNoteContent } from "@/lib/agentEvents";
 import { findDuplicateAction, selectProjectActionQueue } from "@/lib/actions";
+import { buildAgentSessionStub } from "@/lib/agentSession";
+import { formatNeedsYouLabel, needsYouTotal, type NeedsYouCounts } from "@/lib/needsYou";
 import {
   acceptedCrystallizedSuggestionStatus,
   buildAcceptedCrystallizedMemoryPatch,
@@ -60,6 +62,7 @@ interface Props {
   onCreateProjectFromCapture: (objectId: string, projectName: string) => Promise<void>;
   onMergeProject: (targetProjectId: string) => Promise<void>;
   emphasizeAgentSection?: boolean;
+  onOpenAgentInbox?: () => void;
 }
 
 const TARGET_TOOLS: TargetTool[] = ["ChatGPT", "Claude", "Cursor", "Windsurf", "Linear", "GitHub", "GitHub Copilot", "MCP tool", "Manual"];
@@ -175,6 +178,7 @@ export function ProjectPulse({
   onCreateProjectFromCapture,
   onMergeProject,
   emphasizeAgentSection = false,
+  onOpenAgentInbox,
 }: Props) {
   const agentPanelRef = useRef<HTMLElement | null>(null);
   const [generating, setGenerating] = useState(false);
@@ -191,8 +195,12 @@ export function ProjectPulse({
   ) as ProjectMemory | null | undefined;
   const agentEvents = useQuery(
     (api as any).agentEvents.listForProject,
-    { projectId: project.id as Id<"objects">, limit: 5 }
+    { projectId: project.id as Id<"objects">, limit: 8 }
   ) as AgentEvent[] | undefined;
+  const needsYou = useQuery(
+    (api as any).agentEvents.needsYouCounts,
+    { projectId: project.id as Id<"objects"> }
+  ) as NeedsYouCounts | undefined;
   const handoffs = useQuery(
     (api as any).handoffs.listForProject,
     { projectId: project.id as Id<"objects">, limit: 6 }
@@ -216,6 +224,8 @@ export function ProjectPulse({
   const updateActionStatus = useMutation((api as any).actions.updateStatus);
   const updateManualMemory = useMutation((api as any).projectMemories.updateManual);
   const createHandoff = useMutation((api as any).handoffs.create);
+  const createSessionStub = useMutation((api as any).agentEvents.createSessionStub);
+  const acceptAgentEvent = useMutation((api as any).agentEvents.accept);
   const updateHandoffStatus = useMutation((api as any).handoffs.updateStatus);
   const updateHandoffNotes = useMutation((api as any).handoffs.updateNotes);
 
@@ -269,6 +279,8 @@ export function ProjectPulse({
     () => projects.filter((candidate) => candidate.id !== project.id),
     [project.id, projects]
   );
+  const needsYouLabel = needsYou ? formatNeedsYouLabel(needsYou) : null;
+  const showNeedsYou = Boolean(needsYou && needsYouLabel && needsYouTotal(needsYou) > 0);
 
   const handleGenerateMemory = async () => {
     if (!canGenerate || generating) return;
@@ -377,6 +389,20 @@ export function ProjectPulse({
     } catch (err) {
       console.error("[ProjectPulse] create agent action", err);
       toast.error("Could not save action");
+    }
+  };
+
+  const handleAcceptAgentEvent = async (event: AgentEvent) => {
+    try {
+      await acceptAgentEvent({
+        eventId: event.id as Id<"agentEvents">,
+        projectId: project.id as Id<"objects">,
+        acceptedAt: Date.now(),
+      });
+      toast.success("Accepted into memory");
+    } catch (err) {
+      console.error("[ProjectPulse] accept agent event", err);
+      toast.error("Could not accept agent update");
     }
   };
 
@@ -506,6 +532,21 @@ export function ProjectPulse({
         requestedTask: compiled.requestedTask,
         status: "pending",
       });
+      const stub = buildAgentSessionStub({
+        targetTool: compiled.targetTool,
+        requestedTask: compiled.requestedTask,
+        repo: project.githubRepo,
+        createdAt: compiled.generatedAt,
+      });
+      await createSessionStub({
+        projectId: project.id as Id<"objects">,
+        source: stub.source,
+        title: stub.title,
+        body: stub.body,
+        repo: stub.repo,
+        branch: stub.branch,
+        createdAt: stub.createdAt,
+      });
       for (const captureId of compiled.sourceCaptureIds) {
         await onUpdateCapture(captureId, { linkedHandoffId: String(handoffId) });
       }
@@ -526,7 +567,7 @@ export function ProjectPulse({
       toast.success("Builder Brief copied");
     } catch (err) {
       console.error("[ProjectPulse] copy handoff", err);
-      toast.error(BUILDER_BRIEF_COPY_ERROR_TOAST);
+      toast.error("Could not copy Builder Brief");
     }
   };
 
@@ -657,10 +698,10 @@ export function ProjectPulse({
               <span>{healthScore}% health</span>
             </div>
           ) : null}
-          <button type="button" className="project-pulse-btn project-pulse-btn--primary" onClick={onCapture}>
+          <button type="button" className="project-pulse-btn" onClick={onCapture}>
             Capture
           </button>
-          <button type="button" className="project-pulse-btn" disabled={packetBusy} onClick={() => void handleGenerateHandoff()}>
+          <button type="button" className="project-pulse-btn project-pulse-btn--primary" disabled={packetBusy} onClick={() => void handleGenerateHandoff()}>
             {packetBusy ? "Preparing..." : BUILDER_BRIEF_COPY_LABEL}
           </button>
           <button type="button" className="project-pulse-btn" onClick={onOpenCanvas}>
@@ -671,6 +712,35 @@ export function ProjectPulse({
           </button>
         </div>
       </header>
+
+      {showNeedsYou && needsYou ? (
+        <div className="project-pulse-needs-you" role="status">
+          <div>
+            <p className="project-pulse-kicker">Needs you</p>
+            <p>{needsYouLabel}</p>
+          </div>
+          <div className="project-pulse-needs-you-actions">
+            {(needsYou.questions > 0 || needsYou.nextActions > 0) ? (
+              <button
+                type="button"
+                className="project-pulse-inline-btn project-pulse-inline-btn--primary"
+                onClick={() => agentPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" })}
+              >
+                Review updates
+              </button>
+            ) : null}
+            {needsYou.unmatched > 0 && onOpenAgentInbox ? (
+              <button
+                type="button"
+                className="project-pulse-inline-btn"
+                onClick={onOpenAgentInbox}
+              >
+                Unmatched inbox
+              </button>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
 
       <div className="project-pulse-grid">
         <section className="project-pulse-panel project-pulse-panel--memory">
@@ -1125,12 +1195,21 @@ export function ProjectPulse({
                     </ul>
                   ) : null}
                   <div className="project-pulse-row-actions">
+                    {event.status === "accepted" ? (
+                      <span className="project-pulse-accepted">Accepted</span>
+                    ) : event.title !== "Session started" && (event.status === "new" || event.status === "reviewed") ? (
+                      <button type="button" className="project-pulse-inline-btn project-pulse-inline-btn--primary" onClick={() => void handleAcceptAgentEvent(event)}>
+                        Accept
+                      </button>
+                    ) : null}
                     <button type="button" className="project-pulse-inline-btn" onClick={() => void handleSaveAgentEvent(event)}>
                       Save as note
                     </button>
-                    <button type="button" className="project-pulse-inline-btn" onClick={() => void handleAgentStatus(event, "reviewed")}>
-                      Review
-                    </button>
+                    {event.status === "new" ? (
+                      <button type="button" className="project-pulse-inline-btn" onClick={() => void handleAgentStatus(event, "reviewed")}>
+                        Review
+                      </button>
+                    ) : null}
                     <button type="button" className="project-pulse-inline-btn" onClick={() => void handleAgentStatus(event, "dismissed")}>
                       Dismiss
                     </button>

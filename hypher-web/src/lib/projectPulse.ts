@@ -1,10 +1,15 @@
 import type { ActivityEntry, AnyObject, Project, ProjectMemory } from "@/types";
 import type { AgentEvent, ProjectAction } from "@/types";
+import {
+  START_AGENT_SESSION_ERROR_TOAST,
+  START_AGENT_SESSION_LABEL,
+  START_AGENT_SESSION_SUCCESS_TOAST,
+} from "./agentSession";
 import { selectPrimaryNextAction } from "./projectMemory";
 
-export const BUILDER_BRIEF_COPY_LABEL = "Copy Builder Brief";
-export const BUILDER_BRIEF_COPY_SUCCESS_TOAST = "Builder Brief copied and saved";
-export const BUILDER_BRIEF_COPY_ERROR_TOAST = "Could not copy Builder Brief";
+export const BUILDER_BRIEF_COPY_LABEL = START_AGENT_SESSION_LABEL;
+export const BUILDER_BRIEF_COPY_SUCCESS_TOAST = START_AGENT_SESSION_SUCCESS_TOAST;
+export const BUILDER_BRIEF_COPY_ERROR_TOAST = START_AGENT_SESSION_ERROR_TOAST;
 
 export function buildProjectPulseModel(params: {
   project: Project;

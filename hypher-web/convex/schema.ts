@@ -306,11 +306,14 @@ export default defineSchema({
     ),
     createdAt: v.number(),
     reviewedAt: v.optional(v.number()),
+    externalKey: v.optional(v.string()),
+    autoResolved: v.optional(v.boolean()),
   })
     .index("by_user", ["userId"])
     .index("by_user_project", ["userId", "projectId"])
     .index("by_user_status", ["userId", "status"])
-    .index("by_user_createdAt", ["userId", "createdAt"]),
+    .index("by_user_createdAt", ["userId", "createdAt"])
+    .index("by_user_project_externalKey", ["userId", "projectId", "externalKey"]),
 
   actions: defineTable({
     userId: v.string(),

@@ -207,6 +207,8 @@ export interface AgentEvent {
   branch?: string;
   commitSha?: string;
   artifactUrl?: string;
+  externalKey?: string;
+  autoResolved?: boolean;
   status: AgentEventStatus;
   createdAt: number;
   reviewedAt?: number;

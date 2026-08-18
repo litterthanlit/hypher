@@ -4,6 +4,8 @@ import { internalAction } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import Anthropic from "@anthropic-ai/sdk";
+import { buildGithubLoopSignals, type GithubLoopSignal } from "./lib/githubAgentEvents";
+import type { Id } from "./_generated/dataModel";
 
 /* ── GitHub API helpers ─────────────────────────────────────────── */
 
@@ -234,74 +236,130 @@ Keep each section under 800 words. Be specific to this repo, not generic.`,
 
 /* ── Sync GitHub activity ───────────────────────────────────────── */
 
-export const syncRepo = internalAction({
-  args: { repo: v.string(), token: v.string(), projectId: v.string(), projectName: v.string() },
-  handler: async (ctx, { repo, token, projectId, projectName }) => {
-    const [prs, issues, commits] = await Promise.all([
-      ghFetch<GitHubPR[]>(`/repos/${repo}/pulls?state=open&per_page=10&sort=updated`, token)
-        .catch(() => [] as GitHubPR[]),
-      ghFetch<GitHubIssue[]>(`/repos/${repo}/issues?state=open&per_page=20`, token)
-        .catch(() => [] as GitHubIssue[]),
-      ghFetch<GitHubCommit[]>(`/repos/${repo}/commits?per_page=5`, token)
-        .catch(() => [] as GitHubCommit[]),
-    ]);
+async function collectGithubSync(repo: string, token: string, now: number) {
+  const [prs, issues, commits] = await Promise.all([
+    ghFetch<GitHubPR[]>(`/repos/${repo}/pulls?state=open&per_page=10&sort=updated`, token)
+      .catch(() => [] as GitHubPR[]),
+    ghFetch<GitHubIssue[]>(`/repos/${repo}/issues?state=open&per_page=20`, token)
+      .catch(() => [] as GitHubIssue[]),
+    ghFetch<GitHubCommit[]>(`/repos/${repo}/commits?per_page=5`, token)
+      .catch(() => [] as GitHubCommit[]),
+  ]);
 
-    // Detect blockers
-    const blockers: string[] = [];
-    const now = Date.now();
-    const sevenDays = 7 * 86400000;
-    const twoWeeks = 14 * 86400000;
+  const blockers: string[] = [];
+  const loopPrs = [];
 
-    for (const pr of prs) {
-      const age = now - new Date(pr.updated_at).getTime();
-
-      // Check CI status on open PRs
-      try {
-        const checks = await ghFetch<{ check_runs: GitHubCheck[] }>(
-          `/repos/${repo}/commits/${pr.head.ref}/check-runs?per_page=5`, token
-        );
-        const failing = checks.check_runs.filter((c) => c.conclusion === "failure");
-        if (failing.length > 0) {
-          blockers.push(`PR #${pr.number} "${pr.title}" has failing CI (${failing.map((c) => c.name).join(", ")})`);
-        }
-      } catch { /* skip CI check */ }
-
-      // Stale PR
-      if (age > sevenDays && !pr.draft) {
-        blockers.push(`PR #${pr.number} "${pr.title}" has had no activity for ${Math.floor(age / 86400000)} days`);
+  for (const pr of prs) {
+    const age = now - new Date(pr.updated_at).getTime();
+    let failingChecks: string[] = [];
+    try {
+      const checks = await ghFetch<{ check_runs: GitHubCheck[] }>(
+        `/repos/${repo}/commits/${pr.head.ref}/check-runs?per_page=5`, token
+      );
+      failingChecks = checks.check_runs
+        .filter((item) => item.conclusion === "failure")
+        .map((item) => item.name);
+      if (failingChecks.length > 0) {
+        blockers.push(`PR #${pr.number} "${pr.title}" has failing CI (${failingChecks.join(", ")})`);
       }
+    } catch { /* skip CI check */ }
+
+    if (age > 7 * 86400000 && !pr.draft) {
+      blockers.push(`PR #${pr.number} "${pr.title}" has had no activity for ${Math.floor(age / 86400000)} days`);
     }
+    loopPrs.push({
+      number: pr.number,
+      title: pr.title,
+      draft: pr.draft,
+      updatedAtMs: new Date(pr.updated_at).getTime(),
+      failingChecks,
+    });
+  }
 
-    // Critical/blocker issues
-    for (const issue of issues) {
-      if (issue.pull_request) continue;
-      const labelNames = issue.labels.map((l) => l.name.toLowerCase());
-      if (labelNames.some((l) => l === "blocker" || l === "critical" || l === "bug")) {
-        blockers.push(`Issue #${issue.number} "${issue.title}" [${issue.labels.map((l) => l.name).join(", ")}]`);
-      }
+  const loopIssues = [];
+  for (const issue of issues) {
+    if (issue.pull_request) continue;
+    const labelNames = issue.labels.map((item) => item.name);
+    if (labelNames.some((label) => {
+      const name = label.toLowerCase();
+      return name === "blocker" || name === "critical" || name === "bug";
+    })) {
+      blockers.push(`Issue #${issue.number} "${issue.title}" [${labelNames.join(", ")}]`);
+      loopIssues.push({
+        number: issue.number,
+        title: issue.title,
+        labels: labelNames,
+      });
     }
+  }
 
-    // Build activity summary
-    const recentPRs = prs.slice(0, 5).map((p) => ({
-      number: p.number,
-      title: p.title,
-      state: p.state,
-      draft: p.draft,
-      updatedAt: p.updated_at,
-    }));
+  const signals: GithubLoopSignal[] = buildGithubLoopSignals({
+    repo,
+    prs: loopPrs,
+    issues: loopIssues,
+    now,
+  });
 
-    const latestCommitDate = commits[0]
+  return {
+    blockers,
+    signals,
+    openPRCount: prs.length,
+    openIssueCount: issues.filter((issue) => !issue.pull_request).length,
+    recentPRs: prs.slice(0, 5).map((item) => ({
+      number: item.number,
+      title: item.title,
+      state: item.state,
+      draft: item.draft,
+      updatedAt: item.updated_at,
+    })),
+    latestCommitDate: commits[0]
       ? new Date(commits[0].commit.author.date).getTime()
-      : undefined;
+      : undefined,
+    commitMessages: commits.slice(0, 5).map((item) => item.commit.message.split("\n")[0]),
+  };
+}
 
-    return {
-      blockers,
-      openPRCount: prs.length,
-      openIssueCount: issues.filter((i) => !i.pull_request).length,
-      recentPRs,
-      latestCommitDate,
-      commitMessages: commits.slice(0, 5).map((c) => c.commit.message.split("\n")[0]),
-    };
+async function persistGithubLoopEvents(
+  ctx: { runMutation: (fn: any, args: any) => Promise<unknown> },
+  args: {
+    userId: string;
+    projectId: string;
+    repo: string;
+    createdAt: number;
+    signals: GithubLoopSignal[];
+  }
+) {
+  await ctx.runMutation((internal as any).agentEvents.upsertGithubLoopEvents, {
+    userId: args.userId,
+    projectId: args.projectId as Id<"objects">,
+    repo: args.repo,
+    createdAt: args.createdAt,
+    signals: args.signals,
+  });
+}
+
+export const syncRepo = internalAction({
+  args: {
+    repo: v.string(),
+    token: v.string(),
+    projectId: v.string(),
+    projectName: v.string(),
+    userId: v.optional(v.string()),
+  },
+  handler: async (ctx, { repo, token, projectId, userId }) => {
+    const now = Date.now();
+    const result = await collectGithubSync(repo, token, now);
+    if (userId) {
+      await persistGithubLoopEvents(ctx, {
+        userId,
+        projectId,
+        repo,
+        createdAt: now,
+        signals: result.signals,
+      });
+    }
+    const { signals: _signals, ...rest } = result;
+    return rest;
   },
 });
 
@@ -324,6 +382,7 @@ export const syncAllRepos = internalAction({
           token,
           projectId: project._id,
           projectName: project.name ?? "Unknown",
+          userId: project.userId,
         });
 
         // Update lastActivity if we got new commits
@@ -353,53 +412,26 @@ export const syncAllRepos = internalAction({
 /* Internal versions for cron use */
 
 export const syncRepoInternal = internalAction({
-  args: { repo: v.string(), token: v.string(), projectId: v.string(), projectName: v.string() },
-  handler: async (_ctx, args) => {
-    const [prs, issues, commits] = await Promise.all([
-      ghFetch<GitHubPR[]>(`/repos/${args.repo}/pulls?state=open&per_page=10&sort=updated`, args.token)
-        .catch(() => [] as GitHubPR[]),
-      ghFetch<GitHubIssue[]>(`/repos/${args.repo}/issues?state=open&per_page=20`, args.token)
-        .catch(() => [] as GitHubIssue[]),
-      ghFetch<GitHubCommit[]>(`/repos/${args.repo}/commits?per_page=5`, args.token)
-        .catch(() => [] as GitHubCommit[]),
-    ]);
-
-    const blockers: string[] = [];
+  args: {
+    repo: v.string(),
+    token: v.string(),
+    projectId: v.string(),
+    projectName: v.string(),
+    userId: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
     const now = Date.now();
-    const sevenDays = 7 * 86400000;
-
-    for (const pr of prs) {
-      const age = now - new Date(pr.updated_at).getTime();
-      try {
-        const checks = await ghFetch<{ check_runs: GitHubCheck[] }>(
-          `/repos/${args.repo}/commits/${pr.head.ref}/check-runs?per_page=5`, args.token
-        );
-        const failing = checks.check_runs.filter((c) => c.conclusion === "failure");
-        if (failing.length > 0) {
-          blockers.push(`PR #${pr.number} "${pr.title}" has failing CI`);
-        }
-      } catch { /* skip */ }
-
-      if (age > sevenDays && !pr.draft) {
-        blockers.push(`PR #${pr.number} "${pr.title}" stale (${Math.floor(age / 86400000)}d)`);
-      }
+    const result = await collectGithubSync(args.repo, args.token, now);
+    if (args.userId) {
+      await persistGithubLoopEvents(ctx, {
+        userId: args.userId,
+        projectId: args.projectId,
+        repo: args.repo,
+        createdAt: now,
+        signals: result.signals,
+      });
     }
-
-    for (const issue of issues) {
-      if (issue.pull_request) continue;
-      const labelNames = issue.labels.map((l) => l.name.toLowerCase());
-      if (labelNames.some((l) => l === "blocker" || l === "critical" || l === "bug")) {
-        blockers.push(`Issue #${issue.number} "${issue.title}"`);
-      }
-    }
-
-    return {
-      blockers,
-      openPRCount: prs.length,
-      openIssueCount: issues.filter((i) => !i.pull_request).length,
-      recentPRs: prs.slice(0, 5).map((p) => ({ number: p.number, title: p.title, state: p.state, draft: p.draft, updatedAt: p.updated_at })),
-      latestCommitDate: commits[0] ? new Date(commits[0].commit.author.date).getTime() : undefined,
-      commitMessages: commits.slice(0, 5).map((c) => c.commit.message.split("\n")[0]),
-    };
+    const { signals: _signals, ...rest } = result;
+    return rest;
   },
 });

@@ -187,6 +187,7 @@ export const syncProjectRepo = action({
       token,
       projectId: projectId as string,
       projectName: project.name,
+      userId,
     });
 
     await ctx.runMutation(internal.objects.applyGithubSyncToProject, {

@@ -1075,6 +1075,10 @@ export function HypherApp({ gateState }: { gateState: BetaGateState }) {
             onCreateProjectFromCapture={handleCreateProjectFromCapture}
             onMergeProject={handleMergeCurrentProject}
             emphasizeAgentSection={emphasizeAgentSection}
+            onOpenAgentInbox={() => {
+              setSelectedProjectId(null);
+              selectContentMode("agent-inbox");
+            }}
           />
         ) : contentMode === "canvas" ? (
           <AppErrorBoundary label="Canvas">

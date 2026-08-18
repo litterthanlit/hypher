@@ -85,6 +85,7 @@ export const connectRepoToProject = action({
       token,
       projectId: projectId as string,
       projectName: validated.name,
+      userId,
     });
 
     if (sync.latestCommitDate) {
