@@ -1419,6 +1419,8 @@ body:has(.settings-api-keys-page) {
   border-radius: var(--radius-sm);
   cursor: pointer;
   transition: background var(--transition);
+  text-decoration: none;
+  display: inline-block;
 }
 
 .settings-github-connect:hover,

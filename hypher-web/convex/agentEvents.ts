@@ -2,10 +2,12 @@ import { action, internalMutation, internalQuery, mutation, query } from "./_gen
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import { requireBetaAccess } from "./lib/auth";
+import { requireActionBetaAccess } from "./lib/actionAuth";
 import { ratelimitConvex } from "./lib/rateLimit";
 import { apiKeyProbeRateLimitKey } from "./apiKeys";
 import type { Id } from "./_generated/dataModel";
 import { GITHUB_LOOP_SOURCE, planGithubLoopWrites } from "./lib/githubAgentEvents";
+import { normalizeGitHubRepo } from "../shared/githubRepo";
 
 const eventKind = v.union(
   v.literal("handoff"),
@@ -161,7 +163,7 @@ function matchProject(
   projects: Array<{ id: string; name?: string; githubRepo?: string }>,
   event: { repo?: string; project?: string }
 ) {
-  const repo = lower(event.repo);
+  const repo = lower(normalizeGitHubRepo(event.repo) ?? event.repo);
   if (repo) {
     const byRepo = projects.find((project) => lower(project.githubRepo) === repo);
     if (byRepo) return { id: byRepo.id, name: byRepo.name ?? "Project" };
@@ -210,6 +212,93 @@ async function requireEvent(ctx: any, eventId: Id<"agentEvents">, userId: string
   return event;
 }
 
+const writeResultValidator = v.object({
+  ok: v.boolean(),
+  status: v.optional(v.number()),
+  error: v.optional(v.string()),
+  eventId: v.optional(v.string()),
+  matchedProjectId: v.optional(v.union(v.string(), v.null())),
+  matchedProjectName: v.optional(v.string()),
+  needsReview: v.optional(v.boolean()),
+});
+
+type WriteResult =
+  | {
+      ok: true;
+      status: number;
+      eventId: string;
+      matchedProjectId: string | null;
+      matchedProjectName?: string;
+      needsReview: boolean;
+    }
+  | { ok: false; status: number; error: string };
+
+const mcpEventPayloadValidator = v.object({
+  source: v.string(),
+  project: v.optional(v.string()),
+  kind: eventKind,
+  title: v.string(),
+  body: v.string(),
+  suggestedActions: v.optional(v.array(v.string())),
+  repo: v.optional(v.string()),
+  branch: v.optional(v.string()),
+  commitSha: v.optional(v.string()),
+  artifactUrl: v.optional(v.string()),
+});
+
+async function persistAgentEventForUser(
+  ctx: any,
+  userId: string,
+  payload: unknown,
+  projectId?: string
+): Promise<WriteResult> {
+  const parsed = validateAgentEventPayload(payload);
+  if (!parsed.ok) {
+    return { ok: false, status: 400, error: parsed.error };
+  }
+
+  const projects = await ctx.runQuery(_internal.agentEvents.listProjectsForApiUser, {
+    userId,
+  }) as Array<{ id: string; name?: string; githubRepo?: string }>;
+
+  let matched: { id: string; name: string } | null = null;
+  if (projectId) {
+    const byId = projects.find((project) => project.id === projectId);
+    if (!byId) {
+      return { ok: false, status: 400, error: "project-not-found" };
+    }
+    matched = { id: byId.id, name: byId.name ?? "Project" };
+  } else {
+    matched = matchProject(projects, parsed.value);
+  }
+
+  const now = Date.now();
+  const eventId = await ctx.runMutation(_internal.agentEvents.createForApiUser, {
+    userId,
+    projectId: matched?.id ? (matched.id as Id<"objects">) : undefined,
+    source: parsed.value.source,
+    kind: parsed.value.kind,
+    title: parsed.value.title,
+    body: parsed.value.body,
+    suggestedActions: parsed.value.suggestedActions,
+    repo: parsed.value.repo,
+    branch: parsed.value.branch,
+    commitSha: parsed.value.commitSha,
+    artifactUrl: parsed.value.artifactUrl,
+    status: "new",
+    createdAt: now,
+  });
+
+  return {
+    ok: true,
+    status: 200,
+    eventId: String(eventId),
+    matchedProjectId: matched?.id ?? null,
+    matchedProjectName: matched?.name,
+    needsReview: !matched,
+  };
+}
+
 export const createForApiUser = internalMutation({
   args: createFields,
   handler: async (ctx, args) => {
@@ -246,37 +335,64 @@ export const createFromApiRequest = action({
       return { ok: false, status: 400, error: parsed.error };
     }
 
-    const projects = await ctx.runQuery(_internal.agentEvents.listProjectsForApiUser, {
-      userId: validatedKey.userId,
-    });
-    const matched = matchProject(projects, parsed.value);
-    const now = Date.now();
-    const eventId = await ctx.runMutation(_internal.agentEvents.createForApiUser, {
-      userId: validatedKey.userId,
-      projectId: matched?.id ? (matched.id as Id<"objects">) : undefined,
-      source: parsed.value.source,
-      kind: parsed.value.kind,
-      title: parsed.value.title,
-      body: parsed.value.body,
-      suggestedActions: parsed.value.suggestedActions,
-      repo: parsed.value.repo,
-      branch: parsed.value.branch,
-      commitSha: parsed.value.commitSha,
-      artifactUrl: parsed.value.artifactUrl,
-      status: "new",
-      createdAt: now,
-    });
+    const persisted = await persistAgentEventForUser(ctx, validatedKey.userId, parsed.value);
+    if (!persisted.ok) return persisted;
 
     await ctx.runMutation(_internal.apiKeys.touch, { keyId: validatedKey.keyId });
 
-    return {
-      ok: true,
-      status: 200,
-      eventId: String(eventId),
-      matchedProjectId: matched?.id ?? null,
-      matchedProjectName: matched?.name,
-      needsReview: !matched,
-    };
+    return persisted;
+  },
+});
+
+export const createFromOAuthRequest = action({
+  args: {
+    tokenHash: v.string(),
+    resource: v.string(),
+    scope: v.string(),
+    now: v.number(),
+    payload: mcpEventPayloadValidator,
+    projectId: v.optional(v.string()),
+  },
+  returns: writeResultValidator,
+  handler: async (ctx, args): Promise<WriteResult> => {
+    const allowed = await ratelimitConvex(args.tokenHash, "agent-events-oauth", {
+      requests: 120,
+      window: "1h",
+    });
+    if (!allowed) {
+      return { ok: false, status: 429, error: "Rate limited" };
+    }
+
+    const validated = await ctx.runQuery(_internal.oauth.userIdForAccessToken, {
+      tokenHash: args.tokenHash,
+      resource: args.resource,
+      scope: args.scope,
+      now: args.now,
+    }) as { userId: string } | null;
+    if (!validated) {
+      return { ok: false, status: 401, error: "Unauthorized" };
+    }
+
+    return await persistAgentEventForUser(ctx, validated.userId, args.payload, args.projectId);
+  },
+});
+
+export const createFromSession = action({
+  args: {
+    payload: mcpEventPayloadValidator,
+    projectId: v.optional(v.string()),
+  },
+  returns: writeResultValidator,
+  handler: async (ctx, args): Promise<WriteResult> => {
+    const userId = await requireActionBetaAccess(ctx);
+    const allowed = await ratelimitConvex(userId, "agent-events", {
+      requests: 120,
+      window: "1h",
+    });
+    if (!allowed) {
+      return { ok: false, status: 429, error: "Rate limited" };
+    }
+    return await persistAgentEventForUser(ctx, userId, args.payload, args.projectId);
   },
 });
 

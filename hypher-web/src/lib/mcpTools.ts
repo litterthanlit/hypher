@@ -2,6 +2,13 @@ import type { ActivityEntry, AgentEvent, AnyObject, Handoff, Project, ProjectAct
 import { buildAgentContextApiResponse } from "./agentContextApi";
 import { selectProjectActionQueue } from "./actions";
 import { selectPrimaryNextAction } from "./projectMemory";
+import {
+  AGENT_EVENT_KINDS,
+  matchProjectForAgentEvent,
+  validateAgentEventPayload,
+  type AgentEventPayload,
+} from "./agentEvents";
+import { normalizeGitHubRepo } from "../../shared/githubRepo";
 
 type JsonObject = Record<string, unknown>;
 
@@ -26,16 +33,18 @@ export interface HypherMcpContext {
   projectContexts: Record<string, HypherMcpProjectContext>;
 }
 
+export interface HypherMcpToolAnnotations {
+  readOnlyHint: boolean;
+  openWorldHint: boolean;
+  destructiveHint: boolean;
+}
+
 export interface HypherMcpToolDescriptor {
   name: string;
   title: string;
   description: string;
   inputSchema: JsonObject;
-  annotations: {
-    readOnlyHint: true;
-    openWorldHint: false;
-    destructiveHint: false;
-  };
+  annotations: HypherMcpToolAnnotations;
 }
 
 export interface HypherMcpToolResult {
@@ -43,11 +52,17 @@ export interface HypherMcpToolResult {
   content: Array<{ type: "text"; text: string }>;
 }
 
-const READ_ONLY = {
+const READ_ONLY: HypherMcpToolAnnotations = {
   readOnlyHint: true,
   openWorldHint: false,
   destructiveHint: false,
-} as const;
+};
+
+const WRITE: HypherMcpToolAnnotations = {
+  readOnlyHint: false,
+  openWorldHint: false,
+  destructiveHint: false,
+};
 
 const PROJECT_ID_SCHEMA = {
   type: "object",
@@ -57,6 +72,22 @@ const PROJECT_ID_SCHEMA = {
   required: ["projectId"],
   additionalProperties: false,
 };
+
+const WRITE_TOOLS = new Set(["post_agent_event"]);
+const PROJECT_CONTEXT_TOOLS = new Set([
+  "get_project_context",
+  "get_current_state",
+  "get_next_move",
+  "prepare_handoff",
+]);
+
+export function isMcpWriteTool(toolName: string): boolean {
+  return WRITE_TOOLS.has(toolName);
+}
+
+export function mcpToolNeedsProjectContext(toolName: string): boolean {
+  return PROJECT_CONTEXT_TOOLS.has(toolName);
+}
 
 export function getHypherMcpToolDescriptors(): HypherMcpToolDescriptor[] {
   return [
@@ -91,9 +122,56 @@ export function getHypherMcpToolDescriptors(): HypherMcpToolDescriptor[] {
     {
       name: "prepare_handoff",
       title: "Prepare handoff notes",
-      description: "Prepare concise read-only handoff notes for continuing work in ChatGPT.",
+      description: "Prepare concise read-only handoff notes for continuing work in Cursor.",
       inputSchema: PROJECT_ID_SCHEMA,
       annotations: READ_ONLY,
+    },
+    {
+      name: "resolve_project_for_repo",
+      title: "Resolve project for repo",
+      description: "Map a GitHub owner/repo (or remote URL) to a linked Hypher project.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          repo: { type: "string", description: "GitHub owner/repo, remote URL, or SSH remote." },
+          branch: { type: "string", description: "Optional git branch for context only." },
+        },
+        required: ["repo"],
+        additionalProperties: false,
+      },
+      annotations: READ_ONLY,
+    },
+    {
+      name: "post_agent_event",
+      title: "Post agent event",
+      description: "Write a structured session event (handoff, build_log, question, next_action) to Hypher Agent Inbox / Project Pulse.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          kind: {
+            type: "string",
+            enum: [...AGENT_EVENT_KINDS],
+            description: "Agent event kind. Default for session end is handoff.",
+          },
+          title: { type: "string", description: "Short event title." },
+          body: { type: "string", description: "What changed, decisions, and open questions." },
+          projectId: { type: "string", description: "Hypher project id from resolve_project_for_repo." },
+          project: { type: "string", description: "Project name fallback if projectId is unknown." },
+          repo: { type: "string", description: "GitHub owner/repo for matching." },
+          branch: { type: "string" },
+          commitSha: { type: "string" },
+          artifactUrl: { type: "string" },
+          suggestedActions: {
+            type: "array",
+            items: { type: "string" },
+            description: "Optional next actions for Hypher to review.",
+          },
+          source: { type: "string", description: "Defaults to cursor." },
+        },
+        required: ["kind", "title", "body"],
+        additionalProperties: false,
+      },
+      annotations: WRITE,
     },
   ];
 }
@@ -184,6 +262,87 @@ function nextMoveTool(args: JsonObject, context: HypherMcpContext): HypherMcpToo
   );
 }
 
+function resolveProjectForRepo(args: JsonObject, context: HypherMcpContext): HypherMcpToolResult {
+  const repoInput = typeof args.repo === "string" ? args.repo.trim() : "";
+  if (!repoInput) throw new Error("missing-repo");
+  const matched = matchProjectForAgentEvent(
+    context.projects.map((project) => ({
+      id: project.id,
+      name: project.name,
+      githubRepo: project.githubRepo,
+    })),
+    { repo: repoInput }
+  );
+  const branch = typeof args.branch === "string" ? args.branch.trim() : undefined;
+  if (!matched) {
+    return textResult(
+      {
+        matched: false,
+        repo: repoInput,
+        branch: branch || undefined,
+        projectId: null,
+        integrationsUrl: "https://hypher.app/app/settings/integrations",
+      },
+      `No Hypher project is linked to ${repoInput}. Link the repo in Settings → Integrations.`
+    );
+  }
+  return textResult(
+    {
+      matched: true,
+      repo: repoInput,
+      branch: branch || undefined,
+      projectId: matched.id,
+      projectName: matched.name,
+    },
+    `Resolved ${repoInput} to ${matched.name} (${matched.id}).`
+  );
+}
+
+export function parsePostAgentEventArgs(args: JsonObject): {
+  payload: AgentEventPayload;
+  projectId?: string;
+} {
+  const projectId = typeof args.projectId === "string" ? args.projectId.trim() : "";
+  const parsed = validateAgentEventPayload({
+    ...args,
+    source: typeof args.source === "string" && args.source.trim() ? args.source : "cursor",
+  });
+  if (!parsed.ok) throw new Error(parsed.error);
+  return {
+    payload: parsed.value,
+    projectId: projectId || undefined,
+  };
+}
+
+export function formatAgentEventWriteResult(result: {
+  ok: boolean;
+  error?: string;
+  eventId?: string;
+  matchedProjectId?: string | null;
+  matchedProjectName?: string;
+  needsReview?: boolean;
+}): HypherMcpToolResult {
+  if (!result.ok) {
+    return textResult(
+      { ok: false, error: result.error ?? "write-failed" },
+      result.error ?? "Could not write the Hypher agent event."
+    );
+  }
+  const destination = result.matchedProjectName
+    ? `Logged to Hypher → Project Pulse (${result.matchedProjectName}) / Agent Inbox.`
+    : "Logged to Hypher → Agent Inbox. No project matched — review it in Inbox.";
+  return textResult(
+    {
+      ok: true,
+      eventId: result.eventId,
+      matchedProjectId: result.matchedProjectId ?? null,
+      matchedProjectName: result.matchedProjectName,
+      needsReview: result.needsReview ?? false,
+    },
+    destination
+  );
+}
+
 function handoffTool(args: JsonObject, context: HypherMcpContext): HypherMcpToolResult {
   const projectContext = requireProjectContext(args, context);
   const current = currentStateTool(args, context).structuredContent;
@@ -192,7 +351,7 @@ function handoffTool(args: JsonObject, context: HypherMcpContext): HypherMcpTool
     `Project: ${projectContext.project.name}`,
     `Current state: ${current.currentState || "No current state captured yet."}`,
     `Next move: ${next.nextMove || "No next move captured yet."}`,
-    "Account linking wording: Connect your Hypher account to ChatGPT.",
+    "Account linking wording: Connect your Hypher account to Cursor.",
   ].join("\n");
 
   return textResult(
@@ -217,6 +376,8 @@ export function buildMcpToolResult(toolName: string, args: JsonObject, context: 
       return nextMoveTool(args, context);
     case "prepare_handoff":
       return handoffTool(args, context);
+    case "resolve_project_for_repo":
+      return resolveProjectForRepo(args, context);
     default:
       throw new Error("unknown-tool");
   }
