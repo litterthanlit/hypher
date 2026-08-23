@@ -25,6 +25,8 @@ interface Props {
   onAgentInbox?: () => void;
   onFeedback?: () => void;
   showBetaAdmin?: boolean;
+  /** Which primary destination is current (workspace only). */
+  activeSection?: "projects" | "inbox" | "agent" | "project";
   /** Merged onto `<aside>` (e.g. `sidebar--drawer-open` on narrow screens). */
   className?: string;
   /** Called after a navigation action so mobile drawer can close. */
@@ -48,6 +50,7 @@ export function Sidebar({
   onAgentInbox,
   onFeedback,
   showBetaAdmin,
+  activeSection,
   className,
   onMobileSidebarClose,
 }: Props) {
@@ -63,12 +66,50 @@ export function Sidebar({
             hypher
           </span>
         </button>
-        <button className="btn-icon" onClick={() => setShowForm("project")} title="Create">
+        <button className="btn-icon" onClick={() => setShowForm("project")} title="Create" aria-label="Create project">
           <PlusIcon />
         </button>
       </div>
 
       <nav className="sidebar-nav">
+        <div className="sidebar-primary" aria-label="Workspace">
+          <button
+            type="button"
+            className="sidebar-primary-link"
+            onClick={() => { closeMobile(); onGoHome(); }}
+          >
+            Home
+          </button>
+          <button
+            type="button"
+            className={`sidebar-primary-link${activeSection === "projects" ? " is-active" : ""}`}
+            onClick={() => { closeMobile(); onDashboard(); }}
+          >
+            Projects
+          </button>
+          {inboxItems.length > 0 ? (
+            <button
+              type="button"
+              className={`sidebar-primary-link${activeSection === "inbox" ? " is-active" : ""}`}
+              onClick={() => {
+                closeMobile();
+                const first = inboxItems[0];
+                if (first) onSelectInboxItem(first.id);
+              }}
+            >
+              Inbox
+            </button>
+          ) : null}
+          {agentInboxCount > 0 && onAgentInbox ? (
+            <button
+              type="button"
+              className={`sidebar-primary-link${activeSection === "agent" ? " is-active" : ""}`}
+              onClick={() => { closeMobile(); onAgentInbox(); }}
+            >
+              Agent
+            </button>
+          ) : null}
+        </div>
         <div className="section">
           <div className="section-title-row">
             <h2 className="section-title">

@@ -823,6 +823,15 @@ export function HypherApp({ gateState }: { gateState: BetaGateState }) {
         }}
         onFeedback={() => setShowFeedback(true)}
         showBetaAdmin={gateState.isAdmin}
+        activeSection={
+          contentMode === "dashboard" && !selectedProjectId
+            ? "projects"
+            : contentMode === "inbox"
+              ? "inbox"
+              : contentMode === "agent-inbox"
+                ? "agent"
+                : "project"
+        }
         className={mobileSidebarOpen ? "sidebar--drawer-open" : undefined}
         onMobileSidebarClose={() => setMobileSidebarOpen(false)}
       />

@@ -11,6 +11,7 @@ import { ONBOARDING_TARGETS } from "@/lib/onboarding";
 import { HealthRing } from "./HealthRing";
 import { getCaptureEmptyState, getFirstUseActivationRail } from "@/lib/activation";
 import { toast } from "sonner";
+import { AppClock } from "./AppClock";
 
 interface Props {
   projects: Project[];
@@ -455,6 +456,7 @@ export function CaptureHome({
             </span>
           </div>
           <div className="capture-chrome-mock__right">
+            <AppClock className="app-clock--capture" />
             {onSearchClick ? (
               <button type="button" className="capture-icon-btn" aria-label="Search" title="Search (⌘K)" onClick={onSearchClick}>
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden>
@@ -480,6 +482,7 @@ export function CaptureHome({
 
       <main className="capture-home-mock__main">
         <section className="home-hero-mock">
+          <div className="home-hero-glass">
           <p className="home-greeting-mock">
             {weekdayPart()} {daypartLabel()}, <span className="home-greeting-name">{firstName}</span>
           </p>
@@ -568,6 +571,7 @@ export function CaptureHome({
               ) : null}
             </div>
           )}
+          </div>
 
           {step === "idle" && !activationRailHidden ? (
             <div className="first-use-rail" aria-label="First project pulse progress">

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { UserButton } from "@clerk/nextjs";
+import { AppClock } from "./AppClock";
 
 type Props = {
   /** Fixed top-right (capture) vs inline in main toolbar (workspace) */
@@ -17,6 +18,7 @@ export function AppChromeNav({ layout, showSearch, onSearchClick, onFeedbackClic
 
   return (
     <div className={navClass}>
+      {layout === "toolbar" ? <AppClock /> : null}
       {showSearch && onSearchClick ? (
         <button type="button" className="btn-search" onClick={onSearchClick} aria-label="Search">
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" width={14} height={14}>
