@@ -27,13 +27,30 @@ export interface FirstUseActivationRail {
   steps: FirstUseActivationStep[];
 }
 
+export function getAppGateQueryArgs(params: {
+  clerkLoaded: boolean;
+  isSignedIn: boolean;
+}): Record<string, never> | "skip" {
+  if (!params.clerkLoaded || !params.isSignedIn) return "skip";
+  return {};
+}
+
+export function getUnsignedAppSignInHref(redirectPath = "/app"): string {
+  const path = redirectPath.startsWith("/") ? redirectPath : `/${redirectPath}`;
+  return `/sign-in?redirect_url=${encodeURIComponent(path)}`;
+}
+
 export function getAppAccessState(params: {
   clerkLoaded: boolean;
   isSignedIn: boolean;
   gateState?: { hasAccess: boolean; isAuthenticated?: boolean };
 }): AppAccessState {
-  if (!params.clerkLoaded || params.gateState === undefined) return "loading";
-  if (!params.isSignedIn || params.gateState.isAuthenticated === false) return "sign_in_required";
+  if (!params.clerkLoaded) return "loading";
+  // Clerk already knows the session. Do not wait on Convex — unsigned
+  // clients never resolve beta.getGateState, so /app would spin forever.
+  if (!params.isSignedIn) return "sign_in_required";
+  if (params.gateState === undefined) return "loading";
+  if (params.gateState.isAuthenticated === false) return "sign_in_required";
   if (!params.gateState.hasAccess) return "beta_gate";
   return "app";
 }
