@@ -1,4 +1,8 @@
-import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
+import { createRouteMatcher } from "@clerk/nextjs/server";
+import {
+  createHypherClerkMiddleware,
+  resolveClerkMiddlewareKeys,
+} from "@/lib/hypherClerkMiddleware";
 
 const isPublicRoute = createRouteMatcher([
   "/",
@@ -21,7 +25,15 @@ const isPublicRoute = createRouteMatcher([
   "/api/clerk-webhook(.*)",
 ]);
 
-export default clerkMiddleware(async (auth, req) => {
+// Read env names as static property access so the Edge bundler inlines them.
+// @clerk/nextjs 7 only falls back to NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY.
+const clerkKeys = resolveClerkMiddlewareKeys({
+  CLERK_PUBLISHABLE_KEY: process.env.CLERK_PUBLISHABLE_KEY,
+  NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY,
+  CLERK_SECRET_KEY: process.env.CLERK_SECRET_KEY,
+});
+
+export default createHypherClerkMiddleware(clerkKeys, async (auth, req) => {
   if (!isPublicRoute(req)) await auth.protect();
 });
 
