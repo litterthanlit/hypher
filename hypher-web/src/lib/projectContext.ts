@@ -227,8 +227,9 @@ function inferTargetTool(action: string, role?: string): TargetTool {
   if (/\b(windsurf)\b/.test(text)) return "Windsurf";
   if (/\b(copilot)\b/.test(text)) return "GitHub Copilot";
   if (/\b(claude)\b/.test(text)) return "Claude";
+  if (/\b(chatgpt|gpt)\b/.test(text)) return "ChatGPT";
   if (/\b(manual|check by hand)\b/.test(text)) return "Manual";
-  return "ChatGPT";
+  return "Cursor";
 }
 
 function actionFromQueue(actions: ProjectAction[]): ProjectNextAction | null {

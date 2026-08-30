@@ -294,6 +294,48 @@ describe("compileBuilderBrief", () => {
     expect(packet).toContain("- No agent warnings recorded yet.");
     expect(packet).toContain("- No task-specific acceptance criteria recorded yet.");
     expect(packet).toContain("- No handoff notes recorded yet.");
+    expect(packet).toContain("- Target tool: Cursor");
+    expect(packet).not.toContain("Target tool: ChatGPT");
+    expect(packet).not.toContain("Paste this");
+    expect(packet).not.toContain("paste this into ChatGPT");
+  });
+
+  it("defaults the inferred target tool to Cursor instead of ChatGPT", () => {
+    const result = compileProjectContextWithMeta({
+      project: { ...project, description: "" },
+      captures: [],
+      actions: [],
+      agentEvents: [],
+      task: "Think through the next milestone",
+      generatedAt: 123,
+    });
+
+    expect(result.targetTool).toBe("Cursor");
+    expect(result.packet).toContain("- Target tool: Cursor");
+    expect(result.packet).not.toContain("Target tool: ChatGPT");
+    expect(result.packet).not.toContain("Paste this Builder Brief");
+    expect(result.packet).not.toContain("paste this into ChatGPT");
+    expect(result.packet).not.toContain("keyboard tour");
+    expect(result.packet).not.toContain("digest teaser");
+    expect(result.packet).not.toContain("sample daily digest");
+    expect(result.packet).toMatch(/^# Builder Brief: Hypher/m);
+  });
+
+  it("still infers ChatGPT when the task names it, without wrapping the packet as a paste recipe", () => {
+    const result = compileProjectContextWithMeta({
+      project,
+      captures: [],
+      actions: [],
+      agentEvents: [],
+      task: "Draft a ChatGPT connector prompt",
+      generatedAt: 123,
+    });
+
+    expect(result.targetTool).toBe("ChatGPT");
+    expect(result.packet).toContain("- Target tool: ChatGPT");
+    expect(result.packet).not.toContain("Paste this");
+    expect(result.packet).not.toContain("paste this into ChatGPT");
+    expect(result.packet).toMatch(/^# Builder Brief: Hypher/m);
   });
 
   it("puts unanswered agent questions under Unresolved questions", () => {
