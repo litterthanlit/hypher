@@ -1,1 +1,2 @@
-export { GET, runtime } from "../api/mcp/route";
+export const runtime = "nodejs";
+export { GET } from "../api/mcp/route";
