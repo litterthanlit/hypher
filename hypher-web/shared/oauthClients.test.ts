@@ -38,6 +38,7 @@ describe("Grok and Cursor MCP redirect allowlists", () => {
       "http://localhost:8787/callback",
       "https://www.cursor.com/agents/mcp/oauth/callback",
       "cursor://anysphere.cursor-mcp/oauth/callback",
+      "https://cursor.com/agents/mcp/oauth/callback",
     ]);
     expect(GROK_OAUTH_CLIENT.redirectUris).toEqual([...CURSOR_MCP_OAUTH_REDIRECT_URIS]);
     expect(CURSOR_OAUTH_CLIENT.redirectUris).toEqual([...CURSOR_MCP_OAUTH_REDIRECT_URIS]);

@@ -6,6 +6,11 @@ import {
   registeredOAuthClients as loadRegisteredOAuthClients,
   type RegisteredOAuthClient,
 } from "../../shared/oauthClients";
+import {
+  canonicalizeOAuthResource,
+  isAllowedOAuthResource,
+  mcpServerResourceUrl,
+} from "../../shared/oauthResources";
 
 export { HYPHER_MCP_SCOPE };
 export type { RegisteredOAuthClient };
@@ -79,14 +84,25 @@ export function isRedirectUriRegistered(client: RegisteredOAuthClient, redirectU
   return clientHasRedirectUri(client, redirectUri);
 }
 
-export function buildProtectedResourceMetadata(baseUrl: string) {
+export function buildProtectedResourceMetadata(baseUrl: string, resource = baseUrl) {
   return {
-    resource: baseUrl,
+    resource,
     authorization_servers: [baseUrl],
     scopes_supported: [HYPHER_MCP_SCOPE],
-    resource_documentation: `${baseUrl}/api/mcp`,
+    resource_documentation: mcpServerResourceUrl(baseUrl),
     token_endpoint_auth_methods_supported: ["none"],
   };
+}
+
+export function buildMcpProtectedResourceMetadata(baseUrl: string) {
+  return buildProtectedResourceMetadata(baseUrl, mcpServerResourceUrl(baseUrl));
+}
+
+export function oauthProtectedResourceMetadataUrl(baseUrl: string, pathAppended = false): string {
+  const origin = baseUrl.replace(/\/+$/, "");
+  return pathAppended
+    ? `${origin}/.well-known/oauth-protected-resource/api/mcp`
+    : `${origin}/.well-known/oauth-protected-resource`;
 }
 
 export function buildOAuthMetadata(baseUrl: string) {
@@ -132,7 +148,8 @@ export function validateOAuthAuthorizeParams(
   if (!codeChallenge || codeChallengeMethod !== "S256") {
     return { ok: false, error: "invalid_request", errorDescription: "Hypher requires PKCE S256." };
   }
-  if (resource !== expectedResource) {
+  const canonicalResource = canonicalizeOAuthResource(resource);
+  if (!canonicalResource || !isAllowedOAuthResource(resource, expectedResource)) {
     return { ok: false, error: "invalid_target", errorDescription: "OAuth resource does not match this Hypher MCP server." };
   }
   if (!scope.split(/\s+/).includes(HYPHER_MCP_SCOPE)) {
@@ -147,7 +164,7 @@ export function validateOAuthAuthorizeParams(
     clientName: client.name,
     codeChallenge,
     codeChallengeMethod: "S256",
-    resource,
+    resource: canonicalResource,
     scope,
     state,
   };

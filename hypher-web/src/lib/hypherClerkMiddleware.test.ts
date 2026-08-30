@@ -2,7 +2,9 @@ import { NextRequest, type NextFetchEvent } from "next/server";
 import { describe, expect, it, vi } from "vitest";
 import {
   createHypherClerkMiddleware,
+  isClerkOptionalOAuthProtocolPath,
   resolveClerkMiddlewareKeys,
+  shouldBypassFailedClerkForOAuthProtocol,
 } from "./hypherClerkMiddleware";
 
 function request(path: string): NextRequest {
@@ -101,5 +103,48 @@ describe("createHypherClerkMiddleware", () => {
 
     await middleware(request("/settings"), event());
     expect(protect).toHaveBeenCalledTimes(1);
+  });
+
+  it("lets OAuth authorize, token, and well-known survive a Clerk 400 without weakening other routes", async () => {
+    expect(isClerkOptionalOAuthProtocolPath("/oauth/authorize")).toBe(true);
+    expect(isClerkOptionalOAuthProtocolPath("/oauth/token")).toBe(true);
+    expect(isClerkOptionalOAuthProtocolPath("/.well-known/oauth-protected-resource/api/mcp")).toBe(
+      true
+    );
+    expect(isClerkOptionalOAuthProtocolPath("/oauth/consent")).toBe(false);
+    expect(isClerkOptionalOAuthProtocolPath("/app")).toBe(false);
+    expect(shouldBypassFailedClerkForOAuthProtocol("/oauth/authorize", 400)).toBe(true);
+    expect(shouldBypassFailedClerkForOAuthProtocol("/settings", 400)).toBe(false);
+
+    const createClerk = vi.fn(() => {
+      return async (req: NextRequest) => {
+        if (req.nextUrl.pathname === "/oauth/authorize" || req.nextUrl.pathname === "/oauth/token") {
+          return new Response("clerk-bad-request", { status: 400 });
+        }
+        if (req.nextUrl.pathname.startsWith("/.well-known/")) {
+          return new Response("clerk-bad-request", { status: 400 });
+        }
+        return new Response("blocked", { status: 400 });
+      };
+    });
+
+    const middleware = createHypherClerkMiddleware(
+      { publishableKey: "pk_test_explicit" },
+      async () => undefined,
+      createClerk as never
+    );
+
+    expect((await middleware(request("/oauth/authorize"), event())).status).toBe(200);
+    expect((await middleware(request("/oauth/token"), event())).status).toBe(200);
+    expect(
+      (
+        await middleware(
+          request("/.well-known/oauth-protected-resource/api/mcp"),
+          event()
+        )
+      ).status
+    ).toBe(200);
+    expect((await middleware(request("/settings"), event())).status).toBe(400);
+    expect((await middleware(request("/oauth/consent"), event())).status).toBe(400);
   });
 });

@@ -49,6 +49,8 @@ describe("Cursor plugin connect helpers", () => {
     ) as {
       mcpServers: { hypher: { url: string; auth: { CLIENT_ID: string } } };
     };
+    expect(HYPHER_MCP_URL).toBe("https://www.hypher.app/api/mcp");
+    expect(mcp.mcpServers.hypher.url).toBe("https://www.hypher.app/api/mcp");
     expect(mcp.mcpServers.hypher.url).toBe(HYPHER_MCP_URL);
     expect(mcp.mcpServers.hypher.auth.CLIENT_ID).toBe(HYPHER_CURSOR_OAUTH_CLIENT_ID);
   });

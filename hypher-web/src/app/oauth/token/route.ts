@@ -10,6 +10,7 @@ import {
   isRedirectUriRegistered,
   sha256Base64url,
 } from "@/lib/oauthBridge";
+import { canonicalizeOAuthResource } from "../../../../shared/oauthResources";
 import { ratelimitUser } from "@/lib/rateLimit";
 import { isRequestBodyTooLarge, readTextWithLimit } from "@/lib/requestBody";
 
@@ -56,7 +57,8 @@ export async function POST(req: NextRequest) {
   const redirectUri = params.get("redirect_uri") ?? "";
   const clientId = params.get("client_id") ?? "";
   const codeVerifier = params.get("code_verifier") ?? "";
-  const resource = params.get("resource") || baseUrlFromRequest(req.url);
+  const presentedResource = params.get("resource") || baseUrlFromRequest(req.url);
+  const resource = canonicalizeOAuthResource(presentedResource) ?? presentedResource;
 
   if (grantType !== "authorization_code") {
     return oauthError("unsupported_grant_type", "Hypher only supports authorization_code.");

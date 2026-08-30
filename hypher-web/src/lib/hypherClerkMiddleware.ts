@@ -48,6 +48,26 @@ export function resolveClerkMiddlewareKeys(env: ClerkMiddlewareEnv): ClerkMiddle
 }
 
 /**
+ * OAuth protocol and discovery routes that must reach the App Router even if
+ * Clerk middleware returns 4xx. Consent still goes through Clerk so sessions
+ * stay intact. Other app routes keep full Clerk protection.
+ */
+export function isClerkOptionalOAuthProtocolPath(pathname: string): boolean {
+  return (
+    pathname === "/oauth/authorize" ||
+    pathname === "/oauth/token" ||
+    pathname.startsWith("/.well-known/")
+  );
+}
+
+export function shouldBypassFailedClerkForOAuthProtocol(
+  pathname: string,
+  status: number
+): boolean {
+  return status >= 400 && isClerkOptionalOAuthProtocolPath(pathname);
+}
+
+/**
  * Builds the Next middleware Clerk should run. When the publishable key is
  * missing, clerkMiddleware throws before any route matcher — including `/` —
  * so we pass through instead of 500ing public pages.
@@ -64,8 +84,26 @@ export function createHypherClerkMiddleware(
     };
   }
 
-  return createClerk(handler, {
+  const clerk = createClerk(handler, {
     publishableKey,
     ...(keys.secretKey ? { secretKey: keys.secretKey } : {}),
   });
+
+  return async function hypherClerkMiddleware(req, event) {
+    try {
+      const result = await clerk(req, event);
+      if (
+        result &&
+        shouldBypassFailedClerkForOAuthProtocol(req.nextUrl.pathname, result.status)
+      ) {
+        return NextResponse.next();
+      }
+      return result;
+    } catch (error) {
+      if (isClerkOptionalOAuthProtocolPath(req.nextUrl.pathname)) {
+        return NextResponse.next();
+      }
+      throw error;
+    }
+  };
 }

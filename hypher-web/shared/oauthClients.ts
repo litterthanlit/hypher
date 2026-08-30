@@ -19,6 +19,7 @@ export const CURSOR_MCP_OAUTH_REDIRECT_URIS = [
   "http://localhost:8787/callback",
   "https://www.cursor.com/agents/mcp/oauth/callback",
   "cursor://anysphere.cursor-mcp/oauth/callback",
+  "https://cursor.com/agents/mcp/oauth/callback",
 ] as const;
 
 export const CURSOR_OAUTH_CLIENT: RegisteredOAuthClient = {

@@ -1,6 +1,7 @@
 import { query } from "./_generated/server";
 import { v } from "convex/values";
 import { hasBetaAccess } from "./lib/auth";
+import { oauthResourcesEquivalent } from "../shared/oauthResources";
 
 function mapObject(doc: any) {
   const { _id, _creationTime, userId, ...rest } = doc;
@@ -34,7 +35,12 @@ async function validateToken(ctx: any, args: { tokenHash: string; resource: stri
     .unique();
 
   if (!token || token.revokedAt !== undefined || token.expiresAt <= args.now) return null;
-  if (token.resource !== args.resource || !token.scope.split(/\s+/).includes(args.scope)) return null;
+  if (
+    !oauthResourcesEquivalent(token.resource, args.resource) ||
+    !token.scope.split(/\s+/).includes(args.scope)
+  ) {
+    return null;
+  }
   if (!(await hasBetaAccess(ctx, token.userId))) return null;
   return token;
 }
