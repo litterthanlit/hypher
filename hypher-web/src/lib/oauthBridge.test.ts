@@ -73,6 +73,68 @@ describe("OAuth authorize params", () => {
     });
   });
 
+  it("accepts hypher-grok authorization requests with each Cursor MCP redirect", () => {
+    const redirects = [
+      "http://localhost:8787/callback",
+      "https://www.cursor.com/agents/mcp/oauth/callback",
+      "cursor://anysphere.cursor-mcp/oauth/callback",
+    ];
+
+    for (const redirect_uri of redirects) {
+      const params = new URLSearchParams({
+        response_type: "code",
+        client_id: "hypher-grok",
+        redirect_uri,
+        code_challenge: "abc",
+        code_challenge_method: "S256",
+        resource: "https://hypher.app",
+        scope: "hypher.projects.read",
+      });
+
+      expect(validateOAuthAuthorizeParams(params, "https://hypher.app")).toMatchObject({
+        ok: true,
+        clientId: "hypher-grok",
+        clientName: "Grok",
+        redirectUri: redirect_uri,
+      });
+    }
+  });
+
+  it("accepts hypher-cursor with the Cursor Agents MCP callback (Grok Bot fallback)", () => {
+    const params = new URLSearchParams({
+      response_type: "code",
+      client_id: "hypher-cursor",
+      redirect_uri: "https://www.cursor.com/agents/mcp/oauth/callback",
+      code_challenge: "abc",
+      code_challenge_method: "S256",
+      resource: "https://hypher.app",
+      scope: "hypher.projects.read",
+    });
+
+    expect(validateOAuthAuthorizeParams(params, "https://hypher.app")).toMatchObject({
+      ok: true,
+      clientId: "hypher-cursor",
+      clientName: "Cursor",
+    });
+  });
+
+  it("rejects unregistered Grok-style redirect URIs", () => {
+    const params = new URLSearchParams({
+      response_type: "code",
+      client_id: "hypher-grok",
+      redirect_uri: "grokbot://oauth/callback",
+      code_challenge: "abc",
+      code_challenge_method: "S256",
+      resource: "https://hypher.app",
+    });
+
+    expect(validateOAuthAuthorizeParams(params, "https://hypher.app")).toEqual({
+      ok: false,
+      error: "invalid_request",
+      errorDescription: "redirect_uri is not registered for this OAuth client.",
+    });
+  });
+
   it("HYP-SEC-003 rejects unknown OAuth clients", () => {
     const params = new URLSearchParams({
       response_type: "code",

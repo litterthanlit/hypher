@@ -6,6 +6,7 @@ export type RegisteredOAuthClient = {
 
 export const HYPHER_MCP_SCOPE = "hypher.projects.read";
 export const HYPHER_CURSOR_OAUTH_CLIENT_ID = "hypher-cursor";
+export const HYPHER_GROK_OAUTH_CLIENT_ID = "hypher-grok";
 
 export const CHATGPT_OAUTH_CLIENT: RegisteredOAuthClient = {
   clientId: "https://chatgpt.com/oauth/client.json",
@@ -13,19 +14,30 @@ export const CHATGPT_OAUTH_CLIENT: RegisteredOAuthClient = {
   redirectUris: ["https://chatgpt.com/connector/oauth/callback"],
 };
 
+/** Cursor desktop, cloud agents, and custom-scheme MCP OAuth callbacks. */
+export const CURSOR_MCP_OAUTH_REDIRECT_URIS = [
+  "http://localhost:8787/callback",
+  "https://www.cursor.com/agents/mcp/oauth/callback",
+  "cursor://anysphere.cursor-mcp/oauth/callback",
+] as const;
+
 export const CURSOR_OAUTH_CLIENT: RegisteredOAuthClient = {
   clientId: HYPHER_CURSOR_OAUTH_CLIENT_ID,
   name: "Cursor",
-  redirectUris: [
-    "http://localhost:8787/callback",
-    "https://www.cursor.com/agents/mcp/oauth/callback",
-    "cursor://anysphere.cursor-mcp/oauth/callback",
-  ],
+  redirectUris: [...CURSOR_MCP_OAUTH_REDIRECT_URIS],
+};
+
+/** Public client for Grok Bot (a Cursor agent). Same MCP callbacks as Cursor. */
+export const GROK_OAUTH_CLIENT: RegisteredOAuthClient = {
+  clientId: HYPHER_GROK_OAUTH_CLIENT_ID,
+  name: "Grok",
+  redirectUris: [...CURSOR_MCP_OAUTH_REDIRECT_URIS],
 };
 
 export const DEFAULT_OAUTH_CLIENTS: RegisteredOAuthClient[] = [
   CHATGPT_OAUTH_CLIENT,
   CURSOR_OAUTH_CLIENT,
+  GROK_OAUTH_CLIENT,
 ];
 
 export function parseOAuthClientsJson(raw: string | undefined): RegisteredOAuthClient[] | null {
@@ -65,4 +77,8 @@ export function isRedirectUriRegistered(client: RegisteredOAuthClient, redirectU
 
 export function isCursorOAuthClientId(clientId: string): boolean {
   return clientId === HYPHER_CURSOR_OAUTH_CLIENT_ID;
+}
+
+export function isGrokOAuthClientId(clientId: string): boolean {
+  return clientId === HYPHER_GROK_OAUTH_CLIENT_ID;
 }
