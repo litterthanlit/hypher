@@ -4,7 +4,8 @@
  * Mirrors the pattern from hypher-web/src/lib/rateLimit.ts but runs in the
  * Convex Node action runtime (cannot import from src/).
  *
- * When Upstash env vars are absent, local/dev allows and production denies.
+ * When Upstash env vars are absent or invalid, requests are allowed (fail-open)
+ * so missing Redis never 429s production API traffic. Production logs an error.
  */
 import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
@@ -29,14 +30,13 @@ function getRatelimitForBucket(
   if (!hasUsableRedisEnv(url, token)) {
     if (process.env.NODE_ENV === "production") {
       console.error(
-        `[hypher/convex/rateLimit] Upstash Redis env missing or invalid — denying production request for bucket "${bucket}"`
+        `[hypher/convex/rateLimit] Upstash Redis env missing or invalid — allowing request for bucket "${bucket}" (fail-open)`
       );
-      cache.set(cacheKey, null);
-      return null;
+    } else {
+      console.warn(
+        `[hypher/convex/rateLimit] Upstash Redis env missing or invalid — rate limiting disabled for bucket "${bucket}"`
+      );
     }
-    console.warn(
-      `[hypher/convex/rateLimit] Upstash Redis env missing or invalid — rate limiting disabled for bucket "${bucket}"`
-    );
     cache.set(cacheKey, null);
     return null;
   }
@@ -65,7 +65,7 @@ function getRatelimitForBucket(
 
 /**
  * Returns true if the request is allowed, false if it should be rate-limited.
- * When Upstash is not configured, local/dev returns true and production returns false.
+ * When Upstash is not configured or invalid, always returns true (fail-open).
  */
 export async function ratelimitConvex(
   key: string,
@@ -73,7 +73,7 @@ export async function ratelimitConvex(
   opts: { requests: number; window: string }
 ): Promise<boolean> {
   const rl = getRatelimitForBucket(bucket, opts.requests, opts.window);
-  if (!rl) return process.env.NODE_ENV !== "production";
+  if (!rl) return true;
   const result = await rl.limit(key);
   return result.success;
 }
