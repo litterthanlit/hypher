@@ -922,7 +922,8 @@ body:has(.settings-api-keys-page) {
     -webkit-overflow-scrolling: touch;
   }
 
-  .settings-api-keys-page {
+  .settings-api-keys-page,
+  .oauth-consent-page {
     padding: 20px 16px 40px;
   }
 }
@@ -1585,6 +1586,39 @@ body:has(.settings-api-keys-page) {
   box-shadow: var(--glass-shadow), var(--glass-inset);
   backdrop-filter: blur(var(--glass-blur)) saturate(140%);
   -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(140%);
+}
+
+.oauth-consent-page {
+  min-height: 100dvh;
+  max-width: 720px;
+  width: 100%;
+  margin-left: auto;
+  margin-right: auto;
+  padding: 32px 24px 48px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.oauth-consent-panel {
+  width: 100%;
+}
+
+.oauth-consent-page h1 {
+  margin: 8px 0 10px;
+  font-size: 18px;
+  line-height: 1.35;
+  font-family: var(--font-sans);
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.oauth-consent-page p {
+  margin: 0 0 22px;
+  color: var(--text-secondary);
+  font-size: 14px;
+  line-height: 1.55;
 }
 
 .capture-settings-link,
