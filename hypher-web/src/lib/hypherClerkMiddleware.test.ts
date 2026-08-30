@@ -108,6 +108,9 @@ describe("createHypherClerkMiddleware", () => {
   it("lets OAuth authorize, token, and well-known survive a Clerk 400 without weakening other routes", async () => {
     expect(isClerkOptionalOAuthProtocolPath("/oauth/authorize")).toBe(true);
     expect(isClerkOptionalOAuthProtocolPath("/oauth/token")).toBe(true);
+    expect(isClerkOptionalOAuthProtocolPath("/oauth/register")).toBe(true);
+    expect(isClerkOptionalOAuthProtocolPath("/mcp")).toBe(true);
+    expect(isClerkOptionalOAuthProtocolPath("/api/mcp")).toBe(true);
     expect(isClerkOptionalOAuthProtocolPath("/.well-known/oauth-protected-resource/api/mcp")).toBe(
       true
     );
@@ -118,7 +121,13 @@ describe("createHypherClerkMiddleware", () => {
 
     const createClerk = vi.fn(() => {
       return async (req: NextRequest) => {
-        if (req.nextUrl.pathname === "/oauth/authorize" || req.nextUrl.pathname === "/oauth/token") {
+        if (
+          req.nextUrl.pathname === "/oauth/authorize" ||
+          req.nextUrl.pathname === "/oauth/token" ||
+          req.nextUrl.pathname === "/oauth/register" ||
+          req.nextUrl.pathname === "/mcp" ||
+          req.nextUrl.pathname === "/api/mcp"
+        ) {
           return new Response("clerk-bad-request", { status: 400 });
         }
         if (req.nextUrl.pathname.startsWith("/.well-known/")) {
@@ -142,6 +151,9 @@ describe("createHypherClerkMiddleware", () => {
 
     expect(await statusOf("/oauth/authorize")).toBe(200);
     expect(await statusOf("/oauth/token")).toBe(200);
+    expect(await statusOf("/oauth/register")).toBe(200);
+    expect(await statusOf("/mcp")).toBe(200);
+    expect(await statusOf("/api/mcp")).toBe(200);
     expect(await statusOf("/.well-known/oauth-protected-resource/api/mcp")).toBe(200);
     expect(await statusOf("/settings")).toBe(400);
     expect(await statusOf("/oauth/consent")).toBe(400);

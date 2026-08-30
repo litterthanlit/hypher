@@ -48,14 +48,17 @@ export function resolveClerkMiddlewareKeys(env: ClerkMiddlewareEnv): ClerkMiddle
 }
 
 /**
- * OAuth protocol and discovery routes that must reach the App Router even if
- * Clerk middleware returns 4xx. Consent still goes through Clerk so sessions
+ * OAuth protocol, MCP, and discovery routes that must reach the App Router even
+ * if Clerk middleware returns 4xx. Consent still goes through Clerk so sessions
  * stay intact. Other app routes keep full Clerk protection.
  */
 export function isClerkOptionalOAuthProtocolPath(pathname: string): boolean {
   return (
     pathname === "/oauth/authorize" ||
     pathname === "/oauth/token" ||
+    pathname === "/oauth/register" ||
+    pathname === "/mcp" ||
+    pathname === "/api/mcp" ||
     pathname.startsWith("/.well-known/")
   );
 }

@@ -7,8 +7,11 @@ import {
   buildOAuthMetadata,
   buildProtectedResourceMetadata,
   codeChallengeS256,
+  mcpAuthChallengeMetadataUrl,
+  mcpWwwAuthenticateChallenge,
   oauthProtectedResourceMetadataUrl,
   parseOAuthConsentRequestParams,
+  registerPublicGrokOAuthClient,
   validateOAuthAuthorizeParams,
 } from "./oauthBridge";
 
@@ -41,6 +44,9 @@ describe("OAuth bridge metadata", () => {
     expect(oauthProtectedResourceMetadataUrl("https://www.hypher.app", true)).toBe(
       "https://www.hypher.app/.well-known/oauth-protected-resource/api/mcp"
     );
+    expect(oauthProtectedResourceMetadataUrl("https://www.hypher.app", "mcp")).toBe(
+      "https://www.hypher.app/.well-known/oauth-protected-resource/mcp"
+    );
     expect(oauthProtectedResourceMetadataUrl("https://hypher.app")).toBe(
       "https://hypher.app/.well-known/oauth-protected-resource"
     );
@@ -51,9 +57,68 @@ describe("OAuth bridge metadata", () => {
       issuer: "https://hypher.app",
       authorization_endpoint: "https://hypher.app/oauth/authorize",
       token_endpoint: "https://hypher.app/oauth/token",
+      registration_endpoint: "https://hypher.app/oauth/register",
       code_challenge_methods_supported: ["S256"],
       token_endpoint_auth_methods_supported: ["none"],
       scopes_supported: ["hypher.projects.read"],
+    });
+  });
+
+  it("builds RFC 9728 WWW-Authenticate resource_metadata from the MCP request path", () => {
+    expect(mcpAuthChallengeMetadataUrl("https://www.hypher.app/api/mcp")).toBe(
+      "https://www.hypher.app/.well-known/oauth-protected-resource/api/mcp"
+    );
+    expect(mcpAuthChallengeMetadataUrl("https://www.hypher.app/mcp")).toBe(
+      "https://www.hypher.app/.well-known/oauth-protected-resource/mcp"
+    );
+    expect(mcpWwwAuthenticateChallenge("https://www.hypher.app/api/mcp")).toBe(
+      'Bearer resource_metadata="https://www.hypher.app/.well-known/oauth-protected-resource/api/mcp", scope="hypher.projects.read"'
+    );
+  });
+});
+
+describe("RFC 7591 public-client DCR", () => {
+  it("reuses hypher-grok when requested redirects intersect the Cursor allowlist", () => {
+    expect(
+      registerPublicGrokOAuthClient(
+        {
+          redirect_uris: [
+            "https://www.cursor.com/agents/mcp/oauth/callback",
+            "cursor://anysphere.cursor-mcp/oauth/callback",
+            "https://attacker.example/callback",
+          ],
+          token_endpoint_auth_method: "none",
+          grant_types: ["authorization_code"],
+        },
+        1_700_000_000
+      )
+    ).toEqual({
+      ok: true,
+      client: {
+        client_id: "hypher-grok",
+        client_name: "Grok",
+        client_id_issued_at: 1_700_000_000,
+        redirect_uris: [
+          "https://www.cursor.com/agents/mcp/oauth/callback",
+          "cursor://anysphere.cursor-mcp/oauth/callback",
+        ],
+        token_endpoint_auth_method: "none",
+        grant_types: ["authorization_code"],
+        response_types: ["code"],
+        code_challenge_methods: ["S256"],
+      },
+    });
+  });
+
+  it("rejects unknown redirects and does not invent grokbot URIs", () => {
+    expect(
+      registerPublicGrokOAuthClient({
+        redirect_uris: ["grokbot://oauth/callback"],
+      })
+    ).toEqual({
+      ok: false,
+      error: "invalid_redirect_uri",
+      error_description: "redirect_uris must intersect the registered Cursor MCP callbacks.",
     });
   });
 });
@@ -144,12 +209,14 @@ describe("OAuth authorize params", () => {
     });
   });
 
-  it("accepts apex, www, and /api/mcp resource aliases when the expected resource is www", () => {
+  it("accepts apex, www, /api/mcp, and /mcp resource aliases when the expected resource is www", () => {
     const aliases = [
       "https://hypher.app",
       "https://www.hypher.app",
       "https://hypher.app/api/mcp",
       "https://www.hypher.app/api/mcp",
+      "https://hypher.app/mcp",
+      "https://www.hypher.app/mcp",
     ];
 
     for (const resource of aliases) {

@@ -71,6 +71,7 @@ describe("OAuth authorize route", () => {
     for (const resource of [
       "https://hypher.app",
       "https://www.hypher.app/api/mcp",
+      "https://www.hypher.app/mcp",
     ]) {
       const url = new URL("https://www.hypher.app/oauth/authorize");
       url.searchParams.set("response_type", "code");
