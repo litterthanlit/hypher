@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { useUser } from "@clerk/nextjs";
 import { UserButton } from "@clerk/nextjs";
-import { useQuery } from "convex/react";
+import { useConvexAuth, useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import type { CaptureResult, Project, ProjectSuggestion, AnyObject, ProjectMemory } from "@/types";
 import { ProjectAssignPopup } from "./ProjectAssignPopup";
@@ -132,7 +132,11 @@ export function CaptureHome({
   const voiceChunksRef = useRef<Blob[]>([]);
   const voiceStreamRef = useRef<MediaStream | null>(null);
   const voiceAbortRef = useRef<AbortController | null>(null);
-  const memories = useQuery((api as any).projectMemories.listForDashboard) as ProjectMemory[] | undefined;
+  const { isAuthenticated } = useConvexAuth();
+  const memories = useQuery(
+    (api as any).projectMemories.listForDashboard,
+    isAuthenticated ? {} : "skip"
+  ) as ProjectMemory[] | undefined;
 
   const sortedProjects = useMemo(
     () => [...projects].sort((a, b) => b.modifiedAt - a.modifiedAt),
@@ -349,7 +353,7 @@ export function CaptureHome({
     );
     const reviewedNextActionCount = projectMemories.reduce(
       (count, memory) =>
-        count + memory.nextActions.filter((action) => action.status === "accepted" || action.status === "dismissed").length,
+        count + (memory.nextActions ?? []).filter((action) => action.status === "accepted" || action.status === "dismissed").length,
       0
     );
     return getFirstUseActivationRail({

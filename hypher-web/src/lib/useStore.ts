@@ -2,7 +2,8 @@
 
 import { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import { useAuth } from "@clerk/nextjs";
-import { useQuery, useMutation, useAction, useConvex } from "convex/react";
+import { useQuery, useMutation, useAction, useConvex, useConvexAuth } from "convex/react";
+import { asQueryList, shouldSkipAuthedConvexQuery } from "./activation";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
 import type { AnyObject, CaptureResult, Connection, Project, ProjectSuggestion, Note, Artifact, ActivityEntry } from "@/types";
@@ -90,8 +91,13 @@ function loadEngine(): Promise<EngineModule> {
 
 export function useStore(options: UseStoreOptions = {}) {
   const { isLoaded: clerkLoaded, isSignedIn } = useAuth();
+  const { isAuthenticated: convexAuthenticated } = useConvexAuth();
   const convex = useConvex();
-  const skipConvex = !clerkLoaded || !isSignedIn;
+  const skipConvex = shouldSkipAuthedConvexQuery({
+    clerkLoaded,
+    isSignedIn: Boolean(isSignedIn),
+    convexAuthenticated,
+  });
   const selectedProjectId = options.selectedProjectId ?? null;
   const subscribeAllObjects = options.subscribeAllObjects ?? true;
   const subscribeAllActivity = options.subscribeAllActivity ?? subscribeAllObjects;
@@ -104,7 +110,7 @@ export function useStore(options: UseStoreOptions = {}) {
   const migrateWorkspacePrefs = useMutation(api.workspacePrefs.migrateFromLocal);
 
   useEffect(() => {
-    if (!clerkLoaded || !isSignedIn) return;
+    if (skipConvex) return;
     const run = async () => {
       await ensureDemoForUser();
       // Bootstrap digestPrefs row for new users (idempotent — no-op if row exists)
@@ -127,8 +133,7 @@ export function useStore(options: UseStoreOptions = {}) {
     };
     void run();
   }, [
-    clerkLoaded,
-    isSignedIn,
+    skipConvex,
     ensureDemoForUser,
     ensureDefaultPrefs,
     ensureWorkspacePrefs,
@@ -152,30 +157,30 @@ export function useStore(options: UseStoreOptions = {}) {
   );
 
   const projectObjects = useMemo(
-    (): Project[] => (rawProjects ?? []).map(mapObject).filter((o): o is Project => o.kind === "project"),
+    (): Project[] => asQueryList(rawProjects).map(mapObject).filter((o): o is Project => o.kind === "project"),
     [rawProjects]
   );
   const inboxObjects = useMemo(
-    (): AnyObject[] => (rawInboxObjects ?? []).map(mapObject),
+    (): AnyObject[] => asQueryList(rawInboxObjects).map(mapObject),
     [rawInboxObjects]
   );
   const recentObjects = useMemo(
-    (): AnyObject[] => (rawRecentObjects ?? []).map(mapObject),
+    (): AnyObject[] => asQueryList(rawRecentObjects).map(mapObject),
     [rawRecentObjects]
   );
   const selectedProjectObjects = useMemo(
-    (): AnyObject[] => (rawProjectObjects ?? []).map(mapObject),
+    (): AnyObject[] => asQueryList(rawProjectObjects).map(mapObject),
     [rawProjectObjects]
   );
   const rawMappedObjects = useMemo(
     (): AnyObject[] => {
-      if (rawAllObjects !== undefined) return rawAllObjects.map(mapObject);
+      if (Array.isArray(rawAllObjects)) return rawAllObjects.map(mapObject);
       return mergeObjects(projectObjects, inboxObjects, recentObjects, selectedProjectObjects);
     },
     [inboxObjects, projectObjects, rawAllObjects, recentObjects, selectedProjectObjects]
   );
   const connections = useMemo(
-    (): Connection[] => (rawConnections ?? []).map(mapConnection),
+    (): Connection[] => asQueryList(rawConnections).map(mapConnection),
     [rawConnections]
   );
   const activity = useMemo(
@@ -896,6 +901,7 @@ export function useStore(options: UseStoreOptions = {}) {
   return {
     clerkLoaded,
     isSignedIn: isSignedIn ?? false,
+    skipConvex,
     convexDataLoading,
     hasFullObjectSubscription: rawAllObjects !== undefined,
     objects,
