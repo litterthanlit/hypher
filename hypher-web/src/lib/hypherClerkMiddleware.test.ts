@@ -134,17 +134,16 @@ describe("createHypherClerkMiddleware", () => {
       createClerk as never
     );
 
-    expect((await middleware(request("/oauth/authorize"), event())).status).toBe(200);
-    expect((await middleware(request("/oauth/token"), event())).status).toBe(200);
-    expect(
-      (
-        await middleware(
-          request("/.well-known/oauth-protected-resource/api/mcp"),
-          event()
-        )
-      ).status
-    ).toBe(200);
-    expect((await middleware(request("/settings"), event())).status).toBe(400);
-    expect((await middleware(request("/oauth/consent"), event())).status).toBe(400);
+    async function statusOf(path: string): Promise<number> {
+      const response = await middleware(request(path), event());
+      expect(response).toBeDefined();
+      return response!.status;
+    }
+
+    expect(await statusOf("/oauth/authorize")).toBe(200);
+    expect(await statusOf("/oauth/token")).toBe(200);
+    expect(await statusOf("/.well-known/oauth-protected-resource/api/mcp")).toBe(200);
+    expect(await statusOf("/settings")).toBe(400);
+    expect(await statusOf("/oauth/consent")).toBe(400);
   });
 });

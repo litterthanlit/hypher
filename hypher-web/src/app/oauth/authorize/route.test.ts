@@ -33,6 +33,7 @@ describe("OAuth authorize route", () => {
   beforeEach(() => {
     vi.resetModules();
     vi.clearAllMocks();
+    delete process.env.NEXT_PUBLIC_APP_URL;
     process.env.HYPHER_OAUTH_CONSENT_SECRET = "test-oauth-consent-secret-at-least-32-bytes";
     requireBetaAccess.mockResolvedValue({ convexToken: "convex-token" });
     fetchMutation.mockResolvedValue({ consentId: "consent-1" });
