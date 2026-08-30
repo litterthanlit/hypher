@@ -15,12 +15,9 @@ import type * as ai from "../ai.js";
 import type * as apiKeys from "../apiKeys.js";
 import type * as authz from "../authz.js";
 import type * as beta from "../beta.js";
-import type * as canvasShares from "../canvasShares.js";
 import type * as captureTokens from "../captureTokens.js";
 import type * as connections from "../connections.js";
 import type * as crons from "../crons.js";
-import type * as digestEmail from "../digestEmail.js";
-import type * as digestEmailDispatcher from "../digestEmailDispatcher.js";
 import type * as github from "../github.js";
 import type * as githubIntegrations from "../githubIntegrations.js";
 import type * as githubInternal from "../githubInternal.js";
@@ -35,20 +32,14 @@ import type * as legacy from "../legacy.js";
 import type * as lib_actionAuth from "../lib/actionAuth.js";
 import type * as lib_auth from "../lib/auth.js";
 import type * as lib_clerk from "../lib/clerk.js";
-import type * as lib_projectPulseVerificationSeed from "../lib/projectPulseVerificationSeed.js";
-import type * as lib_quotedReply from "../lib/quotedReply.js";
 import type * as lib_rateLimit from "../lib/rateLimit.js";
-import type * as lib_samplePreviewConstants from "../lib/samplePreviewConstants.js";
 import type * as oauth from "../oauth.js";
 import type * as oauthContext from "../oauthContext.js";
 import type * as objects from "../objects.js";
-import type * as onboarding from "../onboarding.js";
 import type * as projectMemories from "../projectMemories.js";
 import type * as projects from "../projects.js";
-import type * as seed from "../seed.js";
 import type * as subscriptions from "../subscriptions.js";
 import type * as tags from "../tags.js";
-import type * as workspacePrefs from "../workspacePrefs.js";
 
 import type {
   ApiFromModules,
@@ -64,12 +55,9 @@ declare const fullApi: ApiFromModules<{
   apiKeys: typeof apiKeys;
   authz: typeof authz;
   beta: typeof beta;
-  canvasShares: typeof canvasShares;
   captureTokens: typeof captureTokens;
   connections: typeof connections;
   crons: typeof crons;
-  digestEmail: typeof digestEmail;
-  digestEmailDispatcher: typeof digestEmailDispatcher;
   github: typeof github;
   githubIntegrations: typeof githubIntegrations;
   githubInternal: typeof githubInternal;
@@ -84,20 +72,14 @@ declare const fullApi: ApiFromModules<{
   "lib/actionAuth": typeof lib_actionAuth;
   "lib/auth": typeof lib_auth;
   "lib/clerk": typeof lib_clerk;
-  "lib/projectPulseVerificationSeed": typeof lib_projectPulseVerificationSeed;
-  "lib/quotedReply": typeof lib_quotedReply;
   "lib/rateLimit": typeof lib_rateLimit;
-  "lib/samplePreviewConstants": typeof lib_samplePreviewConstants;
   oauth: typeof oauth;
   oauthContext: typeof oauthContext;
   objects: typeof objects;
-  onboarding: typeof onboarding;
   projectMemories: typeof projectMemories;
   projects: typeof projects;
-  seed: typeof seed;
   subscriptions: typeof subscriptions;
   tags: typeof tags;
-  workspacePrefs: typeof workspacePrefs;
 }>;
 
 /**

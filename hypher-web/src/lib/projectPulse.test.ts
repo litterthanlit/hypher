@@ -137,9 +137,9 @@ describe("buildProjectContextInput", () => {
 });
 
 describe("Builder Brief UI copy", () => {
-  it("uses Start agent session as the Pulse primary action", () => {
-    expect(BUILDER_BRIEF_COPY_LABEL).toBe("Start agent session");
-    expect(BUILDER_BRIEF_COPY_SUCCESS_TOAST).toBe("Builder Brief copied. Session started.");
-    expect(BUILDER_BRIEF_COPY_ERROR_TOAST).toBe("Could not start agent session");
+  it("uses Copy Builder Brief as the Pulse primary action", () => {
+    expect(BUILDER_BRIEF_COPY_LABEL).toBe("Copy Builder Brief");
+    expect(BUILDER_BRIEF_COPY_SUCCESS_TOAST).toBe("Builder Brief copied");
+    expect(BUILDER_BRIEF_COPY_ERROR_TOAST).toBe("Could not copy Builder Brief");
   });
 });

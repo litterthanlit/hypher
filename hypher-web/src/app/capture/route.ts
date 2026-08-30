@@ -296,6 +296,11 @@ async function handleCapture(req: Request): Promise<Response> {
     if (input.error === "too_large") {
       return errorResponse(wantsJson, input.error, 413);
     }
+    // A browser hitting /capture with nothing to capture lands on the dump,
+    // not a raw "content required" page.
+    if (!wantsJson && input.error === "content_required" && req.method.toUpperCase() === "GET") {
+      return Response.redirect(new URL("/app", url.origin).toString(), 302);
+    }
     return errorResponse(wantsJson, input.error, 400);
   }
 

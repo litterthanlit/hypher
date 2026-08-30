@@ -47,9 +47,6 @@ function PrimaryNavLinks() {
       <a href="#agents" className={navLinkClass}>
         For agents
       </a>
-      <a href="#product" className={navLinkClass}>
-        Product
-      </a>
       <a href="#beta" className={navLinkClass}>
         Beta
       </a>
@@ -211,39 +208,6 @@ export function LandingPage() {
           </div>
         </section>
 
-        <section id="product" className="tw-scroll-mt-24" aria-labelledby="product-heading">
-          <div className="tw-mx-auto tw-max-w-6xl tw-px-4 tw-py-14 sm:tw-px-6 sm:tw-py-20 lg:tw-px-8">
-            <h2
-              id="product-heading"
-              className="tw-text-balance tw-font-wordmark tw-text-2xl tw-font-normal tw-tracking-[0.04em] sm:tw-text-3xl"
-            >
-              Everything around the loop.
-            </h2>
-            <div className="tw-mt-10 tw-grid tw-gap-10 lg:tw-grid-cols-2 lg:tw-gap-8">
-              <FeatureBlock
-                title="Self-sorting capture"
-                body="Hypher suggests the right project, explains why, and lets you decide."
-                detail="Web inbox, /capture URLs, and scoped capture tokens for scripts and agents."
-              />
-              <FeatureBlock
-                title="Crystallized memory"
-                body="Accept or dismiss suggested decisions, constraints, and warnings so stale context does not poison the next brief."
-                detail="Returned agent output can flow back into Project Pulse — you stay in control of what becomes durable."
-              />
-              <FeatureBlock
-                title="Spatial canvas"
-                body="See how notes cluster per project when you want spatial sense-making, not just lists."
-                detail="Connections, undo/redo, and canvas ask — the thinking layer when a brief is not enough."
-              />
-              <FeatureBlock
-                title="Daily digest"
-                body="A resurfacing loop for neglected projects — human-readable, separate from the agent packet."
-                detail="Optional email mirror for builders who want a morning scan without opening the app."
-              />
-            </div>
-          </div>
-        </section>
-
         <section
           id="beta"
           className="tw-scroll-mt-24 tw-border-y tw-border-[var(--border-default)] tw-bg-[var(--bg-secondary)]"
@@ -340,18 +304,6 @@ function LoopStep({
   );
 }
 
-function FeatureBlock({ title, body, detail }: { title: string; body: string; detail: string }) {
-  return (
-    <article className="marketing-surface-card tw-flex tw-flex-col tw-rounded-[var(--radius-md)] tw-p-6">
-      <h3 className="tw-text-lg tw-font-medium tw-tracking-tight tw-text-[var(--text-primary)]">{title}</h3>
-      <p className="tw-mt-3 tw-flex-1 tw-text-sm tw-leading-relaxed tw-text-[var(--text-secondary)]">{body}</p>
-      <p className="tw-mt-5 tw-border-t tw-border-[var(--border-default)] tw-pt-4 tw-text-xs tw-leading-relaxed tw-text-[var(--text-tertiary)]">
-        {detail}
-      </p>
-    </article>
-  );
-}
-
 function AgentFlowCard({ title, body, code }: { title: string; body: string; code: string }) {
   return (
     <article className="marketing-surface-card tw-rounded-[var(--radius-md)] tw-p-6">
@@ -408,38 +360,6 @@ function LoopVisualCapture() {
   );
 }
 
-function LoopVisualSort() {
-  return (
-    <div className="tw-flex tw-h-full tw-min-h-[104px] tw-flex-col tw-gap-2 tw-text-[10px]">
-      <span className="tw-font-mono tw-text-[9px] tw-uppercase tw-tracking-wider tw-text-[var(--text-tertiary)]">
-        Suggested project
-      </span>
-      <div className="tw-flex tw-items-stretch tw-gap-2">
-        <div className="tw-flex tw-min-w-0 tw-flex-1 tw-flex-col tw-rounded tw-border tw-border-[var(--accent)] tw-bg-[var(--accent-subtle)] tw-p-2">
-          <div className="tw-flex tw-items-center tw-justify-between tw-gap-1">
-            <span className="tw-truncate tw-font-medium tw-text-[var(--accent)]">Essays</span>
-            <span className="tw-shrink-0 tw-font-mono tw-text-[var(--text-tertiary)]">82%</span>
-          </div>
-          <div className="tw-mt-2 tw-h-1 tw-w-full tw-overflow-hidden tw-rounded-full tw-bg-[var(--bg-primary)]">
-            <div className="tw-h-full tw-w-[82%] tw-rounded-full tw-bg-[var(--accent)]/50" />
-          </div>
-        </div>
-        <div className="tw-flex tw-min-w-0 tw-flex-1 tw-flex-col tw-rounded tw-border tw-border-[var(--border-default)] tw-bg-[var(--bg-primary)] tw-p-2 tw-opacity-[0.92]">
-          <div className="tw-flex tw-items-center tw-justify-between tw-gap-1">
-            <span className="tw-truncate tw-font-medium tw-text-[var(--text-secondary)]">Ship v1</span>
-            <span className="tw-shrink-0 tw-font-mono tw-text-[var(--text-tertiary)]">14%</span>
-          </div>
-          <div className="tw-mt-2 tw-h-1 tw-w-full tw-overflow-hidden tw-rounded-full tw-bg-[var(--bg-tertiary)]">
-            <div className="tw-h-full tw-w-[14%] tw-rounded-full tw-bg-[var(--text-quaternary)]/40" />
-          </div>
-        </div>
-      </div>
-      <p className="tw-line-clamp-2 tw-leading-snug tw-text-[var(--text-quaternary)]">
-        Matched &quot;digest&quot;, &quot;export&quot;, and your last three captures.
-      </p>
-    </div>
-  );
-}
 
 function LoopVisualMemory() {
   return (

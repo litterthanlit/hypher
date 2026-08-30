@@ -115,13 +115,6 @@ export const getStatus = query({
         note: "Optional fallback for server-side GitHub context reads.",
       }),
       item({
-        id: "convex-seed-webhook",
-        label: "Signup seed mutation shared secret",
-        vars: ["SEED_WEBHOOK_SECRET"],
-        required: false,
-        note: "Must match the Next.js env value used by the Clerk webhook route.",
-      }),
-      item({
         id: "convex-beta-admins",
         label: "Beta admin user IDs",
         vars: ["BETA_ADMIN_USER_IDS"],

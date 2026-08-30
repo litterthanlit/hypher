@@ -102,44 +102,6 @@ export function useStore(options: UseStoreOptions = {}) {
   const subscribeAllObjects = options.subscribeAllObjects ?? true;
   const subscribeAllActivity = options.subscribeAllActivity ?? subscribeAllObjects;
 
-  const ensureDemoForUser = useMutation(api.seed.ensureDemoForUser);
-  // typegen pending convex dev
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const ensureDefaultPrefs = useMutation((api as any).digestEmail.ensureDefaultPrefs);
-  const ensureWorkspacePrefs = useMutation(api.workspacePrefs.ensureDefaults);
-  const migrateWorkspacePrefs = useMutation(api.workspacePrefs.migrateFromLocal);
-
-  useEffect(() => {
-    if (skipConvex) return;
-    const run = async () => {
-      await ensureDemoForUser();
-      // Bootstrap digestPrefs row for new users (idempotent — no-op if row exists)
-      const timezone =
-        typeof Intl !== "undefined"
-          ? Intl.DateTimeFormat().resolvedOptions().timeZone
-          : "UTC";
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (ensureDefaultPrefs as any)({ timezone });
-      await ensureWorkspacePrefs();
-      const { collectLocalViewModes, hasMigratedWorkspacePrefs, markWorkspacePrefsMigrated } =
-        await import("./workspacePrefsClient");
-      if (!hasMigratedWorkspacePrefs()) {
-        const entries = collectLocalViewModes();
-        if (entries.length > 0) {
-          await migrateWorkspacePrefs({ entries });
-        }
-        markWorkspacePrefsMigrated();
-      }
-    };
-    void run();
-  }, [
-    skipConvex,
-    ensureDemoForUser,
-    ensureDefaultPrefs,
-    ensureWorkspacePrefs,
-    migrateWorkspacePrefs,
-  ]);
-
   /* ── Reactive queries (replaces reload()) ─────────────────────── */
   const rawAllObjects = useQuery(api.objects.list, skipConvex || !subscribeAllObjects ? "skip" : {});
   const rawProjects = useQuery(api.projects.list, skipConvex ? "skip" : {});
@@ -767,42 +729,6 @@ export function useStore(options: UseStoreOptions = {}) {
     return Array.from(idMap.values());
   };
 
-  /* ── Forgetting curve / rediscovery ───────────────────────────── */
-  const REDISCOVERY_INTERVALS = [1, 3, 7, 14, 30].map((d) => d * 86400000);
-
-  const getRediscovery = useCallback((): AnyObject | null => {
-    if (rawAllObjects === undefined) return null;
-    const now = Date.now();
-    const candidates = objects.filter((obj) => {
-      if (obj.kind === "project") return false;
-      const age = now - obj.createdAt;
-      if (age < 86400000) return false;
-      const lastSurfaced = obj.lastSurfacedAt ?? 0;
-      const timeSinceSurface = now - lastSurfaced;
-
-      for (const interval of REDISCOVERY_INTERVALS) {
-        if (age >= interval && timeSinceSurface >= interval) {
-          return true;
-        }
-      }
-      return false;
-    });
-
-    if (candidates.length === 0) return null;
-    candidates.sort(
-      (a, b) => (a.lastSurfacedAt ?? 0) - (b.lastSurfacedAt ?? 0)
-    );
-    return candidates[0] ?? null;
-  }, [objects, rawAllObjects]);
-
-  const markSurfaced = async (id: string) => {
-    const obj = objects.find((o) => o.id === id);
-    if (!obj) return;
-    await putObjectMut(
-      convexUpdateArgs({ ...obj, lastSurfacedAt: Date.now() })
-    );
-  };
-
   /* ── Clipboard capture ────────────────────────────────────────── */
   const captureFromClipboard = async (): Promise<boolean> => {
     try {
@@ -940,8 +866,6 @@ export function useStore(options: UseStoreOptions = {}) {
     isProcessing,
     modelLoading,
     addToast,
-    getRediscovery,
-    markSurfaced,
     captureFromClipboard,
     search,
     duplicateObjects,
