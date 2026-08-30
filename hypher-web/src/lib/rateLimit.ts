@@ -20,12 +20,11 @@ function getRatelimitForBucket(
   if (!hasUsableRedisEnv(url, token)) {
     if (process.env.NODE_ENV === "production") {
       console.error(
-        `[hypher/rateLimit] Upstash Redis env missing or invalid — denying production request for bucket "${bucket}"`
+        `[hypher/rateLimit] Upstash Redis env missing or invalid — allowing request for bucket "${bucket}" (fail-open)`
       );
-      cache.set(cacheKey, null);
-      return null;
+    } else {
+      console.warn(`[hypher/rateLimit] Upstash Redis env missing or invalid — rate limiting disabled for bucket "${bucket}"`);
     }
-    console.warn(`[hypher/rateLimit] Upstash Redis env missing or invalid — rate limiting disabled for bucket "${bucket}"`);
     cache.set(cacheKey, null);
     return null;
   }
@@ -60,7 +59,8 @@ function getRatelimitForBucket(
  * @param opts    - { requests: max allowed calls, window: sliding window duration }.
  * @returns `true` if the request is allowed, `false` if it should be rate-limited (429).
  *
- * When Upstash env vars are not set, local/test allows and production denies.
+ * When Upstash env vars are absent or invalid, requests are allowed (fail-open)
+ * so missing Redis never 429s production OAuth/API traffic. Production logs an error.
  */
 export async function ratelimitUser(
   userId: string,
@@ -68,7 +68,7 @@ export async function ratelimitUser(
   opts: { requests: number; window: `${number}${"s" | "m" | "h" | "d"}` },
 ): Promise<boolean> {
   const rl = getRatelimitForBucket(bucket, opts);
-  if (!rl) return process.env.NODE_ENV !== "production"; // local/test allow, production deny
+  if (!rl) return true;
 
   const key = `${userId}`;
   const result = await rl.limit(key);

@@ -72,7 +72,7 @@ describe("ratelimitUser", () => {
     expect(allowed).toBe(true);
   });
 
-  it("HYP-REL-009 denies production requests when rate-limit env vars are missing", async () => {
+  it("allows production requests when Upstash env vars are missing (fail-open)", async () => {
     vi.stubEnv("NODE_ENV", "production");
     delete process.env.UPSTASH_REDIS_REST_URL;
     delete process.env.UPSTASH_REDIS_REST_TOKEN;
@@ -81,6 +81,18 @@ describe("ratelimitUser", () => {
       requests: 5,
       window: "1m",
     });
-    expect(allowed).toBe(false);
+    expect(allowed).toBe(true);
+  });
+
+  it("allows production requests when Upstash env vars are placeholder values", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    process.env.UPSTASH_REDIS_REST_URL = "https://...";
+    process.env.UPSTASH_REDIS_REST_TOKEN = "...";
+
+    const allowed = await ratelimitUser("user_xyz", "bucket-prod-placeholder", {
+      requests: 5,
+      window: "1m",
+    });
+    expect(allowed).toBe(true);
   });
 });
