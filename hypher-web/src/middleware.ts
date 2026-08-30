@@ -18,6 +18,7 @@ const isPublicRoute = createRouteMatcher([
   "/oauth(.*)",
   "/api/capture(.*)",
   "/api/agent/events(.*)",
+  "/mcp(.*)",
   "/api/mcp(.*)",
   "/api/projects(.*)",
   "/api/stripe/checkout(.*)",

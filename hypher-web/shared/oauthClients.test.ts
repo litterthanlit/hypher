@@ -7,6 +7,7 @@ import {
   HYPHER_CURSOR_OAUTH_CLIENT_ID,
   HYPHER_GROK_OAUTH_CLIENT_ID,
   getRegisteredOAuthClient,
+  intersectCursorMcpRedirectUris,
   isGrokOAuthClientId,
   isRedirectUriRegistered,
   registeredOAuthClients,
@@ -56,5 +57,20 @@ describe("Grok and Cursor MCP redirect allowlists", () => {
     expect(isRedirectUriRegistered(GROK_OAUTH_CLIENT, "https://attacker.example/callback")).toBe(false);
     expect(isRedirectUriRegistered(GROK_OAUTH_CLIENT, "grokbot://oauth/callback")).toBe(false);
     expect(isRedirectUriRegistered(CURSOR_OAUTH_CLIENT, "http://localhost:3000/callback")).toBe(false);
+  });
+
+  it("intersects DCR redirect_uris with the Cursor MCP allowlist", () => {
+    expect(
+      intersectCursorMcpRedirectUris([
+        "https://www.cursor.com/agents/mcp/oauth/callback",
+        "grokbot://oauth/callback",
+        "https://www.cursor.com/agents/mcp/oauth/callback",
+        "http://localhost:8787/callback",
+      ])
+    ).toEqual([
+      "https://www.cursor.com/agents/mcp/oauth/callback",
+      "http://localhost:8787/callback",
+    ]);
+    expect(intersectCursorMcpRedirectUris(["https://attacker.example/callback"])).toEqual([]);
   });
 });

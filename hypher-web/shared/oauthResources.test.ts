@@ -13,6 +13,8 @@ const PRODUCTION_ALIASES = [
   "https://www.hypher.app",
   "https://hypher.app/api/mcp",
   "https://www.hypher.app/api/mcp",
+  "https://hypher.app/mcp",
+  "https://www.hypher.app/mcp",
 ] as const;
 
 describe("Hypher OAuth resource aliases", () => {
@@ -22,6 +24,9 @@ describe("Hypher OAuth resource aliases", () => {
     }
     expect(canonicalizeOAuthResource("https://www.hypher.app/")).toBe(CANONICAL_HYPHER_OAUTH_RESOURCE);
     expect(canonicalizeOAuthResource("https://www.hypher.app/api/mcp/")).toBe(
+      CANONICAL_HYPHER_OAUTH_RESOURCE
+    );
+    expect(canonicalizeOAuthResource("https://www.hypher.app/mcp")).toBe(
       CANONICAL_HYPHER_OAUTH_RESOURCE
     );
   });
@@ -48,20 +53,23 @@ describe("Hypher OAuth resource aliases", () => {
     expect(canonicalizeOAuthResource("https://www.hypher.app/api/mcp?x=1")).toBeNull();
   });
 
-  it("lists the four production aliases from either www or apex expected resources", () => {
+  it("lists the production aliases from either www or apex expected resources", () => {
     expect(hypherOAuthResourceAliases("https://www.hypher.app")).toEqual([...PRODUCTION_ALIASES]);
     expect(hypherOAuthResourceAliases("https://hypher.app/api/mcp")).toEqual([...PRODUCTION_ALIASES]);
   });
 
   it("keeps localhost origin and /api/mcp equivalent without mapping them to production", () => {
     expect(canonicalizeOAuthResource("http://localhost:3000/api/mcp")).toBe("http://localhost:3000");
+    expect(canonicalizeOAuthResource("http://localhost:3000/mcp")).toBe("http://localhost:3000");
     expect(oauthResourcesEquivalent("http://localhost:3000", "http://localhost:3000/api/mcp")).toBe(
       true
     );
+    expect(oauthResourcesEquivalent("http://localhost:3000", "http://localhost:3000/mcp")).toBe(true);
     expect(oauthResourcesEquivalent("http://localhost:3000", "https://www.hypher.app")).toBe(false);
     expect(hypherOAuthResourceAliases("http://localhost:3000")).toEqual([
       "http://localhost:3000",
       "http://localhost:3000/api/mcp",
+      "http://localhost:3000/mcp",
     ]);
   });
 

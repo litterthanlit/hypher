@@ -1,7 +1,10 @@
 import { createHash, randomBytes } from "crypto";
 import {
+  GROK_OAUTH_CLIENT,
+  HYPHER_GROK_OAUTH_CLIENT_ID,
   HYPHER_MCP_SCOPE,
   getRegisteredOAuthClient as lookupRegisteredOAuthClient,
+  intersectCursorMcpRedirectUris,
   isRedirectUriRegistered as clientHasRedirectUri,
   registeredOAuthClients as loadRegisteredOAuthClients,
   type RegisteredOAuthClient,
@@ -98,24 +101,154 @@ export function buildMcpProtectedResourceMetadata(baseUrl: string) {
   return buildProtectedResourceMetadata(baseUrl, mcpServerResourceUrl(baseUrl));
 }
 
-export function oauthProtectedResourceMetadataUrl(baseUrl: string, pathAppended = false): string {
+export function oauthProtectedResourceMetadataUrl(baseUrl: string, pathAppended: boolean | string = false): string {
   const origin = baseUrl.replace(/\/+$/, "");
-  return pathAppended
-    ? `${origin}/.well-known/oauth-protected-resource/api/mcp`
-    : `${origin}/.well-known/oauth-protected-resource`;
+  if (pathAppended === true) {
+    return `${origin}/.well-known/oauth-protected-resource/api/mcp`;
+  }
+  if (typeof pathAppended === "string" && pathAppended.length > 0) {
+    const suffix = pathAppended.replace(/^\/+/, "");
+    return `${origin}/.well-known/oauth-protected-resource/${suffix}`;
+  }
+  return `${origin}/.well-known/oauth-protected-resource`;
+}
+
+/** RFC 9728 path-appended metadata URL for the MCP resource the client requested. */
+export function mcpAuthChallengeMetadataUrl(requestUrl: string): string {
+  const pathname = new URL(requestUrl).pathname.replace(/\/+$/, "") || "/";
+  const suffix = pathname === "/mcp" ? "mcp" : "api/mcp";
+  return oauthProtectedResourceMetadataUrl(baseUrlFromRequest(requestUrl), suffix);
+}
+
+export function mcpWwwAuthenticateChallenge(requestUrl: string): string {
+  return `Bearer resource_metadata="${mcpAuthChallengeMetadataUrl(requestUrl)}", scope="${HYPHER_MCP_SCOPE}"`;
 }
 
 export function buildOAuthMetadata(baseUrl: string) {
+  const origin = baseUrl.replace(/\/+$/, "");
   return {
-    issuer: baseUrl,
-    authorization_endpoint: `${baseUrl}/oauth/authorize`,
-    token_endpoint: `${baseUrl}/oauth/token`,
+    issuer: origin,
+    authorization_endpoint: `${origin}/oauth/authorize`,
+    token_endpoint: `${origin}/oauth/token`,
+    registration_endpoint: `${origin}/oauth/register`,
     client_id_metadata_document_supported: true,
     response_types_supported: ["code"],
     grant_types_supported: ["authorization_code"],
     code_challenge_methods_supported: ["S256"],
     token_endpoint_auth_methods_supported: ["none"],
     scopes_supported: [HYPHER_MCP_SCOPE],
+  };
+}
+
+export type DynamicClientRegistrationRequest = {
+  redirect_uris?: unknown;
+  token_endpoint_auth_method?: unknown;
+  grant_types?: unknown;
+  response_types?: unknown;
+};
+
+export type DynamicClientRegistrationSuccess = {
+  client_id: typeof HYPHER_GROK_OAUTH_CLIENT_ID;
+  client_name: string;
+  client_id_issued_at: number;
+  redirect_uris: string[];
+  token_endpoint_auth_method: "none";
+  grant_types: ["authorization_code"];
+  response_types: ["code"];
+  code_challenge_methods: ["S256"];
+};
+
+export type DynamicClientRegistrationResult =
+  | { ok: true; client: DynamicClientRegistrationSuccess }
+  | { ok: false; error: string; error_description: string };
+
+function asStringArray(value: unknown): string[] | null {
+  if (value === undefined) return [];
+  if (!Array.isArray(value) || value.some((entry) => typeof entry !== "string")) {
+    return null;
+  }
+  return value;
+}
+
+/**
+ * RFC 7591 public-client DCR. Reuses hypher-grok when requested redirects
+ * intersect the Cursor/Grok allowlist. Does not persist new clients.
+ */
+export function registerPublicGrokOAuthClient(
+  body: DynamicClientRegistrationRequest,
+  issuedAtSeconds = Math.floor(Date.now() / 1000)
+): DynamicClientRegistrationResult {
+  const tokenAuth = body.token_endpoint_auth_method ?? "none";
+  if (tokenAuth !== "none") {
+    return {
+      ok: false,
+      error: "invalid_client_metadata",
+      error_description: "Public clients must use token_endpoint_auth_method none.",
+    };
+  }
+
+  const grantTypes = asStringArray(body.grant_types);
+  if (grantTypes === null) {
+    return {
+      ok: false,
+      error: "invalid_client_metadata",
+      error_description: "grant_types must be an array of strings.",
+    };
+  }
+  if (grantTypes.length > 0 && !grantTypes.includes("authorization_code")) {
+    return {
+      ok: false,
+      error: "invalid_client_metadata",
+      error_description: "Hypher only supports authorization_code.",
+    };
+  }
+
+  const responseTypes = asStringArray(body.response_types);
+  if (responseTypes === null) {
+    return {
+      ok: false,
+      error: "invalid_client_metadata",
+      error_description: "response_types must be an array of strings.",
+    };
+  }
+  if (responseTypes.length > 0 && !responseTypes.includes("code")) {
+    return {
+      ok: false,
+      error: "invalid_client_metadata",
+      error_description: "Hypher only supports response_type code.",
+    };
+  }
+
+  const requested = asStringArray(body.redirect_uris);
+  if (requested === null) {
+    return {
+      ok: false,
+      error: "invalid_redirect_uri",
+      error_description: "redirect_uris must be an array of strings.",
+    };
+  }
+
+  const redirectUris = intersectCursorMcpRedirectUris(requested);
+  if (redirectUris.length === 0) {
+    return {
+      ok: false,
+      error: "invalid_redirect_uri",
+      error_description: "redirect_uris must intersect the registered Cursor MCP callbacks.",
+    };
+  }
+
+  return {
+    ok: true,
+    client: {
+      client_id: HYPHER_GROK_OAUTH_CLIENT_ID,
+      client_name: GROK_OAUTH_CLIENT.name,
+      client_id_issued_at: issuedAtSeconds,
+      redirect_uris: redirectUris,
+      token_endpoint_auth_method: "none",
+      grant_types: ["authorization_code"],
+      response_types: ["code"],
+      code_challenge_methods: ["S256"],
+    },
   };
 }
 

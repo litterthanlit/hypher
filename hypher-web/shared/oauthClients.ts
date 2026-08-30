@@ -83,3 +83,19 @@ export function isCursorOAuthClientId(clientId: string): boolean {
 export function isGrokOAuthClientId(clientId: string): boolean {
   return clientId === HYPHER_GROK_OAUTH_CLIENT_ID;
 }
+
+/**
+ * RFC 7591 DCR: keep only redirect URIs already on the Cursor/Grok allowlist.
+ * Does not persist clients or invent grokbot:// URIs.
+ */
+export function intersectCursorMcpRedirectUris(redirectUris: readonly string[]): string[] {
+  const allow = new Set<string>(CURSOR_MCP_OAUTH_REDIRECT_URIS);
+  const matched: string[] = [];
+  const seen = new Set<string>();
+  for (const uri of redirectUris) {
+    if (!allow.has(uri) || seen.has(uri)) continue;
+    seen.add(uri);
+    matched.push(uri);
+  }
+  return matched;
+}

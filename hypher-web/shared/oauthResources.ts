@@ -17,7 +17,7 @@ function normalizedPathname(pathname: string): string {
 
 function isOriginOrMcpPath(pathname: string): boolean {
   const path = normalizedPathname(pathname);
-  return path === "/" || path === "/api/mcp";
+  return path === "/" || path === "/api/mcp" || path === "/mcp";
 }
 
 function parseResourceUrl(resource: string): URL | null {
@@ -72,7 +72,9 @@ export function hypherOAuthResourceAliases(baseUrl: string): string[] {
       "https://www.hypher.app",
       "https://hypher.app/api/mcp",
       "https://www.hypher.app/api/mcp",
+      "https://hypher.app/mcp",
+      "https://www.hypher.app/mcp",
     ];
   }
-  return [canonical, mcpServerResourceUrl(canonical)];
+  return [canonical, mcpServerResourceUrl(canonical), `${canonical}/mcp`];
 }

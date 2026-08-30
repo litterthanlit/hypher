@@ -7,7 +7,7 @@ import type { ActivityEntry, AgentEvent, AnyObject, Handoff, Project, ProjectAct
 import {
   HYPHER_MCP_SCOPE,
   baseUrlFromRequest,
-  oauthProtectedResourceMetadataUrl,
+  mcpWwwAuthenticateChallenge,
   sha256Base64url,
 } from "@/lib/oauthBridge";
 import { canonicalizeOAuthResource } from "../../../../shared/oauthResources";
@@ -33,10 +33,6 @@ type JsonRpcRequest = {
   params?: any;
 };
 
-function metadataUrl(req: NextRequest): string {
-  return oauthProtectedResourceMetadataUrl(baseUrlFromRequest(req.url), true);
-}
-
 function mcpRequestResource(req: NextRequest): string {
   const baseUrl = baseUrlFromRequest(req.url);
   return canonicalizeOAuthResource(baseUrl) ?? baseUrl;
@@ -57,13 +53,31 @@ function jsonRpcError(id: JsonRpcRequest["id"], code: number, message: string, s
 }
 
 function authChallenge(req: NextRequest) {
-  return `Bearer resource_metadata="${metadataUrl(req)}", scope="${HYPHER_MCP_SCOPE}"`;
+  return mcpWwwAuthenticateChallenge(req.url);
 }
 
 function bearerToken(req: NextRequest): string | null {
   const header = req.headers.get("authorization") ?? "";
   const match = header.match(/^Bearer\s+(.+)$/i);
   return match?.[1]?.trim() || null;
+}
+
+async function hasClerkSession(): Promise<boolean> {
+  try {
+    const { userId } = await auth();
+    return Boolean(userId);
+  } catch {
+    return false;
+  }
+}
+
+async function unauthenticatedMcpChallenge(req: NextRequest, id: JsonRpcRequest["id"]) {
+  if (bearerToken(req) || await hasClerkSession()) {
+    return null;
+  }
+  return jsonRpcError(id, -32001, "unauth", 401, {
+    "WWW-Authenticate": authChallenge(req),
+  });
 }
 
 function isMissingConvexFunctionError(err: unknown): boolean {
@@ -177,7 +191,17 @@ async function getMcpContextForAccessToken(accessToken: string, resource: string
   };
 }
 
-export async function GET() {
+export async function OPTIONS() {
+  return new NextResponse(null, {
+    status: 204,
+    headers: { "Cache-Control": "no-store" },
+  });
+}
+
+export async function GET(req: NextRequest) {
+  const challenge = await unauthenticatedMcpChallenge(req, null);
+  if (challenge) return challenge;
+
   return NextResponse.json({
     name: "hypher",
     protocol: "mcp",
@@ -203,15 +227,18 @@ export async function POST(req: NextRequest) {
     return jsonRpcError(null, -32700, "Parse error", 400);
   }
 
-  if (body.method === "initialize") {
-    return jsonRpc(body.id, {
-      protocolVersion: "2024-11-05",
-      serverInfo: { name: "hypher", version: "0.1.0" },
-      capabilities: { tools: {} },
-    });
-  }
+  if (body.method === "initialize" || body.method === "tools/list") {
+    const challenge = await unauthenticatedMcpChallenge(req, body.id);
+    if (challenge) return challenge;
 
-  if (body.method === "tools/list") {
+    if (body.method === "initialize") {
+      return jsonRpc(body.id, {
+        protocolVersion: "2024-11-05",
+        serverInfo: { name: "hypher", version: "0.1.0" },
+        capabilities: { tools: {} },
+      });
+    }
+
     return jsonRpc(body.id, { tools: getHypherMcpToolDescriptors() });
   }
 
