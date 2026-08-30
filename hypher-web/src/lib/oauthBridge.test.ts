@@ -3,9 +3,11 @@ import {
   buildOAuthApproveConsentUrl,
   buildOAuthConsentUrl,
   buildOAuthAuthorizeRedirect,
+  buildMcpProtectedResourceMetadata,
   buildOAuthMetadata,
   buildProtectedResourceMetadata,
   codeChallengeS256,
+  oauthProtectedResourceMetadataUrl,
   parseOAuthConsentRequestParams,
   validateOAuthAuthorizeParams,
 } from "./oauthBridge";
@@ -19,6 +21,29 @@ describe("OAuth bridge metadata", () => {
       resource_documentation: "https://hypher.app/api/mcp",
       token_endpoint_auth_methods_supported: ["none"],
     });
+  });
+
+  it("publishes RFC 9728 path-appended metadata that identifies the MCP server URL", () => {
+    expect(buildMcpProtectedResourceMetadata("https://www.hypher.app")).toEqual({
+      resource: "https://www.hypher.app/api/mcp",
+      authorization_servers: ["https://www.hypher.app"],
+      scopes_supported: ["hypher.projects.read"],
+      resource_documentation: "https://www.hypher.app/api/mcp",
+      token_endpoint_auth_methods_supported: ["none"],
+    });
+    expect(buildMcpProtectedResourceMetadata("https://hypher.app")).toEqual({
+      resource: "https://hypher.app/api/mcp",
+      authorization_servers: ["https://hypher.app"],
+      scopes_supported: ["hypher.projects.read"],
+      resource_documentation: "https://hypher.app/api/mcp",
+      token_endpoint_auth_methods_supported: ["none"],
+    });
+    expect(oauthProtectedResourceMetadataUrl("https://www.hypher.app", true)).toBe(
+      "https://www.hypher.app/.well-known/oauth-protected-resource/api/mcp"
+    );
+    expect(oauthProtectedResourceMetadataUrl("https://hypher.app")).toBe(
+      "https://hypher.app/.well-known/oauth-protected-resource"
+    );
   });
 
   it("publishes OAuth metadata for authorization code plus PKCE", () => {
@@ -78,6 +103,7 @@ describe("OAuth authorize params", () => {
       "http://localhost:8787/callback",
       "https://www.cursor.com/agents/mcp/oauth/callback",
       "cursor://anysphere.cursor-mcp/oauth/callback",
+      "https://cursor.com/agents/mcp/oauth/callback",
     ];
 
     for (const redirect_uri of redirects) {
@@ -115,6 +141,50 @@ describe("OAuth authorize params", () => {
       ok: true,
       clientId: "hypher-cursor",
       clientName: "Cursor",
+    });
+  });
+
+  it("accepts apex, www, and /api/mcp resource aliases when the expected resource is www", () => {
+    const aliases = [
+      "https://hypher.app",
+      "https://www.hypher.app",
+      "https://hypher.app/api/mcp",
+      "https://www.hypher.app/api/mcp",
+    ];
+
+    for (const resource of aliases) {
+      const params = new URLSearchParams({
+        response_type: "code",
+        client_id: "hypher-grok",
+        redirect_uri: "https://www.cursor.com/agents/mcp/oauth/callback",
+        code_challenge: "abc",
+        code_challenge_method: "S256",
+        resource,
+        scope: "hypher.projects.read",
+      });
+
+      expect(validateOAuthAuthorizeParams(params, "https://www.hypher.app")).toMatchObject({
+        ok: true,
+        clientId: "hypher-grok",
+        resource: "https://www.hypher.app",
+      });
+    }
+  });
+
+  it("rejects a resource that is not a Hypher origin or MCP alias", () => {
+    const params = new URLSearchParams({
+      response_type: "code",
+      client_id: "hypher-grok",
+      redirect_uri: "https://www.cursor.com/agents/mcp/oauth/callback",
+      code_challenge: "abc",
+      code_challenge_method: "S256",
+      resource: "https://evil.example",
+    });
+
+    expect(validateOAuthAuthorizeParams(params, "https://www.hypher.app")).toEqual({
+      ok: false,
+      error: "invalid_target",
+      errorDescription: "OAuth resource does not match this Hypher MCP server.",
     });
   });
 

@@ -6,6 +6,7 @@ import {
   isRedirectUriRegistered,
   registeredOAuthClients,
 } from "../shared/oauthClients";
+import { oauthResourcesEquivalent } from "../shared/oauthResources";
 
 const CODE_TTL_MS = 10 * 60 * 1000;
 const CONSENT_TTL_MS = 10 * 60 * 1000;
@@ -196,7 +197,7 @@ export const exchangeAuthorizationCode = mutation({
       code.clientId !== args.clientId ||
       code.redirectUri !== args.redirectUri ||
       code.codeChallenge !== args.codeChallenge ||
-      code.resource !== args.resource
+      !oauthResourcesEquivalent(code.resource, args.resource)
     ) {
       return null;
     }
@@ -235,7 +236,10 @@ async function lookupAccessToken(
   if (!token || token.revokedAt !== undefined || token.expiresAt <= args.now) {
     return null;
   }
-  if (token.resource !== args.resource || !token.scope.split(/\s+/).includes(args.scope)) {
+  if (
+    !oauthResourcesEquivalent(token.resource, args.resource) ||
+    !token.scope.split(/\s+/).includes(args.scope)
+  ) {
     return null;
   }
   if (!(await hasBetaAccess(ctx as any, token.userId))) {

@@ -4,7 +4,13 @@ import { fetchAction, fetchMutation, fetchQuery } from "convex/nextjs";
 import { api } from "../../../../convex/_generated/api";
 import type { Id } from "../../../../convex/_generated/dataModel";
 import type { ActivityEntry, AgentEvent, AnyObject, Handoff, Project, ProjectAction, ProjectMemory } from "@/types";
-import { HYPHER_MCP_SCOPE, baseUrlFromRequest, sha256Base64url } from "@/lib/oauthBridge";
+import {
+  HYPHER_MCP_SCOPE,
+  baseUrlFromRequest,
+  oauthProtectedResourceMetadataUrl,
+  sha256Base64url,
+} from "@/lib/oauthBridge";
+import { canonicalizeOAuthResource } from "../../../../shared/oauthResources";
 import { isRequestBodyTooLarge, readJsonWithLimit } from "@/lib/requestBody";
 import {
   buildMcpToolResult,
@@ -28,7 +34,12 @@ type JsonRpcRequest = {
 };
 
 function metadataUrl(req: NextRequest): string {
-  return `${baseUrlFromRequest(req.url)}/.well-known/oauth-protected-resource`;
+  return oauthProtectedResourceMetadataUrl(baseUrlFromRequest(req.url), true);
+}
+
+function mcpRequestResource(req: NextRequest): string {
+  const baseUrl = baseUrlFromRequest(req.url);
+  return canonicalizeOAuthResource(baseUrl) ?? baseUrl;
 }
 
 function jsonRpc(id: JsonRpcRequest["id"], result: unknown, status = 200) {
@@ -219,7 +230,7 @@ export async function POST(req: NextRequest) {
     if (accessToken) {
       context = await getMcpContextForAccessToken(
         accessToken,
-        baseUrlFromRequest(req.url),
+        mcpRequestResource(req),
         mcpToolNeedsProjectContext(toolName) ? projectId : undefined
       );
     } else {
@@ -262,7 +273,7 @@ export async function POST(req: NextRequest) {
       if (accessToken) {
         result = await fetchAction((api as any).agentEvents.createFromOAuthRequest, {
           tokenHash: sha256Base64url(accessToken),
-          resource: baseUrlFromRequest(req.url),
+          resource: mcpRequestResource(req),
           scope: HYPHER_MCP_SCOPE,
           now: Date.now(),
           ...writeArgs,

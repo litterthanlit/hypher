@@ -16,7 +16,7 @@ Hypher is the project memory / control plane. Cursor is the execution environmen
    Run that from `extensions/cursor` in this repo.
 
 2. Reload Cursor. Confirm **Hypher** appears under Customize → Plugins.
-3. Enable the plugin. Cursor should connect to `https://hypher.app/api/mcp` and open Hypher OAuth.
+3. Enable the plugin. Cursor should connect to `https://www.hypher.app/api/mcp` and open Hypher OAuth.
 4. Sign in with your existing Hypher / Clerk account and authorize Cursor.
 
 Until marketplace review lands, this local path is the supported install.
@@ -43,7 +43,7 @@ Fallback: a Hypher API key from Settings → API keys, added as a Bearer header 
 
 ## Troubleshooting
 
-- **Tools do not appear.** Confirm the plugin is enabled and MCP logs show `https://hypher.app/api/mcp`.
+- **Tools do not appear.** Confirm the plugin is enabled and MCP logs show `https://www.hypher.app/api/mcp`.
 - **OAuth fails on redirect_uri.** Hypher allowlists `http://localhost:8787/callback`, `cursor://anysphere.cursor-mcp/oauth/callback`, and `https://www.cursor.com/agents/mcp/oauth/callback`.
 - **`resolve_project_for_repo` is unmatched.** Link the GitHub repo on [Integrations](https://hypher.app/app/settings/integrations).
 - **Handoff did not show up.** Check Agent Inbox, then Project Pulse for the matched project. Unmatched events stay in Inbox for review.

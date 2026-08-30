@@ -6,7 +6,7 @@ import {
 } from "../../shared/oauthClients";
 
 export const HYPHER_PUBLIC_ORIGIN = "https://hypher.app";
-export const HYPHER_MCP_URL = `${HYPHER_PUBLIC_ORIGIN}/api/mcp`;
+export const HYPHER_MCP_URL = "https://www.hypher.app/api/mcp";
 export const HYPHER_CURSOR_INTEGRATIONS_URL = `${HYPHER_PUBLIC_ORIGIN}/app/settings/integrations`;
 export { HYPHER_CURSOR_OAUTH_CLIENT_ID, CURSOR_OAUTH_CLIENT };
 
