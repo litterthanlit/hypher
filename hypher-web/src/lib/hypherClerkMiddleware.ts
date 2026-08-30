@@ -14,11 +14,13 @@ export type ClerkMiddlewareEnv = {
   CLERK_PUBLISHABLE_KEY?: string;
   NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY?: string;
   CLERK_SECRET_KEY?: string;
+  CLERK_ENCRYPTION_KEY?: string;
 };
 
 export type ClerkMiddlewareKeys = {
   publishableKey?: string;
   secretKey?: string;
+  encryptionKey?: string;
 };
 
 type HypherClerkHandler = (
@@ -44,13 +46,19 @@ export function resolveClerkMiddlewareKeys(env: ClerkMiddlewareEnv): ClerkMiddle
   return {
     publishableKey: firstPresent(env.CLERK_PUBLISHABLE_KEY, env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY),
     secretKey: firstPresent(env.CLERK_SECRET_KEY),
+    encryptionKey: firstPresent(env.CLERK_ENCRYPTION_KEY),
   };
 }
 
 /**
- * Builds the Next middleware Clerk should run. When the publishable key is
- * missing, clerkMiddleware throws before any route matcher — including `/` —
- * so we pass through instead of 500ing public pages.
+ * Builds the Next middleware Clerk should run.
+ *
+ * clerkMiddleware throws before any route matcher when publishableKey is
+ * missing, and again when secretKey is passed as a dynamic option without
+ * CLERK_ENCRYPTION_KEY (`encryption_key_missing`). Public pages must still
+ * render, so we pass through without Clerk when publishableKey is absent,
+ * and we only propagate secretKey when the encryption key is also present.
+ * Clerk still reads CLERK_SECRET_KEY from the environment for auth.
  */
 export function createHypherClerkMiddleware(
   keys: ClerkMiddlewareKeys,
@@ -64,8 +72,12 @@ export function createHypherClerkMiddleware(
     };
   }
 
+  // Clerk docs: CLERK_ENCRYPTION_KEY is mandatory only when providing secretKey
+  // as a middleware option. If it is missing, omit secretKey instead of 500ing.
+  const secretKey = keys.secretKey && keys.encryptionKey ? keys.secretKey : undefined;
+
   return createClerk(handler, {
     publishableKey,
-    ...(keys.secretKey ? { secretKey: keys.secretKey } : {}),
+    ...(secretKey ? { secretKey } : {}),
   });
 }
