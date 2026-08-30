@@ -82,13 +82,6 @@ const nextGroupSpecs: GroupSpec[] = [
         required: false,
         note: "Needed for production deploy automation, not local development.",
       },
-      {
-        id: "seed-webhook-next",
-        label: "Signup seed webhook shared secret",
-        vars: ["SEED_WEBHOOK_SECRET"],
-        required: false,
-        note: "Needed by the Clerk webhook route to seed demo data for new users.",
-      },
     ],
   },
   {

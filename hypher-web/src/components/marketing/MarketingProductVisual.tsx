@@ -56,7 +56,7 @@ export function MarketingProductVisual() {
           </div>
           <p className="tw-mt-2 tw-text-left tw-text-[13px] tw-leading-snug tw-text-[var(--text-primary)] sm:tw-text-sm">
             <span className="tw-text-[var(--text-secondary)]">Today · </span>
-            RFC for digest tone + export edge case for long notes…
+            RFC for brief tone + export edge case for long notes…
           </p>
         </div>
 
@@ -88,7 +88,7 @@ export function MarketingProductVisual() {
           {/* Project cards */}
           <div className="tw-space-y-2.5">
             <p className="tw-font-mono tw-text-[10px] tw-uppercase tw-tracking-wider tw-text-[var(--text-tertiary)]">
-              On canvas
+              Projects
             </p>
             <article className="marketing-inset-panel tw-rounded-[var(--radius-sm)] tw-p-3 tw-transition hover:tw-brightness-[1.02]">
               <div className="tw-flex tw-items-center tw-justify-between tw-gap-2">
@@ -100,7 +100,7 @@ export function MarketingProductVisual() {
                 </span>
               </div>
               <p className="tw-mt-2 tw-line-clamp-2 tw-text-[11px] tw-leading-relaxed tw-text-[var(--text-secondary)]">
-                Digest tone, export limits, reader trust.
+                Brief tone, export limits, reader trust.
               </p>
             </article>
             <article className="marketing-inset-panel tw-rounded-[var(--radius-sm)] tw-p-3 tw-opacity-95 tw-transition hover:tw-brightness-[1.02]">
@@ -118,7 +118,7 @@ export function MarketingProductVisual() {
             </article>
           </div>
 
-          {/* Memory + next + digest */}
+          {/* Memory + brief + writeback */}
           <div className="tw-flex tw-flex-col tw-gap-2.5">
             <p className="tw-font-mono tw-text-[10px] tw-uppercase tw-tracking-wider tw-text-[var(--text-tertiary)]">
               Project memory
@@ -154,7 +154,7 @@ export function MarketingProductVisual() {
             <div className="marketing-inset-panel tw-rounded-[var(--radius-sm)] tw-p-3">
               <div className="tw-flex tw-items-center tw-justify-between tw-gap-2">
                 <span className="tw-font-mono tw-text-[10px] tw-uppercase tw-tracking-wider tw-text-[var(--text-tertiary)]">
-                  Crystallized
+                  Memory
                 </span>
                 <span className="tw-font-mono tw-text-[10px] tw-text-[var(--text-quaternary)]">accepted</span>
               </div>

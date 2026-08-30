@@ -63,7 +63,7 @@ export function PricingCards({ variant }: { variant: Variant }) {
         <ul className={listClass}>
           <li>• Capture &amp; project memory</li>
           <li>• Builder Briefs for agents</li>
-          <li>• Daily digest</li>
+          <li>• Agent writeback inbox</li>
         </ul>
         <div className="tw-mt-8">
           {BETA_INVITE_ONLY ? (

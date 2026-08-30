@@ -14,7 +14,6 @@ const fullEnv = {
   NEXT_PUBLIC_CONVEX_URL: "https://real.convex.cloud",
   NEXT_PUBLIC_APP_URL: "https://hypher.app",
   CONVEX_DEPLOY_KEY: "prod:secret-value",
-  SEED_WEBHOOK_SECRET: "seed-secret-value",
   ANTHROPIC_API_KEY: "sk-ant-secret-value",
   OPENAI_API_KEY: "sk-openai-secret-value",
   UPSTASH_REDIS_REST_URL: "https://upstash.example",

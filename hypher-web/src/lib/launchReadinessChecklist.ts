@@ -18,33 +18,21 @@ export const LAUNCH_CHECKLIST_STORAGE_KEY = "hypher-launch-readiness-checklist-v
 export const LAUNCH_SMOKE_TESTS: LaunchSmokeTest[] = [
   {
     id: "sign-in",
-    title: "Sign in and seed demo",
-    detail: "Open the app, sign in as a fresh user, and confirm the Try Hypher workspace appears.",
+    title: "Sign in to an empty workspace",
+    detail: "Open the app, sign in as a fresh user, and confirm the dump field is focused and empty.",
     href: "/app",
   },
   {
     id: "capture-sort",
-    title: "Capture and sort",
-    detail: "Capture a note, assign a suggested project, and confirm it leaves the review queue.",
+    title: "Dump and sort",
+    detail: "Dump a note, assign a suggested project, and confirm it appears in the project's Latest Captures.",
     href: "/app",
   },
   {
-    id: "inbox-review",
-    title: "Dismiss and review later",
-    detail: "Dismiss a capture, open Inbox, then assign it from the review surface.",
+    id: "builder-brief",
+    title: "Copy Builder Brief",
+    detail: "Open a project pulse, copy the Builder Brief, and confirm the packet lands on the clipboard.",
     href: "/app",
-  },
-  {
-    id: "project-memory",
-    title: "Generate project memory",
-    detail: "Open the dashboard, generate memory for an active project, then accept or dismiss a next action.",
-    href: "/app",
-  },
-  {
-    id: "daily-digest",
-    title: "Daily digest settings",
-    detail: "Open API keys, toggle digest preferences, and confirm the save toast appears.",
-    href: "/app/settings/api-keys",
   },
   {
     id: "github",

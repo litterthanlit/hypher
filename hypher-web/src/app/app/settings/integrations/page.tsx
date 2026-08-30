@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useMemo } from "react";
 import Link from "next/link";
-import { useQuery, useAction } from "convex/react";
+import { useQuery, useAction, useConvexAuth } from "convex/react";
 import { toast } from "sonner";
 import { api } from "../../../../../convex/_generated/api";
 import type { Id } from "../../../../../convex/_generated/dataModel";
@@ -10,12 +10,26 @@ import {
   buildCursorMcpInstallDeeplink,
   cursorConnectionStatus,
 } from "@/lib/cursorPlugin";
+import { getSettingsAccessState } from "@/lib/settingsAccess";
 
 export default function IntegrationsPage() {
-  const status = useQuery(api.githubTokens.getStatus);
+  const { isLoading, isAuthenticated } = useConvexAuth();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const gateState = useQuery((api as any).beta.getGateState, isAuthenticated ? {} : "skip") as
+    | { hasAccess: boolean; isAdmin: boolean }
+    | undefined;
+  const accessState = getSettingsAccessState({
+    isLoading: isLoading || (isAuthenticated && gateState === undefined),
+    isAuthenticated,
+    hasBetaAccess: gateState?.hasAccess,
+    isAdmin: gateState?.isAdmin,
+  });
+  const canQuery = accessState === "settings";
+
+  const status = useQuery(api.githubTokens.getStatus, canQuery ? {} : "skip");
   const savePat = useAction(api.githubPat.savePersonalAccessToken);
   const connectRepo = useAction(api.githubIntegrations.connectRepoToProject);
-  const oauthConnections = useQuery(api.oauth.listConnections);
+  const oauthConnections = useQuery(api.oauth.listConnections, canQuery ? {} : "skip");
 
   const cursorStatus = useMemo(
     () => cursorConnectionStatus(oauthConnections ?? [], Date.now()),
@@ -23,7 +37,7 @@ export default function IntegrationsPage() {
   );
   const cursorDeeplink = buildCursorMcpInstallDeeplink();
 
-  const projects = useQuery(api.objects.list);
+  const projects = useQuery(api.objects.list, canQuery ? {} : "skip");
   const projectList =
     projects?.filter((o) => o.kind === "project") ?? [];
 
@@ -86,110 +100,115 @@ export default function IntegrationsPage() {
           </Link>
         </div>
 
-        <p className="api-keys-desc">
-          Connect Cursor so coding sessions start with a Builder Brief and end in Project Pulse.
-          GitHub still uses a personal access token (classic or fine-grained with repo read). The token is encrypted at rest.{" "}
-          <a href="https://github.com/settings/tokens" target="_blank" rel="noreferrer" className="integrations-docs-link">
-            Create a token
-          </a>
-        </p>
-
-        <section className="integrations-section">
-          <h4 className="integrations-section-title">Cursor</h4>
-          <p className="integrations-status">
-            Status:{" "}
-            <strong>
-              {oauthConnections === undefined ? "…" : cursorStatus.connected ? "Connected" : "Not connected"}
-            </strong>
-          </p>
-          <p className="api-keys-desc">
-            Install the Hypher plugin in Cursor, then authorize with your Hypher account. Opening a linked repo
-            loads the Builder Brief; `/hypher-handoff` writes back to Agent Inbox.
-          </p>
-          <div className="integrations-pat-form">
-            <a href={cursorDeeplink} className="settings-github-connect">
-              Add to Cursor
-            </a>
-            <a
-              href="https://github.com/litterthanlit/hypher/tree/main/extensions/cursor"
-              target="_blank"
-              rel="noreferrer"
-              className="integrations-docs-link"
-            >
-              Local install docs
-            </a>
+        {!canQuery ? (
+          <div className="api-keys-auth-required">
+            <p>{accessState === "loading" ? "Checking sign-in..." : accessState === "beta_required" ? "Beta access is required to manage integrations." : "Sign in to manage integrations."}</p>
+            {accessState === "sign_in_required" ? (
+              <Link href="/sign-in?redirect_url=/app/settings/integrations" className="settings-github-connect">
+                Sign in
+              </Link>
+            ) : null}
           </div>
-        </section>
-
-        <section className="integrations-section">
-          <h4 className="integrations-section-title">GitHub</h4>
-          <p className="integrations-status">
-            Status:{" "}
-            <strong>{status === undefined ? "…" : status.connected ? "Connected" : "Not connected"}</strong>
-          </p>
-          <div className="integrations-pat-form">
-            <input
-              type="password"
-              autoComplete="off"
-              value={patInput}
-              onChange={(e) => setPatInput(e.target.value)}
-              placeholder="ghp_… or github_pat_…"
-              className="settings-github-input"
-            />
-            <button
-              type="button"
-              className="settings-github-connect"
-              onClick={() => void handleSavePat()}
-              disabled={savingPat}
-            >
-              {savingPat ? "Saving…" : "Save token"}
-            </button>
-          </div>
-        </section>
-
-        <section className="integrations-section">
-          <h4 className="integrations-section-title">Connect repository per project</h4>
-          <p className="api-keys-desc">
-            After saving a token, link each project to a repo. We validate access and run an initial sync.
-          </p>
-          <div className="integrations-project-list">
-            {projectList.length === 0 && (
-              <p className="api-keys-empty">No projects yet — create one in the app first.</p>
-            )}
-            {projectList.map((p) => (
-              <div key={p._id} className="integrations-project-row">
-                <div className="integrations-project-name">
-                  <span>{p.name}</span>
-                  {p.githubRepo && (
-                    <code className="integrations-repo-badge">{p.githubRepo}</code>
-                  )}
-                </div>
-                <div className="integrations-repo-form">
-                  <input
-                    type="text"
-                    value={repoByProject[p._id] ?? ""}
-                    onChange={(e) =>
-                      setRepoByProject((prev) => ({
-                        ...prev,
-                        [p._id]: e.target.value,
-                      }))
-                    }
-                    placeholder="https://github.com/owner/repo or owner/repo"
-                    className="settings-github-input"
-                  />
-                  <button
-                    type="button"
-                    className="settings-github-connect"
-                    disabled={connectingId === p._id || !status?.connected}
-                    onClick={() => void handleConnectRepo(p._id)}
-                  >
-                    {connectingId === p._id ? "Syncing…" : "Connect"}
-                  </button>
-                </div>
+        ) : (
+          <>
+            <section className="integrations-section">
+              <h4 className="integrations-section-title">Cursor</h4>
+              <p className="integrations-status">
+                Status:{" "}
+                <strong>
+                  {oauthConnections === undefined ? "…" : cursorStatus.connected ? "Connected" : "Not connected"}
+                </strong>
+              </p>
+              <p className="api-keys-desc">
+                Install the Hypher plugin in Cursor, then authorize with your Hypher account. Opening a bound repo
+                loads the Builder Brief; `/hypher-handoff` writes back to Agent Inbox.
+              </p>
+              <div className="integrations-pat-form">
+                <a href={cursorDeeplink} className="settings-github-connect">
+                  Add to Cursor
+                </a>
+                <a
+                  href="https://github.com/litterthanlit/hypher/tree/main/extensions/cursor"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="integrations-docs-link"
+                >
+                  Local install docs
+                </a>
               </div>
-            ))}
-          </div>
-        </section>
+            </section>
+
+            <section className="integrations-section">
+              <h4 className="integrations-section-title">Bind repositories</h4>
+              <p className="api-keys-desc">
+                A project is a name and a repo. Save a GitHub token (classic or fine-grained with repo read — encrypted
+                at rest), then bind each project to its repository.{" "}
+                <a href="https://github.com/settings/tokens" target="_blank" rel="noreferrer" className="integrations-docs-link">
+                  Create a token
+                </a>
+              </p>
+              <p className="integrations-status">
+                GitHub token:{" "}
+                <strong>{status === undefined ? "…" : status.connected ? "Connected" : "Not connected"}</strong>
+              </p>
+              <div className="integrations-pat-form">
+                <input
+                  type="password"
+                  autoComplete="off"
+                  value={patInput}
+                  onChange={(e) => setPatInput(e.target.value)}
+                  placeholder="ghp_… or github_pat_…"
+                  className="settings-github-input"
+                />
+                <button
+                  type="button"
+                  className="settings-github-connect"
+                  onClick={() => void handleSavePat()}
+                  disabled={savingPat}
+                >
+                  {savingPat ? "Saving…" : "Save token"}
+                </button>
+              </div>
+              <div className="integrations-project-list">
+                {projectList.length === 0 && (
+                  <p className="api-keys-empty">No projects yet — create one in the app first.</p>
+                )}
+                {projectList.map((p) => (
+                  <div key={p._id} className="integrations-project-row">
+                    <div className="integrations-project-name">
+                      <span>{p.name}</span>
+                      {p.githubRepo && (
+                        <code className="integrations-repo-badge">{p.githubRepo}</code>
+                      )}
+                    </div>
+                    <div className="integrations-repo-form">
+                      <input
+                        type="text"
+                        value={repoByProject[p._id] ?? ""}
+                        onChange={(e) =>
+                          setRepoByProject((prev) => ({
+                            ...prev,
+                            [p._id]: e.target.value,
+                          }))
+                        }
+                        placeholder="https://github.com/owner/repo or owner/repo"
+                        className="settings-github-input"
+                      />
+                      <button
+                        type="button"
+                        className="settings-github-connect"
+                        disabled={connectingId === p._id || !status?.connected}
+                        onClick={() => void handleConnectRepo(p._id)}
+                      >
+                        {connectingId === p._id ? "Syncing…" : "Bind"}
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          </>
+        )}
       </div>
     </div>
   );

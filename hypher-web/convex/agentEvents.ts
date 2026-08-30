@@ -439,31 +439,6 @@ export const listForProject = query({
   },
 });
 
-export const needsYouCounts = query({
-  args: { projectId: v.id("objects") },
-  returns: v.object({
-    questions: v.number(),
-    nextActions: v.number(),
-    unmatched: v.number(),
-  }),
-  handler: async (ctx, { projectId }) => {
-    const userId = await requireBetaAccess(ctx);
-    const projectRows = await ctx.db
-      .query("agentEvents")
-      .withIndex("by_user_project", (q) => q.eq("userId", userId).eq("projectId", projectId))
-      .collect();
-    const inboxRows = await ctx.db
-      .query("agentEvents")
-      .withIndex("by_user_status", (q) => q.eq("userId", userId).eq("status", "new"))
-      .collect();
-    return {
-      questions: projectRows.filter((event) => event.status === "new" && event.kind === "question").length,
-      nextActions: projectRows.filter((event) => event.status === "new" && event.kind === "next_action").length,
-      unmatched: inboxRows.filter((event) => event.projectId === undefined).length,
-    };
-  },
-});
-
 export const markReviewed = mutation({
   args: { eventId: v.id("agentEvents"), reviewedAt: v.number() },
   handler: async (ctx, { eventId, reviewedAt }) => {
@@ -553,39 +528,6 @@ function summarizeEvent(title: string, body: string): string {
   const combined = `${heading}. ${details}`;
   return combined.length <= 180 ? combined : `${combined.slice(0, 179).trimEnd()}...`;
 }
-
-export const createSessionStub = mutation({
-  args: {
-    projectId: v.id("objects"),
-    source: v.string(),
-    title: v.string(),
-    body: v.string(),
-    repo: v.optional(v.string()),
-    branch: v.optional(v.string()),
-    createdAt: v.number(),
-  },
-  returns: v.id("agentEvents"),
-  handler: async (ctx, args) => {
-    const userId = await requireBetaAccess(ctx);
-    const project = await ctx.db.get(args.projectId);
-    if (!project || project.userId !== userId || project.kind !== "project") {
-      throw new Error("Invalid project");
-    }
-    return await ctx.db.insert("agentEvents", {
-      userId,
-      projectId: args.projectId,
-      source: args.source,
-      kind: "handoff",
-      title: args.title,
-      body: args.body,
-      ...(args.repo ? { repo: args.repo } : {}),
-      ...(args.branch ? { branch: args.branch } : {}),
-      status: "reviewed",
-      createdAt: args.createdAt,
-      reviewedAt: args.createdAt,
-    });
-  },
-});
 
 export const accept = mutation({
   args: {

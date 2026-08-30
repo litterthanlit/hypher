@@ -1,50 +1,20 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useStore } from "@/lib/useStore";
-import { useMutation, useQuery } from "convex/react";
+import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { CaptureHome } from "@/components/CaptureHome";
 import { Sidebar } from "@/components/Sidebar";
-import { SpatialCanvas } from "@/components/SpatialCanvas";
-import { ListView } from "@/components/ListView";
 import { ProjectDashboard } from "@/components/ProjectDashboard";
 import { ProjectPulse } from "@/components/ProjectPulse";
 import { AgentInboxPanel } from "@/components/AgentInboxPanel";
-import { DailyDigest } from "@/components/DailyDigest";
-import { WelcomeOverlay } from "@/components/WelcomeOverlay";
-import { OnboardingTour } from "@/components/OnboardingTour";
 import { AppErrorBoundary } from "@/components/AppErrorBoundary";
 import { SearchDialog } from "@/components/SearchDialog";
 import { AppChromeNav } from "@/components/AppChromeNav";
-import { HealthRing } from "@/components/HealthRing";
-import { InboxReviewPanel } from "@/components/InboxReviewPanel";
-import { BetaFeedbackModal } from "@/components/BetaFeedbackModal";
 import { CreateForm } from "@/components/CreateForm";
-import { WorkspaceLayoutBanner } from "@/components/WorkspaceLayoutBanner";
-import { buildWorkspaceSignals } from "@/lib/buildWorkspaceSignals";
-import {
-  isProjectContentMode,
-  resolveWorkspaceLayout,
-} from "@/lib/workspaceLayout";
-import { writeLocalViewMode } from "@/lib/workspacePrefsClient";
-import { generateSeedData } from "@/lib/notion-seed";
-import {
-  getWorkspaceChromeState,
-  getWorkspaceEmptyState,
-  type WorkspaceContentMode,
-} from "@/lib/activation";
-import {
-  ONBOARDING_TOUR_STEPS,
-  getNextOnboardingTourIndex,
-  getOnboardingTourStep,
-  shouldRunOnboardingTour,
-  shouldShowOnboardingWelcome,
-  type OnboardingState,
-} from "@/lib/onboarding";
 import { toast } from "sonner";
-import { computeHealthScore, type HealthInputs } from "@/lib/health";
-import type { AgentEvent, AnyObject, ArtifactType, ObjectKind, ProjectMemory } from "@/types";
+import type { AgentEvent, AnyObject, ArtifactType } from "@/types";
 import type { BetaGateState } from "@/lib/beta";
 
 function guessArtifactType(filename: string): ArtifactType {
@@ -59,114 +29,28 @@ function guessArtifactType(filename: string): ArtifactType {
 }
 
 type AppMode = "capture" | "workspace";
-type ContentMode = WorkspaceContentMode;
+type ContentMode = "pulse" | "dashboard" | "agent-inbox";
 
 export function HypherApp({ gateState }: { gateState: BetaGateState }) {
   const [appMode, setAppMode] = useState<AppMode>("capture");
   const [contentMode, setContentMode] = useState<ContentMode>("pulse");
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [showSearch, setShowSearch] = useState(false);
-  const [showDigest, setShowDigest] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [showCreateProject, setShowCreateProject] = useState(false);
-  const [welcomeBusy, setWelcomeBusy] = useState(false);
-  const [welcomeDismissedThisSession, setWelcomeDismissedThisSession] = useState(false);
-  const [tourActive, setTourActive] = useState(false);
-  const [tourStepIndex, setTourStepIndex] = useState(0);
-  const [showFeedback, setShowFeedback] = useState(false);
-  const [layoutBanner, setLayoutBanner] = useState<string | null>(null);
-  const [emphasizeAgentSection, setEmphasizeAgentSection] = useState(false);
-  const layoutDismissKeyRef = useRef<string | null>(null);
-  const needsAllObjects =
-    appMode === "capture" ||
-    contentMode === "inbox" ||
-    showSearch ||
-    showDigest;
+
+  const needsAllObjects = appMode === "capture" || showSearch;
   const store = useStore({
     selectedProjectId,
     subscribeAllObjects: needsAllObjects,
     subscribeAllActivity: false,
   });
   const skipTags = store.skipConvex;
-  const workspaceGlobalPrefs = useQuery(api.workspacePrefs.getGlobal, skipTags ? "skip" : {});
-  const workspaceProjectPrefs = useQuery(
-    api.workspacePrefs.getProject,
-    skipTags || !selectedProjectId ? "skip" : { projectId: selectedProjectId }
-  );
-  const setLastManualMode = useMutation(api.workspacePrefs.setLastManualMode);
-  const pinProjectMode = useMutation(api.workspacePrefs.pinMode);
-  const projectMemories = useQuery(
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (api as any).projectMemories.listForDashboard,
-    skipTags ? "skip" : {}
-  ) as ProjectMemory[] | undefined;
   const tagsList = useQuery(api.tags.listWithCounts, skipTags ? "skip" : {});
-  const demoDigestText = useQuery(api.seed.getDemoDigest, skipTags ? "skip" : {});
-  const createProjectPulseVerificationProject = useMutation(
-    // typegen pending convex codegen for local verification seed
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (api.seed as any).createProjectPulseVerificationProject
-  );
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const healthInputsList = useQuery((api as any).projects.healthInputs, skipTags ? "skip" : {});
   const agentInbox = useQuery((api as any).agentEvents.listInbox, skipTags ? "skip" : {}) as AgentEvent[] | undefined;
-  const projectHealthScores = useMemo(() => {
-    if (!healthInputsList) return {} as Record<string, number>;
-    const now = Date.now();
-    const m: Record<string, number> = {};
-    for (const row of healthInputsList as HealthInputs[]) {
-      m[row.projectId] = computeHealthScore(row, now).score;
-    }
-    return m;
-  }, [healthInputsList]);
-
-  const activationCounts = useMemo(() => {
-    const projectIds = new Set(store.projects.map((project) => project.id));
-    const memories = projectMemories ?? [];
-    return {
-      memoryCount: memories.filter(
-        (memory) => projectIds.has(memory.projectId) && Boolean(memory.summary?.trim())
-      ).length,
-      reviewedNextActionCount: memories.reduce(
-        (count, memory) =>
-          count +
-          (memory.nextActions ?? []).filter(
-            (action) => action.status === "accepted" || action.status === "dismissed"
-          ).length,
-        0
-      ),
-    };
-  }, [projectMemories, store.projects]);
-
-  const digestPreviewText = useMemo(() => {
-    const raw = demoDigestText;
-    if (typeof raw !== "string" || !raw.trim()) return null;
-    const oneLine = raw.replace(/\s+/g, " ").trim();
-    return oneLine.length > 160 ? `${oneLine.slice(0, 157)}…` : oneLine;
-  }, [demoDigestText]);
-  const onboardingState = useQuery(
-    // typegen pending convex dev/codegen for this new module
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (api as any).onboarding.getState,
-    skipTags ? "skip" : {}
-  ) as OnboardingState | undefined;
-  // typegen pending convex dev/codegen for this new module
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const markWelcomeSeen = useMutation((api as any).onboarding.markWelcomeSeen);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const markTourCompleted = useMutation((api as any).onboarding.markTourCompleted);
   const tags = useMemo(() => tagsList ?? [], [tagsList]);
-  const onboardingReady = skipTags || onboardingState !== undefined;
-  const welcomeVisible =
-    !welcomeDismissedThisSession &&
-    shouldShowOnboardingWelcome(onboardingState, {
-      isSignedIn: store.isSignedIn,
-      isReady: onboardingReady && !store.convexDataLoading,
-      hasWorkspaceData: store.projects.length > 0,
-    });
-  const tourStep = tourActive ? getOnboardingTourStep(tourStepIndex) : null;
-  const onboardingTourShouldRun = shouldRunOnboardingTour(onboardingState);
 
   // Server /capture route redirects here with ?project=…&toast=captured (or /app/p/:id → /app?project=…)
   useEffect(() => {
@@ -174,9 +58,9 @@ export function HypherApp({ gateState }: { gateState: BetaGateState }) {
     const params = new URLSearchParams(window.location.search);
     const pid = params.get("project");
     if (pid) {
-      layoutDismissKeyRef.current = null;
       setSelectedProjectId(pid);
       store.setSelectedId(pid);
+      setContentMode("pulse");
       setAppMode("workspace");
     }
     if (params.get("toast") === "captured") {
@@ -189,159 +73,6 @@ export function HypherApp({ gateState }: { gateState: BetaGateState }) {
       window.history.replaceState({}, "", next ? `/app?${next}` : "/app");
     }
   }, [store.clerkLoaded]);
-
-  useEffect(() => {
-    if (process.env.NODE_ENV !== "development") return;
-    if (typeof window === "undefined" || !store.clerkLoaded || !store.isSignedIn) return;
-
-    const params = new URLSearchParams(window.location.search);
-    if (params.get("demo") !== "project-pulse") return;
-
-    params.delete("demo");
-    const next = params.toString();
-    window.history.replaceState({}, "", next ? `/app?${next}` : "/app");
-
-    let cancelled = false;
-    const run = async () => {
-      try {
-        const result = await createProjectPulseVerificationProject() as { projectId?: string } | null;
-        if (cancelled || !result?.projectId) return;
-        layoutDismissKeyRef.current = null;
-        setSelectedProjectId(result.projectId);
-        store.setSelectedId(result.projectId);
-        setAppMode("workspace");
-        toast.success("Project Pulse demo ready");
-      } catch (err) {
-        console.error("[seed] project pulse verification", err);
-        toast.error("Could not seed Project Pulse demo");
-      }
-    };
-    void run();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [createProjectPulseVerificationProject, store.clerkLoaded, store.isSignedIn]);
-
-  // Auto-show digest on first open of the day
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const today = new Date().toISOString().slice(0, 10);
-    const lastDigest = localStorage.getItem("hypher-last-digest-date");
-    if (
-      lastDigest !== today &&
-      store.projects.length > 0 &&
-      onboardingReady &&
-      !welcomeVisible &&
-      !tourActive &&
-      !onboardingTourShouldRun
-    ) {
-      setShowDigest(true);
-    }
-  }, [store.projects.length, onboardingReady, welcomeVisible, tourActive, onboardingTourShouldRun]);
-
-  useEffect(() => {
-    if (welcomeVisible || tourActive || !onboardingTourShouldRun) return;
-    setTourStepIndex(0);
-    setTourActive(true);
-  }, [welcomeVisible, tourActive, onboardingTourShouldRun]);
-
-  useEffect(() => {
-    if (!tourActive || !tourStep) return;
-    setShowDigest(false);
-    setMobileSidebarOpen(false);
-    if (tourStep.destination === "capture") {
-      setAppMode("capture");
-      return;
-    }
-    setAppMode("workspace");
-    setContentMode("dashboard");
-    setSelectedProjectId(null);
-  }, [tourActive, tourStep?.id, tourStep?.destination]);
-
-  useEffect(() => {
-    layoutDismissKeyRef.current = null;
-    setLayoutBanner(null);
-  }, [selectedProjectId]);
-
-  const selectContentMode = useCallback(
-    (mode: ContentMode, options?: { manual?: boolean }) => {
-      setContentMode(mode);
-      setLayoutBanner(null);
-      layoutDismissKeyRef.current = selectedProjectId ?? "__global__";
-      setEmphasizeAgentSection(false);
-      if (options?.manual !== false && selectedProjectId && isProjectContentMode(mode)) {
-        writeLocalViewMode(selectedProjectId, mode);
-        void setLastManualMode({ projectId: selectedProjectId, mode });
-      }
-    },
-    [selectedProjectId, setLastManualMode]
-  );
-
-  useEffect(() => {
-    if (appMode !== "workspace" || tourActive) return;
-    if (workspaceGlobalPrefs === undefined) return;
-    if (selectedProjectId && workspaceProjectPrefs === undefined) return;
-
-    const dismissKey = selectedProjectId ?? "__global__";
-    if (layoutDismissKeyRef.current === dismissKey) return;
-
-    const signals = buildWorkspaceSignals({
-      projects: store.projects,
-      allObjects: store.objects,
-      inboxCount: store.inboxItems.length,
-      agentInboxCount: agentInbox?.length ?? 0,
-      selectedProjectId,
-      projectHealthScore:
-        selectedProjectId && projectHealthScores[selectedProjectId] != null
-          ? projectHealthScores[selectedProjectId]!
-          : null,
-      memoryCount: activationCounts.memoryCount,
-      reviewedNextActionCount: activationCounts.reviewedNextActionCount,
-    });
-
-    const result = resolveWorkspaceLayout({
-      signals,
-      globalDefaultMode: workspaceGlobalPrefs?.globalDefaultMode ?? "pulse",
-      projectPrefs: selectedProjectId ? workspaceProjectPrefs ?? null : null,
-      now: Date.now(),
-    });
-
-    setEmphasizeAgentSection(result.emphasizeAgentSection);
-    setContentMode(result.contentMode);
-    setLayoutBanner(result.autoSwitched && result.reason ? result.reason : null);
-  }, [
-    appMode,
-    tourActive,
-    selectedProjectId,
-    workspaceGlobalPrefs,
-    workspaceProjectPrefs,
-    store.inboxItems.length,
-    store.projects.length,
-    store.objects,
-    agentInbox?.length,
-    projectHealthScores,
-    activationCounts,
-  ]);
-
-  const toggleContentMode = useCallback(() => {
-    if (!selectedProjectId) return;
-    const next = contentMode === "canvas" ? "list" : "canvas";
-    selectContentMode(next);
-  }, [contentMode, selectedProjectId, selectContentMode]);
-
-  const handlePinLayout = useCallback(() => {
-    if (!selectedProjectId || !isProjectContentMode(contentMode)) return;
-    void pinProjectMode({ projectId: selectedProjectId, mode: contentMode });
-    setLayoutBanner(null);
-    layoutDismissKeyRef.current = selectedProjectId;
-    toast.success(`Pinned ${contentMode} for this project`);
-  }, [contentMode, pinProjectMode, selectedProjectId]);
-
-  const dismissLayoutBanner = useCallback(() => {
-    setLayoutBanner(null);
-    layoutDismissKeyRef.current = selectedProjectId ?? "__global__";
-  }, [selectedProjectId]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -358,64 +89,23 @@ export function HypherApp({ gateState }: { gateState: BetaGateState }) {
         e.preventDefault();
         store.captureFromClipboard();
       }
-      if ((e.metaKey || e.ctrlKey) && (e.key === "d" || e.key === "D") && !e.shiftKey) {
-        e.preventDefault();
-        setShowDigest(true);
-      }
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === "p" || e.key === "P")) {
         e.preventDefault();
         setSelectedProjectId(null);
+        setContentMode("dashboard");
         if (appMode !== "workspace") setAppMode("workspace");
-        selectContentMode("dashboard");
       }
       if (e.key === "Escape" && showSearch) {
         setShowSearch(false);
       }
-      // Tab toggles canvas/list (only in workspace, not in inputs)
-      if (appMode === "workspace" && e.key === "Tab") {
-        const tag = (e.target as HTMLElement).tagName;
-        if (tag !== "INPUT" && tag !== "TEXTAREA" && tag !== "SELECT") {
-          e.preventDefault();
-          toggleContentMode();
-        }
-      }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [showSearch, appMode, store, toggleContentMode, selectContentMode]);
-
-  // Rediscovery
-  useEffect(() => {
-    if (!store.hasFullObjectSubscription) return;
-    const surface = () => {
-      const item = store.getRediscovery();
-      if (!item) return;
-      const name = item.kind === "note"
-        ? (item as any).content?.slice(0, 50)
-        : (item as any).name ?? "an idea";
-      const daysAgo = Math.floor((Date.now() - item.createdAt) / 86400000);
-      store.addToast(
-        `Remember? "${name}" — ${daysAgo}d ago`,
-        { label: "View", onClick: () => { store.setSelectedId(item.id); setAppMode("workspace"); } }
-      );
-      store.markSurfaced(item.id);
-    };
-    const initial = setTimeout(surface, 3000);
-    const interval = setInterval(surface, 600000);
-    return () => { clearTimeout(initial); clearInterval(interval); };
-  }, [store.hasFullObjectSubscription, store.objects.length > 0]);
+  }, [showSearch, appMode, store]);
 
   const ingestLocalFiles = useCallback(
-    (
-      files: File[],
-      projectId: string | null,
-      opts?: { canvasAnchor?: { x: number; y: number } },
-    ) => {
-      const anchor = opts?.canvasAnchor;
-      files.forEach((file, index) => {
-        const canvasPosition = anchor
-          ? { x: anchor.x + index * 36, y: anchor.y + index * 28 }
-          : undefined;
+    (files: File[], projectId: string | null) => {
+      files.forEach((file) => {
         const artifactType = guessArtifactType(file.name);
         const isImage = artifactType === "image";
         const baseArtifact = {
@@ -427,7 +117,6 @@ export function HypherApp({ gateState }: { gateState: BetaGateState }) {
           createdAt: Date.now(),
           modifiedAt: Date.now(),
           projectId,
-          ...(canvasPosition ? { canvasPosition } : {}),
         };
 
         if (isImage) {
@@ -467,15 +156,6 @@ export function HypherApp({ gateState }: { gateState: BetaGateState }) {
     [ingestLocalFiles],
   );
 
-  const handleCanvasFileImport = useCallback(
-    (files: File[], canvasX: number, canvasY: number) => {
-      if (!selectedProjectId) return;
-      ingestLocalFiles(files, selectedProjectId, { canvasAnchor: { x: canvasX, y: canvasY } });
-      toast.success(files.length === 1 ? "Added to canvas" : `Added ${files.length} files to canvas`);
-    },
-    [ingestLocalFiles, selectedProjectId],
-  );
-
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
       e.preventDefault();
@@ -487,36 +167,6 @@ export function HypherApp({ gateState }: { gateState: BetaGateState }) {
 
   const handleDragOver = useCallback((e: React.DragEvent) => { e.preventDefault(); setDragOver(true); }, []);
   const handleDragLeave = useCallback(() => setDragOver(false), []);
-
-  // Notion import
-  const [notionImported, setNotionImported] = useState(() => {
-    if (typeof window === "undefined") return false;
-    return localStorage.getItem("hypher-notion-imported") === "true";
-  });
-
-  const handleNotionImport = useCallback(async () => {
-    const seed = generateSeedData();
-    store.addToast(`Importing ${seed.length} items from Notion...`);
-
-    // Track client-ID → Convex-ID mapping for project references
-    const idMap = new Map<string, string>();
-
-    // First pass: add projects
-    for (const obj of seed.filter((o) => o.kind === "project")) {
-      const convexId = await store.addObject(obj);
-      idMap.set(obj.id, convexId);
-    }
-
-    // Second pass: add notes/artifacts with remapped projectIds
-    for (const obj of seed.filter((o) => o.kind !== "project")) {
-      const remapped = obj.projectId ? { ...obj, projectId: idMap.get(obj.projectId) ?? obj.projectId } : obj;
-      await store.addObject(remapped);
-    }
-
-    localStorage.setItem("hypher-notion-imported", "true");
-    setNotionImported(true);
-    store.addToast(`Imported ${seed.length} items from Notion`);
-  }, [store]);
 
   // Capture handlers
   const handleCapture = useCallback(
@@ -546,98 +196,19 @@ export function HypherApp({ gateState }: { gateState: BetaGateState }) {
     const id = await store.addObject(obj);
     setShowCreateProject(false);
     if (obj.kind === "project") {
-      layoutDismissKeyRef.current = null;
       setSelectedProjectId(id);
       store.setSelectedId(id);
+      setContentMode("pulse");
       setAppMode("workspace");
     }
   }, [store]);
 
-  const handleCreateProjectFromCapture = useCallback(async (objectId: string, projectName: string) => {
-    const now = Date.now();
-    const projectId = await store.addObject({
-      id: crypto.randomUUID(),
-      kind: "project",
-      name: projectName,
-      description: "",
-      status: "active",
-      createdAt: now,
-      modifiedAt: now,
-    });
-    await store.assignToProject(objectId, projectId);
+  const openProject = useCallback((id: string) => {
+    setSelectedProjectId(id);
+    store.setSelectedId(id);
+    setContentMode("pulse");
+    setAppMode("workspace");
   }, [store]);
-
-  const handleMergeCurrentProject = useCallback(async (targetProjectId: string) => {
-    if (!selectedProjectId) return;
-    const current = store.projects.find((candidate) => candidate.id === selectedProjectId);
-    if (!current) return;
-    const children = store.objectsForProject(selectedProjectId);
-    for (const child of children) {
-      await store.assignToProject(child.id, targetProjectId);
-    }
-    await store.updateObject({ ...current, status: "archived", modifiedAt: Date.now() });
-    layoutDismissKeyRef.current = null;
-    setSelectedProjectId(targetProjectId);
-    store.setSelectedId(targetProjectId);
-  }, [selectedProjectId, store]);
-
-  const handleStartOnboardingTour = useCallback(async () => {
-    setWelcomeBusy(true);
-    try {
-      await markWelcomeSeen();
-      setWelcomeDismissedThisSession(true);
-      setTourStepIndex(0);
-      setTourActive(true);
-    } catch (err) {
-      console.error("[onboarding] mark welcome seen", err);
-      toast.error("Could not start onboarding");
-    } finally {
-      setWelcomeBusy(false);
-    }
-  }, [markWelcomeSeen]);
-
-  const handleExploreSelf = useCallback(async () => {
-    setWelcomeBusy(true);
-    try {
-      await markTourCompleted();
-      setWelcomeDismissedThisSession(true);
-      setTourActive(false);
-      setTourStepIndex(0);
-    } catch (err) {
-      console.error("[onboarding] mark tour complete", err);
-      toast.error("Could not dismiss onboarding");
-    } finally {
-      setWelcomeBusy(false);
-    }
-  }, [markTourCompleted]);
-
-  const completeTour = useCallback(async () => {
-    try {
-      await markTourCompleted();
-      setTourActive(false);
-      setTourStepIndex(0);
-    } catch (err) {
-      console.error("[onboarding] complete tour", err);
-      toast.error("Could not save onboarding progress");
-    }
-  }, [markTourCompleted]);
-
-  const handleTourNext = useCallback(() => {
-    const next = getNextOnboardingTourIndex(tourStepIndex);
-    if (next === null) {
-      void completeTour();
-      return;
-    }
-    setTourStepIndex(next);
-  }, [completeTour, tourStepIndex]);
-
-  // Canvas create handler
-  const handleCreateAtPosition = useCallback((kind: ObjectKind, text: string, x: number, y: number) => {
-    const now = Date.now();
-    const base = { id: crypto.randomUUID(), createdAt: now, modifiedAt: now, canvasPosition: { x, y }, projectId: selectedProjectId };
-    if (kind === "note") store.addObject({ ...base, kind: "note", content: text, maturity: "fleeting" });
-    else store.addObject({ ...base, kind: "artifact", name: text, type: "other" });
-  }, [store, selectedProjectId]);
 
   if (!store.clerkLoaded) {
     return (
@@ -655,45 +226,38 @@ export function HypherApp({ gateState }: { gateState: BetaGateState }) {
         return proj ? [proj, ...children] : children;
       })()
     : [];
-  const projectConnections = store.connections.filter((c) => c.type !== "dismissed");
   const currentProject = selectedProjectId ? store.projects.find((p) => p.id === selectedProjectId) : null;
-  const toolbarHealthScore =
-    selectedProjectId && projectHealthScores[selectedProjectId] != null
-      ? projectHealthScores[selectedProjectId]!
-      : null;
-  const workspaceChromeState = getWorkspaceChromeState({
-    projectCount: store.projects.length,
-    selectedProjectId,
-    contentMode,
-  });
-  const workspaceEmptyState = getWorkspaceEmptyState({
-    projectCount: store.projects.length,
-    selectedProjectId,
-    contentMode,
-  });
-  const onboardingUi = (
-    <>
-      <WelcomeOverlay
-        visible={welcomeVisible}
-        busy={welcomeBusy}
-        onShowTour={handleStartOnboardingTour}
-        onExploreSelf={handleExploreSelf}
-      />
-      <OnboardingTour
-        step={tourStep}
-        stepIndex={tourStepIndex}
-        totalSteps={ONBOARDING_TOUR_STEPS.length}
-        onNext={handleTourNext}
-        onSkip={completeTour}
-      />
-    </>
-  );
   const createProjectModal = showCreateProject ? (
     <CreateForm
       kind="project"
       onSubmit={(obj) => void handleCreateProject(obj)}
       onCancel={() => setShowCreateProject(false)}
     />
+  ) : null;
+  const searchDialog = showSearch ? (
+    <SearchDialog
+      search={store.search}
+      onSelect={(id) => {
+        store.setSelectedId(id);
+        setShowSearch(false);
+      }}
+      onClose={() => setShowSearch(false)}
+      tags={tags}
+      onSelectTag={() => {
+        store.setSelectedId(null);
+        setShowSearch(false);
+      }}
+    />
+  ) : null;
+  const dropOverlay = dragOver ? (
+    <div className="drop-overlay">
+      <div className="drop-content">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" width={32} height={32}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" />
+        </svg>
+        <p>Drop files to create artifacts</p>
+      </div>
+    </div>
   ) : null;
 
   // ── CAPTURE MODE ──
@@ -709,74 +273,17 @@ export function HypherApp({ gateState }: { gateState: BetaGateState }) {
           onCreateProjectAndCapture={handleCreateProjectAndCapture}
           onNavigateToWorkspace={() => setAppMode("workspace")}
           onCreateProject={() => setShowCreateProject(true)}
-          onProjectClick={(id) => {
-            layoutDismissKeyRef.current = null;
-            setSelectedProjectId(id);
-            store.setSelectedId(id);
-            setAppMode("workspace");
-          }}
+          onProjectClick={openProject}
           onClipboardCapture={store.captureFromClipboard}
-          onNotionImport={notionImported ? undefined : handleNotionImport}
           onSearchClick={() => setShowSearch(true)}
-          onDigestClick={() => setShowDigest(true)}
-          digestPreviewText={digestPreviewText}
-          projectHealthScores={projectHealthScores}
           onAddFiles={handleAddCaptureFiles}
         />
-        <button type="button" className="beta-feedback-floating" onClick={() => setShowFeedback(true)}>
-          Feedback
-        </button>
-        {dragOver && (
-          <div className="drop-overlay">
-            <div className="drop-content">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" width={32} height={32}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" />
-              </svg>
-              <p>Drop files to create artifacts</p>
-            </div>
-          </div>
-        )}
+        {dropOverlay}
         {store.modelLoading && (
           <div className="loading-bar"><span className="loading-dot" />Loading embedding model...</div>
         )}
-        {showSearch && (
-          <SearchDialog
-            search={store.search}
-            onSelect={(id) => {
-              store.setSelectedId(id);
-              setShowSearch(false);
-            }}
-            onClose={() => setShowSearch(false)}
-            tags={tags}
-            onSelectTag={() => {
-              store.setSelectedId(null);
-              setShowSearch(false);
-            }}
-          />
-        )}
-        {showDigest && (
-          <AppErrorBoundary label="Digest">
-            <DailyDigest
-              projects={store.projects}
-              allObjects={store.objects}
-              demoDigestText={demoDigestText}
-              onDismiss={() => {
-                setShowDigest(false);
-                localStorage.setItem("hypher-last-digest-date", new Date().toISOString().slice(0, 10));
-              }}
-              onSelectProject={(id) => {
-                layoutDismissKeyRef.current = null;
-                setSelectedProjectId(id);
-                store.setSelectedId(id);
-                setAppMode("workspace");
-                selectContentMode("canvas");
-              }}
-            />
-          </AppErrorBoundary>
-        )}
-        {onboardingUi}
+        {searchDialog}
         {createProjectModal}
-        <BetaFeedbackModal visible={showFeedback} onClose={() => setShowFeedback(false)} />
       </div>
     );
   }
@@ -794,43 +301,30 @@ export function HypherApp({ gateState }: { gateState: BetaGateState }) {
       ) : null}
       <Sidebar
         projects={store.projects}
-        inboxItems={store.inboxItems}
-        recentItems={store.recentItems}
         selectedProjectId={selectedProjectId}
-        selectedObjectId={store.selectedId}
         onSelectProject={(id) => {
-          layoutDismissKeyRef.current = null;
           setSelectedProjectId(id);
           store.setSelectedId(id);
+          setContentMode("pulse");
         }}
-        onSelectInboxItem={(id) => {
-          store.setSelectedId(id);
-          setSelectedProjectId(null);
-          selectContentMode("inbox");
-        }}
-        onSelectRecent={(id) => { store.setSelectedId(id); }}
         onAdd={store.addObject}
         onGoHome={() => { setMobileSidebarOpen(false); setAppMode("capture"); }}
         onDashboard={() => {
           setSelectedProjectId(null);
-          selectContentMode("dashboard");
+          setContentMode("dashboard");
         }}
-        onDigest={() => setShowDigest(true)}
         agentInboxCount={agentInbox?.length ?? 0}
         onAgentInbox={() => {
           setSelectedProjectId(null);
-          selectContentMode("agent-inbox");
+          setContentMode("agent-inbox");
         }}
-        onFeedback={() => setShowFeedback(true)}
         showBetaAdmin={gateState.isAdmin}
         activeSection={
           contentMode === "dashboard" && !selectedProjectId
             ? "projects"
-            : contentMode === "inbox"
-              ? "inbox"
-              : contentMode === "agent-inbox"
-                ? "agent"
-                : "project"
+            : contentMode === "agent-inbox"
+              ? "agent"
+              : "project"
         }
         className={mobileSidebarOpen ? "sidebar--drawer-open" : undefined}
         onMobileSidebarClose={() => setMobileSidebarOpen(false)}
@@ -876,304 +370,69 @@ export function HypherApp({ gateState }: { gateState: BetaGateState }) {
                   ? "projects"
                   : contentMode === "agent-inbox"
                     ? "agent inbox"
-                  : contentMode === "inbox"
-                    ? "inbox"
-                    : currentProject?.name ?? workspaceChromeState.currentLabel}
+                    : currentProject?.name ?? "pulse"}
               </span>
             </nav>
           </div>
 
-          <div className="workspace-chrome__center">
-            {workspaceChromeState.showProjectViewTabs ? (
-              <div className="workspace-view-toggle" role="tablist" aria-label="Project view">
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={contentMode === "pulse"}
-                  className={contentMode === "pulse" ? "is-active" : ""}
-                  onClick={() => selectContentMode("pulse")}
-                >
-                  <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden>
-                    <path d="M2.5 8h2l1.25-3 2.5 6 1.5-3H13.5" />
-                  </svg>
-                  pulse
-                </button>
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={contentMode === "canvas"}
-                  className={contentMode === "canvas" ? "is-active" : ""}
-                  onClick={() => selectContentMode("canvas")}
-                >
-                  <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden>
-                    <circle cx="4" cy="4" r="1.5" />
-                    <circle cx="12" cy="6" r="1.5" />
-                    <circle cx="6" cy="12" r="1.5" />
-                    <circle cx="12" cy="12" r="1.5" />
-                  </svg>
-                  canvas
-                </button>
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={contentMode === "list"}
-                  className={contentMode === "list" ? "is-active" : ""}
-                  onClick={() => selectContentMode("list")}
-                >
-                  <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden>
-                    <line x1="3" y1="4" x2="13" y2="4" />
-                    <line x1="3" y1="8" x2="13" y2="8" />
-                    <line x1="3" y1="12" x2="13" y2="12" />
-                  </svg>
-                  list
-                </button>
-              </div>
-            ) : null}
-          </div>
-
           <div className="workspace-chrome__right">
-            {toolbarHealthScore != null && selectedProjectId ? (
-              <div className="workspace-health-pill">
-                <HealthRing score={toolbarHealthScore} size={18} strokeWidth={2} />
-                <span>{toolbarHealthScore}%</span>
-              </div>
-            ) : null}
-            {store.projects.length > 0 ? (
-              <button type="button" className="workspace-chrome-icon" aria-label="Daily digest" title="Digest (⌘D)" onClick={() => setShowDigest(true)}>
-                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                  <rect x="2" y="3" width="12" height="10" rx="1.5" />
-                  <path d="M2 5 8 9l6-4" />
-                </svg>
-              </button>
-            ) : null}
-            {selectedProjectId && contentMode === "canvas" ? (
-              <button
-                type="button"
-                className="workspace-chrome-icon workspace-chrome-icon--on"
-                aria-label="Ambient Ask"
-                title="Ambient Ask — uses items near the center of the canvas"
-                onClick={() => window.dispatchEvent(new Event("hypher-open-ambient-ask"))}
-              >
-                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                  <circle cx="8" cy="8" r="6" />
-                  <path d="M8 11v.01" />
-                  <path d="M6.5 6.5a1.5 1.5 0 0 1 3 0c0 1-1.5 1.5-1.5 2.5" />
-                </svg>
-              </button>
-            ) : null}
-            {selectedProjectId ? (
-              <button
-                type="button"
-                className="workspace-share-btn"
-                onClick={() => window.dispatchEvent(new Event("hypher-open-project-settings"))}
-              >
-                share
-              </button>
-            ) : null}
             <AppChromeNav
               layout="toolbar"
               showSearch
               onSearchClick={() => setShowSearch(true)}
-              onFeedbackClick={() => setShowFeedback(true)}
               showBetaAdmin={gateState.isAdmin}
             />
           </div>
         </div>
 
-        {layoutBanner ? (
-          <WorkspaceLayoutBanner
-            reason={layoutBanner}
-            mode={contentMode}
-            projectId={selectedProjectId}
-            pinned={
-              Boolean(
-                selectedProjectId &&
-                  workspaceProjectPrefs?.pinnedMode &&
-                  workspaceProjectPrefs.pinnedMode === contentMode
-              )
-            }
-            onDismiss={dismissLayoutBanner}
-            onPin={handlePinLayout}
-          />
-        ) : null}
-
-        {workspaceEmptyState ? (
+        {store.projects.length === 0 && contentMode !== "agent-inbox" ? (
           <div className="workspace-empty">
-            <p>{workspaceEmptyState.title}</p>
-            <p className="workspace-empty-sub">{workspaceEmptyState.body}</p>
+            <p>No project pulse yet</p>
+            <p className="workspace-empty-sub">Dump a few real fragments first. Hypher will help group them into a project.</p>
             <div className="workspace-empty-actions">
               <button type="button" className="workspace-empty-btn workspace-empty-btn--primary" onClick={() => setAppMode("capture")}>
                 Go to capture
               </button>
-              {workspaceEmptyState.secondaryAction === "manual_project" ? (
-                <button type="button" className="workspace-empty-btn" onClick={() => setShowCreateProject(true)}>
-                  Create first project
-                </button>
-              ) : null}
+              <button type="button" className="workspace-empty-btn" onClick={() => setShowCreateProject(true)}>
+                Create first project
+              </button>
             </div>
           </div>
-        ) : contentMode === "dashboard" ? (
+        ) : contentMode === "dashboard" || (!selectedProjectId && contentMode === "pulse") ? (
           <ProjectDashboard
             projects={store.projects}
             onSelectProject={(id) => {
-              layoutDismissKeyRef.current = null;
               setSelectedProjectId(id);
               store.setSelectedId(id);
+              setContentMode("pulse");
             }}
           />
         ) : contentMode === "agent-inbox" ? (
           <AgentInboxPanel events={agentInbox ?? []} projects={store.projects} />
-        ) : contentMode === "inbox" ? (
-          <InboxReviewPanel
-            items={store.inboxItems}
-            reviewItems={store.reviewItems}
-            projects={store.projects}
-            selectedId={store.selectedId}
-            getSuggestions={store.projectSuggestionsFor}
-            onSelect={store.setSelectedId}
-            onAssign={async (objectId, projectId) => {
-              await store.assignToProject(objectId, projectId);
-              const project = store.projects.find((p) => p.id === projectId);
-              store.addToast(project ? `Sorted into ${project.name}` : "Sorted into project");
-            }}
-            onKeepInInbox={async (objectId) => {
-              await store.markReviewed(objectId);
-              store.addToast("Kept in inbox");
-            }}
-            onCreateProject={async (objectId, projectName) => {
-              const now = Date.now();
-              const projectId = await store.addObject({
-                id: crypto.randomUUID(),
-                kind: "project",
-                name: projectName,
-                description: "",
-                status: "active",
-                createdAt: now,
-                modifiedAt: now,
-              });
-              await store.assignToProject(objectId, projectId);
-              store.addToast(`Sorted into ${projectName}`);
-            }}
-          />
         ) : selectedProjectId && !currentProject ? (
           <div className="workspace-empty">
             <p>Loading project pulse</p>
             <p className="workspace-empty-sub">Hypher is getting this project ready.</p>
           </div>
-        ) : contentMode === "pulse" && currentProject ? (
-          <ProjectPulse
-            project={currentProject}
-            allObjects={projectItems}
-            activity={store.activity}
-            healthScore={toolbarHealthScore}
-            projects={store.projects}
-            onOpenCanvas={() => selectContentMode("canvas")}
-            onOpenList={() => selectContentMode("list")}
-            onCapture={() => setAppMode("capture")}
-            onSelectItem={(id) => {
-              store.setSelectedId(id);
-              selectContentMode("list");
-            }}
-            onMoveCapture={async (objectId, projectId) => {
-              await store.assignToProject(objectId, projectId);
-              const project = store.projects.find((candidate) => candidate.id === projectId);
-              store.addToast(project ? `Moved to ${project.name}` : "Capture moved");
-            }}
-            onArchiveCapture={store.markCaptureArchived}
-            onUpdateCapture={store.updateCaptureMeta}
-            onCreateProjectFromCapture={handleCreateProjectFromCapture}
-            onMergeProject={handleMergeCurrentProject}
-            emphasizeAgentSection={emphasizeAgentSection}
-            onOpenAgentInbox={() => {
-              setSelectedProjectId(null);
-              selectContentMode("agent-inbox");
-            }}
-          />
-        ) : contentMode === "canvas" ? (
-          <AppErrorBoundary label="Canvas">
-            <SpatialCanvas
-              project={store.projects.find((p) => p.id === selectedProjectId)}
-              convexLoading={store.convexDataLoading}
-              items={projectItems}
-              connections={projectConnections}
-              onSelect={store.setSelectedId}
-              onUpdatePosition={store.updatePosition}
-              onCreateAtPosition={handleCreateAtPosition}
-              onConfirmConnection={store.confirmConnection}
-              onDismissConnection={store.dismissConnection}
-              onUpdateObject={store.updateObject}
-              onDeleteObjects={async (ids) => { for (const id of ids) await store.removeObject(id); }}
-              onDuplicateObjects={store.duplicateObjects}
-              onRestoreObjects={store.restoreObjects}
-              onRestoreConnections={store.restoreConnections}
-              onCreateManualConnection={store.createManualConnection}
-              onLogView={store.logProjectView}
-              onImportFilesAtCanvas={handleCanvasFileImport}
+        ) : currentProject ? (
+          <AppErrorBoundary label="Project Pulse">
+            <ProjectPulse
+              project={currentProject}
+              allObjects={projectItems}
+              activity={store.activity}
+              onCapture={() => setAppMode("capture")}
+              onUpdateCapture={store.updateCaptureMeta}
             />
           </AppErrorBoundary>
-        ) : (
-          <ListView
-            items={projectItems}
-            connections={projectConnections}
-            onUpdate={store.updateObject}
-            onDelete={store.removeObject}
-            selectedId={store.selectedId}
-            onSelect={store.setSelectedId}
-          />
-        )}
+        ) : null}
       </div>
 
-      {showSearch && (
-        <SearchDialog
-          search={store.search}
-          onSelect={(id) => { store.setSelectedId(id); setShowSearch(false); }}
-          onClose={() => setShowSearch(false)}
-          tags={tags}
-          onSelectTag={(tag) => {
-            // Search for the tag to show matching items
-            store.setSelectedId(null);
-            setShowSearch(false);
-          }}
-        />
-      )}
-
-      {showDigest && store.hasFullObjectSubscription && (
-        <AppErrorBoundary label="Digest">
-          <DailyDigest
-            projects={store.projects}
-            allObjects={store.objects}
-            demoDigestText={demoDigestText}
-            onDismiss={() => {
-              setShowDigest(false);
-              localStorage.setItem("hypher-last-digest-date", new Date().toISOString().slice(0, 10));
-            }}
-            onSelectProject={(id) => {
-              layoutDismissKeyRef.current = null;
-              setSelectedProjectId(id);
-              store.setSelectedId(id);
-              if (appMode !== "workspace") setAppMode("workspace");
-            }}
-          />
-        </AppErrorBoundary>
-      )}
-
-      {dragOver && (
-        <div className="drop-overlay">
-          <div className="drop-content">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" width={32} height={32}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" />
-            </svg>
-            <p>Drop files to create artifacts</p>
-          </div>
-        </div>
-      )}
-
+      {searchDialog}
+      {dropOverlay}
       {store.modelLoading && (
         <div className="loading-bar"><span className="loading-dot" />Loading embedding model...</div>
       )}
-      {onboardingUi}
       {createProjectModal}
-      <BetaFeedbackModal visible={showFeedback} onClose={() => setShowFeedback(false)} />
     </main>
   );
 }
