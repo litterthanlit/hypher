@@ -164,6 +164,9 @@ describe("buildMcpToolResult", () => {
     expect(result.structuredContent.projectId).toBe("p1");
     expect(result.structuredContent.context).toContain("# Builder Brief: Hypher");
     expect(result.structuredContent.context).toContain("Build the read-only MCP surface.");
+    expect(result.structuredContent.context).toContain("- Target tool: Cursor");
+    expect(result.structuredContent.context).not.toContain("Paste this Builder Brief");
+    expect(result.structuredContent.context).not.toContain("paste this into ChatGPT");
     expect(result.structuredContent.context).toContain("- [handoff:Cursor/result] Agent result from previous Cursor brief: MCP now carries saved handoff result context into the Builder Brief.");
     expect(result.structuredContent.context).toContain("- [handoff:Cursor/result] User note on previous Cursor brief: Use the same context as Project Pulse.");
   });
