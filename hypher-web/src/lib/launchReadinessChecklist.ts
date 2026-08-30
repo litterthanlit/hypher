@@ -53,6 +53,12 @@ export const LAUNCH_SMOKE_TESTS: LaunchSmokeTest[] = [
     href: "/app/settings/integrations",
   },
   {
+    id: "cursor-plugin",
+    title: "Cursor plugin connect",
+    detail: "From Settings → Integrations, add Hypher to Cursor, authorize, then confirm MCP tools list.",
+    href: "/app/settings/integrations",
+  },
+  {
     id: "stripe",
     title: "Stripe checkout and webhook",
     detail: "Open pricing, complete checkout with a test card, and confirm the subscription row updates.",

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
-import { fetchMutation, fetchQuery } from "convex/nextjs";
+import { fetchAction, fetchMutation, fetchQuery } from "convex/nextjs";
 import { api } from "../../../../convex/_generated/api";
 import type { Id } from "../../../../convex/_generated/dataModel";
 import type { ActivityEntry, AgentEvent, AnyObject, Handoff, Project, ProjectAction, ProjectMemory } from "@/types";
@@ -8,7 +8,11 @@ import { HYPHER_MCP_SCOPE, baseUrlFromRequest, sha256Base64url } from "@/lib/oau
 import { isRequestBodyTooLarge, readJsonWithLimit } from "@/lib/requestBody";
 import {
   buildMcpToolResult,
+  formatAgentEventWriteResult,
   getHypherMcpToolDescriptors,
+  isMcpWriteTool,
+  mcpToolNeedsProjectContext,
+  parsePostAgentEventArgs,
   type HypherMcpContext,
   type HypherMcpProjectContext,
 } from "@/lib/mcpTools";
@@ -216,14 +220,17 @@ export async function POST(req: NextRequest) {
       context = await getMcpContextForAccessToken(
         accessToken,
         baseUrlFromRequest(req.url),
-        toolName === "list_projects" ? undefined : projectId
+        mcpToolNeedsProjectContext(toolName) ? projectId : undefined
       );
     } else {
       const { userId, getToken } = await auth();
       if (userId) {
         const convexToken = await getToken({ template: "convex" });
         if (convexToken) {
-          context = await getMcpContext(convexToken, toolName === "list_projects" ? undefined : projectId);
+          context = await getMcpContext(
+            convexToken,
+            mcpToolNeedsProjectContext(toolName) ? projectId : undefined
+          );
         }
       }
     }
@@ -232,6 +239,54 @@ export async function POST(req: NextRequest) {
       return jsonRpcError(body.id, -32001, "unauth", 401, {
         "WWW-Authenticate": authChallenge(req),
       });
+    }
+
+    if (isMcpWriteTool(toolName)) {
+      if (toolName !== "post_agent_event") {
+        throw new Error("unknown-tool");
+      }
+      const parsed = parsePostAgentEventArgs(args);
+      const writeArgs = {
+        payload: parsed.payload,
+        projectId: parsed.projectId,
+      };
+      let result: {
+        ok: boolean;
+        status?: number;
+        error?: string;
+        eventId?: string;
+        matchedProjectId?: string | null;
+        matchedProjectName?: string;
+        needsReview?: boolean;
+      };
+      if (accessToken) {
+        result = await fetchAction((api as any).agentEvents.createFromOAuthRequest, {
+          tokenHash: sha256Base64url(accessToken),
+          resource: baseUrlFromRequest(req.url),
+          scope: HYPHER_MCP_SCOPE,
+          now: Date.now(),
+          ...writeArgs,
+        }) as typeof result;
+      } else {
+        const { getToken } = await auth();
+        const convexToken = await getToken({ template: "convex" });
+        if (!convexToken) {
+          return jsonRpcError(body.id, -32001, "unauth", 401, {
+            "WWW-Authenticate": authChallenge(req),
+          });
+        }
+        result = await fetchAction(
+          (api as any).agentEvents.createFromSession,
+          writeArgs,
+          { token: convexToken }
+        ) as typeof result;
+      }
+      if (result.status === 401) {
+        return jsonRpcError(body.id, -32001, "unauth", 401, {
+          "WWW-Authenticate": authChallenge(req),
+        });
+      }
+      return jsonRpc(body.id, formatAgentEventWriteResult(result));
     }
 
     return jsonRpc(body.id, buildMcpToolResult(toolName, args, context));

@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "hypher": {
+      "url": "https://hypher.app/api/mcp",
+      "auth": {
+        "CLIENT_ID": "hypher-cursor",
+        "scopes": ["hypher.projects.read"]
+      }
+    }
+  }
+}

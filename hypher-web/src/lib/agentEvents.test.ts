@@ -4,6 +4,7 @@ import {
   buildAgentEventNoteContent,
   matchProjectForAgentEvent,
   normalizeAgentEventPayload,
+  normalizeGitHubRepo,
   validateAgentEventPayload,
   type AgentEventProjectCandidate,
 } from "./agentEvents";
@@ -51,6 +52,14 @@ describe("matchProjectForAgentEvent", () => {
       id: "p1",
       name: "Hypher",
     });
+  });
+
+  it("normalizes git remotes before matching", () => {
+    expect(normalizeGitHubRepo("git@github.com:litterthanlit/hypher.git")).toBe("litterthanlit/hypher");
+    expect(normalizeGitHubRepo("https://github.com/litterthanlit/hypher.git")).toBe("litterthanlit/hypher");
+    expect(
+      matchProjectForAgentEvent(projects, { repo: "https://github.com/litterthanlit/hypher.git" })?.id
+    ).toBe("p1");
   });
 
   it("matches by exact and case-insensitive project name", () => {

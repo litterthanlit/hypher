@@ -1,0 +1,14 @@
+---
+description: Prefer Hypher MCP tools for project context when the plugin is connected.
+alwaysApply: true
+---
+
+Hypher is the project memory / control plane for this workspace. Cursor is the execution environment.
+
+When the Hypher MCP server is connected:
+
+- Use Hypher tools for project status instead of guessing from the repo alone.
+- At session start, resolve the git remote with `resolve_project_for_repo`, then load `get_project_context` once. Do not reload the full Builder Brief every turn.
+- When stuck, call `get_current_state` or `get_next_move`.
+- At session end, write one `handoff` with `post_agent_event`. Do not spam `build_log`.
+- If the repo is not linked, point the builder to https://hypher.app/app/settings/integrations rather than inventing project status.

@@ -59,7 +59,10 @@ export default async function OAuthConsentPage({
     <main className="oauth-consent-page">
       <section className="oauth-consent-panel">
         <h1>Authorize {pendingConsent.clientName}</h1>
-        <p>{pendingConsent.clientName} wants read-only access to your Hypher project context.</p>
+        <p>
+          {pendingConsent.clientName} wants access to your Hypher project context.
+          This includes reading Builder Briefs and writing session handoffs to Agent Inbox.
+        </p>
         <a href={approveHref} className="settings-github-connect">
           Authorize
         </a>

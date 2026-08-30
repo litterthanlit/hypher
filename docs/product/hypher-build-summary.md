@@ -26,6 +26,7 @@ The app is functional and has a real context loop:
 - Builder Brief/context packet generation is shipped
 - protected agent context API is shipped
 - read-only MCP route is shipped
+- Cursor plugin v1 package is shipped (OAuth Connect, repo resolve, session writeback)
 - agent handoff/writeback path is shipped
 - returned agent output loop is shipped
 - beta invite gate and feedback collection are shipped
@@ -153,6 +154,8 @@ Available surfaces:
 - copy Builder Brief from Project Pulse
 - `GET /api/projects/[projectId]/agent-context`
 - read-only MCP tools through `/api/mcp`
+- Cursor plugin at `extensions/cursor` with `resolve_project_for_repo` and OAuth `post_agent_event`
+- Connect Cursor CTA on Settings → Integrations
 
 The brief includes project direction, decisions, constraints, open questions, actions, captures, agent events, and handoff notes.
 
@@ -163,6 +166,8 @@ Key implementation areas:
 - `hypher-web/src/lib/mcpTools.ts`
 - `hypher-web/src/app/api/projects/[projectId]/agent-context/route.ts`
 - `hypher-web/src/app/api/mcp/route.ts`
+- `extensions/cursor/`
+- `docs/product/cursor-plugin-v1-spec.md`
 
 ### 5. Agent Events And Writeback
 

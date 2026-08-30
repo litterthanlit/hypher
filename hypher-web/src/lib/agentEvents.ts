@@ -1,3 +1,5 @@
+import { normalizeGitHubRepo } from "../../shared/githubRepo";
+
 export const AGENT_EVENT_KINDS = [
   "handoff",
   "build_log",
@@ -35,6 +37,8 @@ export interface AgentEventProjectCandidate {
   name?: string;
   githubRepo?: string;
 }
+
+export { normalizeGitHubRepo };
 
 type ValidationResult =
   | { ok: true; value: AgentEventPayload }
@@ -106,7 +110,7 @@ export function matchProjectForAgentEvent(
   projects: AgentEventProjectCandidate[],
   event: { repo?: string; project?: string }
 ): { id: string; name: string } | null {
-  const repo = lower(event.repo);
+  const repo = lower(normalizeGitHubRepo(event.repo) ?? event.repo);
   if (repo) {
     const byRepo = projects.find((project) => lower(project.githubRepo) === repo);
     if (byRepo) return { id: byRepo.id, name: byRepo.name ?? "Project" };
