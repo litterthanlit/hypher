@@ -88,7 +88,7 @@ export function HypherApp({ gateState }: { gateState: BetaGateState }) {
     subscribeAllObjects: needsAllObjects,
     subscribeAllActivity: false,
   });
-  const skipTags = !store.clerkLoaded || !store.isSignedIn;
+  const skipTags = store.skipConvex;
   const workspaceGlobalPrefs = useQuery(api.workspacePrefs.getGlobal, skipTags ? "skip" : {});
   const workspaceProjectPrefs = useQuery(
     api.workspacePrefs.getProject,
@@ -131,7 +131,7 @@ export function HypherApp({ gateState }: { gateState: BetaGateState }) {
       reviewedNextActionCount: memories.reduce(
         (count, memory) =>
           count +
-          memory.nextActions.filter(
+          (memory.nextActions ?? []).filter(
             (action) => action.status === "accepted" || action.status === "dismissed"
           ).length,
         0

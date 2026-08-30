@@ -1,7 +1,7 @@
 "use client";
 
 import { useAuth } from "@clerk/nextjs";
-import { useQuery } from "convex/react";
+import { useConvexAuth, useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { BetaInviteGate } from "@/components/BetaInviteGate";
 import { getAppAccessState, getAppGateQueryArgs } from "@/lib/activation";
@@ -11,16 +11,18 @@ import { SignInRequired } from "./SignInRequired";
 
 export default function AppHome() {
   const { isLoaded: clerkLoaded, isSignedIn } = useAuth();
+  const { isLoading: convexAuthLoading } = useConvexAuth();
   const signedIn = Boolean(isSignedIn);
   const gateState = useQuery(
     // typegen pending convex dev/codegen for this new module
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (api as any).beta.getGateState,
-    getAppGateQueryArgs({ clerkLoaded, isSignedIn: signedIn })
+    getAppGateQueryArgs({ clerkLoaded, isSignedIn: signedIn, convexAuthLoading })
   ) as BetaGateState | undefined;
   const appAccessState = getAppAccessState({
     clerkLoaded,
     isSignedIn: signedIn,
+    convexAuthLoading,
     gateState,
   });
 

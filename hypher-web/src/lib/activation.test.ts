@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  asQueryList,
   getAppAccessState,
   getAppGateQueryArgs,
   getCaptureEmptyState,
@@ -7,6 +8,7 @@ import {
   getUnsignedAppSignInHref,
   getWorkspaceChromeState,
   getWorkspaceEmptyState,
+  shouldSkipAuthedConvexQuery,
   type WorkspaceContentMode,
 } from "./activation";
 
@@ -55,6 +57,28 @@ describe("app access state", () => {
     ).toBe("loading");
   });
 
+  it("keeps a signed-in user on loading until Convex auth is ready", () => {
+    expect(
+      getAppAccessState({
+        clerkLoaded: true,
+        isSignedIn: true,
+        convexAuthLoading: true,
+        gateState: { hasAccess: true, isAuthenticated: true },
+      })
+    ).toBe("loading");
+  });
+
+  it("does not treat a Clerk session as enough to open /app before Convex JWT exists", () => {
+    expect(
+      getAppAccessState({
+        clerkLoaded: true,
+        isSignedIn: true,
+        convexAuthLoading: false,
+        gateState: undefined,
+      })
+    ).toBe("loading");
+  });
+
   it("opens the workspace once a signed-in user has beta access", () => {
     expect(
       getAppAccessState({
@@ -83,11 +107,44 @@ describe("unsigned /app gate", () => {
     expect(getAppGateQueryArgs({ clerkLoaded: true, isSignedIn: true })).toEqual({});
   });
 
+  it("skips requireBetaAccess queries while Convex auth is still loading", () => {
+    expect(
+      getAppGateQueryArgs({
+        clerkLoaded: true,
+        isSignedIn: true,
+        convexAuthLoading: true,
+      })
+    ).toBe("skip");
+    expect(
+      shouldSkipAuthedConvexQuery({
+        clerkLoaded: true,
+        isSignedIn: true,
+        convexAuthenticated: false,
+      })
+    ).toBe(true);
+    expect(
+      shouldSkipAuthedConvexQuery({
+        clerkLoaded: true,
+        isSignedIn: true,
+        convexAuthenticated: true,
+      })
+    ).toBe(false);
+  });
+
   it("sends unsigned /app to the existing sign-in flow", () => {
     expect(getUnsignedAppSignInHref("/app")).toBe("/sign-in?redirect_url=%2Fapp");
     expect(getUnsignedAppSignInHref("/app?project=p1")).toBe(
       "/sign-in?redirect_url=%2Fapp%3Fproject%3Dp1"
     );
+  });
+});
+
+describe("empty workspace query results", () => {
+  it("treats null or undefined Convex lists as empty instead of crashing .map", () => {
+    expect(asQueryList(undefined)).toEqual([]);
+    expect(asQueryList(null)).toEqual([]);
+    expect(asQueryList([])).toEqual([]);
+    expect(asQueryList([{ id: "p1" }])).toEqual([{ id: "p1" }]);
   });
 });
 
