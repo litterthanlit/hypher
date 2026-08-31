@@ -1,0 +1,178 @@
+# Hypher Deep Audit: From Context Layer to Agentic Operating System
+
+Date: June 9, 2026.
+
+Grounded in three code-level investigations (core context loop, UX surface, technical architecture) plus the canonical roadmap (`hypher-product-build-roadmap.md`), the Agent Brief (`../../hypher-web/docs/Hypher Agent Brief.md`), and the strategic working doc 2.0.
+
+Scope: evaluates Hypher against the vision of an indispensable agentic operating system for builders — one that closes the builder loop by capturing fragmented thoughts, crystallizing intent, coordinating agents, validating outcomes, learning from decisions, and driving projects forward proactively.
+
+---
+
+## 1. How close is Hypher to the vision? Honest answer: ~40%, and the missing 60% is loops, not features
+
+Map the vision's six verbs against the code:
+
+| Vision verb | Implementation | Reality |
+|---|---|---|
+| **Capture** fragmented thoughts | 7 entry points (app, `/capture`, HTTP API, email, voice, extension, Notion) | **Strong** — but API/email paths skip enrichment entirely (no embeddings, tags, or `captureType`) |
+| **Crystallize** intent | `crystallizeRecentActivity.ts` — **regex pattern matching**, not AI | **Weak** — the heart of "convert intent into precise context" is keyword matching |
+| **Coordinate** agents | Copy-paste Builder Brief + read-only MCP + insert-only writeback API | **One-way** — Hypher supplies context; it coordinates nothing |
+| **Evaluate** outputs against vision | Acceptance criteria exist only as *prompt text* in the brief | **Absent** — zero automated evaluation anywhere |
+| **Learn** from decisions | Accept/dismiss states stored, never used to condition anything | **Absent** — signals collected, then ignored |
+| **Drive proactively** | Two 15-min crons (GitHub poll, digest email) + rediscovery toasts | **Minimal** — notification-grade, not action-grade |
+
+The honest framing: **Hypher today is a well-built context *supplier* with a human pump at every joint.** The user manually triggers memory generation, manually accepts crystallized suggestions, manually copies the brief, manually pastes agent output back, manually triages every agent event. Each joint is exactly where a loop should be. Hypher currently helps *you* prompt agents better; it does not yet *design loops that prompt agents*.
+
+What deserves real credit: the **deterministic, bounded Builder Brief compiler** (`projectContext.ts`), the **structured writeback contract** (`agentEvents` with typed kinds), the **review-gated memory model** (`acceptedCrystallizedSuggestions`), and a clean auth/rate-limit perimeter. These are the *correct contracts* for an agentic OS. The contracts exist; the automation behind them doesn't.
+
+## 2. The largest gaps preventing indispensability
+
+**Product gaps**
+
+- **No evaluation layer.** "Validates outcomes against your vision" is the most differentiating claim in the vision and the least built. `acceptanceCriteria` is decorative.
+- **Crystallization is regex.** This is the single biggest mismatch between thesis ("turns messy context into durable memory") and implementation. Most captures never crystallize.
+- **Memory is manual, overwrite-only, and silently stale.** Stale memory is *labeled* but still served to agents. An agent OS that hands out stale context is worse than no context — it erodes the exact trust the product depends on.
+
+**UX gaps**
+
+- **No unified "what matters now" surface.** Prioritization is fragmented across Pulse, dashboard, digest, two hidden inboxes, and toasts. There is no single Today view merging actions + agent events + blockers + stale memory.
+- **The loop has UX seams at every joint:** Agent Inbox is invisible when empty; suggested actions in Agent Inbox can't be saved as actions (works in Pulse); tag search is dead; `⌘K` is search, not a command palette; handoff return is a paste textarea.
+- **Seven orphaned components** (`StreamView`, `GardenView`, `SuggestionsPanel`…) indicating drift between ambition and shipped surface.
+
+**Architectural gaps** (the loop-blocking ones)
+
+- No agent runtime: no run records, no step scheduler, no `ctx.scheduler.runAfter` chains anywhere
+- No server-side retrieval: embeddings exist but no Convex vector index; context selection is "last N items," which guarantees **silent information loss as projects grow** — fatal for "long-running projects"
+- No idempotency on writeback, no retry/backoff on any LLM call, no central AI client, no token/cost accounting
+- GitHub: 15-min polling with a **global env token across all users' repos** — a tenancy bug, not just a latency problem
+- Memory has no history: `projectMemories` is one upserted row; you cannot replay how a project's understanding evolved
+
+**Agentic gaps**
+
+- MCP is read-only — an agent in a ChatGPT/Claude session literally cannot close the loop
+- Agent events land in an inbox and *change nothing* — no memory update, no action creation, no brief refresh
+- Hypher never initiates work. It cannot dispatch a brief to an executor.
+
+## 3. The loop architecture Hypher should build
+
+The strategic insight first: **Hypher should not become an agent runtime that executes code.** Cursor, Codex, Claude Code, and OpenClaw are better executors and improving weekly. Hypher's defensible position is the **memory-orchestrated loop**: it owns intent, context, validation, and dispatch — execution stays external. Full autonomy in *execution* is a commodity others provide; full autonomy in *the loops around execution* is the open territory.
+
+Proposed loops, ordered by dependency:
+
+| # | Loop | Trigger | Context required | Participants | Validation | Escalates when | Autonomy |
+|---|---|---|---|---|---|---|---|
+| **L1** | **Capture Triage** | Any capture, any entry point | Capture text, project centroids, recent project activity | Haiku-class model + embeddings (moved server-side) | Confidence threshold; dedup check | Confidence < ~0.7 → inbox | **Fully autonomous** above threshold |
+| **L2** | **Crystallization** | N new captures, handoff return, or agent event on a project | New items + current memory + decision ledger | Sonnet-class extraction → typed suggestions (decision/constraint/task/question) | Schema validation; novelty vs existing memory | Always — suggestions surface for one-tap accept | **Approval-based**, graduating to auto-accept for categories with high historical accept rate |
+| **L3** | **Memory Compaction** | Staleness threshold, item-count delta, or pre-brief check | Append-only `memoryEvents` + previous memory + accepted crystallizations | Sonnet incremental update (diff-based, not full regen) | Diff shown to user; contradictions flagged | Memory contradicts an accepted decision | **Fully autonomous** generation, **reviewable diff** |
+| **L4** | **Brief Freshness** | Brief requested (copy, API, MCP) | Memory staleness status | L3 inline if stale | Brief carries provenance + freshness guarantee | Never — silent | **Fully autonomous** |
+| **L5** | **Writeback Integration** | Agent event arrives | Event + matched handoff + acceptance criteria + memory | Parser model: link to handoff, propose memory patch + actions | Idempotency key; match confidence | Unmatched events; destructive memory changes | **Approval-based** (one-tap apply) |
+| **L6** | **Evaluation** | Handoff returns output / linked PR merges | Original brief, `requestedTask`, acceptance criteria, output, GitHub diff | Judge model scores criteria → met/unmet/unverifiable | Verdict shown with evidence per criterion | Any criterion unmet → suggested follow-up brief | **Assistive** verdict, human decides |
+| **L7** | **Drift & Reminder** | Cron/webhook: stale memory, blocked PRs, unresolved questions, commits diverging from stated direction | Memory + GitHub state + activity timeline | Cheap model ranks "what needs attention" | Notification-only; no state change | It *is* the escalation | **Fully autonomous** (safe — output is information) |
+| **L8** | **Dispatch** | Accepted action + connected executor; or L7 finding + user "go" | Fresh brief + task + acceptance criteria | Hypher → Cursor background agents / Codex cloud / Claude Code via API → writeback to L5/L6 | The full L5+L6 path | Always starts approval-gated; per-project autonomy dial | **Approval-based → autonomous** for low-risk task classes |
+| **L9** | **Learning** | Every accept/dismiss/edit across L1–L6 | Decision history per user/project | Aggregation + preference distillation into per-project "taste profile" fed to all prompts | Visible, editable profile | Never | **Fully autonomous** |
+
+The composed system: *capture → L1 routes → L2 extracts → L3 compacts → L4 guarantees fresh context → L8 dispatches → executor works → L5 integrates → L6 validates → L7 watches → L9 learns.* That is the closed builder loop. Note that L1–L7 require **no new trust model** — they automate work the user already does manually in the current UI.
+
+## 4. Human-in-the-loop vs. autonomous — the dividing principle
+
+**The line is not "risky vs. safe." It is: *does the loop write to durable memory or external systems?***
+
+- **Fully autonomous:** anything that *reads, computes, routes, or notifies* — L1 (triage), L3/L4 (memory freshness — with diffs as the audit trail), L7 (reminders), L9 (learning). The roadmap's own principle ("bounded, reviewable memory over opaque automation") is satisfied by *reviewable diffs*, not by *manual triggers*. The current product confuses the two.
+- **Approval-based:** anything that *commits intent* — L2 (what becomes durable truth), L5 (memory patches from agent claims), L8 (spending money/compute on execution). These should be **one-tap approvals with full context**, not forms. Approval friction is a UX problem to minimize, not a safety feature to celebrate.
+- **Permanently human:** accepting decisions and constraints into the ledger (this *is* the product — the user curating their project's truth), resolving evaluation failures, and the autonomy dial itself.
+- **Graduation mechanism:** L9 makes this dynamic — when a user has accepted 95% of `decision`-type crystallizations for a project, offer auto-accept for that category, per project, reversible. Trust is earned per-loop, per-project, with receipts.
+
+## 5. Context engineering systems required for long-running quality
+
+This is the make-or-break layer, because the current design **degrades by construction** (last-12-items memory generation, 3–8 captures per brief, no retrieval):
+
+1. **Append-only `memoryEvents` ledger** — decisions, constraints, direction changes as immutable events; `projectMemories` becomes a *materialized view*, periodically compacted. Gives versioning, replay, and contradiction detection for free.
+2. **Server-side vector retrieval** — Convex vector index on `objects.embedding`; embeddings generated server-side so all capture paths get them (fixes the API/email enrichment hole). Brief assembly becomes *recency + pinned + top-k relevant to the task at hand*, not just last-N.
+3. **Hierarchical memory** — working set (recent, verbatim) → project memory (compacted) → archive (retrievable on demand). Old context must be *compressed, not dropped*.
+4. **Versioned briefs with provenance** — every handoff already stores `packetContent`; add memory version + source IDs so evaluation (L6) can compare output against the *exact* context the agent received.
+5. **Central AI client** (`lib/ai/client.ts`) — retry/backoff, model routing (Haiku for triage, Sonnet for synthesis), token accounting per loop per project. You cannot run autonomous loops without knowing what they cost.
+6. **Idempotency keys + run records** (`agentRuns` table) — every loop execution is a durable, inspectable record. This is also the product surface: "what did Hypher do while I was away" requires it.
+7. **Contradiction detection** — new crystallizations checked against the decision ledger; surfacing "this contradicts a decision from May 12" is enormously valuable and only possible with the ledger.
+
+## 6. The defensible moat
+
+Briefs, capture, and MCP integration are all replicable in weeks. The moat compounds elsewhere:
+
+1. **The decision ledger + taste profile (L9).** Months of accepted/rejected decisions, constraints, and "do-not-do"s per project is data that *cannot be cold-started* by a competitor and makes every brief better than what any fresh tool can produce. This is the real "memory moat" the strategy docs gesture at — but only if the learning loop actually exists.
+2. **The evaluation corpus (L6).** Brief → output → verdict triples per project teach Hypher what *this builder* considers done. Nobody else is positioned to collect this, because nobody else holds both the intent and the outcome.
+3. **Tool-neutrality at the orchestration layer.** Cursor wants you in Cursor; OpenAI wants you in Codex. Hypher's structural advantage is being the *Switzerland of context* — the writeback contract that makes agents interchangeable. Builders use 3+ agents; the layer that survives tool churn wins. (This is also why building an executor would *destroy* the moat, not add to it.)
+4. **Switching cost via L7.** Once Hypher proactively catches drift and stalls, leaving Hypher means going blind. Passive stores are abandonable; watchful systems are not.
+
+## 7. Three phases
+
+**Phase 1 — Close the existing loop honestly (4–6 weeks).** Make every manual joint automatic without changing the trust model. LLM crystallization replacing regex (L2); auto memory freshness + brief-time regeneration (L3/L4); server-side enrichment for *all* capture paths; MCP write tools (`report_progress`, `add_capture`, `complete_action`) with idempotency keys; central AI client with retry/backoff; the unified Today surface; fix the loop-breaking UX debt (Agent Inbox visibility + save-action, tag search, command palette actions, email-capture inbox routing). *Exit test: a brief pulled via MCP is never stale, and an agent event can update project state with one tap.*
+
+**Phase 2 — Memory infrastructure + evaluation (6–8 weeks).** `memoryEvents` ledger; vector retrieval; hierarchical compaction; writeback integration (L5); evaluation against acceptance criteria (L6) — which means making acceptance criteria a *first-class authored field* on every handoff, not boilerplate; GitHub webhooks + per-user tokens (fixing the tenancy bug); drift detection (L7); start logging L9 signals. *Exit test: a 6-month-old, 500-capture project produces a better brief than a 2-week-old one — the inversion of today's behavior, and the proof of "gets more useful as context accumulates."*
+
+**Phase 3 — Dispatch and orchestration (8–12 weeks).** `agentRuns` + scheduler step chains; dispatch to external executors (Cursor background agents API first — most natural audience overlap); the full automated circuit *Hypher notices → proposes → user taps go → executor works → writeback → evaluation → memory update*; per-project autonomy dial; L9 graduation. *Exit test: a builder wakes up to "Hypher dispatched the flaky-test fix you approved last night; 3 of 3 acceptance criteria met; memory updated" — and trusts it.*
+
+This sequencing deliberately *front-loads the unglamorous memory work*, because dispatch (Phase 3) built on stale, truncated context would produce confidently wrong agent runs and kill trust permanently. You only get one chance to make autonomy trustworthy.
+
+## 8. Risks, traps, and pitfalls
+
+- **The executor trap.** Building code execution in Hypher = competing with Cursor/Codex on their home turf with a fraction of resources, while abandoning the neutral position that is the entire moat. Dispatch to executors; never become one.
+- **Autonomy before trust.** One hallucinated auto-write into project memory costs more credibility than fifty approval taps. Hence: diffs everywhere, approval-first, graduation earned per category.
+- **Noise — the roadmap's own warning, and it's right.** L7 and L5 can easily become a notification firehose. Every proactive surface needs a quality bar (suppress below-threshold findings) and a feedback signal ("not useful" → L9). The digest pattern (batched, once daily) is the right default; interrupt only for genuine blockers.
+- **Evaluation theater.** A judge model rubber-stamping "looks good" is worse than nothing. Criteria must be specific and authored; verdicts must cite evidence; "unverifiable" must be an honest output.
+- **Cost blowup.** L2+L3 on every capture across all users is real money. Central client with budgets, batching, and cheap-model routing *before* turning loops on — this is why it's Phase 1.
+- **Convex constraints.** Action time limits mean Phase 3 *requires* checkpointed step chains (`scheduler.runAfter`), not long actions. The current GitHub sync (sequential foreach over all users in one action) is the anti-pattern to eliminate, not extend.
+- **Technical debt that bites loops specifically:** the ~120 `as any` casts around Convex typegen will hide contract drift exactly where autonomous code writes to the database; no-idempotency writeback means duplicate events the moment you add retries. Both are cheap now, expensive after Phase 2.
+- **The two-homes IA problem.** Capture mode vs. Workspace vs. three project views is already confusing; adding loop surfaces (runs, evaluations, approvals) on top will collapse without consolidation around the Today surface first.
+
+## Bottom line
+
+The April-era question ("is it shipped?") is answered — all launch blockers are closed. The June question is different: **Hypher has built the correct nouns (memory, brief, writeback, actions) but almost none of the verbs.** The vision document's own loop diagrams (`Hypher Agent Brief.md`, Core Loops) describe exactly the right system — the gap is that every arrow in those diagrams is currently a human clicking a button.
+
+The roadmap's conservatism ("avoid agent orchestration that creates noise") was right for April and is wrong as a permanent posture: the risk profile of L1–L7 is low precisely because they automate *existing* manual flows behind *existing* review gates. Where the conservative line should hold is execution: stay the orchestrating memory, dispatch to the world's executors, and let the decision ledger + evaluation corpus + taste profile compound into something no competitor can cold-start. That — not another agent runtime — is what makes Hypher something builders can't live without.
+
+---
+
+## Appendix: ground-truth findings the audit is based on
+
+### Core loop as implemented (June 2026)
+
+```txt
+capture → (partial) enrich → manual memory gen → static brief compile
+→ copy-paste to external agent → manual writeback paste / API inbox → human review
+```
+
+Broken or half-built segments found in code:
+
+1. API + email capture skip enrichment (no embeddings, tags, project suggestions, or `captureType`)
+2. `/capture` route skips client capture fields — only `useStore.addQuickCapture` sets full metadata
+3. Email capture assigns to first project, bypassing the unsorted inbox
+4. Project memory is manual; freshness is labeled but not auto-fixed; stale memory is still served
+5. Crystallization is regex-only (`crystallizeRecentActivity.ts`)
+6. MCP is read-only — no agent writeback through MCP
+7. Agent events don't update memory; inbox triage is fully manual
+8. No evaluation automation — acceptance criteria are prompt text, not enforced
+9. GitHub cron uses global `GITHUB_TOKEN`, not per-user PATs (tenancy gap)
+10. `createFromAgentSuggestion` only wired in ProjectPulse, not the global Agent Inbox
+11. Handoff return path is manual paste, no structured parsing
+12. Tag search is dead; `⌘K` is search-only; Agent Inbox hidden when empty
+13. Orphaned components: `StreamView`, `GardenView`, `SuggestionsPanel`, `InboxSidebar`, `ViewSwitcher`, `DetailView`, `ProjectCluster`
+
+### Architecture readiness scores (for autonomous loops)
+
+| Dimension | Score | Notes |
+|-----------|-------|-------|
+| Data model for memory | 6/10 | Good schema intent; missing versioning, retrieval, run state |
+| Context assembly | 7/10 | Excellent deterministic brief; degrades at scale (last-N only) |
+| AI infrastructure | 4/10 | Scattered call sites, no abstraction, no retries/cost controls |
+| Background execution | 2/10 | Two 15-min crons only; no orchestration primitives |
+| Integrations | 5/10 | MCP read path solid; GitHub/email partial; no write MCP |
+| Production hardening | 6/10 | Auth/rate-limit/Sentry good; `as any` debt, cron tenancy gap |
+
+### AI usage today
+
+| Model | Purpose |
+|-------|---------|
+| `claude-sonnet-4-20250514` | Project memory, digests, repo docs, canvas Q&A |
+| `claude-haiku-4-5-20251001` | Capture tagging |
+| `gpt-4o-transcribe` | Voice capture |
+| `Xenova/all-MiniLM-L6-v2` (browser) | Embeddings for suggestions/connections |

@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>hypher — logo lockup explorations</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Jura:wght@300;400;500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --ink: #0a0a0a;
+    --paper: #ffffff;
+    --bg: #ececee;
+    --line: #d8d8dc;
+    --muted: #8a8a90;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    font-family: "Inter", -apple-system, system-ui, sans-serif;
+    color: #1a1a1d;
+    padding: 56px 40px 80px;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; }
+  header { margin-bottom: 40px; }
+  h1 { font-size: 15px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); margin: 0 0 6px; }
+  .sub { font-size: 13px; color: var(--muted); margin: 0; }
+
+  .panel {
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    margin-bottom: 22px;
+    overflow: hidden;
+  }
+  .panel.dark { background: #0c0c0e; border-color: #1d1d20; }
+  .panel-head {
+    display: flex; align-items: baseline; gap: 12px;
+    padding: 16px 22px; border-bottom: 1px solid var(--line);
+  }
+  .panel.dark .panel-head { border-color: #1d1d20; }
+  .tag { font-size: 11px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+  .note { font-size: 12.5px; color: var(--muted); }
+  .panel.dark .tag, .panel.dark .note { color: #6f6f78; }
+  .stage { padding: 46px 40px; display: flex; align-items: center; justify-content: center; }
+  .stage.left { justify-content: flex-start; }
+
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
+  .grid2 .panel { margin-bottom: 0; }
+
+  .small-row { display: flex; align-items: center; gap: 44px; flex-wrap: wrap; }
+  .chip { text-align: center; }
+  .chip .cap { font-size: 11px; color: var(--muted); margin-top: 12px; letter-spacing: .04em; }
+
+  .logo-svg text {
+    font-family: "Jura", sans-serif;
+    font-weight: 300;
+    letter-spacing: 0.01em;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>hypher · lockup study</h1>
+    <p class="sub">Tightened lockup, gradient hero + mono fallback, with the spacing fix applied.</p>
+  </header>
+
+  <!-- SVG defs (shared) -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <defs>
+      <!-- light from top-left (your Frame 80 direction) -->
+      <linearGradient id="gradTL" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stop-color="#080808" />
+        <stop offset="0.55" stop-color="#2c2c2e" />
+        <stop offset="1" stop-color="#7c7c82" />
+      </linearGradient>
+      <!-- light from top-right (pulls eye toward the word) -->
+      <linearGradient id="gradTR" x1="1" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#6f6f76" />
+        <stop offset="0.5" stop-color="#28282a" />
+        <stop offset="1" stop-color="#070707" />
+      </linearGradient>
+
+      <!-- THE MARK — native bounds x[12..280] y[30..90] -->
+      <path id="mark" d="M12 30 L110 30 L110 44 L134 44 L134 34 L158 34 L158 44 L196 44 L196 30 L228 30 L280 90 L196 90 L196 76 L110 76 L110 90 L12 90 Z"/>
+    </defs>
+  </svg>
+
+  <!-- BEFORE vs AFTER spacing -->
+  <div class="panel">
+    <div class="panel-head"><span class="tag">01 · Spacing fix</span><span class="note">Before (loose, mark overpowering) vs After (tightened, weight-matched)</span></div>
+    <div class="stage" style="flex-direction:column; gap:34px; align-items:flex-start;">
+      <!-- BEFORE: big gap, oversized mark like Frame 72 -->
+      <svg class="logo-svg" viewBox="0 0 1040 200" width="640" aria-label="before">
+        <!-- mark scaled tall (h=130), big gap -->
+        <use href="#mark" transform="translate(20,-25) scale(2.166)" fill="#dededf"
+             stroke="#dededf" stroke-width="4" stroke-linejoin="round"/>
+        <text x="760" y="150" font-size="120" fill="#bdbdbf">hypher</text>
+      </svg>
+      <!-- AFTER: mono, tightened -->
+      <svg class="logo-svg" viewBox="0 0 1040 200" width="640" aria-label="after">
+        <use href="#mark" transform="translate(20,0) scale(1.667)" fill="var(--ink)"
+             stroke="var(--ink)" stroke-width="4" stroke-linejoin="round"/>
+        <text x="527" y="150" font-size="120" fill="var(--ink)">hypher</text>
+      </svg>
+    </div>
+  </div>
+
+  <!-- HERO gradient, two light directions -->
+  <div class="grid2" style="margin-bottom:22px;">
+    <div class="panel">
+      <div class="panel-head"><span class="tag">02 · Hero</span><span class="note">gradient · light top‑left</span></div>
+      <div class="stage">
+        <svg class="logo-svg" viewBox="0 0 1040 200" width="460">
+          <use href="#mark" transform="translate(20,0) scale(1.667)" fill="url(#gradTL)"
+               stroke="url(#gradTL)" stroke-width="4" stroke-linejoin="round"/>
+          <text x="527" y="150" font-size="120" fill="var(--ink)">hypher</text>
+        </svg>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><span class="tag">03 · Hero alt</span><span class="note">gradient · light top‑right (flows into word)</span></div>
+      <div class="stage">
+        <svg class="logo-svg" viewBox="0 0 1040 200" width="460">
+          <use href="#mark" transform="translate(20,0) scale(1.667)" fill="url(#gradTR)"
+               stroke="url(#gradTR)" stroke-width="4" stroke-linejoin="round"/>
+          <text x="527" y="150" font-size="120" fill="var(--ink)">hypher</text>
+        </svg>
+      </div>
+    </div>
+  </div>
+
+  <!-- MONO on white + reversed on dark -->
+  <div class="grid2" style="margin-bottom:22px;">
+    <div class="panel">
+      <div class="panel-head"><span class="tag">04 · Mono</span><span class="note">utility / small sizes / print</span></div>
+      <div class="stage">
+        <svg class="logo-svg" viewBox="0 0 1040 200" width="460">
+          <use href="#mark" transform="translate(20,0) scale(1.667)" fill="var(--ink)"
+               stroke="var(--ink)" stroke-width="4" stroke-linejoin="round"/>
+          <text x="527" y="150" font-size="120" fill="var(--ink)">hypher</text>
+        </svg>
+      </div>
+    </div>
+    <div class="panel dark">
+      <div class="panel-head"><span class="tag">05 · Reversed</span><span class="note">on dark</span></div>
+      <div class="stage">
+        <svg class="logo-svg" viewBox="0 0 1040 200" width="460">
+          <use href="#mark" transform="translate(20,0) scale(1.667)" fill="#f4f4f5"
+               stroke="#f4f4f5" stroke-width="4" stroke-linejoin="round"/>
+          <text x="527" y="150" font-size="120" fill="#f4f4f5">hypher</text>
+        </svg>
+      </div>
+    </div>
+  </div>
+
+  <!-- SMALL SIZE TEST -->
+  <div class="panel">
+    <div class="panel-head"><span class="tag">06 · Small‑size test</span><span class="note">why you keep the mono: thin outline (Frame 78) collapses; solid/gradient survives</span></div>
+    <div class="stage small-row">
+      <div class="chip">
+        <svg class="logo-svg" viewBox="0 0 1040 200" width="220">
+          <use href="#mark" transform="translate(20,0) scale(1.667)" fill="url(#gradTL)"/>
+          <text x="527" y="150" font-size="120" fill="var(--ink)">hypher</text>
+        </svg>
+        <div class="cap">gradient @ small</div>
+      </div>
+      <div class="chip">
+        <svg class="logo-svg" viewBox="0 0 1040 200" width="140">
+          <use href="#mark" transform="translate(20,0) scale(1.667)" fill="var(--ink)"/>
+          <text x="527" y="150" font-size="120" fill="var(--ink)">hypher</text>
+        </svg>
+        <div class="cap">mono @ tiny</div>
+      </div>
+      <div class="chip">
+        <!-- mark-only as app icon -->
+        <svg viewBox="0 0 300 120" width="72">
+          <use href="#mark" fill="url(#gradTL)"/>
+        </svg>
+        <div class="cap">mark only (app icon)</div>
+      </div>
+      <div class="chip">
+        <svg viewBox="0 0 300 120" width="72">
+          <use href="#mark" fill="none" stroke="#0a0a0a" stroke-width="5" stroke-linejoin="round"/>
+        </svg>
+        <div class="cap">outline @ small ✗</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

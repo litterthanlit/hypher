@@ -7,6 +7,7 @@ import { getDisplayName } from "@/types";
 import { CreateForm } from "./CreateForm";
 import { FolderIcon, KindIcon, PlusIcon } from "./Icons";
 import { ONBOARDING_TARGETS } from "@/lib/onboarding";
+import { HypherLockup } from "./HypherLockup";
 
 interface Props {
   projects: Project[];
@@ -62,8 +63,7 @@ export function Sidebar({
       <div className="sidebar-header">
         <button className="logo-btn" onClick={() => { closeMobile(); onGoHome(); }} title="Capture (Cmd+N)">
           <span className="logo logo--with-mark">
-            <img className="hypher-signal-mark hypher-signal-mark--sidebar" src="/hypher-logo.svg" alt="" aria-hidden />
-            hypher
+            <HypherLockup />
           </span>
         </button>
         <button className="btn-icon" onClick={() => setShowForm("project")} title="Create" aria-label="Create project">

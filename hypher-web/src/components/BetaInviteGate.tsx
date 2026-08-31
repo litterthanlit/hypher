@@ -6,6 +6,7 @@ import { UserButton } from "@clerk/nextjs";
 import { toast } from "sonner";
 import { api } from "../../convex/_generated/api";
 import { normalizeInviteCode } from "@/lib/beta";
+import { HypherLockup } from "@/components/HypherLockup";
 
 export function BetaInviteGate() {
   const redeemInvite = useMutation((api as any).beta.redeemInviteCode);
@@ -55,7 +56,7 @@ export function BetaInviteGate() {
       <div className="beta-gate-card">
         <div className="beta-gate-top">
           <span className="logo logo--with-mark">
-            <img className="hypher-signal-mark hypher-signal-mark--sidebar" src="/hypher-logo.svg" alt="Hypher" />
+            <HypherLockup />
           </span>
           <UserButton />
         </div>

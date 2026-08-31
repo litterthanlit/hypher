@@ -107,8 +107,8 @@ export function BetaRequestForm() {
             <p>Requests are reviewed manually so the early room stays focused on builders with real project context to test.</p>
           </div>
           <div className="beta-request-actions">
-            <Link href="/" className="api-key-dismiss-btn">Back to homepage</Link>
-            <Link href="/app" className="settings-github-connect">I have an invite</Link>
+            <Link href="/" className="marketing-cta marketing-cta--ghost">Back to homepage</Link>
+            <Link href="/app" className="marketing-cta">I have an invite</Link>
           </div>
         </div>
       </div>
@@ -219,8 +219,8 @@ export function BetaRequestForm() {
         </label>
 
         <div className="beta-request-actions">
-          <Link href="/app" className="api-key-dismiss-btn">I have an invite</Link>
-          <button type="submit" className="settings-github-connect" disabled={busy}>
+          <Link href="/app" className="marketing-cta marketing-cta--ghost">I have an invite</Link>
+          <button type="submit" className="marketing-cta" disabled={busy}>
             {busy ? "Submitting..." : "Request access"}
           </button>
         </div>

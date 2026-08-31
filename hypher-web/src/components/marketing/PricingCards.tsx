@@ -47,7 +47,7 @@ export function PricingCards({ variant }: { variant: Variant }) {
   const desc = variant === "expanded" ? "tw-mt-3 tw-text-[15px] tw-leading-relaxed tw-text-[var(--text-secondary)]" : "tw-mt-2 tw-text-sm tw-leading-relaxed tw-text-[var(--text-secondary)]";
   const listClass = `tw-mt-6 tw-space-y-2 tw-text-sm tw-text-[var(--text-secondary)] ${variant === "expanded" ? "tw-min-h-[120px]" : ""}`;
   const lockedBtn =
-    "tw-w-full tw-rounded-full tw-border tw-border-[var(--border-default)] tw-bg-[var(--bg-root)] tw-px-5 tw-py-2.5 tw-text-sm tw-font-medium tw-text-[var(--text-tertiary)] tw-cursor-default";
+    "tw-w-full tw-rounded-full tw-border tw-border-solid tw-border-[var(--border-default)] tw-bg-[var(--bg-root)] tw-px-5 tw-py-2.5 tw-text-sm tw-font-medium tw-text-[var(--text-tertiary)] tw-cursor-default";
 
   return (
     <div className="tw-grid tw-gap-6 md:tw-grid-cols-3">
@@ -69,7 +69,7 @@ export function PricingCards({ variant }: { variant: Variant }) {
           {BETA_INVITE_ONLY ? (
             <Link
               href="/beta/request"
-              className="tw-block tw-w-full tw-rounded-full tw-bg-electric tw-px-5 tw-py-2.5 tw-text-center tw-text-sm tw-font-medium tw-text-[var(--text-on-accent)] tw-no-underline tw-shadow-sm tw-transition hover:tw-bg-electric-dim hover:tw-no-underline"
+              className="marketing-cta tw-w-full"
             >
               Request beta access
             </Link>
@@ -86,7 +86,7 @@ export function PricingCards({ variant }: { variant: Variant }) {
         </div>
       </div>
 
-      <div className={`${cardBase} tw-ring-1 tw-ring-electric/20`}>
+      <div className={`${cardBase} marketing-surface-card--featured`}>
         <p className="tw-font-mono tw-text-xs tw-uppercase tw-tracking-widest tw-text-electric">Pro</p>
         <h3 className="tw-mt-4 tw-font-sans tw-text-xl tw-font-medium tw-tracking-tight tw-text-[var(--text-primary)]">$10<span className="tw-text-base tw-font-normal tw-text-[var(--text-tertiary)]">/mo</span></h3>
         <p className="tw-mt-1 tw-text-sm tw-text-[var(--text-tertiary)]">Billed monthly</p>

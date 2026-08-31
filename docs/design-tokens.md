@@ -12,8 +12,8 @@
 | `--blue` (generic) | Non-capture informational accents (e.g. shipped status in dashboard) |
 | `--danger`, `--red` | Errors, destructive actions, danger hover on menu items |
 | `--bg-*`, `--border-*`, `--text-*` | Default chrome; prefer these over raw hex |
-| `--glass-fill`, `--glass-fill-strong`, `--glass-stroke`, `--glass-inset`, `--glass-shadow`, `--glass-blur` | Logged-in glass panels (sidebar, workspace well, capture hero). Do not use on marketing. |
-| `--app-mesh` | Soft Hypher mint + ice mesh behind the logged-in shell |
+| `--glass-fill`, `--glass-fill-strong`, `--glass-stroke`, `--glass-inset`, `--glass-shadow`, `--glass-blur` | Glass panels for the signed-in app shell only. Public marketing uses paper (`--bg-primary` + `--border-default`), not these tokens. |
+| `--app-mesh` | Soft Hypher mint + ice mesh behind the signed-in shell. Marketing pages use a quieter `--bg-root` wash instead. |
 
 Implementation lives in [`hypher-web/src/app/globals.css`](../hypher-web/src/app/globals.css). When adding UI, extend tokens here rather than introducing one-off colors.
 

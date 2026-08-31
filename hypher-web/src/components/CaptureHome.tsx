@@ -12,6 +12,7 @@ import { HealthRing } from "./HealthRing";
 import { getCaptureEmptyState, getFirstUseActivationRail } from "@/lib/activation";
 import { toast } from "sonner";
 import { AppClock } from "./AppClock";
+import { HypherLockup } from "./HypherLockup";
 
 interface Props {
   projects: Project[];
@@ -451,8 +452,7 @@ export function CaptureHome({
               </svg>
             </button>
             <span className="capture-chrome-brand">
-              <img className="hypher-signal-mark" src="/hypher-logo.svg" alt="" aria-hidden />
-              <span className="capture-wordmark-mock">hypher</span>
+              <HypherLockup />
             </span>
           </div>
           <div className="capture-chrome-mock__right">

@@ -3,18 +3,12 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { MarketingBrand } from "./MarketingBrand";
+import { MarketingHeader } from "./MarketingHeader";
 import { MarketingProductVisual } from "./MarketingProductVisual";
 
 function BetaCta({ className }: { className?: string }) {
   return (
-    <Link
-      href="/beta/request"
-      className={
-        className
-          ? `${className} tw-text-white tw-no-underline hover:tw-text-white hover:tw-no-underline`
-          : "tw-inline-flex tw-items-center tw-justify-center tw-rounded-[var(--radius-sm)] tw-bg-electric tw-px-5 tw-py-2.5 tw-text-sm tw-font-medium tw-text-white tw-no-underline tw-shadow-sm tw-transition tw-duration-150 hover:tw-bg-electric-dim hover:tw-text-white hover:tw-no-underline active:tw-scale-[0.99]"
-      }
-    >
+    <Link href="/beta/request" className={className ?? "marketing-cta"}>
       Request beta access
     </Link>
   );
@@ -22,14 +16,7 @@ function BetaCta({ className }: { className?: string }) {
 
 function InviteCta({ className }: { className?: string }) {
   return (
-    <Link
-      href="/app"
-      className={
-        className
-          ? `${className} tw-no-underline hover:tw-no-underline`
-          : "tw-inline-flex tw-items-center tw-justify-center tw-rounded-[var(--radius-sm)] tw-border tw-border-[var(--border-default)] tw-bg-[var(--bg-primary)] tw-px-5 tw-py-2.5 tw-text-sm tw-font-medium tw-text-[var(--text-primary)] tw-no-underline tw-transition tw-duration-150 hover:tw-border-[var(--border-hover)] hover:tw-bg-[var(--bg-secondary)] hover:tw-no-underline"
-      }
-    >
+    <Link href="/app" className={className ?? "marketing-cta marketing-cta--ghost"}>
       I have an invite
     </Link>
   );
@@ -66,31 +53,10 @@ function PrimaryNavLinks() {
 export function LandingPage() {
   return (
     <div className="marketing-root tw-min-h-screen tw-text-[var(--text-primary)]">
-      <header className="tw-sticky tw-top-0 tw-z-50 tw-border-b tw-border-[var(--border-default)] tw-bg-[var(--bg-primary)]/90 tw-backdrop-blur-md">
-        <div className="tw-mx-auto tw-max-w-6xl tw-px-4 tw-py-3 sm:tw-px-6 lg:tw-px-8">
-          <div className="tw-flex tw-flex-wrap tw-items-center tw-justify-between tw-gap-x-4 tw-gap-y-3">
-            <MarketingBrand className="tw-shrink-0" />
-            <BetaCta className="tw-inline-flex md:tw-hidden tw-items-center tw-justify-center tw-rounded-[var(--radius-sm)] tw-bg-electric tw-px-3 tw-py-2 tw-text-xs tw-font-medium tw-text-[var(--text-on-accent)] tw-shadow-sm tw-transition tw-duration-150 hover:tw-bg-electric-dim" />
-            <div className="tw-hidden tw-items-center tw-gap-8 md:tw-flex">
-              <nav className="tw-flex tw-items-center tw-gap-6" aria-label="Primary">
-                <PrimaryNavLinks />
-              </nav>
-              <BetaCta className="tw-inline-flex tw-items-center tw-justify-center tw-rounded-[var(--radius-sm)] tw-bg-electric tw-px-4 tw-py-2 tw-text-sm tw-font-medium tw-text-[var(--text-on-accent)] tw-shadow-sm tw-transition tw-duration-150 hover:tw-bg-electric-dim" />
-            </div>
-          </div>
-          <nav
-            className="tw-flex tw-w-full tw-min-w-0 tw-overflow-x-auto tw-pt-3 md:tw-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:tw-hidden"
-            aria-label="Primary mobile"
-          >
-            <div className="tw-flex tw-min-w-0 tw-flex-1 tw-items-center tw-gap-5">
-              <PrimaryNavLinks />
-            </div>
-          </nav>
-        </div>
-      </header>
+      <MarketingHeader nav={<PrimaryNavLinks />} end={<BetaCta />} />
 
       <main>
-        <section className="marketing-hero tw-border-b tw-border-[var(--border-default)]">
+        <section className="marketing-hero">
           <div className="tw-mx-auto tw-grid tw-max-w-6xl tw-gap-10 tw-px-4 tw-py-12 sm:tw-px-6 sm:tw-py-16 lg:tw-grid-cols-[minmax(0,1.02fr)_minmax(0,1fr)] lg:tw-items-center lg:tw-gap-14 lg:tw-px-8 lg:tw-py-20">
             <div className="tw-min-w-0">
               <h1 className="tw-mt-0 tw-max-w-xl tw-text-balance tw-font-wordmark tw-text-[2rem] tw-font-medium tw-leading-[1.1] tw-tracking-[0.04em] sm:tw-text-[2.35rem] lg:tw-text-[2.65rem] lg:tw-leading-[1.08]">
@@ -107,8 +73,8 @@ export function LandingPage() {
                 compiles what your agents need to read and records what they did while building.
               </p>
               <div className="tw-mt-8 tw-flex tw-flex-col tw-gap-3 sm:tw-flex-row sm:tw-flex-wrap sm:tw-items-center">
-                <BetaCta />
-                <InviteCta />
+                <BetaCta className="marketing-cta marketing-cta--lg" />
+                <InviteCta className="marketing-cta marketing-cta--ghost marketing-cta--lg" />
               </div>
             </div>
             <div className="tw-min-w-0 tw-w-full">
@@ -119,7 +85,7 @@ export function LandingPage() {
 
         <section
           id="the-loop"
-          className="tw-scroll-mt-24 tw-border-b tw-border-[var(--border-default)] tw-bg-[var(--bg-primary)]"
+          className="tw-scroll-mt-24"
           aria-labelledby="loop-heading"
         >
           <div className="tw-mx-auto tw-max-w-6xl tw-px-4 tw-py-14 sm:tw-px-6 sm:tw-py-20 lg:tw-px-8">
@@ -164,7 +130,7 @@ export function LandingPage() {
 
         <section
           id="agents"
-          className="tw-scroll-mt-24 tw-border-b tw-border-[var(--border-default)] tw-bg-[var(--bg-secondary)]"
+          className="tw-scroll-mt-24"
           aria-labelledby="agents-heading"
         >
           <div className="tw-mx-auto tw-max-w-6xl tw-px-4 tw-py-14 sm:tw-px-6 sm:tw-py-20 lg:tw-px-8">
@@ -246,7 +212,7 @@ export function LandingPage() {
 
         <section
           id="beta"
-          className="tw-scroll-mt-24 tw-border-y tw-border-[var(--border-default)] tw-bg-[var(--bg-secondary)]"
+          className="tw-scroll-mt-24"
           aria-labelledby="beta-heading"
         >
           <div className="tw-mx-auto tw-max-w-6xl tw-px-4 tw-py-14 sm:tw-px-6 sm:tw-py-20 lg:tw-px-8">
@@ -267,7 +233,7 @@ export function LandingPage() {
           </div>
         </section>
 
-        <section className="tw-border-b tw-border-[var(--border-default)]" aria-labelledby="beta-cadence-heading">
+        <section aria-labelledby="beta-cadence-heading">
           <div className="tw-mx-auto tw-max-w-6xl tw-px-4 tw-py-14 sm:tw-px-6 sm:tw-py-20 lg:tw-px-8">
             <p className="tw-font-mono tw-text-[11px] tw-uppercase tw-tracking-[0.18em] tw-text-[var(--text-tertiary)]">
               Opening carefully.
@@ -285,9 +251,9 @@ export function LandingPage() {
           </div>
         </section>
 
-        <section className="tw-pb-20 tw-pt-16 sm:tw-pb-28 sm:tw-pt-20" aria-labelledby="final-cta-heading">
+        <section className="tw-pb-20 tw-pt-8 sm:tw-pb-28 sm:tw-pt-10" aria-labelledby="final-cta-heading">
           <div className="tw-mx-auto tw-max-w-6xl tw-px-4 sm:tw-px-6 lg:tw-px-8">
-            <div className="marketing-surface-card tw-rounded-[var(--radius-md)] tw-px-6 tw-py-10 sm:tw-px-10 sm:tw-py-12">
+            <div className="marketing-surface-card tw-rounded-2xl tw-px-6 tw-py-10 sm:tw-px-10 sm:tw-py-12">
               <h2
                 id="final-cta-heading"
                 className="tw-text-balance tw-text-center tw-font-wordmark tw-text-2xl tw-font-normal tw-tracking-[0.04em] sm:tw-text-3xl"
@@ -295,17 +261,17 @@ export function LandingPage() {
                 Bring your messiest project brain.
               </h2>
               <div className="tw-mt-8 tw-flex tw-flex-col tw-items-stretch tw-justify-center tw-gap-3 sm:tw-flex-row sm:tw-items-center sm:tw-justify-center">
-                <BetaCta className="tw-inline-flex tw-items-center tw-justify-center tw-rounded-[var(--radius-sm)] tw-bg-electric tw-px-6 tw-py-3 tw-text-sm tw-font-medium tw-text-[var(--text-on-accent)] tw-shadow-sm tw-transition tw-duration-150 hover:tw-bg-electric-dim" />
-                <InviteCta className="tw-inline-flex tw-items-center tw-justify-center tw-rounded-[var(--radius-sm)] tw-border tw-border-[var(--border-default)] tw-bg-[var(--bg-root)] tw-px-6 tw-py-3 tw-text-sm tw-font-medium tw-text-[var(--text-primary)] tw-transition tw-duration-150 hover:tw-border-[var(--border-hover)]" />
+                <BetaCta className="marketing-cta marketing-cta--lg" />
+                <InviteCta className="marketing-cta marketing-cta--ghost marketing-cta--lg" />
               </div>
             </div>
           </div>
         </section>
       </main>
 
-      <footer className="tw-border-t tw-border-[var(--border-default)] tw-py-10">
+      <footer className="tw-py-10">
         <div className="tw-mx-auto tw-flex tw-max-w-6xl tw-flex-col tw-items-center tw-gap-6 tw-px-4 sm:tw-flex-row sm:tw-items-center sm:tw-justify-between sm:tw-px-6 lg:tw-px-8">
-          <MarketingBrand size="sm" showTagline />
+          <MarketingBrand size="sm" />
           <p className="tw-max-w-md tw-text-center tw-text-xs tw-leading-relaxed tw-text-[var(--text-tertiary)] sm:tw-text-right sm:tw-text-sm">
             Project context layer for AI builders and agents.
           </p>
@@ -327,7 +293,7 @@ function LoopStep({
   visual: ReactNode;
 }) {
   return (
-    <article className="marketing-surface-card tw-group tw-flex tw-flex-col tw-rounded-[var(--radius-md)] tw-p-5">
+    <article className="marketing-surface-card tw-group tw-flex tw-flex-col tw-rounded-2xl tw-p-5">
       <div className="marketing-inset-panel tw-mb-5 tw-min-h-[112px] tw-p-3">{visual}</div>
       <p className="tw-font-mono tw-text-[10px] tw-uppercase tw-tracking-wider tw-text-[var(--text-quaternary)]">
         {step}
@@ -342,7 +308,7 @@ function LoopStep({
 
 function FeatureBlock({ title, body, detail }: { title: string; body: string; detail: string }) {
   return (
-    <article className="marketing-surface-card tw-flex tw-flex-col tw-rounded-[var(--radius-md)] tw-p-6">
+    <article className="marketing-surface-card tw-flex tw-flex-col tw-rounded-2xl tw-p-6">
       <h3 className="tw-text-lg tw-font-medium tw-tracking-tight tw-text-[var(--text-primary)]">{title}</h3>
       <p className="tw-mt-3 tw-flex-1 tw-text-sm tw-leading-relaxed tw-text-[var(--text-secondary)]">{body}</p>
       <p className="tw-mt-5 tw-border-t tw-border-[var(--border-default)] tw-pt-4 tw-text-xs tw-leading-relaxed tw-text-[var(--text-tertiary)]">
@@ -354,10 +320,10 @@ function FeatureBlock({ title, body, detail }: { title: string; body: string; de
 
 function AgentFlowCard({ title, body, code }: { title: string; body: string; code: string }) {
   return (
-    <article className="marketing-surface-card tw-rounded-[var(--radius-md)] tw-p-6">
+    <article className="marketing-surface-card tw-rounded-2xl tw-p-6">
       <h3 className="tw-text-base tw-font-medium tw-tracking-tight tw-text-[var(--text-primary)]">{title}</h3>
       <p className="tw-mt-2 tw-text-sm tw-leading-relaxed tw-text-[var(--text-secondary)]">{body}</p>
-      <p className="tw-mt-4 tw-overflow-x-auto tw-rounded-[var(--radius-sm)] tw-border tw-border-[var(--border-default)] tw-bg-[var(--bg-root)] tw-px-3 tw-py-2 tw-font-mono tw-text-[11px] tw-text-[var(--text-tertiary)]">
+      <p className="tw-mt-4 tw-overflow-x-auto tw-rounded-xl tw-border tw-border-[var(--border-default)] tw-bg-[var(--bg-root)] tw-px-3 tw-py-2 tw-font-mono tw-text-[11px] tw-text-[var(--text-tertiary)]">
         {code}
       </p>
     </article>
@@ -371,11 +337,11 @@ function LoopVisualCapture() {
         <span className="tw-font-mono tw-text-[9px] tw-uppercase tw-tracking-wider tw-text-[var(--text-tertiary)]">
           Inbox
         </span>
-        <span className="tw-rounded tw-bg-[var(--bg-tertiary)] tw-px-1.5 tw-py-0.5 tw-font-mono tw-text-[9px] tw-tabular-nums tw-text-[var(--text-tertiary)]">
+        <span className="tw-rounded tw-bg-[var(--bg-root)] tw-px-1.5 tw-py-0.5 tw-font-mono tw-text-[9px] tw-tabular-nums tw-text-[var(--text-tertiary)]">
           3 new
         </span>
       </div>
-      <div className="tw-rounded tw-border tw-border-[var(--border-default)] tw-bg-[var(--bg-primary)] tw-p-2.5 tw-shadow-[0_1px_0_rgba(255,255,255,0.06)_inset]">
+      <div className="tw-rounded tw-border tw-border-[var(--border-default)] tw-bg-[var(--bg-primary)] tw-p-2.5">
         <div className="tw-flex tw-items-start tw-gap-2">
           <span
             className="tw-mt-1 tw-h-1.5 tw-w-1.5 tw-shrink-0 tw-rounded-full tw-bg-[var(--accent)]"
@@ -404,39 +370,6 @@ function LoopVisualCapture() {
           </div>
         </div>
       </div>
-    </div>
-  );
-}
-
-function LoopVisualSort() {
-  return (
-    <div className="tw-flex tw-h-full tw-min-h-[104px] tw-flex-col tw-gap-2 tw-text-[10px]">
-      <span className="tw-font-mono tw-text-[9px] tw-uppercase tw-tracking-wider tw-text-[var(--text-tertiary)]">
-        Suggested project
-      </span>
-      <div className="tw-flex tw-items-stretch tw-gap-2">
-        <div className="tw-flex tw-min-w-0 tw-flex-1 tw-flex-col tw-rounded tw-border tw-border-[var(--accent)] tw-bg-[var(--accent-subtle)] tw-p-2">
-          <div className="tw-flex tw-items-center tw-justify-between tw-gap-1">
-            <span className="tw-truncate tw-font-medium tw-text-[var(--accent)]">Essays</span>
-            <span className="tw-shrink-0 tw-font-mono tw-text-[var(--text-tertiary)]">82%</span>
-          </div>
-          <div className="tw-mt-2 tw-h-1 tw-w-full tw-overflow-hidden tw-rounded-full tw-bg-[var(--bg-primary)]">
-            <div className="tw-h-full tw-w-[82%] tw-rounded-full tw-bg-[var(--accent)]/50" />
-          </div>
-        </div>
-        <div className="tw-flex tw-min-w-0 tw-flex-1 tw-flex-col tw-rounded tw-border tw-border-[var(--border-default)] tw-bg-[var(--bg-primary)] tw-p-2 tw-opacity-[0.92]">
-          <div className="tw-flex tw-items-center tw-justify-between tw-gap-1">
-            <span className="tw-truncate tw-font-medium tw-text-[var(--text-secondary)]">Ship v1</span>
-            <span className="tw-shrink-0 tw-font-mono tw-text-[var(--text-tertiary)]">14%</span>
-          </div>
-          <div className="tw-mt-2 tw-h-1 tw-w-full tw-overflow-hidden tw-rounded-full tw-bg-[var(--bg-tertiary)]">
-            <div className="tw-h-full tw-w-[14%] tw-rounded-full tw-bg-[var(--text-quaternary)]/40" />
-          </div>
-        </div>
-      </div>
-      <p className="tw-line-clamp-2 tw-leading-snug tw-text-[var(--text-quaternary)]">
-        Matched &quot;digest&quot;, &quot;export&quot;, and your last three captures.
-      </p>
     </div>
   );
 }
@@ -482,7 +415,7 @@ function LoopVisualWriteback() {
         <span className="tw-font-mono tw-text-[9px] tw-uppercase tw-tracking-wider tw-text-[var(--text-tertiary)]">
           Agent inbox
         </span>
-        <span className="tw-rounded tw-bg-[var(--bg-tertiary)] tw-px-1.5 tw-py-0.5 tw-font-mono tw-text-[9px] tw-text-[var(--text-tertiary)]">
+        <span className="tw-rounded tw-bg-[var(--bg-root)] tw-px-1.5 tw-py-0.5 tw-font-mono tw-text-[9px] tw-text-[var(--text-tertiary)]">
           cursor
         </span>
       </div>
