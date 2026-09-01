@@ -26,6 +26,12 @@ const navLinkClass = "marketing-nav-link";
 function PrimaryNavLinks() {
   return (
     <>
+      <a href="/#the-loop" className={navLinkClass}>
+        How it works
+      </a>
+      <a href="/#agents" className={navLinkClass}>
+        For agents
+      </a>
       <Link href="/pricing" className={navLinkClass}>
         Pricing
       </Link>

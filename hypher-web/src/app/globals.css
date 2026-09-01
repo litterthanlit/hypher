@@ -6716,6 +6716,7 @@ button.marketing-cta {
 
 .marketing-section {
   padding: 88px 0;
+  scroll-margin-top: 80px;
 }
 
 .marketing-section--alt {
@@ -6968,7 +6969,10 @@ button.marketing-cta {
 }
 
 @media (min-width: 1024px) {
-  .marketing-loop,
+  .marketing-loop {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
   .marketing-split--features {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
