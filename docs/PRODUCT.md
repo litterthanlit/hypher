@@ -81,15 +81,13 @@ Demo this, sell this, dogfood this: a new chat that already knows the decisions 
 
 ## What is built vs what is still a hole
 
-The loop exists in code. It does not yet run without ceremony. These four holes are the product, not a backlog of extras.
+The loop exists in code. Holes 1 and 3 are closed in product code: a dump compiles identity, and a matched handoff receipt thickens it without Accept. Ceremony that remains is hole 2.
 
-### 1. Notes do not become a coherent identity by themselves
+### 1. Notes become a coherent identity on dump — shipped
 
-The brief compiler will include raw captures and recent agent events. Durable identity — summary, direction, decisions — lives in project memory.
+After a dump is assigned to a project (or captured onto one), Hypher compiles summary, direction, decisions, constraints, and next move into project memory. No generate button. A scheduled synthesis pass can refine that with the model; the heuristic write is enough that the brief is not a skeleton.
 
-Memory generation still exists as `/api/project-memory/generate`. There is **no in-app path** that regenerates it after dump or writeback. v2 correctly removed “generate memory” as a card action. It incorrectly left synthesis with no automatic home.
-
-**Build:** after dump or a matched handoff, compile/update the coherent brief. No new button. No new panel.
+Same guts: `hypher-web/shared/silentMemory.ts`, `hypher-web/convex/projectMemories.ts`, `hypher-web/convex/projectMemoryActions.ts`. `/api/project-memory/generate` is still an implementation detail.
 
 ### 2. Hypher does not hear a session unless the agent remembers to call it
 
@@ -97,11 +95,9 @@ Session start/end is a skill plus an always-on rule. There are **no `sessionStar
 
 **Build:** when the Cursor plugin is connected and the repo is linked, load the brief once at session start. Post one `handoff` at session end. Default to one event, not a firehose. Commands `/hypher-brief` and `/hypher-handoff` stay as manual overrides.
 
-### 3. Durable memory only thickens on Accept
+### 3. Matched receipts thicken identity without Accept — shipped
 
-Until you Accept a writeback in Pulse, events are **recent news in the packet**, not the project’s identity.
-
-**Build:** a matched `handoff` / `build_log` that is a receipt of work should update memory without a click (what changed, next move, handoff notes). Keep human Accept for **questions and suggestions** — judgment, not receipt.
+A matched `handoff` / `build_log` that is a receipt of work updates what changed, next move, and handoff notes immediately. Pulse still shows the update. Accept stays on **questions and suggestions** (and GitHub signals). GitHub `build_log`s are not receipts.
 
 ### 4. GitHub is a signal, not memory
 
@@ -166,8 +162,8 @@ A visual moodboard (Notion × Freeform × Obsidian) is allowed **later as a view
 Prove the loop. Then film it. Then maybe remind. Then maybe lay it out in space.
 
 1. **Dogfood Hypher on Hypher.** Link this repo. Dump the real constraints once. Brief at start, one handoff at end, every session. If session 2 is not obviously better, fix the packet before anything else.
-2. **Notes → coherent brief, automatically.** Dump or writeback updates summary, direction, decisions, constraints, next move. Still no generate button.
-3. **Background loop.** Session start hook loads the brief once. Session end hook posts one handoff. Handoff receipts thicken memory without Accept.
+2. **Notes → coherent brief, automatically.** Shipped: dump or writeback updates summary, direction, decisions, constraints, next move. Still no generate button.
+3. **Background loop.** Session start hook loads the brief once. Session end hook posts one handoff. Handoff receipts already thicken memory without Accept.
 4. **Cold start copy.** On first link: dump the goal, or start a session and we will capture the first handoff.
 5. **The with/without benchmark.** That recording is the launch. See below.
 6. **Only after the loop is trusted:** stale-project reminders, native capture companions (Mac hotkey, iOS share sheet). **Later:** a spatial view of the same objects. **Last, if ever:** generic chat.
@@ -218,7 +214,7 @@ Stakes, when needed: **Stop re-explaining the project every session.**
 | Brief compiler | `hypher-web/src/lib/projectContext.ts` |
 | Pulse | `hypher-web/src/components/ProjectPulse.tsx` |
 | Dump | `hypher-web/src/components/CaptureHome.tsx` |
-| Memory | `hypher-web/convex/projectMemories.ts`, `hypher-web/src/app/api/project-memory/generate/route.ts` |
+| Memory | `hypher-web/convex/projectMemories.ts`, `hypher-web/convex/projectMemoryActions.ts`, `hypher-web/shared/silentMemory.ts` |
 | Writeback | `hypher-web/convex/agentEvents.ts`, `hypher-web/src/app/api/agent/events/route.ts` |
 | MCP | `hypher-web/src/lib/mcpTools.ts`, `hypher-web/src/app/api/mcp/route.ts` |
 | Cursor plugin | `extensions/cursor/` (skills today; hooks are the next slice) |

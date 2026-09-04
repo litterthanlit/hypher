@@ -1,10 +1,12 @@
 import type { ActivityEntry, AnyObject, Project, ProjectMemory } from "@/types";
 import type { AgentEvent, ProjectAction } from "@/types";
 import { selectPrimaryNextAction } from "./projectMemory";
+import { agentEventNeedsHumanAccept } from "../../shared/silentMemory";
 
 export const BUILDER_BRIEF_COPY_LABEL = "Copy Builder Brief";
 export const BUILDER_BRIEF_COPY_SUCCESS_TOAST = "Builder Brief copied";
 export const BUILDER_BRIEF_COPY_ERROR_TOAST = "Could not copy Builder Brief";
+export { agentEventNeedsHumanAccept };
 
 export function buildProjectPulseModel(params: {
   project: Project;

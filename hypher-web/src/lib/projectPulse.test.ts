@@ -4,6 +4,7 @@ import {
   BUILDER_BRIEF_COPY_ERROR_TOAST,
   BUILDER_BRIEF_COPY_LABEL,
   BUILDER_BRIEF_COPY_SUCCESS_TOAST,
+  agentEventNeedsHumanAccept,
   buildProjectContextInput,
   buildProjectPulseModel,
 } from "./projectPulse";
@@ -141,5 +142,12 @@ describe("Builder Brief UI copy", () => {
     expect(BUILDER_BRIEF_COPY_LABEL).toBe("Copy Builder Brief");
     expect(BUILDER_BRIEF_COPY_SUCCESS_TOAST).toBe("Builder Brief copied");
     expect(BUILDER_BRIEF_COPY_ERROR_TOAST).toBe("Could not copy Builder Brief");
+  });
+});
+
+describe("agent writeback Accept", () => {
+  it("does not require Accept for matched handoff receipts", () => {
+    expect(agentEventNeedsHumanAccept("handoff", "cursor")).toBe(false);
+    expect(agentEventNeedsHumanAccept("question", "cursor")).toBe(true);
   });
 });

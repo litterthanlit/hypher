@@ -8,7 +8,7 @@ Use it so the next Grok (or any agent) holds that line.
 
 ## Make it right
 
-Hypher is thin because the **loop still needs a ritual**. The backend can compile a brief. The plugin can read and write. A human still has to remember `/hypher-brief`, Accept in Pulse, and hope the agent calls `post_agent_event`.
+Hypher is thin because session start/end still needs a ritual. Dump and matched writeback now thicken memory without a button. A human still has to hope the agent calls `post_agent_event`.
 
 Thickness is not more UI. Thickness is:
 
@@ -16,12 +16,12 @@ Thickness is not more UI. Thickness is:
 
 | Hole | Do | Do not |
 |---|---|---|
-| **1. Memory gen has no path** | After a dump lands on a project, and after a matched writeback, silently update summary / direction / decisions / next move. Same `/api/project-memory/generate` guts, no button. | Put “Generate memory” back on cards. |
+| **1. Silent synthesis — shipped** | After a dump lands on a project, and after a matched writeback, silently update summary / direction / decisions / next move. | Put “Generate memory” back on cards. |
 | **2. No session hooks** | `sessionStart` injects the Builder Brief once (`additional_context`). `sessionEnd` posts **one** `handoff` (script with the user’s Hypher token, or a hard instruction the agent cannot skip). Skills stay as fallback. | Hope the agent remembers a skill. Spam `build_log`. |
-| **3. Accept-gated identity** | `handoff` / `build_log` receipts patch memory when they match a project. Pulse still shows them. **Accept stays for questions and suggestions** (judgment, not receipts). | Make the builder click every time work happened. Auto-accept opinions. |
+| **3. Receipt memory — shipped** | `handoff` / `build_log` receipts patch memory when they match a project. Pulse still shows them. **Accept stays for questions and suggestions** (judgment, not receipts). | Make the builder click every time work happened. Auto-accept opinions. |
 | **4. GitHub ≠ memory** | Leave it. CI / stale PR / blocker signals only. | Ingest the repo. Auto-mint projects from Cursor remotes. |
 
-**Build order:** 1 and 3 together (memory writes). Then 2 (Cursor `hooks/hooks.json`). Then dogfood Hypher-on-Hypher. Then film the with/without benchmark. Then stop.
+**Build order:** 1 and 3 shipped. Next is 2 (Cursor `hooks/hooks.json`). Then dogfood Hypher-on-Hypher. Then film the with/without benchmark. Then stop.
 
 Hole 4 is a lock, not a ticket.
 
