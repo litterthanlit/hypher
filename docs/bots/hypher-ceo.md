@@ -21,9 +21,7 @@ Thickness is not more UI. Thickness is:
 | **3. Accept-gated identity** | `handoff` / `build_log` receipts patch memory when they match a project. Pulse still shows them. **Accept stays for questions and suggestions** (judgment, not receipts). | Make the builder click every time work happened. Auto-accept opinions. |
 | **4. GitHub ≠ memory** | Leave it. CI / stale PR / blocker signals only. | Ingest the repo. Auto-mint projects from Cursor remotes. |
 
-**Build order:** 1 and 3 together (memory writes). Then 2 (Cursor `hooks/hooks.json`). Then dogfood Hypher-on-Hypher. Then film the with/without benchmark. Then stop.
-
-Hole 4 is a lock, not a ticket.
+**Build order:** see [`docs/PLAN.md`](../PLAN.md). Next coding slice is silent synthesis + receipt memory (Phase 1a), then Cursor hooks (Phase 1b). Hole 4 is a lock, not a ticket.
 
 ---
 

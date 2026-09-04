@@ -165,12 +165,13 @@ A visual moodboard (Notion × Freeform × Obsidian) is allowed **later as a view
 
 Prove the loop. Then film it. Then maybe remind. Then maybe lay it out in space.
 
-1. **Dogfood Hypher on Hypher.** Link this repo. Dump the real constraints once. Brief at start, one handoff at end, every session. If session 2 is not obviously better, fix the packet before anything else.
-2. **Notes → coherent brief, automatically.** Dump or writeback updates summary, direction, decisions, constraints, next move. Still no generate button.
-3. **Background loop.** Session start hook loads the brief once. Session end hook posts one handoff. Handoff receipts thicken memory without Accept.
-4. **Cold start copy.** On first link: dump the goal, or start a session and we will capture the first handoff.
-5. **The with/without benchmark.** That recording is the launch. See below.
-6. **Only after the loop is trusted:** stale-project reminders, native capture companions (Mac hotkey, iOS share sheet). **Later:** a spatial view of the same objects. **Last, if ever:** generic chat.
+The sequence lives in [`PLAN.md`](./PLAN.md). Short version:
+
+1. Dogfood Hypher on Hypher (link this repo, dump once, brief + handoff every session).
+2. Remove ceremony (silent synthesis, receipt memory, session hooks).
+3. Empty state without ingesting GitHub.
+4. With/without benchmark — that recording is the launch.
+5. Only then: reminders, native capture, later a spatial view. Chat last, if ever.
 
 ---
 
@@ -227,5 +228,6 @@ Stakes, when needed: **Stop re-explaining the project every session.**
 Plugin how-to: `extensions/cursor/README.md`. Event payload shape: `hypher-web/docs/agent-handoff.md`. UI tokens: `hypher-web/STYLING.md`.
 
 CEO voice for Grok (not a second product): `docs/bots/hypher-ceo.md`.
+Sequence: `docs/PLAN.md`.
 
 Do not treat those as product direction. They are how.
