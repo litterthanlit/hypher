@@ -10,7 +10,7 @@ const MAX_DIGEST_PROJECTS = 50;
 const MAX_TAG_CONTENT_LEN = 2000;
 const MAX_TAGS = 5;
 
-/* MIRROR of the other copy — keep in sync. See .specs/week-2-04-streaming-ai-tokens.md
+/* MIRROR of the other copy — keep in sync.
  * The canonical source is hypher-web/src/app/api/digest/formatPrompt.ts
  * Convex cannot import files outside the convex/ directory at runtime,
  * so this is an intentional inline duplicate.
