@@ -39,19 +39,16 @@ Done when: this repo resolves, Pulse shows Hypher’s own handoffs, and a new Cu
 
 ## Phase 1 — Loop without ceremony
 
-This is the “runs in the background” slice. Do **1a and 1b**. Memory writes first, then hooks.
+This is the “runs in the background” slice. **1a is done.** Do **1b** next.
 
-### 1a. Silent synthesis + receipt memory — next
+### 1a. Silent synthesis + receipt memory — done
 
-After a dump is assigned to a project, and after a matched `handoff` / `build_log`, update summary, direction, decisions, constraints, next move, handoff notes.
+After a dump is assigned to a project, and after a matched `handoff` / `build_log`, Hypher updates summary, direction, decisions, constraints, next move, handoff notes.
 
 - Same guts as `/api/project-memory/generate`. No Generate button. No new panel.
 - Receipts thicken identity without Accept. Pulse still lists the event.
-- Keep Accept for `question` and `suggestion`. Humans review judgment, not receipt of work.
-- After writeback, the next `get_project_context` is warmer without a buried API call from the builder.
+- Accept stays for `question` and `suggestion`.
 - GitHub `build_log`s are signals, not receipts.
-
-Where: `hypher-web/convex/agentEvents.ts`, `hypher-web/convex/projectMemories.ts`, `hypher-web/src/app/api/project-memory/generate/route.ts`, dump/assign path in `hypher-web/src/lib/useStore.ts`.
 
 Done when: dump “don’t widen OAuth” → brief contains it as a constraint without a click. Post a handoff → next brief includes what changed and the next move without Accept.
 
@@ -159,4 +156,4 @@ GitHub stays a signal (CI, stale PRs, labeled blockers). That is a lock, not a l
 | [`bots/hypher-ceo.md`](./bots/hypher-ceo.md) | Ship-or-cut judgment |
 | [`product/cursor-plugin-v1-spec.md`](./product/cursor-plugin-v1-spec.md) | Plugin contract for Phase 1b |
 
-Next coding session: **Phase 1a**. Silent synthesis + receipt memory. No new UI.
+Next coding session: **Phase 1b**. Session start/end hooks. Skills stay as fallback.

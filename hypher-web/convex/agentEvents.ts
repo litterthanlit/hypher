@@ -8,6 +8,8 @@ import { apiKeyProbeRateLimitKey } from "./apiKeys";
 import type { Id } from "./_generated/dataModel";
 import { GITHUB_LOOP_SOURCE, planGithubLoopWrites } from "./lib/githubAgentEvents";
 import { normalizeGitHubRepo } from "../shared/githubRepo";
+import { isWorkReceipt } from "../shared/projectMemoryGenerate";
+import { applyReceiptForEvent } from "./lib/projectMemoryWrite";
 
 const eventKind = v.union(
   v.literal("handoff"),
@@ -273,6 +275,7 @@ async function persistAgentEventForUser(
   }
 
   const now = Date.now();
+  const receipt = Boolean(matched && isWorkReceipt(parsed.value.kind, parsed.value.source));
   const eventId = await ctx.runMutation(_internal.agentEvents.createForApiUser, {
     userId,
     projectId: matched?.id ? (matched.id as Id<"objects">) : undefined,
@@ -285,9 +288,24 @@ async function persistAgentEventForUser(
     branch: parsed.value.branch,
     commitSha: parsed.value.commitSha,
     artifactUrl: parsed.value.artifactUrl,
-    status: "new",
+    status: receipt ? "reviewed" : "new",
     createdAt: now,
+    reviewedAt: receipt ? now : undefined,
   });
+
+  if (receipt && matched) {
+    await ctx.runMutation(_internal.projectMemories.applyReceipt, {
+      userId,
+      projectId: matched.id,
+      eventId: String(eventId),
+      kind: parsed.value.kind,
+      source: parsed.value.source,
+      title: parsed.value.title,
+      body: parsed.value.body,
+      suggestedActions: parsed.value.suggestedActions,
+      now,
+    });
+  }
 
   return {
     ok: true,
@@ -461,12 +479,27 @@ export const moveToProject = mutation({
   args: { eventId: v.id("agentEvents"), projectId: v.id("objects") },
   handler: async (ctx, { eventId, projectId }) => {
     const userId = await requireBetaAccess(ctx);
-    await requireEvent(ctx, eventId, userId);
+    const event = await requireEvent(ctx, eventId, userId);
     const project = await ctx.db.get(projectId);
     if (!project || project.userId !== userId || project.kind !== "project") {
       throw new Error("Invalid project");
     }
     await ctx.db.patch(eventId, { projectId });
+    if (isWorkReceipt(event.kind, event.source)) {
+      const now = Date.now();
+      await applyReceiptForEvent(ctx, {
+        userId,
+        projectId,
+        eventId: String(eventId),
+        kind: event.kind,
+        source: event.source,
+        title: event.title,
+        body: event.body,
+        suggestedActions: event.suggestedActions,
+        now,
+      });
+      await ctx.db.patch(eventId, { status: "reviewed", reviewedAt: now });
+    }
   },
 });
 

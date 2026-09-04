@@ -1,6 +1,9 @@
 import type { ActivityEntry, AnyObject, Project, ProjectMemory } from "@/types";
 import type { AgentEvent, ProjectAction } from "@/types";
 import { selectPrimaryNextAction } from "./projectMemory";
+import { agentEventNeedsHumanAccept } from "../../shared/projectMemoryGenerate";
+
+export { agentEventNeedsHumanAccept };
 
 export const BUILDER_BRIEF_COPY_LABEL = "Copy Builder Brief";
 export const BUILDER_BRIEF_COPY_SUCCESS_TOAST = "Builder Brief copied";

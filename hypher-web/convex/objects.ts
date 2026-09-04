@@ -1,6 +1,9 @@
 import { query, mutation, internalMutation, internalQuery } from "./_generated/server";
+import type { MutationCtx } from "./_generated/server";
 import { v } from "convex/values";
+import type { Id } from "./_generated/dataModel";
 import { requireBetaAccess } from "./lib/auth";
+import { ingestDumpIntoMemory } from "./lib/projectMemoryWrite";
 
 const objectFields = {
   kind: v.union(v.literal("project"), v.literal("note"), v.literal("artifact")),
@@ -57,6 +60,27 @@ function stripUndefined<T extends Record<string, unknown>>(value: T): Partial<T>
   return Object.fromEntries(
     Object.entries(value).filter(([, item]) => item !== undefined)
   ) as Partial<T>;
+}
+
+async function ingestAssignedDump(
+  ctx: MutationCtx,
+  args: {
+    userId: string;
+    projectId: string | null | undefined;
+    content?: string;
+    name?: string;
+    now: number;
+  }
+) {
+  if (!args.projectId) return;
+  const content = (args.content ?? args.name ?? "").trim();
+  if (!content) return;
+  await ingestDumpIntoMemory(ctx, {
+    userId: args.userId,
+    projectId: args.projectId as Id<"objects">,
+    content,
+    now: args.now,
+  });
 }
 
 function toClientObject(doc: any) {
@@ -185,10 +209,34 @@ export const put = mutation({
       if (!existing || existing.userId !== userId) {
         throw new Error("Unauthorized");
       }
+      const assignedNow = Boolean(
+        data.kind !== "project"
+        && data.projectId
+        && data.projectId !== existing.projectId
+      );
       await ctx.db.patch(id, data);
+      if (assignedNow) {
+        await ingestAssignedDump(ctx, {
+          userId,
+          projectId: data.projectId,
+          content: data.content ?? existing.content,
+          name: data.name ?? existing.name,
+          now: data.modifiedAt ?? Date.now(),
+        });
+      }
       return id;
     }
-    return await ctx.db.insert("objects", { ...data, userId });
+    const insertedId = await ctx.db.insert("objects", { ...data, userId });
+    if (data.kind !== "project" && data.projectId) {
+      await ingestAssignedDump(ctx, {
+        userId,
+        projectId: data.projectId,
+        content: data.content,
+        name: data.name,
+        now: data.modifiedAt ?? data.createdAt ?? Date.now(),
+      });
+    }
+    return insertedId;
   },
 });
 
@@ -222,6 +270,13 @@ export const assignToProject = mutation({
       captureStatus: "sorted",
       reviewedAt: timestamp,
       modifiedAt: timestamp,
+    });
+    await ingestAssignedDump(ctx, {
+      userId,
+      projectId: String(projectId),
+      content: existing.content,
+      name: existing.name,
+      now: timestamp,
     });
   },
 });
@@ -304,7 +359,17 @@ export const putForApiUser = internalMutation({
   },
   handler: async (ctx, args) => {
     const { userId, ...data } = args;
-    return await ctx.db.insert("objects", { ...data, userId });
+    const insertedId = await ctx.db.insert("objects", { ...data, userId });
+    if (data.kind !== "project" && data.projectId) {
+      await ingestAssignedDump(ctx, {
+        userId,
+        projectId: data.projectId,
+        content: data.content,
+        name: data.name,
+        now: data.modifiedAt ?? data.createdAt ?? Date.now(),
+      });
+    }
+    return insertedId;
   },
 });
 

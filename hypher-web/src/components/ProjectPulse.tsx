@@ -21,6 +21,7 @@ import {
   BUILDER_BRIEF_COPY_ERROR_TOAST,
   BUILDER_BRIEF_COPY_LABEL,
   BUILDER_BRIEF_COPY_SUCCESS_TOAST,
+  agentEventNeedsHumanAccept,
   buildProjectContextInput,
   buildProjectPulseModel,
 } from "@/lib/projectPulse";
@@ -248,11 +249,11 @@ export function ProjectPulse({
                   <div className="project-pulse-row-actions">
                     {event.status === "accepted" ? (
                       <span className="project-pulse-accepted">Accepted</span>
-                    ) : (
+                    ) : agentEventNeedsHumanAccept(event.kind, event.source) && event.status === "new" ? (
                       <button type="button" className="project-pulse-inline-btn project-pulse-inline-btn--primary" onClick={() => void handleAcceptAgentEvent(event)}>
                         Accept
                       </button>
-                    )}
+                    ) : null}
                     <button type="button" className="project-pulse-inline-btn" onClick={() => void handleAgentDismiss(event)}>
                       Dismiss
                     </button>
