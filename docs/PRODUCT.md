@@ -226,4 +226,6 @@ Stakes, when needed: **Stop re-explaining the project every session.**
 
 Plugin how-to: `extensions/cursor/README.md`. Event payload shape: `hypher-web/docs/agent-handoff.md`. UI tokens: `hypher-web/STYLING.md`.
 
+CEO voice for Grok (not a second product): `docs/bots/hypher-ceo.md`.
+
 Do not treat those as product direction. They are how.

@@ -8,6 +8,7 @@ Do not rebuild the canvas, daily digest, health rings, ambient ask, Notion impor
 
 How, not what:
 
+- Grok CEO bot: `docs/bots/hypher-ceo.md`
 - Cursor plugin: `extensions/cursor/README.md`
 - Handoff CLI: `hypher-web/docs/agent-handoff.md`
 - UI styling: `hypher-web/STYLING.md`
