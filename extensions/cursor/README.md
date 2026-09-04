@@ -1,5 +1,7 @@
 # Hypher Cursor plugin
 
+Product: [`docs/PRODUCT.md`](../../docs/PRODUCT.md).
+
 Make Hypher native in Cursor: connect your account, start a session with the Builder Brief already loaded, and write a handoff back to Project Pulse when you stop.
 
 Hypher is the project memory / control plane. Cursor is the execution environment. This plugin is the bridge.

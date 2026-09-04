@@ -1,5 +1,7 @@
 # Hypher Handoff
 
+Product: dump → one brief → writeback. See `docs/PRODUCT.md`.
+
 Use this skill when OpenClaw finishes project work, hits a blocker, produces a useful artifact, or has concrete next actions for the human to review in Hypher.
 
 ## When To Send

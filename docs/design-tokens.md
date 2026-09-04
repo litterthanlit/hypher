@@ -1,6 +1,8 @@
 # Hypher design tokens & accent zoning
 
-**Decision:** **Zoned accents (Option A)** — capture uses blue; workspace and canvas use sage (`#88BBA2` via `--accent`); shell bases are `#EBEBEB` (light) and `#2F2D2D` (dark); inbox uses amber; destructive uses red.
+Product: [`PRODUCT.md`](./PRODUCT.md). These tokens still mention leftover canvas/digest names in CSS. Do not treat that as a reason to rebuild those surfaces.
+
+**Zoned accents** — capture uses blue; workspace uses sage (`#88BBA2` via `--accent`); shell bases are `#EBEBEB` (light) and `#2F2D2D` (dark); inbox uses amber; destructive uses red.
 
 | Token / role | Use |
 |--------------|-----|
@@ -16,5 +18,3 @@
 | `--app-mesh` | Soft Hypher mint + ice mesh behind the logged-in shell |
 
 Implementation lives in [`hypher-web/src/app/globals.css`](../hypher-web/src/app/globals.css). When adding UI, extend tokens here rather than introducing one-off colors.
-
-See also: [`UI-Refresh-Phase-2-Spec.md`](./UI-Refresh-Phase-2-Spec.md).

@@ -1,9 +1,11 @@
 # Hypher Cursor Plugin v1 Spec
 
-Last updated: August 12, 2026.  
-Status: Draft for implementation  
+Product direction: [`docs/PRODUCT.md`](../PRODUCT.md). This file is the plugin contract, not a second vision.
+
+Last updated: September 4, 2026.  
+Status: Skills and MCP tools shipped. Session hooks are the next slice.  
 Owner: Hypher product  
-Related: `hypher-web/src/app/api/mcp/route.ts`, `hypher-web/src/lib/mcpTools.ts`, `hypher-web/src/app/api/agent/events/route.ts`, `docs/product/hypher-build-summary.md`
+Related: `hypher-web/src/app/api/mcp/route.ts`, `hypher-web/src/lib/mcpTools.ts`, `hypher-web/src/app/api/agent/events/route.ts`
 
 ## Goal
 
@@ -29,7 +31,7 @@ Ship as a **Cursor Plugin** (`.cursor-plugin/plugin.json`) so we can bundle:
 - MCP server (remote HTTP to Hypher)
 - Skills (session start / session end / link project)
 - Rules (lightweight always-on guidance: prefer Hypher tools for project context)
-- Optional hooks (`sessionStart` / `sessionEnd`) when reliable enough
+- Session hooks (`sessionStart` / `sessionEnd`) — required so Hypher hears work without the agent remembering to call a skill
 - Commands: `/hypher-brief`, `/hypher-handoff`
 
 Repo layout (new package or top-level folder, recommend `extensions/cursor-plugin/` or `plugins/cursor/`):
@@ -113,7 +115,7 @@ Annotations: mark write tools with `readOnlyHint: false` and appropriate destruc
 
 ### Session start
 
-Trigger via skill + command (hooks if stable):
+Trigger via `sessionStart` hook. Skills and `/hypher-brief` are fallbacks, not the default path.
 
 1. Detect git remote `owner/repo` from workspace.
 2. Call `resolve_project_for_repo`.
@@ -128,12 +130,13 @@ No heavy automation. Agent uses `get_current_state` / `get_next_move` when stuck
 
 ### Session end / handoff
 
-Skill + `/hypher-handoff` command:
+Trigger via `sessionEnd` hook. `/hypher-handoff` is the manual override.
 
-1. Summarize what changed (files, decisions, open questions).
+1. Summarize what changed (files, decisions, leftover questions, next move).
 2. Call `post_agent_event` with kind `handoff` (and optionally `next_action` / `question`).
 3. Include `repo`, `branch`, `commitSha` when available.
 4. Confirm to user: "Logged to Hypher → Project Pulse / Agent Inbox."
+5. A matched handoff receipt should thicken project memory without requiring Accept. Keep Accept for questions and suggestions.
 
 ### Magic moment copy (product)
 
@@ -175,8 +178,8 @@ Ordered for a thin vertical slice:
 - [ ] `/hypher-handoff` creates an Agent Inbox event visible in Project Pulse
 - [ ] Next session Brief reflects the prior handoff without manual edits
 - [ ] README documents install, Connect, link-repo, and troubleshooting
-- [ ] Spec linked from build summary or product roadmap (optional)
+- [ ] `sessionStart` / `sessionEnd` hooks load the brief and post one handoff without a slash command
 
 ## Recommended next implementation ticket
 
-**Vertical slice:** OAuth MCP connect + `resolve_project_for_repo` + `post_agent_event` (OAuth) + local Cursor plugin with `start-session` / `end-session` skills — dogfood on Hypher itself before marketplace submit.
+**Close the loop:** `sessionStart` / `sessionEnd` hooks + automatic memory update from matched handoff receipts. Skills stay as fallback. Dogfood on Hypher itself. See `docs/PRODUCT.md`.

@@ -1,4 +1,4 @@
-/* Hand-tuned against a few sample projects. See .specs/week-2-05-project-health-score.md §Known tradeoffs. */
+/* Hand-tuned against a few sample projects. Health rings are not a product surface. */
 
 export interface HealthInputItem {
   kind: "note" | "artifact";

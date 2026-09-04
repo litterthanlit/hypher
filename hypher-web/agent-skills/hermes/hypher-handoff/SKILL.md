@@ -1,5 +1,7 @@
 # Hypher Handoff
 
+Product: dump → one brief → writeback. See `docs/PRODUCT.md`.
+
 Use this skill when Hermes finishes work, creates a build log, finds a blocker, or has useful project context that should appear in Hypher.
 
 ## When To Send

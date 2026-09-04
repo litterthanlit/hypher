@@ -1,5 +1,7 @@
 # Agent Handoff
 
+CLI for posting a structured agent update into Hypher. Product direction: [`docs/PRODUCT.md`](../../docs/PRODUCT.md).
+
 Use `tools/hypher-handoff.mjs` to send a structured agent update into Hypher.
 
 ```bash
