@@ -37,6 +37,7 @@ import type * as oauth from "../oauth.js";
 import type * as oauthContext from "../oauthContext.js";
 import type * as objects from "../objects.js";
 import type * as projectMemories from "../projectMemories.js";
+import type * as projectMemoryActions from "../projectMemoryActions.js";
 import type * as projects from "../projects.js";
 import type * as subscriptions from "../subscriptions.js";
 import type * as tags from "../tags.js";
@@ -77,6 +78,7 @@ declare const fullApi: ApiFromModules<{
   oauthContext: typeof oauthContext;
   objects: typeof objects;
   projectMemories: typeof projectMemories;
+  projectMemoryActions: typeof projectMemoryActions;
   projects: typeof projects;
   subscriptions: typeof subscriptions;
   tags: typeof tags;

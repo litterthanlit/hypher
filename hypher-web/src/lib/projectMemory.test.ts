@@ -6,6 +6,7 @@ import {
   buildProjectMemoryPrompt,
   canGenerateProjectMemory,
   computeProjectMemorySourceUpdatedAt,
+  fallbackProjectMemory,
   getProjectMemoryStatus,
   parseProjectMemoryJson,
   prepareProjectMemoryInput,
@@ -150,6 +151,16 @@ describe("Project Memory prompt and parsing", () => {
 
   it("returns a clean error for malformed AI JSON", () => {
     expect(parseProjectMemoryJson("{not json")).toEqual({ ok: false, error: "malformed-json" });
+  });
+
+  it("extracts dump constraints in the generate fallback without a Generate button", () => {
+    const input = prepareProjectMemoryInput({
+      project: project(),
+      items: [note("n1", NOW, "Shipped the gate. Empty state still broken. Don't widen OAuth.")],
+    });
+    const parsed = fallbackProjectMemory(input);
+    expect(parsed.constraints?.some((line) => /oauth/i.test(line))).toBe(true);
+    expect(parsed.summary).not.toMatch(/no summary captured yet/i);
   });
 });
 

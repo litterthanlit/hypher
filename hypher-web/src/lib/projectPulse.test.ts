@@ -4,6 +4,7 @@ import {
   BUILDER_BRIEF_COPY_ERROR_TOAST,
   BUILDER_BRIEF_COPY_LABEL,
   BUILDER_BRIEF_COPY_SUCCESS_TOAST,
+  agentEventNeedsHumanAccept,
   buildProjectContextInput,
   buildProjectPulseModel,
 } from "./projectPulse";
@@ -141,5 +142,16 @@ describe("Builder Brief UI copy", () => {
     expect(BUILDER_BRIEF_COPY_LABEL).toBe("Copy Builder Brief");
     expect(BUILDER_BRIEF_COPY_SUCCESS_TOAST).toBe("Builder Brief copied");
     expect(BUILDER_BRIEF_COPY_ERROR_TOAST).toBe("Could not copy Builder Brief");
+    expect(BUILDER_BRIEF_COPY_LABEL).not.toMatch(/generate memory/i);
+  });
+});
+
+describe("agent event Accept gating", () => {
+  it("requires Accept only for questions and suggestions", () => {
+    expect(agentEventNeedsHumanAccept("question", "cursor")).toBe(true);
+    expect(agentEventNeedsHumanAccept("suggestion", "cursor")).toBe(true);
+    expect(agentEventNeedsHumanAccept("handoff", "cursor")).toBe(false);
+    expect(agentEventNeedsHumanAccept("build_log", "cursor")).toBe(false);
+    expect(agentEventNeedsHumanAccept("build_log", "github")).toBe(false);
   });
 });

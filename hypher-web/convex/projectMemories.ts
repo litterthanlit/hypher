@@ -1,8 +1,9 @@
-import { query, mutation } from "./_generated/server";
+import { query, mutation, internalMutation, internalQuery } from "./_generated/server";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
 import { v } from "convex/values";
 import { requireBetaAccess } from "./lib/auth";
+import { applyReceiptForEvent, persistSilentMemory, snapshotFromDoc } from "./lib/projectMemoryWrite";
 
 const nextActionValidator = v.object({
   id: v.string(),
@@ -277,5 +278,131 @@ export const updateNextActionStatus = mutation({
 
     await ctx.db.patch(memory._id, { nextActions });
     return mapMemory({ ...memory, nextActions });
+  },
+});
+
+export const applyReceipt = internalMutation({
+  args: {
+    userId: v.string(),
+    projectId: v.id("objects"),
+    eventId: v.string(),
+    kind: v.string(),
+    source: v.string(),
+    title: v.string(),
+    body: v.string(),
+    suggestedActions: v.optional(v.array(v.string())),
+    now: v.number(),
+  },
+  returns: v.object({ applied: v.boolean() }),
+  handler: async (ctx, args) => {
+    const applied = await applyReceiptForEvent(ctx, args);
+    return { applied };
+  },
+});
+
+export const generationInputForUser = internalQuery({
+  args: { userId: v.string(), projectId: v.id("objects") },
+  handler: async (ctx, { userId, projectId }) => {
+    const project = await ctx.db.get(projectId);
+    if (!project || project.userId !== userId || project.kind !== "project") {
+      return null;
+    }
+
+    const objects = await ctx.db
+      .query("objects")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .collect();
+    const items = objects
+      .filter((obj) => obj.projectId === String(projectId) && obj.kind !== "project")
+      .sort((a, b) => (b.modifiedAt ?? 0) - (a.modifiedAt ?? 0))
+      .slice(0, 24)
+      .map((obj) => ({
+        id: String(obj._id),
+        kind: obj.kind,
+        name: obj.name ?? "",
+        content: obj.content ?? obj.name ?? "",
+        modifiedAt: obj.modifiedAt ?? 0,
+      }));
+
+    const eventRows = await ctx.db
+      .query("agentEvents")
+      .withIndex("by_user_project", (q) => q.eq("userId", userId).eq("projectId", projectId))
+      .collect();
+    const events = eventRows
+      .filter((event) => event.status !== "dismissed")
+      .sort((a, b) => b.createdAt - a.createdAt)
+      .slice(0, 8)
+      .map((event) => ({
+        id: String(event._id),
+        kind: event.kind,
+        source: event.source,
+        title: event.title,
+        body: event.body,
+        suggestedActions: event.suggestedActions,
+        createdAt: event.createdAt,
+      }));
+
+    const memoryRow = await ctx.db
+      .query("projectMemories")
+      .withIndex("by_user_project", (q) => q.eq("userId", userId).eq("projectId", projectId))
+      .unique();
+
+    return {
+      project: {
+        id: String(project._id),
+        name: project.name ?? "Project",
+        description: project.description ?? "",
+        status: project.status,
+        blockers: project.blockers,
+      },
+      items,
+      events,
+      memory: snapshotFromDoc(memoryRow),
+    };
+  },
+});
+
+export const upsertGeneratedForUser = internalMutation({
+  args: {
+    userId: v.string(),
+    projectId: v.id("objects"),
+    snapshot: v.object({
+      summary: v.string(),
+      currentGoal: v.optional(v.string()),
+      currentDirection: v.string(),
+      recentChanges: v.array(v.string()),
+      importantDecisions: v.array(v.string()),
+      constraints: v.array(v.string()),
+      openQuestions: v.array(v.string()),
+      activeTasks: v.array(v.string()),
+      blockers: v.array(v.string()),
+      staleAssumptions: v.optional(v.array(v.string())),
+      handoffNotes: v.array(v.string()),
+      nextActions: v.array(nextActionValidator),
+    }),
+    generatedAt: v.number(),
+    model: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const project = await ctx.db.get(args.projectId);
+    if (!project || project.userId !== args.userId || project.kind !== "project") {
+      throw new Error("Invalid project");
+    }
+    const existingDoc = await ctx.db
+      .query("projectMemories")
+      .withIndex("by_user_project", (q) => q.eq("userId", args.userId).eq("projectId", args.projectId))
+      .unique();
+    const existing = snapshotFromDoc(existingDoc);
+    await persistSilentMemory(ctx, {
+      userId: args.userId,
+      projectId: args.projectId,
+      now: args.generatedAt,
+      model: args.model,
+      snapshot: {
+        ...args.snapshot,
+        staleAssumptions: args.snapshot.staleAssumptions ?? existing?.staleAssumptions ?? [],
+        acceptedCrystallizedSuggestions: existing?.acceptedCrystallizedSuggestions ?? [],
+      },
+    });
   },
 });

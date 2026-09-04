@@ -81,15 +81,13 @@ Demo this, sell this, dogfood this: a new chat that already knows the decisions 
 
 ## What is built vs what is still a hole
 
-The loop exists in code. It does not yet run without ceremony. These four holes are the product, not a backlog of extras.
+The loop exists in code. Holes 1 and 3 are closed: dump and matched receipts compile identity without a Generate button or Accept click. Session start/end still needs the agent to remember the tools (hole 2). GitHub stays a signal (hole 4).
 
-### 1. Notes do not become a coherent identity by themselves
+### 1. Notes become a coherent identity after dump or writeback
 
-The brief compiler will include raw captures and recent agent events. Durable identity — summary, direction, decisions — lives in project memory.
+The brief compiler includes raw captures and recent agent events. Durable identity — summary, direction, decisions — lives in project memory.
 
-Memory generation still exists as `/api/project-memory/generate`. There is **no in-app path** that regenerates it after dump or writeback. v2 correctly removed “generate memory” as a card action. It incorrectly left synthesis with no automatic home.
-
-**Build:** after dump or a matched handoff, compile/update the coherent brief. No new button. No new panel.
+After a dump is assigned to a project, and after a matched `handoff` / `build_log`, Hypher compiles that identity using the same guts as `/api/project-memory/generate`. There is no Generate button. GitHub CI / stale-PR `build_log`s stay signals.
 
 ### 2. Hypher does not hear a session unless the agent remembers to call it
 
@@ -97,11 +95,9 @@ Session start/end is a skill plus an always-on rule. There are **no `sessionStar
 
 **Build:** when the Cursor plugin is connected and the repo is linked, load the brief once at session start. Post one `handoff` at session end. Default to one event, not a firehose. Commands `/hypher-brief` and `/hypher-handoff` stay as manual overrides.
 
-### 3. Durable memory only thickens on Accept
+### 3. Receipts thicken memory; Accept is for judgment
 
-Until you Accept a writeback in Pulse, events are **recent news in the packet**, not the project’s identity.
-
-**Build:** a matched `handoff` / `build_log` that is a receipt of work should update memory without a click (what changed, next move, handoff notes). Keep human Accept for **questions and suggestions** — judgment, not receipt.
+A matched `handoff` / `build_log` that is a receipt of work updates memory without a click (what changed, next move, handoff notes). Pulse still lists the event. Accept stays for **questions and suggestions**.
 
 ### 4. GitHub is a signal, not memory
 
