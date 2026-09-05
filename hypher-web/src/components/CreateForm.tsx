@@ -33,11 +33,11 @@ export function CreateForm({ kind, onSubmit, onCancel }: Props) {
   return (
     <div className="modal-overlay" onClick={onCancel}>
       <form className="modal" onClick={(e) => e.stopPropagation()} onSubmit={handleSubmit}>
-        <h3>New {kind.charAt(0).toUpperCase() + kind.slice(1)}</h3>
+        <h3>{kind === "project" ? "New project" : `New ${kind}`}</h3>
 
         {kind === "project" && (
           <>
-            <label>Name<input autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="Project name…" /></label>
+            <label>Name<input autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="Project name" /></label>
             <label>Description<textarea value={desc} onChange={(e) => setDesc(e.target.value)} placeholder="Optional — what this project is" rows={3} /></label>
           </>
         )}

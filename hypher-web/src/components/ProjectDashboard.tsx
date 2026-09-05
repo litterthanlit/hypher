@@ -60,7 +60,7 @@ export function ProjectDashboard({ projects, onSelectProject }: Props) {
               {project.githubRepo ? (
                 <code className="integrations-repo-badge">{project.githubRepo}</code>
               ) : (
-                <span className="dashboard-card-count">no repo bound</span>
+                <span className="dashboard-card-count">No repo bound</span>
               )}
               <span className="dashboard-card-activity">
                 {timeAgo(project.lastActivity ?? project.modifiedAt)}

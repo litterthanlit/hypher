@@ -12,7 +12,7 @@ const FAQS = [
   },
   {
     q: "What do agents actually read?",
-    a: "One Builder Brief. Direction, decisions, do-not-do, open questions, next move. Bounded. Not a wiki, not a chat dump.",
+    a: "One Builder Brief. Direction, decisions, do-not-do, open questions, next move. Bounded. Not a wiki, not a chat log.",
   },
   {
     q: "Why not a README?",
@@ -45,11 +45,12 @@ export function LandingPage() {
                 Request beta
               </MarketingCta>
             </div>
+            <p className="marketing-hero__hint">Private beta. Invite-gated while the loop gets quieter.</p>
             <MarketingHeroStage />
           </div>
         </section>
 
-        <section id="the-loop" className="marketing-section" aria-labelledby="loop-heading">
+        <section id="the-loop" className="marketing-section marketing-section--center" aria-labelledby="loop-heading">
           <div className="marketing-wrap">
             <p className="marketing-eyebrow">How it works</p>
             <h2 id="loop-heading" className="tw-text-balance">
@@ -91,7 +92,7 @@ export function LandingPage() {
           </div>
         </section>
 
-        <section id="stack" className="marketing-section marketing-section--alt" aria-labelledby="stack-heading">
+        <section id="stack" className="marketing-section marketing-section--center" aria-labelledby="stack-heading">
           <div className="marketing-wrap">
             <p className="marketing-eyebrow">On your stack</p>
             <h2 id="stack-heading" className="tw-text-balance">
@@ -125,7 +126,7 @@ export function LandingPage() {
           </div>
         </section>
 
-        <section id="faq" className="marketing-section" aria-labelledby="faq-heading">
+        <section id="faq" className="marketing-section marketing-section--center" aria-labelledby="faq-heading">
           <div className="marketing-wrap">
             <p className="marketing-eyebrow">FAQ</p>
             <h2 id="faq-heading" className="tw-text-balance">
@@ -142,7 +143,7 @@ export function LandingPage() {
           </div>
         </section>
 
-        <section id="beta" className="marketing-section marketing-section--cta" aria-labelledby="final-cta-heading">
+        <section id="beta" className="marketing-section marketing-section--cta marketing-section--center" aria-labelledby="final-cta-heading">
           <div className="marketing-wrap">
             <div className="marketing-cta-panel">
               <p className="marketing-eyebrow">Private beta</p>

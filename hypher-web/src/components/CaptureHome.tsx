@@ -201,8 +201,8 @@ export function CaptureHome({
 
       <main className="capture-home-mock__main">
         <section className="home-hero-mock">
-          <p className="home-hero-kicker">Home</p>
           <h1 className="home-hero-title-mock">Give them the context they don&apos;t have.</h1>
+          <p className="home-hero-subtitle-mock">A decision, a don&apos;t, a rant, a next move. Hypher turns it into the brief they read.</p>
           <div className="home-hero-glass">
           <div className={`home-input-shell-mock ${isDragNear ? "is-drag" : ""}`}>
             <textarea
@@ -212,7 +212,7 @@ export function CaptureHome({
               onChange={(e) => setText(e.target.value)}
               onKeyDown={handleKeyDown}
               rows={3}
-              placeholder="a decision, a don’t, a rant, a next move…"
+              placeholder="Don’t widen OAuth. Pulse stays three panels…"
               disabled={step === "assigning"}
             />
             <button
@@ -233,12 +233,12 @@ export function CaptureHome({
             <div className="home-quick-row-mock">
               {onClipboardCapture ? (
                 <button type="button" className="home-quick-mock" onClick={onClipboardCapture}>
-                  paste
+                  Paste
                 </button>
               ) : null}
               {onAddFiles ? (
                 <button type="button" className="home-quick-mock" onClick={() => fileRef.current?.click()}>
-                  file
+                  File
                 </button>
               ) : null}
               <span className="home-quick-hint">⌘↵ to save</span>
@@ -261,10 +261,10 @@ export function CaptureHome({
 
         <section className="home-projects-section-mock">
           <div className="home-projects-head-mock">
-            <h2 className="home-projects-title-mock">projects</h2>
+            <h2 className="home-projects-title-mock">Projects</h2>
             {onCreateProject ? (
               <button type="button" className="home-projects-add" onClick={onCreateProject}>
-                new
+                New
               </button>
             ) : null}
           </div>
@@ -272,7 +272,7 @@ export function CaptureHome({
           {projects.length === 0 && step === "idle" ? (
             <div className="capture-clusters-empty">
               <p className="capture-clusters-empty-sub">
-                Save something above, then put it on a project. The brief fills in from there.
+                Save something above, then put it on a project. The brief fills from there.
               </p>
             </div>
           ) : (

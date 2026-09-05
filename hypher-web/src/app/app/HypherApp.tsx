@@ -367,10 +367,10 @@ export function HypherApp({ gateState }: { gateState: BetaGateState }) {
               <span className="workspace-breadcrumb__sep">/</span>
               <span className="workspace-breadcrumb__current">
                 {contentMode === "dashboard"
-                  ? "projects"
+                  ? "Projects"
                   : contentMode === "agent-inbox"
-                    ? "inbox"
-                    : currentProject?.name ?? "pulse"}
+                    ? "Inbox"
+                    : currentProject?.name ?? "Pulse"}
               </span>
             </nav>
           </div>
@@ -388,7 +388,7 @@ export function HypherApp({ gateState }: { gateState: BetaGateState }) {
         {store.projects.length === 0 && contentMode !== "agent-inbox" ? (
           <div className="workspace-empty">
             <p>No pulse yet</p>
-            <p className="workspace-empty-sub">Give it a scrap of context first. Hypher will help put it on a project.</p>
+            <p className="workspace-empty-sub">Give it a scrap of context first. Hypher will put it on a project.</p>
             <div className="workspace-empty-actions">
               <button type="button" className="workspace-empty-btn workspace-empty-btn--primary" onClick={() => setAppMode("capture")}>
                 Home

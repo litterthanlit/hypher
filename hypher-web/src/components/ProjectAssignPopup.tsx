@@ -130,7 +130,7 @@ export function ProjectAssignPopup({
 
         {!creatingProject ? (
           <button className="assign-pill new" onClick={() => setCreatingProject(true)}>
-            + New Project
+            + New project
           </button>
         ) : (
           <form className="assign-new-form" onSubmit={handleNewProjectSubmit}>

@@ -15,6 +15,7 @@ export function SignInRequired() {
 
   return (
     <div className="marketing-root beta-gate-root">
+      <div className="marketing-atmosphere" aria-hidden />
       <div className="beta-gate-card">
         <div className="beta-gate-top">
           <MarketingBrand />

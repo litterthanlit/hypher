@@ -15,7 +15,7 @@ export default function PricingPage() {
       <div className="marketing-atmosphere" aria-hidden />
       <MarketingHeader active="pricing" />
 
-      <main className="marketing-section marketing-pricing">
+      <main className="marketing-section marketing-pricing marketing-section--center">
         <div className="marketing-wrap">
           <p className="marketing-eyebrow">Pricing</p>
           <h1 className="marketing-page-title tw-text-balance">
@@ -26,7 +26,7 @@ export default function PricingPage() {
             Hypher is invite-only while the loop gets quieter — pricing below is what you&apos;ll
             pay when it opens.
           </p>
-          <div className="marketing-hero__actions">
+          <div className="marketing-hero__actions marketing-hero__actions--center">
             <MarketingCta href="/beta/request">Request beta access</MarketingCta>
           </div>
 
