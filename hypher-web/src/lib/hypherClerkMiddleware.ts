@@ -71,9 +71,11 @@ export function shouldBypassFailedClerkForOAuthProtocol(
 }
 
 /**
- * Builds the Next middleware Clerk should run. When the publishable key is
- * missing, clerkMiddleware throws before any route matcher — including `/` —
- * so we pass through instead of 500ing public pages.
+ * Builds the Next middleware Clerk should run. Clerk 7 throws at construct
+ * time when either the publishable key or the secret key is missing — before
+ * any route matcher, including `/`. Preview deployments often have the
+ * public key (for the client) but not `CLERK_SECRET_KEY`. Pass through in
+ * those cases instead of 500ing the marketing site.
  */
 export function createHypherClerkMiddleware(
   keys: ClerkMiddlewareKeys,
@@ -81,7 +83,8 @@ export function createHypherClerkMiddleware(
   createClerk: HypherClerkFactory = clerkMiddleware
 ): NextMiddleware {
   const publishableKey = keys.publishableKey;
-  if (!publishableKey) {
+  const secretKey = keys.secretKey;
+  if (!publishableKey || !secretKey) {
     return function passthroughClerkMiddleware() {
       return NextResponse.next();
     };
@@ -89,7 +92,7 @@ export function createHypherClerkMiddleware(
 
   const clerk = createClerk(handler, {
     publishableKey,
-    ...(keys.secretKey ? { secretKey: keys.secretKey } : {}),
+    secretKey,
   });
 
   return async function hypherClerkMiddleware(req, event) {
