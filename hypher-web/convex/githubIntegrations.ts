@@ -6,34 +6,28 @@ import { v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
 import { requireActionBetaAccess } from "./lib/actionAuth";
 import { ratelimitConvex } from "./lib/rateLimit";
-import { cleanGithubRepoInput } from "./githubProjectActions";
+import { planGithubRepoBind } from "./lib/githubBind";
 
-function parseRepoFromInput(input: string): string | null {
-  if (input.length > 500) return null;
-  const t = input.trim();
-  if (!t) return null;
-  try {
-    if (t.includes("github.com")) {
-      const u = new URL(t.startsWith("http") ? t : `https://${t}`);
-      const parts = u.pathname.split("/").filter(Boolean);
-      if (parts.length >= 2) return `${parts[0]}/${parts[1]}`;
-      return null;
-    }
-  } catch {
-    /* fall through */
-  }
-  const slash = t.replace(/^\/+/, "");
-  if (/^[\w.-]+\/[\w.-]+$/.test(slash)) return slash;
-  return null;
-}
+const connectRepoResult = v.union(
+  v.object({
+    ok: v.literal(true),
+    repo: v.string(),
+    synced: v.boolean(),
+  }),
+  v.object({
+    ok: v.literal(false),
+    error: v.string(),
+  })
+);
 
 export const connectRepoToProject = action({
   args: { projectId: v.id("objects"), repoInput: v.string() },
+  returns: connectRepoResult,
   handler: async (
     ctx,
     { projectId, repoInput }
   ): Promise<
-    | { ok: true; repo: string }
+    | { ok: true; repo: string; synced: boolean }
     | { ok: false; error: string }
   > => {
     const userId = await requireActionBetaAccess(ctx);
@@ -43,27 +37,31 @@ export const connectRepoToProject = action({
     });
     if (!allowed) throw new Error("Rate limited");
 
-    const repo = parseRepoFromInput(repoInput);
-    if (!repo) {
-      return { ok: false, error: "Enter a valid repo (owner/name) or GitHub URL." };
-    }
-    const cleanedRepo = cleanGithubRepoInput(repo);
-    if (!cleanedRepo) {
-      return { ok: false, error: "Enter a valid repo (owner/name) or GitHub URL." };
+    let token: string | null = null;
+    try {
+      token = await ctx.runAction(internal.githubPat.decryptTokenForUser, {
+        userId,
+      });
+    } catch {
+      token = null;
     }
 
-    const token = await ctx.runAction(internal.githubPat.decryptTokenForUser, {
-      userId,
-    });
-    if (!token) {
-      return {
-        ok: false,
-        error: "Save a GitHub personal access token in Settings → Integrations first.",
-      };
+    const plan = planGithubRepoBind(repoInput, Boolean(token));
+    if (!plan.ok) {
+      return { ok: false, error: plan.error };
+    }
+
+    if (!plan.validateAndSync || !token) {
+      await ctx.runMutation(internal.objects.patchGithubFields, {
+        projectId,
+        userId,
+        githubRepo: plan.repo,
+      });
+      return { ok: true, repo: plan.repo, synced: false };
     }
 
     const validated = await ctx.runAction(internal.github.validateRepoInternal, {
-      repo: cleanedRepo,
+      repo: plan.repo,
       token,
     });
     if (!validated.valid) {
@@ -76,12 +74,12 @@ export const connectRepoToProject = action({
     await ctx.runMutation(internal.objects.patchGithubFields, {
       projectId,
       userId,
-      githubRepo: cleanedRepo,
+      githubRepo: plan.repo,
       githubLastSync: Date.now(),
     });
 
     const sync = await ctx.runAction(internal.github.syncRepoInternal, {
-      repo: cleanedRepo,
+      repo: plan.repo,
       token,
       projectId: projectId as string,
       projectName: validated.name,
@@ -96,6 +94,6 @@ export const connectRepoToProject = action({
       });
     }
 
-    return { ok: true, repo: validated.name };
+    return { ok: true, repo: validated.name, synced: true };
   },
 });

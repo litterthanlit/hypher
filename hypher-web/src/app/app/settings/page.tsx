@@ -20,7 +20,7 @@ export default function SettingsPage() {
           <Link href="/app/settings/integrations" className="settings-hub-row">
             <span>
               <strong>Integrations</strong>
-              <small>Connect Cursor, GitHub, and project repositories.</small>
+              <small>Cursor plugin and bind each project to its GitHub repo.</small>
             </span>
           </Link>
         </div>

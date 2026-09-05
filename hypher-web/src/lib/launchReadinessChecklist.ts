@@ -36,8 +36,8 @@ export const LAUNCH_SMOKE_TESTS: LaunchSmokeTest[] = [
   },
   {
     id: "github",
-    title: "GitHub integration",
-    detail: "Save a PAT, connect a repo to a project, and confirm the first sync completes.",
+    title: "Bind GitHub repo",
+    detail: "Bind owner/name or a GitHub URL to a project with no token. Confirm githubRepo shows on the project.",
     href: "/app/settings/integrations",
   },
   {
