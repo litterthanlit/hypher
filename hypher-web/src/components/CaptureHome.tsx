@@ -2,7 +2,9 @@
 
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { UserButton } from "@clerk/nextjs";
+import Link from "next/link";
 import type { CaptureResult, Project, ProjectSuggestion, AnyObject } from "@/types";
+import { HypherMark } from "./HypherMark";
 import { ProjectAssignPopup } from "./ProjectAssignPopup";
 
 interface Props {
@@ -57,15 +59,13 @@ export function CaptureHome({
   const [capturedText, setCapturedText] = useState("");
   const [capturedNoteId, setCapturedNoteId] = useState<string | null>(null);
   const [isDragNear, setIsDragNear] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const sortedProjects = useMemo(
     () => [...projects].sort((a, b) => b.modifiedAt - a.modifiedAt),
     [projects]
   );
-
-  const activeCount = projects.filter((p) => p.status === "active").length;
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -105,7 +105,7 @@ export function CaptureHome({
   }, [onCapture, text]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey) {
+    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
       e.preventDefault();
       void handleSubmit();
     }
@@ -139,9 +139,6 @@ export function CaptureHome({
     resetAssignState();
   };
 
-  const primary = sortedProjects[0];
-  const secondary = sortedProjects.slice(1, 4);
-
   const itemCount = (pid: string) =>
     allObjects.filter((o) => o.projectId === pid && o.kind !== "project").length;
 
@@ -166,25 +163,21 @@ export function CaptureHome({
       <header className="capture-chrome-mock">
         <div className="capture-chrome-mock__inner">
           <div className="capture-chrome-mock__left">
-            <button
-              type="button"
-              className="capture-icon-btn"
-              aria-label={projects.length > 0 ? "Open workspace" : "Focus capture"}
-              title={projects.length > 0 ? "Workspace" : "Capture first"}
-              onClick={projects.length > 0 ? onNavigateToWorkspace : () => inputRef.current?.focus()}
-            >
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden>
-                <line x1="2" y1="4" x2="14" y2="4" />
-                <line x1="2" y1="8" x2="14" y2="8" />
-                <line x1="2" y1="12" x2="14" y2="12" />
-              </svg>
-            </button>
             <span className="capture-chrome-brand">
-              <img className="hypher-signal-mark" src="/hypher-logo.svg" alt="" aria-hidden />
+              <HypherMark />
               <span className="capture-wordmark-mock">hypher</span>
             </span>
           </div>
           <div className="capture-chrome-mock__right">
+            {projects.length > 0 ? (
+              <button
+                type="button"
+                className="capture-text-btn"
+                onClick={onNavigateToWorkspace}
+              >
+                Projects
+              </button>
+            ) : null}
             {onSearchClick ? (
               <button type="button" className="capture-icon-btn" aria-label="Search" title="Search (⌘K)" onClick={onSearchClick}>
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden>
@@ -193,6 +186,12 @@ export function CaptureHome({
                 </svg>
               </button>
             ) : null}
+            <Link href="/app/settings" className="capture-icon-btn" aria-label="Settings">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" width={16} height={16} aria-hidden>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 0 1 0 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 0 1 0-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.281Z" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+              </svg>
+            </Link>
             <span className="capture-user-wrap" title="Signed in">
               <UserButton />
             </span>
@@ -202,27 +201,30 @@ export function CaptureHome({
 
       <main className="capture-home-mock__main">
         <section className="home-hero-mock">
+          <p className="home-hero-kicker">Home</p>
+          <h1 className="home-hero-title-mock">Give them the context they don&apos;t have.</h1>
           <div className="home-hero-glass">
           <div className={`home-input-shell-mock ${isDragNear ? "is-drag" : ""}`}>
-            <input
+            <textarea
               ref={inputRef}
-              className="home-input-mock"
+              className="home-input-mock home-input-mock--area"
               value={text}
               onChange={(e) => setText(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="dump a thought, bug, decision, or agent output..."
+              rows={3}
+              placeholder="a decision, a don’t, a rant, a next move…"
               disabled={step === "assigning"}
             />
             <button
               type="button"
               className="home-input-submit-mock"
-              aria-label="Capture"
-              title="Capture"
-              disabled={step === "assigning"}
+              aria-label="Save context"
+              title="Save (⌘↵)"
+              disabled={step === "assigning" || !text.trim()}
               onClick={() => void handleSubmit()}
             >
               <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                <path d="M8 3.5v9M3.5 8h9" />
+                <path d="M3 8h10M9 4l4 4-4 4" />
               </svg>
             </button>
           </div>
@@ -231,53 +233,18 @@ export function CaptureHome({
             <div className="home-quick-row-mock">
               {onClipboardCapture ? (
                 <button type="button" className="home-quick-mock" onClick={onClipboardCapture}>
-                  <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                    <rect x="3" y="2" width="10" height="12" rx="1" />
-                    <path d="M6 5h4M6 8h4M6 11h2" />
-                  </svg>
-                  paste from clipboard
+                  paste
                 </button>
               ) : null}
               {onAddFiles ? (
                 <button type="button" className="home-quick-mock" onClick={() => fileRef.current?.click()}>
-                  <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                    <path d="M8 2v8M5 7l3 3 3-3M3 13h10" />
-                  </svg>
-                  upload file
+                  file
                 </button>
               ) : null}
+              <span className="home-quick-hint">⌘↵ to save</span>
             </div>
           )}
           </div>
-
-          {step === "idle" && (
-            <div className="home-kbd-hints-mock">
-              <span className="home-kbd-hint-group-mock">
-                <span className="home-kbd-hint-keys-mock">
-                  <kbd className="hint-kbd hint-kbd--mock">⌘</kbd>
-                  <kbd className="hint-kbd hint-kbd--mock">↵</kbd>
-                </span>
-                <span className="home-kbd-hint-label-mock">capture</span>
-              </span>
-              <span className="home-kbd-hint-group-mock">
-                <span className="home-kbd-hint-keys-mock">
-                  <kbd className="hint-kbd hint-kbd--mock">⌘</kbd>
-                  <kbd className="hint-kbd hint-kbd--mock">⇧</kbd>
-                  <kbd className="hint-kbd hint-kbd--mock">V</kbd>
-                </span>
-                <span className="home-kbd-hint-label-mock">paste</span>
-              </span>
-              {onSearchClick ? (
-                <span className="home-kbd-hint-group-mock">
-                  <span className="home-kbd-hint-keys-mock">
-                    <kbd className="hint-kbd hint-kbd--mock">⌘</kbd>
-                    <kbd className="hint-kbd hint-kbd--mock">K</kbd>
-                  </span>
-                  <span className="home-kbd-hint-label-mock">search</span>
-                </span>
-              ) : null}
-            </div>
-          )}
 
           {step === "assigning" && (
             <ProjectAssignPopup
@@ -295,83 +262,40 @@ export function CaptureHome({
         <section className="home-projects-section-mock">
           <div className="home-projects-head-mock">
             <h2 className="home-projects-title-mock">projects</h2>
-            <span className="home-projects-meta-mock">{activeCount} active</span>
+            {onCreateProject ? (
+              <button type="button" className="home-projects-add" onClick={onCreateProject}>
+                new
+              </button>
+            ) : null}
           </div>
 
           {projects.length === 0 && step === "idle" ? (
             <div className="capture-clusters-empty">
-              <p className="capture-clusters-empty-title">Nothing here yet</p>
               <p className="capture-clusters-empty-sub">
-                Dump a thought above. Hypher will help sort it into a project.
+                Save something above, then put it on a project. The brief fills in from there.
               </p>
-              {onCreateProject ? (
-                <div className="capture-empty-actions">
-                  <button type="button" className="capture-clusters-empty-btn capture-clusters-empty-btn--secondary" onClick={onCreateProject}>
-                    Create project manually
-                  </button>
-                </div>
-              ) : null}
             </div>
           ) : (
-            <div className="home-projects-grid-mock">
-              {primary ? (
-                <article
-                  key={primary.id}
-                  className="home-project-card-mock home-project-card-mock--primary"
-                  onClick={() => onProjectClick(primary.id)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.preventDefault();
-                      onProjectClick(primary.id);
-                    }
-                  }}
-                  role="button"
-                  tabIndex={0}
-                >
-                  <div className="home-project-card-head-mock">
-                    <h3 className="home-project-name-mock">{primary.name}</h3>
-                  </div>
-                  <div className="home-project-foot-mock">
-                    <span>{itemCount(primary.id)} items</span>
-                    <span>edited {formatRelative(primary.modifiedAt)}</span>
-                  </div>
-                </article>
-              ) : null}
-
-              {secondary.map((p) => (
-                <article
-                  key={p.id}
-                  className="home-project-card-mock"
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => onProjectClick(p.id)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.preventDefault();
-                      onProjectClick(p.id);
-                    }
-                  }}
-                >
-                  <div className="home-project-card-head-mock">
-                    <h3 className="home-project-name-mock">{p.name}</h3>
-                  </div>
-                  <div className="home-project-foot-mock">
-                    <span>{itemCount(p.id)} items</span>
-                    <span>{formatRelative(p.modifiedAt)}</span>
-                  </div>
-                </article>
+            <ul className="home-project-list">
+              {sortedProjects.map((p) => (
+                <li key={p.id}>
+                  <button
+                    type="button"
+                    className="home-project-row"
+                    onClick={() => onProjectClick(p.id)}
+                  >
+                    <span className="home-project-name-mock">{p.name}</span>
+                    <span className="home-project-foot-mock">
+                      {itemCount(p.id) ? `${itemCount(p.id)}` : "—"}
+                      <span aria-hidden>·</span>
+                      {formatRelative(p.modifiedAt)}
+                    </span>
+                  </button>
+                </li>
               ))}
-
-              <button type="button" className="home-project-new-mock" onClick={onNavigateToWorkspace}>
-                <svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden>
-                  <path d="M8 3v10M3 8h10" />
-                </svg>
-                <span>new project</span>
-              </button>
-            </div>
+            </ul>
           )}
         </section>
-
       </main>
     </div>
   );

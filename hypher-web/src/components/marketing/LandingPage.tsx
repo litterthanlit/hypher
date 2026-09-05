@@ -1,28 +1,49 @@
 import { MarketingCta, MarketingFooter, MarketingHeader } from "./MarketingChrome";
 import { MarketingHeroStage } from "./MarketingHeroStage";
 
+const FAQS = [
+  {
+    q: "What is Hypher?",
+    a: "Project memory under your agents. Cursor already has the code. Hypher holds the decisions that never made it in, so the next session starts warm.",
+  },
+  {
+    q: "Do you ingest my repository?",
+    a: "No. GitHub is a signal — CI, stale PRs, labeled blockers. The valuable context is exactly what is not in git.",
+  },
+  {
+    q: "What do agents actually read?",
+    a: "One Builder Brief. Direction, decisions, do-not-do, open questions, next move. Bounded. Not a wiki, not a chat dump.",
+  },
+  {
+    q: "Why not a README?",
+    a: "READMEs do not catch “don’t widen OAuth” from a rant at 1am, or the handoff the last agent forgot to write. Hypher compiles that into the note they read once.",
+  },
+  {
+    q: "Is this a notes app?",
+    a: "No. Home is one field. Pulse is three things: latest context, the brief, what wrote back. Synthesis happens when you give it something — not behind a Generate button.",
+  },
+] as const;
+
 export function LandingPage() {
   return (
     <div className="marketing-root">
+      <div className="marketing-atmosphere" aria-hidden />
       <MarketingHeader />
 
       <main>
         <section className="marketing-hero">
-          <div className="marketing-wrap">
-            <p className="marketing-eyebrow">hypher</p>
-            <div className="marketing-hero__grid">
-              <div className="marketing-hero__copy">
-                <h1 className="tw-text-balance">
-                  dump your project. they read one note. they write back.
-                </h1>
-                <div className="marketing-hero__actions">
-                  <MarketingCta href="/app">dump yours</MarketingCta>
-                  <MarketingCta href="/beta/request" variant="ghost">
-                    Request beta
-                  </MarketingCta>
-                </div>
-              </div>
-              <p className="marketing-hero__lede tw-text-pretty">that&apos;s the product.</p>
+          <div className="marketing-wrap marketing-hero__inner">
+            <p className="marketing-eyebrow">Introducing Hypher</p>
+            <h1 className="tw-text-balance">The context they never find in git.</h1>
+            <p className="marketing-hero__lede tw-text-pretty">
+              Cursor already has the code. Hypher keeps the decisions, the don&apos;ts, and the next
+              move — so session two starts warm.
+            </p>
+            <div className="marketing-hero__actions marketing-hero__actions--center">
+              <MarketingCta href="/app">Open Hypher</MarketingCta>
+              <MarketingCta href="/beta/request" variant="ghost">
+                Request beta
+              </MarketingCta>
             </div>
             <MarketingHeroStage />
           </div>
@@ -32,111 +53,71 @@ export function LandingPage() {
           <div className="marketing-wrap">
             <p className="marketing-eyebrow">How it works</p>
             <h2 id="loop-heading" className="tw-text-balance">
-              Dump. One note. Writeback.
+              Give them context. They read one note. They write back.
             </h2>
             <p className="marketing-section__lede tw-text-pretty">
-              You dump the project as it actually is. Hypher compiles one Builder Brief. Agents
-              read that note, then write back what they did.
+              Stop re-explaining the project every session. Hypher is the packet underneath the
+              agents — not another place to write code.
             </p>
 
             <div className="marketing-loop">
               <article className="marketing-loop-card">
-                <div className="marketing-loop-card__visual" aria-hidden>
-                  <div className="loop-visual">
-                    <div className="loop-visual__row">
-                      <span>dump</span>
-                      <span className="loop-visual__meta">just now</span>
-                    </div>
-                    <div className="loop-visual__card">
-                      <p className="loop-visual__strong">shipped the gate</p>
-                      <p>empty state still broken. don&apos;t widen oauth.</p>
-                    </div>
-                  </div>
-                </div>
                 <p className="marketing-loop-card__step">01</p>
-                <h3>Dump</h3>
+                <h3>Context in</h3>
                 <p>
-                  Paste the mess. Notes, a file, the half-finished thread. No filing tax before
-                  you think.
+                  Paste the mess. Rants, screenshots, chat exports, “don&apos;t widen OAuth.” No
+                  filing tax. Messy is the correct input.
                 </p>
               </article>
 
               <article className="marketing-loop-card">
-                <div className="marketing-loop-card__visual" aria-hidden>
-                  <div className="loop-visual">
-                    <div className="loop-visual__row">
-                      <span>Builder Brief</span>
-                      <span className="loop-visual__meta">the note</span>
-                    </div>
-                    <div className="loop-visual__card loop-visual__card--mono">
-                      <p className="loop-visual__strong">don&apos;t widen oauth.</p>
-                      <p>one note. that&apos;s what they read.</p>
-                    </div>
-                  </div>
-                </div>
                 <p className="marketing-loop-card__step">02</p>
-                <h3>The note</h3>
+                <h3>One brief</h3>
                 <p>
-                  One Builder Brief: direction, constraints, open questions. That&apos;s the packet
-                  agents actually read.
+                  Hypher compiles a bounded Builder Brief: direction, decisions, do-not-do, next
+                  move. That is the note they read once at session start.
                 </p>
               </article>
 
               <article className="marketing-loop-card">
-                <div className="marketing-loop-card__visual" aria-hidden>
-                  <div className="loop-visual">
-                    <div className="loop-visual__row">
-                      <span>writeback</span>
-                      <span className="loop-visual__meta">cursor</span>
-                    </div>
-                    <div className="loop-visual__card">
-                      <p className="loop-visual__strong">gate is in</p>
-                      <p>tokens hashed. events scoped.</p>
-                    </div>
-                  </div>
-                </div>
                 <p className="marketing-loop-card__step">03</p>
                 <h3>Writeback</h3>
                 <p>
-                  They ship, then they write back. The next brief already knows what changed.
+                  When they stop, they post what changed. Receipts thicken memory. The next chat
+                  already knows.
                 </p>
               </article>
             </div>
           </div>
         </section>
 
-        <section
-          id="agents"
-          className="marketing-section marketing-section--alt"
-          aria-labelledby="agents-heading"
-        >
+        <section id="stack" className="marketing-section marketing-section--alt" aria-labelledby="stack-heading">
           <div className="marketing-wrap">
-            <p className="marketing-eyebrow">For agents</p>
-            <h2 id="agents-heading" className="tw-text-balance">
-              Read and write project context.
+            <p className="marketing-eyebrow">On your stack</p>
+            <h2 id="stack-heading" className="tw-text-balance">
+              Sits on Cursor. The repo stays untouched.
             </h2>
             <p className="marketing-section__lede tw-text-pretty">
-              Agents don&apos;t need the whole dump. They need one bounded note — then they report
-              back.
+              Nothing is rearchitected. Your agents keep their tools. Hypher is the memory
+              underneath — the context that never landed in the files.
             </p>
             <ul className="marketing-pills" aria-label="Works with">
-              {["Cursor", "Codex", "OpenClaw", "ChatGPT", "MCP"].map((label) => (
+              {["Cursor", "Codex", "Claude", "MCP", "Anything that can read a note"].map((label) => (
                 <li key={label}>{label}</li>
               ))}
             </ul>
             <div className="marketing-bento">
               <article className="marketing-tile">
-                <h3>Dump in</h3>
+                <h3>Any notes, coherent context</h3>
                 <p>
-                  Captures and agent events land in the project. You keep the source of truth.
+                  One-liners, files, build logs, “don&apos;t rebuild the canvas.” Synthesis is
+                  silent, after you give it something or an agent writes back.
                 </p>
-                <p className="marketing-tile__detail">capture · agent events · writeback</p>
               </article>
               <article className="marketing-tile marketing-tile--featured">
-                <h3>Builder Brief out</h3>
+                <h3>The brief they actually read</h3>
                 <p>
-                  Copy the note, or fetch it. A bounded packet: direction, constraints, what
-                  changed.
+                  Copy it, or fetch it. A bounded packet — not a firehose, not a Generate button.
                 </p>
                 <p className="marketing-tile__detail">GET /api/projects/{"{id}"}/agent-context</p>
               </article>
@@ -144,32 +125,36 @@ export function LandingPage() {
           </div>
         </section>
 
-        <section id="beta" className="marketing-section" aria-labelledby="beta-heading">
+        <section id="faq" className="marketing-section" aria-labelledby="faq-heading">
           <div className="marketing-wrap">
-            <p className="marketing-eyebrow">Beta</p>
-            <h2 id="beta-heading" className="tw-text-balance">
-              Built for people carrying too many threads.
+            <p className="marketing-eyebrow">FAQ</p>
+            <h2 id="faq-heading" className="tw-text-balance">
+              The product is the loop.
             </h2>
-            <p className="marketing-section__lede tw-text-pretty">
-              Solo builders, indie hackers, and engineers juggling projects that don&apos;t fit
-              in a task manager.
-            </p>
-            <p className="marketing-footnote">
-              Hypher is invite-gated while we shape dump, the Builder Brief, and writeback with a
-              small group. Expect rough edges and a product that gets calmer as it learns your
-              patterns.
-            </p>
+            <div className="marketing-faq">
+              {FAQS.map((item) => (
+                <details key={item.q} className="marketing-faq__item">
+                  <summary>{item.q}</summary>
+                  <p>{item.a}</p>
+                </details>
+              ))}
+            </div>
           </div>
         </section>
 
-        <section className="marketing-section marketing-section--cta" aria-labelledby="final-cta-heading">
+        <section id="beta" className="marketing-section marketing-section--cta" aria-labelledby="final-cta-heading">
           <div className="marketing-wrap">
             <div className="marketing-cta-panel">
+              <p className="marketing-eyebrow">Private beta</p>
               <h2 id="final-cta-heading" className="tw-text-balance">
-                Dump yours.
+                Stop re-explaining the project every session.
               </h2>
+              <p className="marketing-section__lede tw-text-pretty">
+                Built for people drowning in agent sessions. Invite-gated while the loop gets
+                quieter.
+              </p>
               <div className="marketing-hero__actions marketing-hero__actions--center">
-                <MarketingCta href="/app">dump yours</MarketingCta>
+                <MarketingCta href="/app">Open Hypher</MarketingCta>
                 <MarketingCta href="/beta/request" variant="ghost">
                   Request beta
                 </MarketingCta>

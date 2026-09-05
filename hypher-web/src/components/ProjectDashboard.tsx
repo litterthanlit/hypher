@@ -27,7 +27,7 @@ export function ProjectDashboard({ projects, onSelectProject }: Props) {
       <div className="dashboard">
         <div className="dashboard-empty">
           <p className="dashboard-empty-title">No projects yet</p>
-          <p className="dashboard-empty-sub">Press Cmd+N to dump a thought, or use the + button in the sidebar to create a project.</p>
+          <p className="dashboard-empty-sub">Go home and give Hypher a scrap of context, or create a project here.</p>
         </div>
       </div>
     );

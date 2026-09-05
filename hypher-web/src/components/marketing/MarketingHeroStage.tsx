@@ -2,62 +2,67 @@
 
 import { useState } from "react";
 
-const ARTIFACTS = [
+const PACKETS = [
   {
-    id: "dump",
-    kind: "dump",
-    title: "shipped the gate",
-    body: "empty state still broken. don't widen oauth. cursor has the brief.",
-    href: "/app",
+    id: "context",
+    kind: "context in",
+    title: "don't widen oauth.",
+    body: "shipped the gate. empty state still broken. pulse stays three panels.",
   },
   {
-    id: "note",
+    id: "brief",
     kind: "the note",
-    title: "don't widen oauth.",
-    body: "one note. that's what they read.",
-    href: "/app",
+    title: "Builder Brief",
+    body: "Direction: close the loop. Constraint: don't widen OAuth. Next: session hooks.",
   },
   {
     id: "writeback",
-    kind: "what they wrote back",
+    kind: "writeback",
     title: "gate is in",
-    body: "tokens hashed. events scoped.",
-    href: "/app",
+    body: "tokens hashed. events scoped. session 2 already knows.",
   },
 ] as const;
 
 export function MarketingHeroStage() {
-  const [activeId, setActiveId] = useState<(typeof ARTIFACTS)[number]["id"]>("note");
-  const active = ARTIFACTS.find((item) => item.id === activeId) ?? ARTIFACTS[1];
+  const [activeId, setActiveId] = useState<(typeof PACKETS)[number]["id"]>("brief");
+  const active = PACKETS.find((item) => item.id === activeId) ?? PACKETS[1];
 
   return (
-    <div className="marketing-hero-stage" aria-label="dump at top. the note. what they wrote back.">
-      <div className="marketing-hero-stage__grain" aria-hidden />
+    <figure className="marketing-hero-stage">
+      <div className="marketing-hero-stage__glow" aria-hidden />
+      <img
+        className="marketing-hero-stage__field"
+        src="/brand/hypher-field.jpg"
+        alt=""
+        width={1024}
+        height={560}
+      />
+      <figcaption className="sr-only">
+        Hypher lockup in a field of blue light: context in, one note, writeback.
+      </figcaption>
 
-      <div className="marketing-hero-stage__stack">
-        {ARTIFACTS.map((item) => {
-          const selected = item.id === activeId;
-          return (
-            <button
-              key={item.id}
-              type="button"
-              className={`marketing-artifact${selected ? " is-active" : ""}`}
-              aria-pressed={selected}
-              onClick={() => setActiveId(item.id)}
-            >
-              <span className="marketing-artifact__kind">{item.kind}</span>
-              <span className="marketing-artifact__title">{item.title}</span>
-              {selected ? <span className="marketing-artifact__body">{item.body}</span> : null}
-            </button>
-          );
-        })}
+      <div className="marketing-hero-stage__packet" aria-label="The loop as one note">
+        <p className="marketing-hero-stage__kicker">{active.kind}</p>
+        <p className="marketing-hero-stage__title">{active.title}</p>
+        <p className="marketing-hero-stage__body">{active.body}</p>
+        <div className="marketing-hero-stage__tabs" role="tablist" aria-label="The loop">
+          {PACKETS.map((item) => {
+            const selected = item.id === activeId;
+            return (
+              <button
+                key={item.id}
+                type="button"
+                role="tab"
+                aria-selected={selected}
+                className={`marketing-hero-tab${selected ? " is-active" : ""}`}
+                onClick={() => setActiveId(item.id)}
+              >
+                {item.kind}
+              </button>
+            );
+          })}
+        </div>
       </div>
-
-      <div className="marketing-hero-stage__dock">
-        <a href={active.href} className="marketing-cta marketing-cta--on-dark">
-          dump yours
-        </a>
-      </div>
-    </div>
+    </figure>
   );
 }

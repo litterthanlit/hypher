@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { AnyObject, ProjectStatus, NoteMaturity, ArtifactType } from "@/types";
+import type { AnyObject, NoteMaturity, ArtifactType } from "@/types";
 
 interface Props {
   kind: "project" | "note" | "artifact";
@@ -13,7 +13,6 @@ export function CreateForm({ kind, onSubmit, onCancel }: Props) {
   const [name, setName] = useState("");
   const [desc, setDesc] = useState("");
   const [content, setContent] = useState("");
-  const [status, setStatus] = useState<ProjectStatus>("active");
   const [maturity, setMaturity] = useState<NoteMaturity>("fleeting");
   const [artType, setArtType] = useState<ArtifactType>("other");
 
@@ -23,7 +22,7 @@ export function CreateForm({ kind, onSubmit, onCancel }: Props) {
     const id = crypto.randomUUID();
 
     if (kind === "project" && name.trim()) {
-      onSubmit({ id, kind: "project", name: name.trim(), description: desc, status, createdAt: now, modifiedAt: now });
+      onSubmit({ id, kind: "project", name: name.trim(), description: desc, status: "active", createdAt: now, modifiedAt: now });
     } else if (kind === "note" && content.trim()) {
       onSubmit({ id, kind: "note", content: content.trim(), maturity, createdAt: now, modifiedAt: now });
     } else if (kind === "artifact" && name.trim()) {
@@ -39,14 +38,7 @@ export function CreateForm({ kind, onSubmit, onCancel }: Props) {
         {kind === "project" && (
           <>
             <label>Name<input autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="Project name…" /></label>
-            <label>Description<textarea value={desc} onChange={(e) => setDesc(e.target.value)} placeholder="What is this project about?" rows={3} /></label>
-            <label>Status
-              <select value={status} onChange={(e) => setStatus(e.target.value as ProjectStatus)}>
-                {["active", "paused", "shipped", "archived"].map((s) => (
-                  <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>
-                ))}
-              </select>
-            </label>
+            <label>Description<textarea value={desc} onChange={(e) => setDesc(e.target.value)} placeholder="Optional — what this project is" rows={3} /></label>
           </>
         )}
 

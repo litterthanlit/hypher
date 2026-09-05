@@ -7,6 +7,7 @@ import {
   agentEventNeedsHumanAccept,
   buildProjectContextInput,
   buildProjectPulseModel,
+  builderBriefFields,
 } from "./projectPulse";
 
 const project: Project = {
@@ -138,11 +139,25 @@ describe("buildProjectContextInput", () => {
 });
 
 describe("Builder Brief UI copy", () => {
-  it("uses Copy Builder Brief as the Pulse primary action", () => {
-    expect(BUILDER_BRIEF_COPY_LABEL).toBe("Copy Builder Brief");
-    expect(BUILDER_BRIEF_COPY_SUCCESS_TOAST).toBe("Builder Brief copied");
-    expect(BUILDER_BRIEF_COPY_ERROR_TOAST).toBe("Could not copy Builder Brief");
+  it("uses Copy brief as the Pulse primary action", () => {
+    expect(BUILDER_BRIEF_COPY_LABEL).toBe("Copy brief");
+    expect(BUILDER_BRIEF_COPY_SUCCESS_TOAST).toBe("Brief copied");
+    expect(BUILDER_BRIEF_COPY_ERROR_TOAST).toBe("Could not copy brief");
     expect(BUILDER_BRIEF_COPY_LABEL).not.toMatch(/generate memory/i);
+  });
+});
+
+describe("builderBriefFields", () => {
+  it("treats missing or skeleton summaries as an empty brief", () => {
+    expect(builderBriefFields(null).empty).toBe(true);
+    expect(
+      builderBriefFields({
+        ...memory,
+        summary: "No summary captured yet",
+      }).empty,
+    ).toBe(true);
+    expect(builderBriefFields(memory).empty).toBe(false);
+    expect(builderBriefFields(memory).direction).toBe("Make capture become project memory quickly.");
   });
 });
 

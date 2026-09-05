@@ -5,6 +5,7 @@ import { useMutation } from "convex/react";
 import { UserButton } from "@clerk/nextjs";
 import { toast } from "sonner";
 import { api } from "../../convex/_generated/api";
+import { MarketingBrand } from "@/components/marketing/MarketingBrand";
 import { normalizeInviteCode } from "@/lib/beta";
 
 export function BetaInviteGate() {
@@ -52,18 +53,16 @@ export function BetaInviteGate() {
 
   return (
     <div className="marketing-root beta-gate-root">
+      <div className="marketing-atmosphere" aria-hidden />
       <div className="beta-gate-card">
         <div className="beta-gate-top">
-          <span className="logo logo--with-mark">
-            <img className="hypher-signal-mark hypher-signal-mark--sidebar" src="/hypher-logo.svg" alt="Hypher" />
-          </span>
+          <MarketingBrand />
           <UserButton />
         </div>
         <p className="launch-eyebrow">Private beta</p>
         <h1>Your workspace is waiting.</h1>
         <p>
-          Hypher is opening carefully while the capture, memory, and digest loop gets battle-tested.
-          Enter your invite code to continue.
+          Hypher is opening carefully while the loop gets quieter. Enter your invite code to continue.
         </p>
         <div className="beta-gate-form">
           <input

@@ -57,13 +57,13 @@ export function PricingCards({ variant }: { variant: Variant }) {
         <p className="tw-mt-1 tw-text-sm tw-text-[var(--text-tertiary)]">14 days</p>
         {variant === "expanded" && (
           <p className={desc}>
-            Full access while you trial Hypher: capture, project memory, and Builder Briefs for your agents. No card to start.
+            Full access while you trial Hypher: one field for context, a Builder Brief, and writeback from your agents. No card to start.
           </p>
         )}
         <ul className={listClass}>
-          <li>• Capture &amp; project memory</li>
-          <li>• Builder Briefs for agents</li>
-          <li>• Agent writeback inbox</li>
+          <li>• Context in, one brief out</li>
+          <li>• Agent writeback</li>
+          <li>• Cursor, MCP, copy-paste</li>
         </ul>
         <div className="tw-mt-8">
           {BETA_INVITE_ONLY ? (
@@ -92,13 +92,13 @@ export function PricingCards({ variant }: { variant: Variant }) {
         <p className="tw-mt-1 tw-text-sm tw-text-[var(--text-tertiary)]">Billed monthly</p>
         {variant === "expanded" && (
           <p className={desc}>
-            For builders shipping every week: larger Builder Briefs, agent-context packets, and GitHub context in one calm surface.
+            For builders drowning in agent sessions: larger briefs, more writebacks, GitHub as a signal — not a second repo.
           </p>
         )}
         <ul className={listClass}>
           <li>• Everything in Free</li>
-          <li>• Larger Builder Briefs &amp; agent context</li>
-          <li>• API capture, MCP &amp; GitHub context</li>
+          <li>• Larger briefs and agent context</li>
+          <li>• API, MCP, and GitHub signals</li>
         </ul>
         <div className="tw-mt-8 tw-space-y-2">
           {BETA_INVITE_ONLY ? (
@@ -130,7 +130,7 @@ export function PricingCards({ variant }: { variant: Variant }) {
         <p className="tw-mt-1 tw-text-sm tw-text-[var(--text-tertiary)]">Pay once</p>
         {variant === "expanded" && (
           <p className={desc}>
-            Lock in Hypher as the context layer for your solo stack. One payment, every Pro capability, no recurring fees.
+            Lock in Hypher as the memory under your agents. One payment, every Pro capability, no recurring fees.
           </p>
         )}
         <ul className={listClass}>
