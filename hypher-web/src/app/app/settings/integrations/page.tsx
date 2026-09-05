@@ -26,8 +26,6 @@ export default function IntegrationsPage() {
   });
   const canQuery = accessState === "settings";
 
-  const status = useQuery(api.githubTokens.getStatus, canQuery ? {} : "skip");
-  const savePat = useAction(api.githubPat.savePersonalAccessToken);
   const connectRepo = useAction(api.githubIntegrations.connectRepoToProject);
   const oauthConnections = useQuery(api.oauth.listConnections, canQuery ? {} : "skip");
 
@@ -41,27 +39,8 @@ export default function IntegrationsPage() {
   const projectList =
     projects?.filter((o) => o.kind === "project") ?? [];
 
-  const [patInput, setPatInput] = useState("");
-  const [savingPat, setSavingPat] = useState(false);
   const [repoByProject, setRepoByProject] = useState<Record<string, string>>({});
   const [connectingId, setConnectingId] = useState<string | null>(null);
-
-  const handleSavePat = useCallback(async () => {
-    if (!patInput.trim()) {
-      toast.error("Paste a personal access token first.");
-      return;
-    }
-    setSavingPat(true);
-    try {
-      await savePat({ token: patInput.trim() });
-      setPatInput("");
-      toast.success("GitHub token saved and verified.");
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Could not save token.");
-    } finally {
-      setSavingPat(false);
-    }
-  }, [patInput, savePat]);
 
   const handleConnectRepo = useCallback(
     async (projectId: string) => {
@@ -77,12 +56,13 @@ export default function IntegrationsPage() {
           repoInput: input,
         });
         if (result.ok) {
-          toast.success(`Connected ${result.repo} and synced.`);
+          toast.success(`Bound ${result.repo}.`);
+          setRepoByProject((prev) => ({ ...prev, [projectId]: "" }));
         } else {
           toast.error(result.error);
         }
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Sync failed.");
+        toast.error(e instanceof Error ? e.message : "Could not bind repository.");
       } finally {
         setConnectingId(null);
       }
@@ -141,34 +121,9 @@ export default function IntegrationsPage() {
             <section className="integrations-section">
               <h4 className="integrations-section-title">Bind repositories</h4>
               <p className="api-keys-desc">
-                A project is a name and a repo. Save a GitHub token (classic or fine-grained with repo read — encrypted
-                at rest), then bind each project to its repository.{" "}
-                <a href="https://github.com/settings/tokens" target="_blank" rel="noreferrer" className="integrations-docs-link">
-                  Create a token
-                </a>
+                A project is a name and a GitHub repo, bound by a human. Paste{" "}
+                <code>owner/name</code> or a GitHub URL and Bind. That is enough for writebacks to match.
               </p>
-              <p className="integrations-status">
-                GitHub token:{" "}
-                <strong>{status === undefined ? "…" : status.connected ? "Connected" : "Not connected"}</strong>
-              </p>
-              <div className="integrations-pat-form">
-                <input
-                  type="password"
-                  autoComplete="off"
-                  value={patInput}
-                  onChange={(e) => setPatInput(e.target.value)}
-                  placeholder="ghp_… or github_pat_…"
-                  className="settings-github-input"
-                />
-                <button
-                  type="button"
-                  className="settings-github-connect"
-                  onClick={() => void handleSavePat()}
-                  disabled={savingPat}
-                >
-                  {savingPat ? "Saving…" : "Save token"}
-                </button>
-              </div>
               <div className="integrations-project-list">
                 {projectList.length === 0 && (
                   <p className="api-keys-empty">No projects yet — create one in the app first.</p>
@@ -191,16 +146,16 @@ export default function IntegrationsPage() {
                             [p._id]: e.target.value,
                           }))
                         }
-                        placeholder="https://github.com/owner/repo or owner/repo"
+                        placeholder="litterthanlit/hypher or https://github.com/owner/repo"
                         className="settings-github-input"
                       />
                       <button
                         type="button"
                         className="settings-github-connect"
-                        disabled={connectingId === p._id || !status?.connected}
+                        disabled={connectingId === p._id}
                         onClick={() => void handleConnectRepo(p._id)}
                       >
-                        {connectingId === p._id ? "Syncing…" : "Bind"}
+                        {connectingId === p._id ? "Binding…" : "Bind"}
                       </button>
                     </div>
                   </div>

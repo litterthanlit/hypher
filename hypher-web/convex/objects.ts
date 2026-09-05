@@ -410,8 +410,8 @@ export const patchGithubFields = internalMutation({
     }
     await ctx.db.patch(projectId, {
       githubRepo,
-      githubLastSync: githubLastSync ?? Date.now(),
       modifiedAt: Date.now(),
+      ...(githubLastSync !== undefined ? { githubLastSync } : {}),
     });
   },
 });

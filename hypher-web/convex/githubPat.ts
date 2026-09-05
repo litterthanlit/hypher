@@ -8,12 +8,25 @@ import { requireActionBetaAccess } from "./lib/actionAuth";
 import { ratelimitConvex } from "./lib/rateLimit";
 import { cleanGithubTokenInput } from "./githubProjectActions";
 
-function encryptionKey(): Buffer {
-  const s = process.env.GITHUB_TOKEN_ENCRYPTION_KEY;
-  if (!s || s.length < 8) {
-    throw new Error("GITHUB_TOKEN_ENCRYPTION_KEY not configured (min 8 chars)");
+export const GITHUB_TOKEN_ENCRYPTION_UNCONFIGURED =
+  "GitHub token encryption is not configured on this server (GITHUB_TOKEN_ENCRYPTION_KEY). Binding a repo does not need a token.";
+
+export function githubTokenEncryptionKeyError(
+  key: string | undefined | null
+): string | null {
+  if (!key || key.length < 8) {
+    return GITHUB_TOKEN_ENCRYPTION_UNCONFIGURED;
   }
-  return crypto.createHash("sha256").update(s, "utf8").digest();
+  return null;
+}
+
+function encryptionKey(): Buffer {
+  const key = process.env.GITHUB_TOKEN_ENCRYPTION_KEY;
+  const error = githubTokenEncryptionKeyError(key);
+  if (error || !key) {
+    throw new Error(error ?? GITHUB_TOKEN_ENCRYPTION_UNCONFIGURED);
+  }
+  return crypto.createHash("sha256").update(key, "utf8").digest();
 }
 
 function encryptToken(plain: string): string {
@@ -62,6 +75,11 @@ export const savePersonalAccessToken = action({
 
     const cleanedToken = cleanGithubTokenInput(token);
     if (!cleanedToken) throw new Error("Invalid token");
+
+    const encryptionError = githubTokenEncryptionKeyError(
+      process.env.GITHUB_TOKEN_ENCRYPTION_KEY
+    );
+    if (encryptionError) throw new Error(encryptionError);
 
     await ghFetchUser(cleanedToken);
     const ciphertext = encryptToken(cleanedToken);
