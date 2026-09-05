@@ -487,9 +487,9 @@ body:has(.capture-root) {
 }
 
 .workspace-breadcrumb__brand {
-  font-family: var(--font-wordmark);
-  font-weight: 600;
-  letter-spacing: 0.06em;
+  font-family: var(--font-sans);
+  font-weight: 500;
+  letter-spacing: -0.045em;
   text-transform: lowercase;
   color: var(--text-primary);
   flex-shrink: 0;
@@ -758,14 +758,6 @@ body:has(.capture-root) {
   width: auto;
   flex-shrink: 0;
   display: block;
-}
-
-@media (prefers-color-scheme: dark) {
-  .hypher-signal-mark--sidebar,
-  .capture-chrome-mock .hypher-signal-mark {
-    filter: brightness(0) invert(1);
-    opacity: 0.9;
-  }
 }
 
 .sidebar-nav {
