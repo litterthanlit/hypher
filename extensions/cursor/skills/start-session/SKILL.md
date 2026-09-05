@@ -5,6 +5,8 @@ description: Start a Hypher-backed coding session. Use when opening a linked rep
 
 # Start a Hypher session
 
+The plugin `sessionStart` hook is the default path. Use this skill when the user runs `/hypher-brief`, or when the brief was not injected this session.
+
 Load project memory once, then work in Cursor.
 
 ## Steps

@@ -5,6 +5,8 @@ description: End a Hypher-backed coding session. Use when wrapping up, creating 
 
 # End a Hypher session
 
+The plugin `sessionEnd` hook is the default path (one `handoff`). Use this skill when the user runs `/hypher-handoff`, or when you need to write back before the session actually ends.
+
 Write one structured handoff back to Hypher so the next session starts warmer.
 
 ## Steps

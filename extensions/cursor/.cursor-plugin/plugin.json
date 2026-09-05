@@ -1,8 +1,9 @@
 {
   "name": "hypher",
   "displayName": "Hypher",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Load Hypher Builder Briefs at session start and write handoffs back to Project Pulse without leaving Cursor.",
+  "hooks": "./hooks/hooks.json",
   "author": {
     "name": "Hypher"
   },
