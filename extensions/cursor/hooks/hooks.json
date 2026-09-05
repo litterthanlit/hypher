@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "hooks": {
+    "sessionStart": [
+      {
+        "command": "node ${CURSOR_PLUGIN_ROOT}/scripts/session-start.mjs",
+        "timeout": 20
+      }
+    ],
+    "sessionEnd": [
+      {
+        "command": "node ${CURSOR_PLUGIN_ROOT}/scripts/session-end.mjs",
+        "timeout": 20
+      }
+    ]
+  }
+}
