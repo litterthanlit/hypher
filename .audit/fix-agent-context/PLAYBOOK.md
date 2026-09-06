@@ -6,6 +6,8 @@ The answer is not more product. The answer is a Builder Brief that is already in
 
 If the brief is a truncated echo of a dump, Hypher is optional. Diligent agents will keep reading `docs/PRODUCT.md` and ignore Hypher. That is the current state, measured on 2026-09-06.
 
+This file is an audit artifact for one run. [`docs/PLAN.md`](../../docs/PLAN.md) is still the order file. [`docs/PRODUCT.md`](../../docs/PRODUCT.md) is still the only product source of truth. Do not treat this playbook as a second product document.
+
 ---
 
 ## Definition of done
@@ -98,7 +100,8 @@ When this run loaded the live brief, it contained:
 - No pinned decisions
 - Compact mode on
 - Memory marked stale
-- None of the constraints `PLAN.md` said to dump (Pulse stays three panels, do not widen OAuth, do not rebuild the canvas, GitHub is a signal)
+
+Keep those two causes separate. Missing PLAN constraints are a dump gap (they were never in the capture). Mid-word `...` and `Continue: <dump>` are compiler bugs.
 
 That shape is not a mystery. `compileHeuristicMemory` takes the first dump sentence as summary, the first non-constraint sentence as both goal and direction, and if it cannot find a next move it emits `Continue: ${directionParts[0]}`. Synthesis also truncates constraint lines at 180 characters (`LINE_LIMIT` in `projectMemoryGenerate.ts`). The compiler truncates labeled lines again at 180 to 220 characters.
 
@@ -189,12 +192,13 @@ Verdicts are VERIFIED, NOT VERIFIED, or INCONCLUSIVE. Inconclusive is not a pass
 
 | Claim | Verdict | Evidence |
 |---|---|---|
-| Cloud session did not receive a Builder Brief at start | VERIFIED | This run's first Hypher call was a deliberate `get_project_context` during investigation, not an injected `additional_context` |
+| Cloud session did not receive a Builder Brief at start | INFERRED | No `additional_context` in this session. Plugin rule did not apply. README says hooks skip cloud. No hook transcript file |
 | `litterthanlit/hypher` resolves to project `hypher` | VERIFIED | `resolve_project_for_repo` matched `ks77z49bnqhyz7pmagvtjq3dh98dvk0q` |
 | Live brief is a truncated dump echo | VERIFIED | `.audit/fix-agent-context/evidence/live-brief-2026-09-06.md` |
 | IDE session hooks exist in tree | VERIFIED | `extensions/cursor/hooks/hooks.json`, commit `13405a0` |
 | Agent-facing docs still said hooks did not exist | VERIFIED | pre-change `docs/PRODUCT.md` hole 2, `docs/PLAN.md` "Do 1b next", `AGENTS.md` Phase 1a |
 | Next cloud agent loads the brief without being asked | INCONCLUSIVE | instruction lands in this PR; needs a later session transcript |
+| Unit 2 snapshot test that goes red on this brief | open | evidence file saved; no committed failing test in this PR |
 | Packet compiler fix | open | not in this PR |
 | With/without benchmark | open | not in this PR |
 

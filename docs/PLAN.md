@@ -41,7 +41,7 @@ Diagnosis and remaining sequence: [`.audit/fix-agent-context/PLAYBOOK.md`](../.a
 
 ## Phase 1 — Loop without ceremony
 
-This is the “runs in the background” slice. **1a and 1b are done.** Do **1c** next. Then fix the packet before Phase 2.
+This is the “runs in the background” slice. **1a shipped.** **1b is in the plugin tree** with token and cloud caveats below. Do **1c** next. Then fix the packet before Phase 2.
 
 ### 1a. Silent synthesis + receipt memory — done
 
@@ -54,11 +54,11 @@ After a dump is assigned to a project, and after a matched `handoff` / `build_lo
 
 Done when: dump “don’t widen OAuth” → brief contains it as a constraint without a click. Post a handoff → next brief includes what changed and the next move without Accept.
 
-### 1b. Session hooks — done in the IDE plugin
+### 1b. Session hooks — in the IDE plugin tree
 
-Shipped in `#58`. `extensions/cursor/hooks/hooks.json` runs `session-start.mjs` and `session-end.mjs`.
+Code for `sessionStart` / `sessionEnd` shipped in `#58`. `extensions/cursor/hooks/hooks.json` runs `session-start.mjs` and `session-end.mjs`. The original done-when (brief loads without a slash command, one event Hypher can see) is still token-gated. Do not treat “hooks.json exists” as the loop running.
 
-Caveats that are not Phase 1b work:
+Caveats:
 
 - Automatic inject and hook writeback need `HYPHER_ACCESS_TOKEN` or `HYPHER_API_KEY` in the hook process. Cursor does not expose MCP OAuth to shell hooks.
 - Hooks do not run on Cursor cloud agents.

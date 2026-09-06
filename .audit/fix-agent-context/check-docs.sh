@@ -35,8 +35,8 @@ check_absent "docs/PLAN.md" 'Next coding session: \*\*Phase 1b\*\*' \
 	"still sends the next session to rebuild hooks"
 check_present "AGENTS.md" 'get_project_context' \
 	"does not tell agents to load the Builder Brief once"
-check_present "AGENTS.md" 'PRODUCT.md' \
-	"must keep PRODUCT.md as the conflict winner"
+check_present "AGENTS.md" 'If a Hypher Builder Brief disagrees' \
+	"must say PRODUCT.md wins when the brief disagrees"
 check_present "docs/PLAN.md" 'Phase 1c' \
 	"missing Phase 1c for agents that never get IDE hooks"
 

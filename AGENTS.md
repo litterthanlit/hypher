@@ -14,4 +14,3 @@ How, not what:
 - Cursor plugin: `extensions/cursor/README.md`
 - Handoff CLI: `hypher-web/docs/agent-handoff.md`
 - UI styling: `hypher-web/STYLING.md`
-- Context playbook: `.audit/fix-agent-context/PLAYBOOK.md`
