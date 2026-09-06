@@ -361,7 +361,8 @@ export function selectCompiledIdentity(params: {
   const captures = params.captures ?? [];
   const dumpTexts = captureDumpTexts(captures);
   const storedSummary = normalizeText(params.memory?.summary);
-  const echoCorpus = [...dumpTexts, storedSummary].filter(Boolean);
+  const stickyDump = looksLikeIdentityDump(storedSummary) ? storedSummary : "";
+  const echoCorpus = [...dumpTexts, stickyDump, storedSummary].filter(Boolean);
   const productEvents = (params.agentEvents ?? [])
     .filter((event) => isProductWorkReceipt(event))
     .slice()
@@ -372,14 +373,19 @@ export function selectCompiledIdentity(params: {
     ? (!isUnusableCompiledIdentity(latestTitle, dumpTexts) ? latestTitle : summarizeEvent(latestEvent.title, latestEvent.body))
     : "";
   const eventSentences = productEvents.flatMap((event) => splitSentences(`${event.title}. ${event.body}`));
-  const dumpSentences = dumpTexts.flatMap(splitSentences);
+  const dumpSentences = [...dumpTexts, stickyDump].filter(Boolean).flatMap(splitSentences);
 
-  const summary = (!isUnusableCompiledIdentity(storedSummary, dumpTexts) ? storedSummary : "")
+  // A sticky dump summary stays "usable" once the dump capture rolls off the
+  // packet window. Last product handoff then has to win at read time.
+  const summary = (!isUnusableCompiledIdentity(storedSummary, dumpTexts) && !looksLikeIdentityDump(storedSummary)
+    ? storedSummary
+    : "")
     || latestReceipt
     || (!isUnusableCompiledIdentity(params.projectDescription, dumpTexts)
       ? normalizeText(params.projectDescription)
       : "")
-    || (dumpTexts[0] ? dumpHeadline(dumpTexts[0]) : "");
+    || (dumpTexts[0] ? dumpHeadline(dumpTexts[0]) : "")
+    || (stickyDump ? dumpHeadline(stickyDump) : "");
 
   const storedGoal = normalizeText(params.memory?.currentGoal);
   const eventGoal = extractCurrentTask(eventSentences)
@@ -511,16 +517,16 @@ export function compileProjectContextWithMeta(params: CompileProjectContextParam
   const excludedCaptures = captureCandidates.filter(
     (item) => item.captureStatus === "archived" || item.stale || item.excludeFromPackets
   );
-  const includedCaptures = captureCandidates
+  const liveCaptures = captureCandidates
     .filter((item) => !excludedCaptures.includes(item))
-    .sort((a, b) => (b.modifiedAt ?? 0) - (a.modifiedAt ?? 0))
-    .slice(0, limits.captures);
+    .sort((a, b) => (b.modifiedAt ?? 0) - (a.modifiedAt ?? 0));
+  const includedCaptures = liveCaptures.slice(0, limits.captures);
 
   const activeActions = selectProjectActionQueue(params.actions)
     .filter((action) => action.status !== "dismissed" && action.status !== "completed")
     .slice(0, limits.actions);
 
-  const dumpTexts = dumpTextsForBrief(memory, includedCaptures);
+  const dumpTexts = dumpTextsForBrief(memory, liveCaptures);
 
   const sourceCaptureIds = includedCaptures.map((item) => item.id);
   const excludedSourceCaptureIds = excludedCaptures.map((item) => item.id);
@@ -534,7 +540,7 @@ export function compileProjectContextWithMeta(params: CompileProjectContextParam
   const primaryAction = selectCompiledNextAction({
     memory,
     actions: params.actions,
-    captures: includedCaptures,
+    captures: liveCaptures,
     agentEvents: params.agentEvents,
     task: params.task,
     generatedAt,
@@ -579,7 +585,7 @@ export function compileProjectContextWithMeta(params: CompileProjectContextParam
   const projectName = normalizeText(params.project.name) || "Project";
   const identity = selectCompiledIdentity({
     memory,
-    captures: includedCaptures,
+    captures: liveCaptures,
     agentEvents: params.agentEvents,
     projectDescription: params.project.description,
   });
@@ -626,7 +632,7 @@ export function compileProjectContextWithMeta(params: CompileProjectContextParam
   const rawConstraintTexts = withoutInactiveAcceptedMemory(memory, ["constraint", "do_not_do"], uniqueLines(
     expandConstraintLines(memory?.constraints ?? [])
   ));
-  const captureConstraintLines = includedCaptures.flatMap((item) => {
+  const captureConstraintLines = liveCaptures.flatMap((item) => {
     const content = item.kind === "note" ? normalizeText(item.content) : captureLine(item);
     return expandConstraintLines(splitSentences(content).filter((line) => looksLikeDoNotDo(line) || looksLikeConstraint(line)))
       .map((line) => constraintLabeledLine(captureSourceLabel(item), line));
@@ -650,7 +656,7 @@ export function compileProjectContextWithMeta(params: CompileProjectContextParam
     ...rawConstraintTexts.filter(looksLikeDoNotDo).map((item) => constraintLabeledLine("memory:constraint", item)),
     ...activeAcceptedMemoryItems(memory, ["do_not_do"]).map((item) => constraintLabeledLine(acceptedMemorySourceLabel(item), item.text)),
   ]).slice(0, limits.doNotDo);
-  const identityDumpTexts = captureDumpTexts(includedCaptures);
+  const identityDumpTexts = captureDumpTexts(liveCaptures);
   const hasProductHandoffs = params.agentEvents.some((event) => isProductWorkReceipt(event));
   const stickyDumpCorpus = [
     normalizeText(memory?.summary),

@@ -697,22 +697,75 @@ describe("compileBuilderBrief", () => {
     expect(packet).toMatch(/Next: Keep the packet warmer than PRODUCT.md/);
   });
 
+  it("replaces sticky dump identity after the dump capture rolls off the packet window", () => {
+    const dump =
+      "Dogfood dump on the real hypher project. Product: dump → one note agents read → writeback. Session 2 should start warm. Do not: invent dumps, gate bind on a github token, or treat try hypher as the home. Next: confirm silent synthesis thickened this note without a generate button.";
+    const newerCaptures = Array.from({ length: 5 }, (_, index): AnyObject => ({
+      id: `n-new-${index}`,
+      kind: "note",
+      content: `Later note ${index}`,
+      maturity: "fleeting",
+      projectId: "p1",
+      createdAt: 100 + index,
+      modifiedAt: 400 + index,
+    }));
+    const packet = compileBuilderBrief({
+      project: { ...project, name: "hypher", description: "" },
+      memory: {
+        ...memory,
+        summary: dump,
+        currentGoal: "Dogfood dump on the real hypher project.",
+        currentDirection: "Dogfood dump on the real hypher project.",
+        constraints: ["Do not invent dumps"],
+        nextActions: [{
+          id: "echo",
+          title: "Continue: Dogfood dump on the real hypher project.",
+          rationale: "Compiled from the latest dump or writeback.",
+          status: "suggested",
+          createdAt: 80,
+          updatedAt: 80,
+        }],
+      },
+      captures: newerCaptures,
+      actions: [],
+      agentEvents: [{
+        id: "session-2",
+        userId: "u1",
+        projectId: "p1",
+        source: "cursor",
+        kind: "handoff",
+        title: "Bare PR no longer reroutes the Hypher brief to GitHub",
+        body: "Do not widen OAuth. Pulse stays three panels. Do not rebuild the canvas. Product: dump → one note agents read → writeback. Next: merge PR 62 and deploy Vercel plus Convex so production get_project_context drops the dump echo.",
+        suggestedActions: ["Merge PR 62 and deploy Vercel plus Convex so production get_project_context drops the dump echo"],
+        status: "reviewed",
+        createdAt: 900,
+      }],
+      generatedAt: 900,
+    });
+
+    expect(packet).toMatch(/- Short summary: Bare PR no longer reroutes the Hypher brief to GitHub/);
+    expect(packet).not.toMatch(/- Short summary: Dogfood dump/);
+    expect(packet).toMatch(/Product: dump → one note agents read → writeback/);
+    expect(packet).toMatch(/Do not widen OAuth/);
+    expect(packet).toContain("- Target tool: Cursor");
+  });
+
   it("compiles the 2026-09-06 production memory shape without dump echo or 180-char mush", () => {
     const dump =
       "Dogfood dump on the real hypher project. Product: dump → one note agents read → writeback. Session 2 should start warm. Do not: invent dumps, gate bind on a github token, or treat try hypher as the home. Next: confirm silent synthesis thickened this note without a generate button.";
-    const latestTitle = "Receipt memory stores writeback titles instead of 180-char mush";
+    const latestTitle = "Bare PR no longer reroutes the Hypher brief to GitHub";
     const latestBody = [
-      "PR 62 commit 511462e on litterthanlit/hypher, branch cursor/agent-context-packet-d1ed.",
-      "Durable receipt memory now stores the writeback title, not title plus body cut at 180 characters.",
+      "PR 62 commit ea30126 on litterthanlit/hypher, branch cursor/agent-context-packet-d1ed.",
+      "Live get_project_context labeled Merge PR 62 as Target tool GitHub because inferTargetTool matched bare PR.",
+      "GitHub is a signal, not the agent door. Cursor is the door.",
       "Do not widen OAuth. Pulse stays three panels. Do not rebuild the canvas.",
-      "GitHub is a signal, not memory. docs/PRODUCT.md wins.",
-      "Next: merge PR 62 and deploy Convex so production memory and packet compile drop the dump echo.",
+      "Next: merge PR 62 and deploy Vercel plus Convex so production get_project_context drops the dump echo.",
     ].join(" ");
     const mashedLatest =
-      "Receipt memory stores writeback titles instead of 180-char mush. PR 62 commit 511462e on litterthanlit/hypher, branch cursor/agent-context-packet-d1ed. Durable receipt memory now....";
+      "Bare PR no longer reroutes the Hypher brief to GitHub. PR 62 commit ea30126 on litterthanlit/hypher, branch cursor/agent-context-packet-d1ed. Live get_project_context labeled Merg...";
     const mashedOlder =
-      "Dump reprints no longer crowd Recent changes or constraints. PR 62 commit bb1e392 on litterthanlit/hypher, branch cursor/agent-context-packet-d1ed. Packet compile no longer reprin...";
-    const nextMove = "Merge PR 62 and deploy Convex so production memory and packet compile drop the dump echo";
+      "Receipt memory stores writeback titles instead of 180-char mush. PR 62 commit 511462e on litterthanlit/hypher, branch cursor/agent-context-packet-d1ed. Durable receipt memory now....";
+    const nextMove = "Merge PR 62 and deploy Vercel plus Convex so production get_project_context drops the dump echo";
     const compiled = compileProjectContextWithMeta({
       project: { ...project, name: "hypher", description: "" },
       memory: {
@@ -779,9 +832,9 @@ describe("compileBuilderBrief", () => {
     expect(compiled.targetTool).toBe("Cursor");
     expect(packet).toContain("- Target tool: Cursor");
     expect(packet).not.toContain("- Target tool: GitHub");
-    expect(packet).toMatch(/- Short summary: Receipt memory stores writeback titles instead of 180-char mush/);
+    expect(packet).toMatch(/- Short summary: Bare PR no longer reroutes the Hypher brief to GitHub/);
     expect(packet).not.toMatch(/- Short summary: Dogfood dump/);
-    expect(packet).toMatch(/Trying to become: .*merge PR 62 and deploy Convex so production memory and packet compile drop the dump echo/i);
+    expect(packet).toMatch(/Trying to become: .*merge PR 62 and deploy Vercel plus Convex so production get_project_context drops the dump echo/i);
     expect(packet).toMatch(/Product: dump → one note agents read → writeback/);
     expect(packet).toContain(`- Next action: [next:suggested] ${nextMove}`);
     expect(packet).toContain("- Compact mode: off");
@@ -791,9 +844,10 @@ describe("compileBuilderBrief", () => {
     expect(packet).not.toMatch(/butto\.\.\./);
     expect(packet).not.toMatch(/now\.\.\.\./);
     expect(packet).not.toMatch(/wri\.\.\./);
+    expect(packet).not.toMatch(/Merg\.\.\./);
     const recentSection = packet.split("## Recent changes")[1]?.split("##")[0] ?? "";
     const firstBullet = recentSection.split("\n").find((line) => line.startsWith("- ["));
-    expect(firstBullet).toMatch(/Receipt memory stores writeback titles instead of 180-char mush/);
+    expect(firstBullet).toMatch(/Bare PR no longer reroutes the Hypher brief to GitHub/);
     expect(recentSection).not.toMatch(/Dogfood dump on the real hypher project/);
     expect(recentSection).not.toMatch(/\.\.\./);
     const constraintSection = packet.split("### Important constraints")[1]?.split("##")[0] ?? "";
@@ -807,7 +861,7 @@ describe("compileBuilderBrief", () => {
     expect(constraintSection.match(/Do not invent dumps/g)?.length).toBe(1);
     expect(constraintSection).not.toMatch(/\.\.\./);
     const notes = packet.split("### Handoff notes")[1] ?? "";
-    expect(notes).toMatch(/Receipt memory stores writeback titles instead of 180-char mush/);
+    expect(notes).toMatch(/Bare PR no longer reroutes the Hypher brief to GitHub/);
     expect(notes).not.toMatch(/reprin\.\.\./);
     expect(notes).not.toMatch(/no toke\.\.\./);
     expect(notes).not.toMatch(/now\.\.\.\./);
