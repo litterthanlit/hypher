@@ -16,6 +16,7 @@ import {
   mergeAiShapeIntoSnapshot,
   summarizeEvent,
   actionBlockedByConstraints,
+  honorConstraintBlockedNext,
 } from "./projectMemoryGenerate";
 import { compileBuilderBrief } from "../src/lib/projectContext";
 import type { Project, ProjectMemory } from "../src/types";
@@ -192,6 +193,21 @@ describe("actionBlockedByConstraints", () => {
       "Merge PR 62 and deploy Convex so production memory drops the dump echo",
       ["Do not invent dumps", "Do not rebuild the canvas."],
     )).toBe(false);
+  });
+
+  it("turns a blocked merge into wait-for-review instead of an empty next", () => {
+    expect(honorConstraintBlockedNext(
+      ["Merge PR 62 and deploy Vercel plus Convex so production get_project_context drops the dump echo"],
+      ["Do not merge until reviewed."],
+    )).toBe("Wait for review before merging PR 62");
+    expect(honorConstraintBlockedNext(
+      ["Keep dump-only constraints on the packet"],
+      ["Do not merge until reviewed."],
+    )).toBeUndefined();
+    expect(honorConstraintBlockedNext(
+      ["Merge PR 62 and deploy Convex"],
+      ["Do not rebuild the canvas."],
+    )).toBeUndefined();
   });
 });
 

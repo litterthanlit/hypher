@@ -998,8 +998,11 @@ describe("compileBuilderBrief", () => {
     expect(packet).not.toMatch(/- Next action:.*Merge PR 62/i);
     expect(packet).not.toMatch(/- Work on:.*Merge PR 62/i);
     expect(packet).not.toMatch(/Next: Merge PR 62/);
+    expect(packet).toMatch(/- Next action: \[next:suggested\] Wait for review before merging PR 62/);
+    expect(packet).toMatch(/- Work on: Wait for review before merging PR 62/);
     const taskSection = packet.split("### Active tasks")[1]?.split("##")[0] ?? "";
     expect(taskSection).not.toMatch(/Merge PR 62/);
+    expect(taskSection).toMatch(/Wait for review before merging PR 62/);
     const reviewSection = packet.split("### Needs review")[1]?.split("###")[0] ?? "";
     expect(reviewSection).not.toMatch(/Dump-only constraints keep packet slots/);
   });
@@ -1118,6 +1121,8 @@ describe("compileBuilderBrief", () => {
     expect(packet).not.toMatch(/- Next action:.*Merge PR 62/i);
     expect(packet).not.toMatch(/- Work on:.*Merge PR 62/i);
     expect(packet).not.toMatch(/Next: Merge PR 62/);
+    expect(packet).toMatch(/- Next action: \[next:suggested\] Wait for review before merging PR 62/);
+    expect(packet).toMatch(/- Work on: Wait for review before merging PR 62/);
     expect(packet).toContain("- Target tool: Cursor");
     expect(packet).not.toContain("- Target tool: GitHub");
     expect(packet).toContain("- Compact mode: off");
@@ -1137,6 +1142,8 @@ describe("compileBuilderBrief", () => {
     expect(constraintSection.match(/Do not invent dumps/g)?.length).toBe(1);
     const taskSection = packet.split("### Active tasks")[1]?.split("##")[0] ?? "";
     expect(taskSection).not.toMatch(/Merge PR 62/);
+    expect(taskSection).toMatch(/Wait for review before merging PR 62/);
+    expect(taskSection.match(/Wait for review before merging PR 62/g)?.length).toBe(1);
     expect(packet).not.toMatch(/usabl\.\.\./);
     expect(packet).not.toMatch(/Merg\.\.\./);
     expect(packet).not.toMatch(/now\.\.\.\./);

@@ -372,9 +372,11 @@ describe("builderBriefFields", () => {
       agentEvents: events,
     });
     expect(pulse.nextMove).not.toMatch(/Merge PR 62/);
-    expect(model.primaryNextAction).toBeNull();
+    expect(pulse.nextMove).toBe("Wait for review before merging PR 62");
+    expect(model.primaryNextAction?.title).toBe("Wait for review before merging PR 62");
     expect(packet).not.toMatch(/- Next action:.*Merge PR 62/i);
-    expect(pulse.nextMove).toBe(model.primaryNextAction?.title ?? "");
+    expect(packet).toMatch(/Wait for review before merging PR 62/);
+    expect(pulse.nextMove).toBe(packet.match(/^- Next action: (.+)$/m)?.[1]?.replace(/^\[[^\]]+\]\s*/, ""));
   });
 });
 

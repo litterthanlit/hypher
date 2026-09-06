@@ -353,6 +353,17 @@ export function actionBlockedByConstraints(title: string, constraints: string[])
   return false;
 }
 
+/** When every queued next move is forbidden, say to wait — do not leave session 2 with no work. */
+export function honorConstraintBlockedNext(blockedTitles: string[], constraints: string[]): string | undefined {
+  const lines = uniqueConstraintLines(expandConstraintLines(constraints));
+  const mergeLock = lines.find((line) => /\bdo not merge\b/i.test(normalize(line)));
+  if (!mergeLock || !/until reviewed/i.test(mergeLock)) return undefined;
+  const mergeTitle = blockedTitles.find((title) => firstActionWord(title) === "merge");
+  if (!mergeTitle) return undefined;
+  const pr = normalize(mergeTitle).replace(/^\[[^\]]+\]\s*/, "").match(/\bpr\s+(\d+)/i)?.[1];
+  return pr ? `Wait for review before merging PR ${pr}` : "Wait for review before merging";
+}
+
 export function extractProductAim(
   sentences: string[],
   options: { echoCorpus?: string[]; nextTitles?: string[]; summary?: string } = {}

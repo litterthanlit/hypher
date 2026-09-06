@@ -22,6 +22,7 @@ import {
   extractCurrentTask,
   extractDirectionLine,
   extractProductAim,
+  honorConstraintBlockedNext,
   isContinueDumpEcho,
   isDumpPrefixEcho,
   isNextActionClone,
@@ -549,10 +550,35 @@ export function selectCompiledNextAction(params: {
     }
     : null;
   const queuedActions = (params.actions ?? []).filter((action) => usableTitle(action.title));
+  const blockedTitles = [
+    ...(params.memory?.nextActions ?? []).filter((action) => action.status !== "dismissed").map((action) => action.title),
+    ...(params.agentEvents ?? [])
+      .filter((event) => isProductWorkReceipt(event))
+      .flatMap((event) => event.suggestedActions ?? []),
+    ...(params.actions ?? []).map((action) => action.title),
+    params.task ?? "",
+  ].map((title) => normalizeText(title)).filter((title) => (
+    title
+    && !isContinueDumpEcho(title, dumpTexts)
+    && !isDumpPrefixEcho(title, dumpTexts)
+    && actionBlockedByConstraints(title, constraints)
+  ));
+  const honored = honorConstraintBlockedNext(blockedTitles, constraints);
+  const fromLock = honored
+    ? {
+      id: "constraint-next-action",
+      title: honored,
+      rationale: "Compiled from the latest dump or writeback.",
+      status: "suggested" as const,
+      createdAt: generatedAt,
+      updatedAt: generatedAt,
+    }
+    : null;
   return selectPrimaryNextAction(usableMemoryActions)
     ?? fromEvent
     ?? actionFromQueue(queuedActions)
-    ?? fromTask;
+    ?? fromTask
+    ?? fromLock;
 }
 
 function sourceUpdatedAt(params: CompileProjectContextParams): number {
@@ -704,6 +730,9 @@ export function compileProjectContextWithMeta(params: CompileProjectContextParam
     ...(memory?.activeTasks ?? [])
       .filter((item) => !isMilestoneLine(item) && usableNextTitle(item))
       .map((item) => labeledLine("memory:task", item, PACKET_LINE_LIMIT)),
+    ...(primaryAction
+      ? [labeledLine(`next:${primaryAction.status}`, primaryAction.title, PACKET_LINE_LIMIT)]
+      : []),
   ]).slice(0, limits.actions);
   const compiledDecisions = selectCompiledDecisions({
     memory,
