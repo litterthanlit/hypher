@@ -312,7 +312,9 @@ function isCompactMode(limits: typeof DEFAULT_LIMITS): boolean {
 function inferTargetTool(action: string, role?: string): TargetTool {
   const text = `${action} ${role ?? ""}`.toLowerCase();
   if (/\b(linear|ticket|issue queue|triage)\b/.test(text)) return "Linear";
-  if (/\b(github|pull request|pr|repo|issue)\b/.test(text)) return "GitHub";
+  // GitHub is a signal, not the agent door. Bare "PR" / "repo" / "issue" show up in
+  // Hypher next moves ("Merge PR 62", "this repo") and must not reroute the session.
+  if (/\bgithub\b/.test(text) || /\bpull requests?\b/.test(text)) return "GitHub";
   if (/\b(cursor|code|implement|build|bug|fix|refactor|test)\b/.test(text)) return "Cursor";
   if (/\b(windsurf)\b/.test(text)) return "Windsurf";
   if (/\b(copilot)\b/.test(text)) return "GitHub Copilot";

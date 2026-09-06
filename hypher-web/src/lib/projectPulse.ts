@@ -69,6 +69,8 @@ export function buildProjectPulseModel(params: {
   allObjects: AnyObject[];
   activity: ActivityEntry[];
   memories?: ProjectMemory[];
+  actions?: ProjectAction[];
+  agentEvents?: AgentEvent[];
 }) {
   const latestCaptures = params.allObjects
     .filter((obj) => obj.kind !== "project" && obj.projectId === params.project.id && obj.captureStatus !== "archived")
@@ -89,6 +91,8 @@ export function buildProjectPulseModel(params: {
     primaryNextAction: selectCompiledNextAction({
       memory,
       captures: latestCaptures,
+      actions: params.actions ?? [],
+      agentEvents: params.agentEvents ?? [],
     }),
   };
 }

@@ -321,6 +321,31 @@ describe("compileBuilderBrief", () => {
     expect(result.packet).toMatch(/^# Builder Brief: Hypher/m);
   });
 
+  it("does not treat a Hypher merge-PR next move as a GitHub-tool session", () => {
+    const result = compileProjectContextWithMeta({
+      project: { ...project, description: "" },
+      memory: {
+        ...memory,
+        nextActions: [{
+          id: "na-merge",
+          title: "Merge PR 62 and deploy Convex so production memory and packet compile drop the dump echo",
+          rationale: "Compiled from the latest dump or writeback.",
+          status: "suggested",
+          createdAt: 123,
+          updatedAt: 123,
+        }],
+      },
+      captures: [],
+      actions: [],
+      agentEvents: [],
+      generatedAt: 123,
+    });
+
+    expect(result.targetTool).toBe("Cursor");
+    expect(result.packet).toContain("- Target tool: Cursor");
+    expect(result.packet).not.toContain("- Target tool: GitHub");
+  });
+
   it("still infers ChatGPT when the task names it, without wrapping the packet as a paste recipe", () => {
     const result = compileProjectContextWithMeta({
       project,
@@ -675,33 +700,33 @@ describe("compileBuilderBrief", () => {
   it("compiles the 2026-09-06 production memory shape without dump echo or 180-char mush", () => {
     const dump =
       "Dogfood dump on the real hypher project. Product: dump → one note agents read → writeback. Session 2 should start warm. Do not: invent dumps, gate bind on a github token, or treat try hypher as the home. Next: confirm silent synthesis thickened this note without a generate button.";
-    const latestTitle = "Dump reprints no longer crowd Recent changes or constraints";
+    const latestTitle = "Receipt memory stores writeback titles instead of 180-char mush";
     const latestBody = [
-      "PR 62 commit bb1e392 on litterthanlit/hypher, branch cursor/agent-context-packet-d1ed.",
-      "Packet compile no longer reprints the dogfood dump in Recent changes or lists the same do-not three times with different labels.",
+      "PR 62 commit 511462e on litterthanlit/hypher, branch cursor/agent-context-packet-d1ed.",
+      "Durable receipt memory now stores the writeback title, not title plus body cut at 180 characters.",
       "Do not widen OAuth. Pulse stays three panels. Do not rebuild the canvas.",
       "GitHub is a signal, not memory. docs/PRODUCT.md wins.",
       "Next: merge PR 62 and deploy Convex so production memory and packet compile drop the dump echo.",
     ].join(" ");
-    const mashed = `${latestTitle}. ${latestBody}`;
+    const mashedLatest =
+      "Receipt memory stores writeback titles instead of 180-char mush. PR 62 commit 511462e on litterthanlit/hypher, branch cursor/agent-context-packet-d1ed. Durable receipt memory now....";
+    const mashedOlder =
+      "Dump reprints no longer crowd Recent changes or constraints. PR 62 commit bb1e392 on litterthanlit/hypher, branch cursor/agent-context-packet-d1ed. Packet compile no longer reprin...";
     const nextMove = "Merge PR 62 and deploy Convex so production memory and packet compile drop the dump echo";
-    const packet = compileBuilderBrief({
+    const compiled = compileProjectContextWithMeta({
       project: { ...project, name: "hypher", description: "" },
       memory: {
         ...memory,
         summary: dump,
         currentGoal: "",
         currentDirection: "",
-        recentChanges: [
-          mashed,
-          "Claude merge can no longer restore dump-echo identity. PR 62 commit 9189d7c. Claude writeback synthesis can no longer restore the dogfood dump as summary or Continue dump as next.",
-        ],
+        recentChanges: [mashedLatest, mashedOlder],
         constraints: [
           "Do not invent dumps",
           "Do not gate bind on a github token",
           "Do not treat try hypher as the home",
         ],
-        handoffNotes: [mashed],
+        handoffNotes: [mashedLatest, mashedOlder],
         nextActions: [{
           id: "na",
           title: nextMove,
@@ -740,7 +765,7 @@ describe("compileBuilderBrief", () => {
           projectId: "p1",
           source: "cursor",
           kind: "handoff",
-          title: "Claude merge can no longer restore dump-echo identity",
+          title: "Dump reprints no longer crowd Recent changes or constraints",
           body: "Do not widen OAuth. Pulse stays three panels. Do not rebuild the canvas. Next move: keep the packet warmer than PRODUCT.md.",
           suggestedActions: ["Keep the packet warmer than PRODUCT.md"],
           status: "reviewed",
@@ -749,8 +774,12 @@ describe("compileBuilderBrief", () => {
       ],
       generatedAt: 900,
     });
+    const packet = compiled.packet;
 
-    expect(packet).toMatch(/- Short summary: Dump reprints no longer crowd Recent changes or constraints/);
+    expect(compiled.targetTool).toBe("Cursor");
+    expect(packet).toContain("- Target tool: Cursor");
+    expect(packet).not.toContain("- Target tool: GitHub");
+    expect(packet).toMatch(/- Short summary: Receipt memory stores writeback titles instead of 180-char mush/);
     expect(packet).not.toMatch(/- Short summary: Dogfood dump/);
     expect(packet).toMatch(/Trying to become: .*merge PR 62 and deploy Convex so production memory and packet compile drop the dump echo/i);
     expect(packet).toMatch(/Product: dump → one note agents read → writeback/);
@@ -760,9 +789,11 @@ describe("compileBuilderBrief", () => {
     expect(packet).not.toMatch(/no toke\.\.\./);
     expect(packet).not.toMatch(/reprin\.\.\./);
     expect(packet).not.toMatch(/butto\.\.\./);
+    expect(packet).not.toMatch(/now\.\.\.\./);
+    expect(packet).not.toMatch(/wri\.\.\./);
     const recentSection = packet.split("## Recent changes")[1]?.split("##")[0] ?? "";
     const firstBullet = recentSection.split("\n").find((line) => line.startsWith("- ["));
-    expect(firstBullet).toMatch(/Dump reprints no longer crowd Recent changes or constraints/);
+    expect(firstBullet).toMatch(/Receipt memory stores writeback titles instead of 180-char mush/);
     expect(recentSection).not.toMatch(/Dogfood dump on the real hypher project/);
     expect(recentSection).not.toMatch(/\.\.\./);
     const constraintSection = packet.split("### Important constraints")[1]?.split("##")[0] ?? "";
@@ -776,8 +807,9 @@ describe("compileBuilderBrief", () => {
     expect(constraintSection.match(/Do not invent dumps/g)?.length).toBe(1);
     expect(constraintSection).not.toMatch(/\.\.\./);
     const notes = packet.split("### Handoff notes")[1] ?? "";
-    expect(notes).toMatch(/Dump reprints no longer crowd Recent changes or constraints/);
+    expect(notes).toMatch(/Receipt memory stores writeback titles instead of 180-char mush/);
     expect(notes).not.toMatch(/reprin\.\.\./);
     expect(notes).not.toMatch(/no toke\.\.\./);
+    expect(notes).not.toMatch(/now\.\.\.\./);
   });
 });

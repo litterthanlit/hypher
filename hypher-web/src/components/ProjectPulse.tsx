@@ -93,8 +93,15 @@ export function ProjectPulse({
   const createHandoff = useMutation((api as any).handoffs.create);
 
   const model = useMemo(
-    () => buildProjectPulseModel({ project, allObjects, activity, memories: memory ? [memory] : [] }),
-    [project, allObjects, activity, memory]
+    () => buildProjectPulseModel({
+      project,
+      allObjects,
+      activity,
+      memories: memory ? [memory] : [],
+      actions: projectActions ?? [],
+      agentEvents: agentEvents ?? [],
+    }),
+    [project, allObjects, activity, memory, projectActions, agentEvents]
   );
 
   const actionQueue = useMemo(

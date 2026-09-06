@@ -92,6 +92,42 @@ describe("buildProjectPulseModel", () => {
     expect(model.primaryNextAction?.title).toBe("Run a first-user smoke test");
     expect(model.recentActivity.map((entry) => entry.id)).toEqual(["a1"]);
   });
+
+  it("uses the same next move as the compiled brief when memory still has Continue dump", () => {
+    const echoed: ProjectMemory = {
+      ...memory,
+      nextActions: [{
+        id: "echo",
+        title: "Continue: Dogfood dump on the real hypher project.",
+        rationale: "Compiled from the latest dump or writeback.",
+        status: "suggested",
+        createdAt: 50,
+        updatedAt: 50,
+      }],
+    };
+    const events: AgentEvent[] = [{
+      id: "session-2",
+      userId: "u1",
+      projectId: "p1",
+      source: "cursor",
+      kind: "handoff",
+      title: "Session 2 writeback",
+      body: "Do not widen OAuth. Pulse stays three panels. Do not rebuild the canvas.",
+      suggestedActions: ["Keep the packet warmer than PRODUCT.md"],
+      status: "reviewed",
+      createdAt: 90,
+    }];
+    const model = buildProjectPulseModel({
+      project,
+      allObjects: objects,
+      activity,
+      memories: [echoed],
+      agentEvents: events,
+    });
+    const pulse = builderBriefFields(echoed, { captures: objects, agentEvents: events });
+    expect(model.primaryNextAction?.title).toBe("Keep the packet warmer than PRODUCT.md");
+    expect(pulse.nextMove).toBe(model.primaryNextAction?.title);
+  });
 });
 
 describe("buildProjectContextInput", () => {

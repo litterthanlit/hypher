@@ -231,6 +231,45 @@ function projectContextTool(args: JsonObject, context: HypherMcpContext): Hypher
   return textResult(response, response.context);
 }
 
+function recentChangeLeads(params: {
+  memory?: ProjectMemory | null;
+  captures: AnyObject[];
+  agentEvents: AgentEvent[];
+}): string[] {
+  const dumpTexts = captureDumpTexts(params.captures);
+  const hasProductHandoffs = params.agentEvents.some((event) => isProductWorkReceipt(event));
+  const fromEvents = params.agentEvents
+    .filter((event) => isProductWorkReceipt(event))
+    .slice()
+    .sort((a, b) => b.createdAt - a.createdAt)
+    .map((event) => {
+      const title = normalize(event.title);
+      if (!title) return "";
+      return /[.!?]$/.test(title) ? title : `${title}.`;
+    })
+    .filter(Boolean);
+  const fromMemory = (params.memory?.recentChanges ?? [])
+    .map((item) => {
+      const text = normalize(item);
+      return splitSentences(text)[0] ?? text;
+    })
+    .filter((item) => (
+      !hasProductHandoffs
+      || (!isContinueDumpEcho(item, dumpTexts) && !isDumpPrefixEcho(item, dumpTexts))
+    ))
+    .filter(Boolean);
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const item of [...fromEvents, ...fromMemory]) {
+    const key = (splitSentences(item)[0] ?? item).replace(/[.!?]+$/, "").toLowerCase().slice(0, 140);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    result.push(item);
+    if (result.length >= 5) break;
+  }
+  return result;
+}
+
 function currentStateTool(args: JsonObject, context: HypherMcpContext): HypherMcpToolResult {
   const { project, memory, captures, agentEvents } = requireProjectContext(args, context);
   const identity = selectCompiledIdentity({
@@ -240,19 +279,7 @@ function currentStateTool(args: JsonObject, context: HypherMcpContext): HypherMc
     projectDescription: project.description,
   });
   const currentState = identity.currentDirection || identity.summary || normalize(project.description);
-  const dumpTexts = captureDumpTexts(captures);
-  const hasProductHandoffs = agentEvents.some((event) => isProductWorkReceipt(event));
-  const recentChanges = (memory?.recentChanges ?? [])
-    .map((item) => {
-      const text = normalize(item);
-      return splitSentences(text)[0] ?? text;
-    })
-    .filter((item) => (
-      !hasProductHandoffs
-      || (!isContinueDumpEcho(item, dumpTexts) && !isDumpPrefixEcho(item, dumpTexts))
-    ))
-    .filter(Boolean)
-    .slice(0, 5);
+  const recentChanges = recentChangeLeads({ memory, captures, agentEvents });
   const openQuestions = (memory?.openQuestions ?? []).map(normalize).filter(Boolean).slice(0, 5);
 
   return textResult(

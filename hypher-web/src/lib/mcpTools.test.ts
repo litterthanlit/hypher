@@ -296,8 +296,9 @@ describe("buildMcpToolResult", () => {
     const recentChanges = Array.isArray(state.recentChanges) ? state.recentChanges.map(String) : [];
     expect(state.currentState).toMatch(/Product: dump/i);
     expect(state.currentState).not.toMatch(/^Dogfood dump on the real hypher project/i);
-    expect(recentChanges).toContain("Dump reprints no longer crowd Recent changes or constraints.");
+    expect(recentChanges[0]).toBe("Dump reprints no longer crowd Recent changes or constraints.");
     expect(recentChanges.some((item) => /Dogfood dump on the real hypher project/i.test(item))).toBe(false);
+    expect(recentChanges.some((item) => /\.\.\./.test(item))).toBe(false);
 
     const move = buildMcpToolResult("get_next_move", { projectId: "p1" }, dumpContext).structuredContent;
     expect(move.nextMove).toBe(nextMove);
@@ -307,6 +308,8 @@ describe("buildMcpToolResult", () => {
     expect(brief).not.toMatch(/Continue: Dogfood dump/);
     expect(brief).not.toMatch(/reprin\.\.\./);
     expect(brief).toMatch(/Do not widen OAuth/);
+    expect(brief).toContain("- Target tool: Cursor");
+    expect(brief).not.toContain("- Target tool: GitHub");
   });
 
   it("prepares a concise handoff with account-linking wording", () => {
