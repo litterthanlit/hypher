@@ -15,7 +15,11 @@ import {
   isWorkReceipt,
   looksLikeDoNotDo,
   mergeAiShapeIntoSnapshot,
+  projectMemoryIdentityKind,
+  projectMemoryNeedsAgentSynthesis,
+  snapshotFromCompiledJson,
   summarizeEvent,
+  unwrapProjectMemoryJson,
   actionBlockedByConstraints,
   honorConstraintBlockedNext,
   looksLikeBriefSelfTalk,
@@ -968,5 +972,68 @@ describe("Unit 3 AI synthesis must not restore dump echo", () => {
     expect(merged.constraints.some((line) => /three panels/i.test(line))).toBe(true);
     expect(merged.constraints.some((line) => /canvas/i.test(line))).toBe(true);
     expect(merged.constraints.every((line) => !line.includes("..."))).toBe(true);
+  });
+});
+
+describe("agent-side synthesis helpers", () => {
+  it("classifies dump heuristic vs agent-compiled identity", () => {
+    expect(projectMemoryIdentityKind(null)).toBe("empty");
+    expect(projectMemoryIdentityKind({ summary: "No summary captured yet.", model: "generate+dump" })).toBe("skeleton");
+    expect(projectMemoryIdentityKind({ summary: "Shipped the gate.", model: "generate+dump" })).toBe("heuristic");
+    expect(projectMemoryIdentityKind({
+      summary: "Shipped the gate.",
+      model: "claude-sonnet-4-20250514+generate-fallback:dump",
+    })).toBe("heuristic");
+    expect(projectMemoryIdentityKind({
+      summary: "Shipped the gate.",
+      model: "claude-sonnet-4-20250514:dump",
+    })).toBe("compiled");
+    expect(projectMemoryIdentityKind({
+      summary: "Shipped the gate.",
+      model: "agent-synthesis:cursor",
+    })).toBe("compiled");
+    expect(projectMemoryNeedsAgentSynthesis({ summary: "Shipped the gate.", model: "generate+dump" })).toBe(true);
+    expect(projectMemoryNeedsAgentSynthesis({ summary: "Shipped the gate.", model: "agent-synthesis:cursor" })).toBe(false);
+  });
+
+  it("unwraps fenced JSON and merges compiled identity over the dump heuristic", () => {
+    const dump = "Shipped the gate. Empty state still broken. Don't widen OAuth. Next: thicken identity on the agent.";
+    const heuristic = compileHeuristicMemory({
+      projectName: "Hypher",
+      items: [{ content: dump }],
+      now: NOW,
+    });
+    const compiledText = [
+      "```json",
+      JSON.stringify({
+        summary: "Hypher keeps project identity across agent sessions.",
+        currentGoal: "Thicken the brief without hosting a model in Hypher.",
+        currentDirection: "Product stays dump → one note → writeback.",
+        recentChanges: ["Silent dump still writes a heuristic note."],
+        importantDecisions: ["Pulse stays three panels."],
+        constraints: ["Do not widen OAuth.", "Do not rebuild the canvas."],
+        openQuestions: [],
+        activeTasks: ["Write compiled identity back once."],
+        blockers: [],
+        staleAssumptions: [],
+        nextActions: [{
+          title: "Call write_project_memory once",
+          rationale: "Hypher stores the compiled note.",
+        }],
+      }),
+      "```",
+    ].join("\n");
+    expect(unwrapProjectMemoryJson(compiledText).startsWith("{")).toBe(true);
+    const compiled = snapshotFromCompiledJson({
+      heuristic,
+      compiledText,
+      now: NOW,
+      dumpTexts: [dump],
+    });
+    expect(compiled.ok).toBe(true);
+    if (!compiled.ok) return;
+    expect(compiled.snapshot.summary).toBe("Hypher keeps project identity across agent sessions.");
+    expect(compiled.snapshot.constraints.some((line) => /oauth/i.test(line))).toBe(true);
+    expect(compiled.snapshot.nextActions[0]?.title).toBe("Call write_project_memory once");
   });
 });

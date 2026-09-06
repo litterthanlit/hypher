@@ -8,12 +8,11 @@ import type { Id } from "./_generated/dataModel";
 import { requireActionBetaAccess } from "./lib/actionAuth";
 import { ratelimitConvex } from "./lib/rateLimit";
 import {
-  asProjectMemoryTargetTool,
   buildProjectMemoryPrompt,
   compileHeuristicMemory,
   GITHUB_SIGNAL_SOURCE,
-  mergeAiShapeIntoSnapshot,
-  parseProjectMemoryJson,
+  snapshotForGeneratedUpsert,
+  snapshotFromCompiledJson,
   type SilentMemorySnapshot,
 } from "../shared/projectMemoryGenerate";
 
@@ -115,14 +114,14 @@ async function synthesizeForUser(
           }),
         }],
       });
-      const parsed = parseProjectMemoryJson(extractText(response.content));
-      if (parsed.ok) {
-        snapshot = mergeAiShapeIntoSnapshot(
-          heuristic,
-          parsed.value,
-          now,
-          input.items.map((item) => item.content).filter(Boolean)
-        );
+      const compiled = snapshotFromCompiledJson({
+        heuristic,
+        compiledText: extractText(response.content),
+        now,
+        dumpTexts: input.items.map((item) => item.content).filter(Boolean),
+      });
+      if (compiled.ok) {
+        snapshot = compiled.snapshot;
         fallback = false;
       }
     } catch (error) {
@@ -132,36 +131,10 @@ async function synthesizeForUser(
     }
   }
 
-  const nextActions = snapshot.nextActions.map((action, index) => ({
-    id: `${args.projectId}:action:${index}:${now}`,
-    title: action.title,
-    rationale: action.rationale,
-    requiredContext: action.requiredContext,
-    suggestedTargetTool: asProjectMemoryTargetTool(action.suggestedTargetTool),
-    confidence: action.confidence,
-    sourceCaptureIds: action.sourceCaptureIds,
-    status: action.status ?? "suggested",
-    createdAt: action.createdAt ?? now,
-    updatedAt: now,
-  }));
-
   await ctx.runMutation(_internal.projectMemories.upsertGeneratedForUser, {
     userId: args.userId,
     projectId: args.projectId,
-    snapshot: {
-      summary: snapshot.summary,
-      currentGoal: snapshot.currentGoal,
-      currentDirection: snapshot.currentDirection,
-      recentChanges: snapshot.recentChanges,
-      importantDecisions: snapshot.importantDecisions,
-      constraints: snapshot.constraints,
-      openQuestions: snapshot.openQuestions,
-      activeTasks: snapshot.activeTasks,
-      blockers: snapshot.blockers,
-      staleAssumptions: snapshot.staleAssumptions,
-      handoffNotes: snapshot.handoffNotes,
-      nextActions,
-    },
+    snapshot: snapshotForGeneratedUpsert(String(args.projectId), snapshot, now),
     generatedAt: now,
     model: fallback ? `${MODEL}+generate-fallback:${args.reason}` : `${MODEL}:${args.reason}`,
   });

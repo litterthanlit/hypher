@@ -8,9 +8,10 @@ import { buildMcpContextForUser } from "./lib/mcpContext";
  *
  * Lets a headless caller (Cursor cloud agents, CI, other tools) load the same
  * Builder Brief / project context over `/api/mcp` with a single API key instead
- * of the browser OAuth flow. Writes still go through
- * `agentEvents.createFromApiRequest`. Returns null for unknown/revoked/non-beta
- * keys so the route replies with the standard MCP auth challenge.
+ * of the browser OAuth flow. Writes go through `agentEvents.createFromApiRequest`
+ * and `projectMemoryMcp.writeCompiledFromApiRequest`. Returns null for
+ * unknown/revoked/non-beta keys so the route replies with the standard MCP
+ * auth challenge.
  */
 export const dataForApiKey = query({
   args: {

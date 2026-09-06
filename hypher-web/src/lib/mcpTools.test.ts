@@ -3,8 +3,10 @@ import type { AgentEvent, AnyObject, Handoff, Project, ProjectAction, ProjectMem
 import {
   buildMcpToolResult,
   formatAgentEventWriteResult,
+  formatWriteProjectMemoryResult,
   getHypherMcpToolDescriptors,
   parsePostAgentEventArgs,
+  parseWriteProjectMemoryArgs,
   type HypherMcpContext,
 } from "./mcpTools";
 
@@ -128,14 +130,17 @@ describe("Hypher MCP tool descriptors", () => {
       "get_next_move",
       "prepare_handoff",
       "resolve_project_for_repo",
+      "get_synthesis_input",
+      "write_project_memory",
       "post_agent_event",
     ]);
     expect(
       getHypherMcpToolDescriptors()
-        .filter((tool) => tool.name !== "post_agent_event")
+        .filter((tool) => tool.name !== "post_agent_event" && tool.name !== "write_project_memory")
         .every((tool) => tool.annotations.readOnlyHint)
     ).toBe(true);
     expect(getHypherMcpToolDescriptors().find((tool) => tool.name === "post_agent_event")?.annotations.readOnlyHint).toBe(false);
+    expect(getHypherMcpToolDescriptors().find((tool) => tool.name === "write_project_memory")?.annotations.readOnlyHint).toBe(false);
   });
 });
 
@@ -564,5 +569,123 @@ describe("buildMcpToolResult", () => {
         needsReview: false,
       }).content[0]?.text
     ).toContain("Logged to Hypher → Project Pulse (Hypher) / Agent Inbox.");
+  });
+});
+
+describe("agent-side synthesis MCP tools", () => {
+  const compiledMemory = {
+    summary: "Hypher stores the note; agents compile identity on their model.",
+    currentGoal: "Ship agent-side synthesis without hosting the brain.",
+    currentDirection: "Product stays dump → one note → writeback.",
+    recentChanges: ["Added get_synthesis_input and write_project_memory."],
+    importantDecisions: ["Pulse stays three panels."],
+    constraints: ["Do not widen OAuth.", "Do not rebuild the canvas."],
+    openQuestions: ["Can cloud agents thicken a heuristic note in one call?"],
+    activeTasks: ["Write compiled identity back once."],
+    blockers: [],
+    staleAssumptions: [],
+    nextActions: [
+      {
+        title: "Call write_project_memory once",
+        rationale: "Hypher stores the compiled note.",
+      },
+    ],
+  };
+
+  it("returns generation input and the existing buildProjectMemoryPrompt for get_synthesis_input", () => {
+    const result = buildMcpToolResult("get_synthesis_input", { projectId: "p1" }, context);
+    const structured = result.structuredContent;
+
+    expect(structured.projectId).toBe("p1");
+    expect(structured.identityKind).toBe("heuristic");
+    expect(structured.needsSynthesis).toBe(true);
+    expect(String(structured.prompt)).toContain("PROJECT_MEMORY_INPUT_JSON");
+    expect(String(structured.prompt)).toContain("untrusted data");
+    expect(String(structured.prompt)).toContain("Keep Hypher Stripe subscriptions as the entitlement source.");
+    expect(result.content[0]?.text).toContain("write_project_memory");
+    expect(result.content[0]?.text).not.toContain("ANTHROPIC_API_KEY");
+    expect(JSON.stringify(structured.generationInput)).toContain("Keep Hypher Stripe subscriptions as the entitlement source.");
+    expect(JSON.stringify(structured.generationInput)).toContain("Context endpoint shipped");
+  });
+
+  it("drops GitHub signal events from synthesis input", () => {
+    const withGithub: HypherMcpContext = {
+      ...context,
+      projectContexts: {
+        p1: {
+          ...context.projectContexts.p1!,
+          agentEvents: [
+            ...agentEvents,
+            {
+              id: "gh1",
+              userId: "u1",
+              projectId: "p1",
+              source: "github",
+              kind: "build_log",
+              title: "CI failed on main",
+              body: "Do not ingest this as identity.",
+              status: "new",
+              createdAt: 80,
+            },
+          ],
+        },
+      },
+    };
+    const result = buildMcpToolResult("get_synthesis_input", { projectId: "p1" }, withGithub);
+    const events = (result.structuredContent.generationInput as { events: Array<{ source: string; title: string }> }).events;
+    expect(events.some((event) => event.source === "github")).toBe(false);
+    expect(events.some((event) => event.title === "CI failed on main")).toBe(false);
+    expect(events.some((event) => event.title === "Context endpoint shipped")).toBe(true);
+  });
+
+  it("skips synthesis when identity is already compiled", () => {
+    const compiled: HypherMcpContext = {
+      ...context,
+      projectContexts: {
+        p1: {
+          ...context.projectContexts.p1!,
+          memory: {
+            ...memory,
+            model: "agent-synthesis:cursor",
+          },
+        },
+      },
+    };
+    const result = buildMcpToolResult("get_synthesis_input", { projectId: "p1" }, compiled);
+    expect(result.structuredContent.identityKind).toBe("compiled");
+    expect(result.structuredContent.needsSynthesis).toBe(false);
+    expect(result.content[0]?.text).toContain("already compiled");
+  });
+
+  it("parses write_project_memory args from an object or JSON string", () => {
+    expect(parseWriteProjectMemoryArgs({ projectId: "p1", memory: compiledMemory })).toMatchObject({
+      projectId: "p1",
+      source: "cursor",
+    });
+    expect(JSON.parse(parseWriteProjectMemoryArgs({ projectId: "p1", memory: compiledMemory }).compiledJson)).toMatchObject({
+      summary: compiledMemory.summary,
+    });
+    expect(
+      parseWriteProjectMemoryArgs({
+        projectId: "p1",
+        memoryJson: `\`\`\`json\n${JSON.stringify(compiledMemory)}\n\`\`\``,
+        source: "claude",
+      }).source
+    ).toBe("claude");
+  });
+
+  it("rejects write_project_memory without compiled JSON", () => {
+    expect(() => parseWriteProjectMemoryArgs({ projectId: "p1" })).toThrow("missing-compiled-memory");
+  });
+
+  it("formats a successful memory write", () => {
+    expect(
+      formatWriteProjectMemoryResult({
+        ok: true,
+        projectId: "p1",
+        identityKind: "compiled",
+        model: "agent-synthesis:cursor",
+      }).content[0]?.text
+    ).toContain("Next get_project_context will be warmer");
   });
 });
