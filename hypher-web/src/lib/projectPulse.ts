@@ -1,8 +1,7 @@
 import type { ActivityEntry, AgentEvent, AnyObject, Handoff, Project, ProjectAction, ProjectMemory } from "@/types";
-import { compileBuilderBrief, selectCompiledNextAction } from "./projectContext";
+import { compileBuilderBrief, selectCompiledConstraints, selectCompiledIdentity, selectCompiledNextAction } from "./projectContext";
 import {
   agentEventNeedsHumanAccept,
-  expandConstraintLines,
   isSkeletonSummary,
 } from "../../shared/projectMemoryGenerate";
 
@@ -19,19 +18,29 @@ export function isEmptyBuilderBrief(memory: ProjectMemory | null | undefined): b
 
 export function builderBriefFields(
   memory: ProjectMemory | null | undefined,
-  extras: { actions?: ProjectAction[]; captures?: AnyObject[] } = {}
+  extras: { actions?: ProjectAction[]; captures?: AnyObject[]; agentEvents?: AgentEvent[] } = {}
 ) {
+  const identity = selectCompiledIdentity({
+    memory: memory ?? null,
+    captures: extras.captures ?? [],
+    agentEvents: extras.agentEvents ?? [],
+  });
   const next = selectCompiledNextAction({
     memory: memory ?? null,
     actions: extras.actions ?? [],
     captures: extras.captures ?? [],
+    agentEvents: extras.agentEvents ?? [],
   });
   return {
     empty: isEmptyBuilderBrief(memory),
-    summary: memory?.summary ?? "",
-    direction: memory?.currentDirection ?? "",
+    summary: identity.summary || memory?.summary || "",
+    direction: identity.currentDirection,
     decisions: memory?.importantDecisions ?? [],
-    constraints: expandConstraintLines(memory?.constraints ?? []),
+    constraints: selectCompiledConstraints({
+      memory: memory ?? null,
+      captures: extras.captures ?? [],
+      agentEvents: extras.agentEvents ?? [],
+    }),
     questions: memory?.openQuestions ?? [],
     nextMove: next?.title ?? "",
   };

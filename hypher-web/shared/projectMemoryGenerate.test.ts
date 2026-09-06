@@ -362,9 +362,99 @@ describe("Unit 3 compile identity, do not echo the dump", () => {
     expect(constraints.some((line) => /github token/i.test(line))).toBe(true);
     expect(constraints.some((line) => /try hypher/i.test(line))).toBe(true);
     expect(constraints.every((line) => !line.includes("..."))).toBe(true);
-    expect(tryingToBecome(packet)).toMatch(/no goal captured yet/i);
+    expect(tryingToBecome(packet).toLowerCase()).toContain("silent synthesis");
+    expect(tryingToBecome(packet).toLowerCase()).not.toContain("dogfood dump");
     expect(packet).not.toMatch(/Continue: Dogfood dump on the real hypher project/i);
     assertPacketDoesNotEchoDump(packet, dump);
+  });
+
+  it("compiles last-handoff identity over a sticky dump when events are on the packet", () => {
+    const dump = LIVE_DUMP_2026_09_06;
+    const eventBody = "Do not widen OAuth. Pulse stays three panels. Do not rebuild the canvas. Next move: keep the packet warmer than PRODUCT.md.";
+    const compiled = compileHeuristicMemory({
+      projectName: "Hypher",
+      items: [{ content: dump }],
+      events: [{
+        kind: "handoff",
+        source: "cursor",
+        title: "Session 2 writeback",
+        body: eventBody,
+        suggestedActions: ["Keep the packet warmer than PRODUCT.md"],
+        createdAt: NOW,
+      }],
+      existing: {
+        summary: dump,
+        currentGoal: "Dogfood dump on the real hypher project.",
+        currentDirection: "Dogfood dump on the real hypher project.",
+        constraints: ["Do not: invent dumps, gate bind on a github token, or treat try hypher as the home."],
+      },
+      now: NOW,
+    });
+    expect(compiled.summary.toLowerCase()).not.toContain("dogfood dump");
+    expect(compiled.summary.toLowerCase()).toContain("session 2 writeback");
+    expect(compiled.currentGoal?.toLowerCase()).toMatch(/warmer than product\.md|silent synthesis/i);
+    expect(compiled.currentDirection.toLowerCase()).toContain("product:");
+    expect(compiled.constraints.some((line) => /oauth/i.test(line))).toBe(true);
+    expect(compiled.constraints.some((line) => /three panels/i.test(line))).toBe(true);
+    expect(compiled.constraints.some((line) => /canvas/i.test(line))).toBe(true);
+
+    const brief = compileBuilderBrief({
+      project,
+      memory: {
+        projectId: "p1",
+        summary: dump,
+        currentGoal: "Dogfood dump on the real hypher project.",
+        currentDirection: "Dogfood dump on the real hypher project.",
+        recentChanges: [dump],
+        constraints: ["Do not: invent dumps, gate bind on a github token, or treat try hypher as the home."],
+        openQuestions: [],
+        activeTasks: ["Continue: Dogfood dump on the real hypher project."],
+        nextActions: [{
+          id: "echo",
+          title: "Continue: Dogfood dump on the real hypher project.",
+          rationale: "Compiled from the latest dump or writeback.",
+          status: "suggested",
+          createdAt: NOW,
+          updatedAt: NOW,
+        }],
+        generatedAt: NOW,
+        sourceUpdatedAt: NOW,
+        model: "test",
+      },
+      captures: [{
+        id: "n1",
+        kind: "note",
+        content: dump,
+        maturity: "fleeting",
+        projectId: "p1",
+        createdAt: NOW,
+        modifiedAt: NOW,
+      }],
+      actions: [],
+      agentEvents: [{
+        id: "session-2",
+        userId: "u1",
+        projectId: "p1",
+        source: "cursor",
+        kind: "handoff",
+        title: "Session 2 writeback",
+        body: eventBody,
+        suggestedActions: ["Keep the packet warmer than PRODUCT.md"],
+        status: "reviewed",
+        createdAt: NOW,
+      }],
+    });
+    expect(brief).toMatch(/- Short summary: Session 2 writeback/i);
+    expect(brief).not.toMatch(/- Short summary: Dogfood dump/i);
+    expect(tryingToBecome(brief).toLowerCase()).toMatch(/warmer than product\.md|silent synthesis/i);
+    expect(brief).toMatch(/Product: dump/i);
+    expect(brief.toLowerCase()).toMatch(/widen oauth/);
+    expect(brief.toLowerCase()).toMatch(/three panels/);
+    expect(brief.toLowerCase()).toMatch(/rebuild the canvas/);
+    expect(nextActionLine(brief).toLowerCase()).toContain("warmer than product.md");
+    expect(brief).not.toMatch(/Continue: Dogfood dump/i);
+    expect(brief).not.toMatch(/\bno toke\.\.\./i);
+    assertPacketDoesNotEchoDump(brief, dump);
   });
 
   it("lets a new constraint in even when eight older filler lines exist", () => {
@@ -502,5 +592,38 @@ describe("Unit 4 hook-shaped receipts do not become identity", () => {
     expect(applied.memory.nextActions[0]?.title).toContain("isProductWorkReceipt");
     expect(applied.memory.summary).toContain("PR 62");
     expect(applied.memory.summary).not.toMatch(/session-end receipt/i);
+  });
+
+  it("replaces a sticky dump-echo summary when a real handoff lands", () => {
+    const applied = applyReceiptToMemory({
+      existing: {
+        summary: LIVE_DUMP_2026_09_06,
+        currentGoal: "Dogfood dump on the real hypher project.",
+        currentDirection: "Dogfood dump on the real hypher project.",
+        constraints: ["Do not invent dumps"],
+      },
+      event: {
+        id: "session-2",
+        kind: "handoff",
+        source: "cursor",
+        title: "Session 2 writeback",
+        body: "Do not widen OAuth. Pulse stays three panels. Do not rebuild the canvas. Next move: keep the packet warmer than PRODUCT.md.",
+        suggestedActions: ["Keep the packet warmer than PRODUCT.md"],
+        createdAt: NOW,
+      },
+      now: NOW,
+    });
+    expect(applied.applied).toBe(true);
+    if (!applied.applied) return;
+    expect(applied.memory.summary.toLowerCase()).not.toContain("dogfood dump");
+    expect(applied.memory.summary.toLowerCase()).toContain("session 2 writeback");
+    expect(applied.memory.currentGoal?.toLowerCase()).not.toContain("dogfood dump");
+    expect(applied.memory.currentGoal?.toLowerCase()).toMatch(/warmer than product\.md|keep the packet/i);
+    expect(applied.memory.currentDirection.toLowerCase()).not.toBe("dogfood dump on the real hypher project.");
+    expect(applied.memory.constraints.some((line) => /oauth/i.test(line))).toBe(true);
+    expect(applied.memory.constraints.some((line) => /pulse/i.test(line) && /three panels/i.test(line))).toBe(true);
+    expect(applied.memory.constraints.some((line) => /canvas/i.test(line))).toBe(true);
+    expect(applied.memory.constraints.every((line) => !line.includes("..."))).toBe(true);
+    expect(applied.memory.nextActions[0]?.title.toLowerCase()).toContain("warmer than product.md");
   });
 });

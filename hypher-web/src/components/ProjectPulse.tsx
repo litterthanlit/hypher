@@ -119,6 +119,7 @@ export function ProjectPulse({
   const brief = builderBriefFields(memory ?? null, {
     actions: projectActions ?? [],
     captures: model.latestCaptures,
+    agentEvents: agentEvents ?? [],
   });
 
   const handleGenerateHandoff = async () => {

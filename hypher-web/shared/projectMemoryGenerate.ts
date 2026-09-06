@@ -79,6 +79,7 @@ export interface SilentMemorySourceEvent {
   title: string;
   body: string;
   suggestedActions?: string[];
+  createdAt?: number;
 }
 
 export type ExistingSilentMemory = Partial<SilentMemorySnapshot> | null | undefined;
@@ -152,7 +153,7 @@ export function uniqueLines(
   return result;
 }
 
-function uniqueConstraintLines(items: string[], limit = CONSTRAINT_ARRAY_LIMIT): string[] {
+export function uniqueConstraintLines(items: string[], limit = CONSTRAINT_ARRAY_LIMIT): string[] {
   return uniqueLines(items, limit, { maxChars: null, ellipsis: false });
 }
 
@@ -244,7 +245,16 @@ export function isContinueDumpEcho(title: string, _dumpTexts: string[] = []): bo
   return /^continue:\s+/i.test(normalize(title));
 }
 
-function extractCurrentTask(sentences: string[]): string | undefined {
+export function isUnusableCompiledIdentity(value: string | undefined | null, dumpTexts: string[] = []): boolean {
+  const text = normalize(value);
+  if (!text) return true;
+  if (isSkeletonSummary(text)) return true;
+  if (isContinueDumpEcho(text, dumpTexts)) return true;
+  if (isDumpPrefixEcho(text, dumpTexts)) return true;
+  return false;
+}
+
+export function extractCurrentTask(sentences: string[]): string | undefined {
   for (const line of sentences) {
     const match = normalize(line).match(
       /^(?:next(?:\s+move|\s+action|\s+step)?|current(?:\s+task|\s+goal)?|todo|need to)\s*[:\-]\s*(.+)$/i
@@ -256,7 +266,7 @@ function extractCurrentTask(sentences: string[]): string | undefined {
   return undefined;
 }
 
-function extractDirectionLine(sentences: string[]): string | undefined {
+export function extractDirectionLine(sentences: string[]): string | undefined {
   for (const line of sentences) {
     if (/^(?:product|direction|aim)\s*[:\-]/i.test(normalize(line)) && !looksLikeConstraint(line)) {
       return normalize(line);
@@ -265,7 +275,7 @@ function extractDirectionLine(sentences: string[]): string | undefined {
   return undefined;
 }
 
-function dumpHeadline(text: string): string {
+export function dumpHeadline(text: string): string {
   const sentences = splitSentences(text);
   const withoutConstraints = sentences.filter((line) => !looksLikeConstraint(line) && !extractCurrentTask([line]));
   const headline = withoutConstraints.slice(0, 2).join(" ");
@@ -360,17 +370,19 @@ export function compileHeuristicMemory(input: {
   const existing = input.existing ?? null;
   const itemTexts = sourceTexts(input.items);
   const sentences = itemTexts.flatMap(splitSentences);
-  const eventReceipts = (input.events ?? [])
+  const productEvents = (input.events ?? [])
     .filter((event) => isProductWorkReceipt(event))
-    .map((event) => summarizeEvent(event.title, event.body));
-  const eventConstraintSentences = (input.events ?? [])
-    .filter((event) => isProductWorkReceipt(event))
-    .flatMap((event) => splitSentences(`${event.title}. ${event.body}`));
+    .slice()
+    .sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0));
+  const eventReceipts = productEvents.map((event) => summarizeEvent(event.title, event.body));
+  const eventConstraintSentences = productEvents.flatMap((event) => splitSentences(`${event.title}. ${event.body}`));
   const eventQuestions = (input.events ?? [])
     .filter((event) => event.kind === "question")
     .map((event) => summarizeEvent(event.title, event.body));
 
   const dumpTexts = itemTexts;
+  const existingSummary = normalize(existing?.summary);
+  const echoCorpus = [...dumpTexts, existingSummary].filter(Boolean);
   const incomingConstraints = expandConstraintLines(
     [...sentences, ...eventConstraintSentences].filter(looksLikeConstraint)
   );
@@ -396,35 +408,35 @@ export function compileHeuristicMemory(input: {
     ...itemTexts.map((text) => dumpHeadline(text)),
     ...existingLines(existing, "recentChanges"),
   ]);
-  const currentTask = extractCurrentTask(sentences);
-  const directionParts = sentences.filter((line) => (
+  const currentTask = extractCurrentTask(eventConstraintSentences) ?? extractCurrentTask(sentences);
+  const directionParts = [...sentences, ...eventConstraintSentences].filter((line) => (
     !looksLikeConstraint(line)
     && !looksLikeQuestion(line)
     && !extractCurrentTask([line])
     && !isDumpPrefixEcho(line, dumpTexts)
+    && !isDumpPrefixEcho(line, echoCorpus)
     && !/^(shipped|landed|fixed|merged|closed|added|implemented|wrote|updated|finished|dumped)\b/i.test(line)
   ));
-  const dumpSummary = itemTexts[0] ? dumpHeadline(itemTexts[0]) : eventReceipts[0] ?? "";
-  const existingSummary = normalize(existing?.summary);
-  const summary = !isSkeletonSummary(existingSummary)
-    ? existingSummary
-    : dumpSummary || existingSummary || `${input.projectName} is in progress.`;
+  const dumpSummary = itemTexts[0] ? dumpHeadline(itemTexts[0]) : "";
+  const storedSummaryOk = !isUnusableCompiledIdentity(existingSummary, dumpTexts);
+  const summary = eventReceipts[0]
+    || (storedSummaryOk ? existingSummary : "")
+    || dumpSummary
+    || `${input.projectName} is in progress.`;
   const existingDirection = normalize(existing?.currentDirection);
-  const labeledDirection = extractDirectionLine(sentences);
+  const labeledDirection = extractDirectionLine(sentences) ?? extractDirectionLine(eventConstraintSentences);
   const currentDirection = labeledDirection
     || directionParts[0]
-    || (existingDirection && !isSkeletonSummary(existingDirection) && !isDumpPrefixEcho(existingDirection, dumpTexts)
-      ? existingDirection
-      : "")
+    || (!isUnusableCompiledIdentity(existingDirection, echoCorpus) ? existingDirection : "")
     || normalize(input.projectDescription);
   const existingGoal = normalize(existing?.currentGoal);
-  const currentGoal = existingGoal && !isDumpPrefixEcho(existingGoal, dumpTexts)
-    ? existingGoal
-    : (currentTask ?? "");
-  const nextFromEvents = (input.events ?? [])
+  const nextFromEvents = productEvents
     .flatMap((event) => event.suggestedActions ?? [])
     .map(normalize)
-    .filter(Boolean);
+    .filter((title) => Boolean(title) && !isContinueDumpEcho(title, dumpTexts) && !isDumpPrefixEcho(title, echoCorpus));
+  const currentGoal = !isUnusableCompiledIdentity(existingGoal, echoCorpus)
+    ? existingGoal
+    : (currentTask ?? nextFromEvents[0] ?? "");
   const taskLines = sentences.filter((line) =>
     /\b(next step|next move|todo|need to|verify|follow up)\b/i.test(line)
     && !looksLikeConstraint(line)
@@ -566,15 +578,13 @@ export function applyReceiptToMemory(input: {
         },
       ];
 
-  const existingSummary = normalize(input.existing?.summary);
   return {
     applied: true,
     memory: {
       ...compiled,
-      summary: isSkeletonSummary(existingSummary) ? truncate(summary, SUMMARY_LIMIT) : compiled.summary,
-      currentDirection: isSkeletonSummary(input.existing?.currentDirection)
-        ? truncate(summary, SUMMARY_LIMIT)
-        : compiled.currentDirection,
+      summary: compiled.summary || truncate(summary, SUMMARY_LIMIT),
+      currentGoal: compiled.currentGoal || nextMove || "",
+      currentDirection: compiled.currentDirection || truncate(summary, SUMMARY_LIMIT),
       recentChanges: uniqueLines([summary, ...compiled.recentChanges]),
       handoffNotes: uniqueLines([summary, ...compiled.handoffNotes]),
       nextActions,

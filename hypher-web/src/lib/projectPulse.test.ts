@@ -220,6 +220,64 @@ describe("builderBriefFields", () => {
     expect(live).toContain("Keep constraints whole in compileHeuristicMemory");
     expect(live).not.toMatch(/Continue: Dogfood dump on the real hypher project/);
   });
+
+  it("uses the same last-handoff identity as the compiled brief when stored memory is a dump echo", () => {
+    const dump = "Dogfood dump on the real hypher project. Product: dump → one note agents read → writeback. Session 2 should start warm. Do not: invent dumps, gate bind on a github token, or treat try hypher as the home.";
+    const echoed: ProjectMemory = {
+      ...memory,
+      summary: dump,
+      currentGoal: "Dogfood dump on the real hypher project.",
+      currentDirection: "Dogfood dump on the real hypher project.",
+      constraints: ["Do not: invent dumps, gate bind on a github token, or treat try hypher as the home."],
+      nextActions: [{
+        id: "echo",
+        title: "Continue: Dogfood dump on the real hypher project.",
+        rationale: "Compiled from the latest dump or writeback.",
+        status: "suggested",
+        createdAt: 50,
+        updatedAt: 50,
+      }],
+    };
+    const captures = [{
+      id: "n-dump",
+      kind: "note" as const,
+      content: dump,
+      maturity: "fleeting" as const,
+      projectId: "p1",
+      createdAt: 3,
+      modifiedAt: 30,
+    }];
+    const events: AgentEvent[] = [{
+      id: "session-2",
+      userId: "u1",
+      projectId: "p1",
+      source: "cursor",
+      kind: "handoff",
+      title: "Session 2 writeback",
+      body: "Do not widen OAuth. Pulse stays three panels. Do not rebuild the canvas. Next move: keep the packet warmer than PRODUCT.md.",
+      suggestedActions: ["Keep the packet warmer than PRODUCT.md"],
+      status: "reviewed",
+      createdAt: 90,
+    }];
+    const pulse = builderBriefFields(echoed, { actions: [], captures, agentEvents: events });
+    const packet = compileBuilderBrief({
+      project,
+      memory: echoed,
+      captures,
+      actions: [],
+      agentEvents: events,
+    });
+    expect(pulse.summary).toBe("Session 2 writeback");
+    expect(pulse.summary.toLowerCase()).not.toContain("dogfood dump");
+    expect(pulse.nextMove).toBe("Keep the packet warmer than PRODUCT.md");
+    expect(pulse.constraints.some((line) => /oauth/i.test(line))).toBe(true);
+    expect(pulse.constraints.some((line) => /three panels/i.test(line))).toBe(true);
+    expect(pulse.constraints.some((line) => /canvas/i.test(line))).toBe(true);
+    expect(packet).toMatch(/- Short summary: Session 2 writeback/);
+    expect(packet).toContain("Keep the packet warmer than PRODUCT.md");
+    expect(packet).not.toMatch(/Continue: Dogfood dump/);
+    expect(pulse.nextMove).toBe(packet.match(/^- Next action: (.+)$/m)?.[1]?.replace(/^\[[^\]]+\]\s*/, ""));
+  });
 });
 
 describe("agent event Accept gating", () => {

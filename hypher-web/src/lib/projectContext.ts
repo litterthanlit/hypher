@@ -15,12 +15,19 @@ import { selectProjectActionQueue } from "./actions";
 import { summarizeHandoffResult } from "./handoffResults";
 import { selectPrimaryNextAction } from "./projectMemory";
 import {
+  dumpHeadline,
   expandConstraintLines,
+  extractCurrentTask,
+  extractDirectionLine,
   isContinueDumpEcho,
   isDumpPrefixEcho,
+  isProductWorkReceipt,
+  isUnusableCompiledIdentity,
   looksLikeConstraint,
   looksLikeDoNotDo,
   splitSentences,
+  summarizeEvent,
+  uniqueConstraintLines,
 } from "../../shared/projectMemoryGenerate";
 
 export interface CompileBuilderBriefParams {
@@ -277,10 +284,90 @@ export function dumpTextsForBrief(memory?: ProjectMemory | null, captures: AnyOb
   ].filter(Boolean);
 }
 
+export function captureDumpTexts(captures: AnyObject[] = []): string[] {
+  return captures
+    .map((item) => (item.kind === "note" ? normalizeText(item.content) : ""))
+    .filter(Boolean);
+}
+
+export function selectCompiledIdentity(params: {
+  memory?: ProjectMemory | null;
+  captures?: AnyObject[];
+  agentEvents?: AgentEvent[];
+  projectDescription?: string;
+}): { summary: string; currentGoal: string; currentDirection: string } {
+  const captures = params.captures ?? [];
+  const dumpTexts = captureDumpTexts(captures);
+  const storedSummary = normalizeText(params.memory?.summary);
+  const echoCorpus = [...dumpTexts, storedSummary].filter(Boolean);
+  const productEvents = (params.agentEvents ?? [])
+    .filter((event) => isProductWorkReceipt(event))
+    .slice()
+    .sort((a, b) => b.createdAt - a.createdAt);
+  const latestEvent = productEvents[0];
+  const latestTitle = latestEvent ? normalizeText(latestEvent.title) : "";
+  const latestReceipt = latestEvent
+    ? (!isUnusableCompiledIdentity(latestTitle, dumpTexts) ? latestTitle : summarizeEvent(latestEvent.title, latestEvent.body))
+    : "";
+  const eventSentences = productEvents.flatMap((event) => splitSentences(`${event.title}. ${event.body}`));
+  const dumpSentences = dumpTexts.flatMap(splitSentences);
+
+  const summary = (!isUnusableCompiledIdentity(storedSummary, dumpTexts) ? storedSummary : "")
+    || latestReceipt
+    || (!isUnusableCompiledIdentity(params.projectDescription, dumpTexts)
+      ? normalizeText(params.projectDescription)
+      : "")
+    || (dumpTexts[0] ? dumpHeadline(dumpTexts[0]) : "");
+
+  const storedGoal = normalizeText(params.memory?.currentGoal);
+  const eventGoal = extractCurrentTask(eventSentences)
+    || normalizeText(latestEvent?.suggestedActions?.[0]);
+  const currentGoal = !isUnusableCompiledIdentity(storedGoal, echoCorpus)
+    ? storedGoal
+    : (eventGoal || extractCurrentTask(dumpSentences) || "");
+
+  const storedDirection = normalizeText(params.memory?.currentDirection);
+  const currentDirection = extractDirectionLine(dumpSentences)
+    || extractDirectionLine(eventSentences)
+    || (!isUnusableCompiledIdentity(storedDirection, echoCorpus) ? storedDirection : "")
+    || (!isUnusableCompiledIdentity(params.projectDescription, dumpTexts)
+      ? normalizeText(params.projectDescription)
+      : "");
+
+  return { summary, currentGoal, currentDirection };
+}
+
+export function selectCompiledConstraints(params: {
+  memory?: ProjectMemory | null;
+  captures?: AnyObject[];
+  agentEvents?: AgentEvent[];
+}): string[] {
+  const captureConstraints = (params.captures ?? []).flatMap((item) => {
+    const content = item.kind === "note" ? normalizeText(item.content) : "";
+    if (!content) return [];
+    return expandConstraintLines(
+      splitSentences(content).filter((line) => looksLikeDoNotDo(line) || looksLikeConstraint(line))
+    );
+  });
+  const eventConstraints = (params.agentEvents ?? [])
+    .filter((event) => isProductWorkReceipt(event))
+    .slice()
+    .sort((a, b) => b.createdAt - a.createdAt)
+    .flatMap((event) => expandConstraintLines(
+      splitSentences(`${event.title}. ${event.body}`).filter((line) => looksLikeDoNotDo(line) || looksLikeConstraint(line))
+    ));
+  return uniqueConstraintLines([
+    ...eventConstraints,
+    ...captureConstraints,
+    ...expandConstraintLines(params.memory?.constraints ?? []),
+  ]);
+}
+
 export function selectCompiledNextAction(params: {
   memory?: ProjectMemory | null;
   actions?: ProjectAction[];
   captures?: AnyObject[];
+  agentEvents?: AgentEvent[];
   task?: string;
   generatedAt?: number;
 }): ProjectNextAction | null {
@@ -291,6 +378,23 @@ export function selectCompiledNextAction(params: {
     && !isContinueDumpEcho(action.title, dumpTexts)
     && !isDumpPrefixEcho(action.title, dumpTexts)
   ));
+  const latestEventAction = (params.agentEvents ?? [])
+    .filter((event) => isProductWorkReceipt(event))
+    .slice()
+    .sort((a, b) => b.createdAt - a.createdAt)
+    .flatMap((event) => event.suggestedActions ?? [])
+    .map((title) => normalizeText(title))
+    .find((title) => title && !isContinueDumpEcho(title, dumpTexts) && !isDumpPrefixEcho(title, dumpTexts));
+  const fromEvent = latestEventAction
+    ? {
+      id: "event-next-action",
+      title: latestEventAction,
+      rationale: "Compiled from the latest dump or writeback.",
+      status: "suggested" as const,
+      createdAt: generatedAt,
+      updatedAt: generatedAt,
+    }
+    : null;
   const fromTask = params.task
     && !isContinueDumpEcho(params.task, dumpTexts)
     && !isDumpPrefixEcho(params.task, dumpTexts)
@@ -304,6 +408,7 @@ export function selectCompiledNextAction(params: {
     }
     : null;
   return selectPrimaryNextAction(usableMemoryActions)
+    ?? fromEvent
     ?? actionFromQueue(params.actions ?? [])
     ?? fromTask;
 }
@@ -368,6 +473,7 @@ export function compileProjectContextWithMeta(params: CompileProjectContextParam
     memory,
     actions: params.actions,
     captures: includedCaptures,
+    agentEvents: params.agentEvents,
     task: params.task,
     generatedAt,
   });
@@ -407,11 +513,15 @@ export function compileProjectContextWithMeta(params: CompileProjectContextParam
     });
 
   const projectName = normalizeText(params.project.name) || "Project";
-  const shortSummary = normalizeText(memory?.summary || params.project.description) || "No short summary captured yet.";
-  const rawGoal = normalizeText(memory?.currentGoal);
-  const rawDirection = normalizeText(memory?.currentDirection);
-  const currentGoal = rawGoal && !isDumpPrefixEcho(rawGoal, dumpTexts) ? rawGoal : "";
-  const currentDirection = rawDirection && !isDumpPrefixEcho(rawDirection, dumpTexts) ? rawDirection : "";
+  const identity = selectCompiledIdentity({
+    memory,
+    captures: includedCaptures,
+    agentEvents: params.agentEvents,
+    projectDescription: params.project.description,
+  });
+  const shortSummary = identity.summary || "No short summary captured yet.";
+  const currentGoal = identity.currentGoal;
+  const currentDirection = identity.currentDirection;
   const currentState = currentDirection
     ? `${params.project.status} - ${currentDirection}`
     : params.project.status;
@@ -457,15 +567,24 @@ export function compileProjectContextWithMeta(params: CompileProjectContextParam
     return expandConstraintLines(splitSentences(content).filter((line) => looksLikeDoNotDo(line) || looksLikeConstraint(line)))
       .map((line) => constraintLabeledLine(captureSourceLabel(item), line));
   });
+  const eventConstraintLines = params.agentEvents
+    .filter((event) => isProductWorkReceipt(event))
+    .slice()
+    .sort((a, b) => b.createdAt - a.createdAt)
+    .flatMap((event) => expandConstraintLines(
+      splitSentences(`${event.title}. ${event.body}`).filter((line) => looksLikeDoNotDo(line) || looksLikeConstraint(line))
+    ).map((line) => constraintLabeledLine(`agent:${normalizeText(event.source)}/constraint`, line)));
   const constraintLines = uniqueLines([
+    ...eventConstraintLines,
+    ...captureConstraintLines,
     ...rawConstraintTexts.map((item) => constraintLabeledLine("memory:constraint", item)),
     ...activeAcceptedMemoryItems(memory, ["constraint", "do_not_do"]).map((item) => constraintLabeledLine(acceptedMemorySourceLabel(item), item.text)),
-    ...captureConstraintLines,
   ]).slice(0, limits.constraints);
   const doNotDoLines = uniqueLines([
+    ...eventConstraintLines,
+    ...captureConstraintLines,
     ...rawConstraintTexts.filter(looksLikeDoNotDo).map((item) => constraintLabeledLine("memory:constraint", item)),
     ...activeAcceptedMemoryItems(memory, ["do_not_do"]).map((item) => constraintLabeledLine(acceptedMemorySourceLabel(item), item.text)),
-    ...captureConstraintLines,
   ]).slice(0, limits.doNotDo);
   const recentProgressLines = uniqueLines(memory?.recentChanges ?? [])
     .map((item) => labeledLine("memory:recent_change", item, PACKET_LINE_LIMIT))

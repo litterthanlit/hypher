@@ -405,7 +405,7 @@ describe("compileBuilderBrief", () => {
       },
       captures: [captures[1]],
       actions,
-      agentEvents,
+      agentEvents: [],
       generatedAt: 123,
     });
 

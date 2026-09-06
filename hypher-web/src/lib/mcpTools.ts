@@ -1,7 +1,7 @@
 import type { ActivityEntry, AgentEvent, AnyObject, Handoff, Project, ProjectAction, ProjectMemory } from "@/types";
 import { buildAgentContextApiResponse } from "./agentContextApi";
 import { selectPrimaryNextAction } from "./projectMemory";
-import { selectCompiledNextAction } from "./projectContext";
+import { selectCompiledIdentity, selectCompiledNextAction } from "./projectContext";
 import {
   AGENT_EVENT_KINDS,
   matchProjectForAgentEvent,
@@ -226,8 +226,14 @@ function projectContextTool(args: JsonObject, context: HypherMcpContext): Hypher
 }
 
 function currentStateTool(args: JsonObject, context: HypherMcpContext): HypherMcpToolResult {
-  const { project, memory } = requireProjectContext(args, context);
-  const currentState = normalize(memory?.currentDirection) || normalize(memory?.summary) || normalize(project.description);
+  const { project, memory, captures, agentEvents } = requireProjectContext(args, context);
+  const identity = selectCompiledIdentity({
+    memory,
+    captures,
+    agentEvents,
+    projectDescription: project.description,
+  });
+  const currentState = identity.currentDirection || identity.summary || normalize(project.description);
   const recentChanges = (memory?.recentChanges ?? []).map(normalize).filter(Boolean).slice(0, 5);
   const openQuestions = (memory?.openQuestions ?? []).map(normalize).filter(Boolean).slice(0, 5);
 
@@ -244,11 +250,12 @@ function currentStateTool(args: JsonObject, context: HypherMcpContext): HypherMc
 }
 
 function nextMoveTool(args: JsonObject, context: HypherMcpContext): HypherMcpToolResult {
-  const { project, memory, actions, captures } = requireProjectContext(args, context);
+  const { project, memory, actions, captures, agentEvents } = requireProjectContext(args, context);
   const compiled = selectCompiledNextAction({
     memory,
     actions,
     captures,
+    agentEvents,
   });
   const memoryAction = selectPrimaryNextAction(memory?.nextActions ?? []);
   const nextMove = normalize(compiled?.title) || "No next move captured yet.";
