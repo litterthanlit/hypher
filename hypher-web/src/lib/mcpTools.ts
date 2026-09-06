@@ -3,10 +3,10 @@ import { buildAgentContextApiResponse } from "./agentContextApi";
 import { selectPrimaryNextAction } from "./projectMemory";
 import { selectCompiledIdentity, selectCompiledNextAction, captureDumpTexts } from "./projectContext";
 import {
+  dropBriefSelfTalkWhenProductStateExists,
   isContinueDumpEcho,
   isDumpPrefixEcho,
   isProductWorkReceipt,
-  preferProductStateTitles,
   splitSentences,
 } from "../../shared/projectMemoryGenerate";
 import {
@@ -239,7 +239,7 @@ function recentChangeLeads(params: {
 }): string[] {
   const dumpTexts = captureDumpTexts(params.captures);
   const hasProductHandoffs = params.agentEvents.some((event) => isProductWorkReceipt(event));
-  const fromEvents = preferProductStateTitles(
+  const fromEvents = dropBriefSelfTalkWhenProductStateExists(
     params.agentEvents
       .filter((event) => isProductWorkReceipt(event))
       .slice()
@@ -264,7 +264,10 @@ function recentChangeLeads(params: {
     .filter(Boolean);
   const seen = new Set<string>();
   const result: string[] = [];
-  for (const item of [...fromEvents, ...fromMemory]) {
+  for (const item of dropBriefSelfTalkWhenProductStateExists(
+    [...fromEvents, ...fromMemory],
+    (title) => title,
+  )) {
     const key = (splitSentences(item)[0] ?? item).replace(/[.!?]+$/, "").toLowerCase().slice(0, 140);
     if (!key || seen.has(key)) continue;
     seen.add(key);

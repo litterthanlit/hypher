@@ -20,6 +20,7 @@ import {
   looksLikeBriefSelfTalk,
   looksLikeProductDecision,
   preferProductStateTitles,
+  dropBriefSelfTalkWhenProductStateExists,
 } from "./projectMemoryGenerate";
 import { compileBuilderBrief } from "../src/lib/projectContext";
 import type { Project, ProjectMemory } from "../src/types";
@@ -222,6 +223,9 @@ describe("looksLikeBriefSelfTalk", () => {
     expect(looksLikeBriefSelfTalk("Dump-only constraints keep packet slots")).toBe(true);
     expect(looksLikeBriefSelfTalk("Wait-for-review next when merge is locked")).toBe(false);
     expect(looksLikeBriefSelfTalk("Keep dump echo out of identity")).toBe(false);
+    expect(looksLikeBriefSelfTalk("Last-handoff identity always wins at packet compile")).toBe(false);
+    expect(looksLikeBriefSelfTalk("Merge lock beats Merge PR next move")).toBe(true);
+    expect(looksLikeBriefSelfTalk("Packet current state leads Recent changes")).toBe(true);
     expect(looksLikeBriefSelfTalk("Session 2 writeback")).toBe(false);
     expect(looksLikeBriefSelfTalk("Current build audited")).toBe(false);
   });
@@ -240,6 +244,31 @@ describe("looksLikeBriefSelfTalk", () => {
       "Bare PR no longer reroutes the Hypher brief to GitHub",
       "Changelog titles are not session identity",
       "Suggested next move is Start with, not dump compile",
+    ]);
+  });
+
+  it("drops compiler changelog when a product-state title exists, and keeps it otherwise", () => {
+    expect(dropBriefSelfTalkWhenProductStateExists(
+      [
+        "Packet current state leads Recent changes",
+        "Wait-for-review next when merge is locked",
+        "Changelog titles are not session identity",
+        "Bare PR no longer reroutes the Hypher brief to GitHub",
+      ],
+      (title) => title,
+    )).toEqual([
+      "Wait-for-review next when merge is locked",
+      "Bare PR no longer reroutes the Hypher brief to GitHub",
+    ]);
+    expect(dropBriefSelfTalkWhenProductStateExists(
+      [
+        "Changelog titles are not session identity",
+        "Packet current state leads Recent changes",
+      ],
+      (title) => title,
+    )).toEqual([
+      "Changelog titles are not session identity",
+      "Packet current state leads Recent changes",
     ]);
   });
 });

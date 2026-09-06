@@ -328,6 +328,10 @@ describe("buildMcpToolResult", () => {
             summary: dump,
             currentGoal: "",
             currentDirection: "",
+            recentChanges: [
+              "Changelog titles are not session identity. Do not widen OAuth. Pulse stays three panels. Do not rebuild the canvas.",
+              "Wait-for-review next when merge is locked. Do not widen OAuth. Pulse stays three panels. Do not rebuild the canvas.",
+            ],
             nextActions: [{
               id: "na",
               title: merge,
@@ -381,7 +385,8 @@ describe("buildMcpToolResult", () => {
     const recentChanges = Array.isArray(state.recentChanges) ? state.recentChanges.map(String) : [];
     expect(String(state.currentState)).toBe("Wait-for-review next when merge is locked");
     expect(recentChanges[0]).toBe("Wait-for-review next when merge is locked.");
-    expect(recentChanges[0]).not.toMatch(/Changelog titles/);
+    expect(recentChanges.join("\n")).not.toMatch(/Changelog titles/);
+    expect(recentChanges.join("\n")).not.toMatch(/Packet current state/);
     const move = buildMcpToolResult("get_next_move", { projectId: "p1" }, locked).structuredContent;
     const brief = String(buildMcpToolResult("get_project_context", { projectId: "p1" }, locked).structuredContent.context);
     expect(String(move.nextMove)).not.toMatch(/Merge PR 62/i);

@@ -32,7 +32,7 @@ import {
   looksLikeConstraint,
   looksLikeDoNotDo,
   looksLikeProductDecision,
-  preferProductStateTitles,
+  dropBriefSelfTalkWhenProductStateExists,
   splitSentences,
   uniqueConstraintLines,
   CONSTRAINT_ARRAY_LIMIT,
@@ -700,7 +700,7 @@ export function compileProjectContextWithMeta(params: CompileProjectContextParam
       ];
     });
 
-  const agentHandoffLines = preferProductStateTitles(
+  const agentHandoffLines = dropBriefSelfTalkWhenProductStateExists(
     params.agentEvents
       .filter((event) => isProductWorkReceipt(event))
       .slice()
@@ -833,14 +833,17 @@ export function compileProjectContextWithMeta(params: CompileProjectContextParam
       .map((item) => labeledLine(acceptedMemorySourceLabel(item), item.text, PACKET_LINE_LIMIT)),
     dumpReprintCorpus,
   );
-  const recentChangeLines = uniqueByUnlabeledLead([
-    ...agentHandoffLines,
-    ...recentHandoffLines,
-    ...recentProgressLines,
-    ...recentActivityLines,
-    ...recentCaptureLines,
-    ...recentAcceptedMemoryLines,
-  ]).slice(0, limits.recentChanges + limits.captures + limits.agentEvents + limits.handoffs);
+  const recentChangeLines = dropBriefSelfTalkWhenProductStateExists(
+    uniqueByUnlabeledLead([
+      ...agentHandoffLines,
+      ...recentHandoffLines,
+      ...recentProgressLines,
+      ...recentActivityLines,
+      ...recentCaptureLines,
+      ...recentAcceptedMemoryLines,
+    ]),
+    unlabeledPacketLine,
+  ).slice(0, limits.recentChanges + limits.captures + limits.agentEvents + limits.handoffs);
   const agentQuestionLines = params.agentEvents
     .filter((event) => (
       event.kind === "question"
@@ -898,14 +901,17 @@ export function compileProjectContextWithMeta(params: CompileProjectContextParam
     ...activeAcceptedMemoryItems(memory, ["acceptance_criterion"]).map((item) => labeledLine(acceptedMemorySourceLabel(item), item.text, PACKET_LINE_LIMIT)),
     ...defaultAcceptanceLines.map((item) => labeledLine("criteria", item, PACKET_LINE_LIMIT)),
   ]).slice(0, limits.acceptanceCriteria);
-  const handoffLines = uniqueByUnlabeledLead([
-    ...agentHandoffLines,
-    ...recentHandoffLines,
-    ...withoutInactiveAcceptedMemory(memory, ["handoff_note"], uniqueLines(
-      memory?.handoffNotes ?? []
-    )).map((item) => labeledLine("memory:handoff_note", leadSentence(item), PACKET_LINE_LIMIT, false)),
-    ...activeAcceptedMemoryItems(memory, ["handoff_note"]).map((item) => labeledLine(acceptedMemorySourceLabel(item), leadSentence(item.text), PACKET_LINE_LIMIT, false)),
-  ]).slice(0, limits.handoffNotes);
+  const handoffLines = dropBriefSelfTalkWhenProductStateExists(
+    uniqueByUnlabeledLead([
+      ...agentHandoffLines,
+      ...recentHandoffLines,
+      ...withoutInactiveAcceptedMemory(memory, ["handoff_note"], uniqueLines(
+        memory?.handoffNotes ?? []
+      )).map((item) => labeledLine("memory:handoff_note", leadSentence(item), PACKET_LINE_LIMIT, false)),
+      ...activeAcceptedMemoryItems(memory, ["handoff_note"]).map((item) => labeledLine(acceptedMemorySourceLabel(item), leadSentence(item.text), PACKET_LINE_LIMIT, false)),
+    ]),
+    unlabeledPacketLine,
+  ).slice(0, limits.handoffNotes);
   const nextActionLine = primaryAction
     ? labeledLine(`next:${primaryAction.status}`, primaryAction.title, PACKET_LINE_LIMIT)
     : "No next action captured yet.";

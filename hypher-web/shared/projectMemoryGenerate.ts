@@ -328,6 +328,7 @@ export function looksLikeBriefSelfTalk(value: string | undefined | null): boolea
   if (/\bchangelog titles\b/.test(text)) return true;
   if (/\baccepted memory\b/.test(text) && /\b(fill|crowd)/.test(text)) return true;
   if (/\bdump compile\b/.test(text) || /\bcompiled from the latest dump\b/.test(text)) return true;
+  if (/\bmerge lock beats\b/.test(text)) return true;
   return false;
 }
 
@@ -340,6 +341,15 @@ export function preferProductStateTitles<T>(items: T[], titleOf: (item: T) => st
     else product.push(item);
   }
   return [...product, ...selfTalk];
+}
+
+/** Compiler changelog is last-session noise. Keep it only when no product-state title exists. */
+export function dropBriefSelfTalkWhenProductStateExists<T>(
+  items: T[],
+  titleOf: (item: T) => string,
+): T[] {
+  const product = items.filter((item) => !looksLikeBriefSelfTalk(titleOf(item)));
+  return product.length > 0 ? product : items;
 }
 
 export function looksLikeProductDecision(item: string): boolean {

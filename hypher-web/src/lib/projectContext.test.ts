@@ -1034,6 +1034,7 @@ describe("compileBuilderBrief", () => {
         blockers: [],
         staleAssumptions: [],
         recentChanges: [
+          "Packet current state leads Recent changes. Do not widen OAuth. Pulse stays three panels. Do not rebuild the canvas.",
           `${latestTitle}. Do not widen OAuth. Pulse stays three panels. Do not rebuild the canvas.`,
           mashedSticky,
           mashedBare,
@@ -1045,6 +1046,7 @@ describe("compileBuilderBrief", () => {
           "Do not treat try hypher as the home",
         ],
         handoffNotes: [
+          "Packet current state leads Recent changes. Do not widen OAuth. Pulse stays three panels. Do not rebuild the canvas.",
           `${latestTitle}. Do not widen OAuth. Pulse stays three panels. Do not rebuild the canvas.`,
           mashedSticky,
           mashedBare,
@@ -1091,6 +1093,17 @@ describe("compileBuilderBrief", () => {
       }],
       actions: [],
       agentEvents: [
+        {
+          id: "leads-recent",
+          userId: "u1",
+          projectId: "p1",
+          source: "cursor",
+          kind: "handoff",
+          title: "Packet current state leads Recent changes",
+          body: latestBody,
+          status: "reviewed",
+          createdAt: 1200,
+        },
         {
           id: "changelog",
           userId: "u1",
@@ -1171,7 +1184,7 @@ describe("compileBuilderBrief", () => {
           createdAt: 800,
         },
       ],
-      generatedAt: 1100,
+      generatedAt: 1200,
     });
 
     expect(packet).toMatch(/- Short summary: Wait-for-review next when merge is locked/);
@@ -1179,12 +1192,21 @@ describe("compileBuilderBrief", () => {
     expect(packet).not.toMatch(/- Short summary: Changelog titles/);
     expect(packet).not.toMatch(/- Short summary: Suggested next move is Start with/);
     expect(packet).not.toMatch(/- Short summary: Dump-only constraints keep packet slots/);
+    expect(packet).not.toMatch(/- Short summary: Packet current state/);
     expect(packet).toMatch(/- Current state: Wait-for-review next when merge is locked/);
     const recentSection = packet.split("## Recent changes")[1]?.split("##")[0] ?? "";
     const firstBullet = recentSection.split("\n").find((line) => line.startsWith("- ["));
     expect(firstBullet).toMatch(/Wait-for-review next when merge is locked/);
-    expect(firstBullet).not.toMatch(/Changelog titles/);
-    expect(firstBullet).not.toMatch(/Suggested next move is Start with/);
+    expect(recentSection).not.toMatch(/Changelog titles/);
+    expect(recentSection).not.toMatch(/Packet current state/);
+    expect(recentSection).not.toMatch(/Suggested next move is Start with/);
+    expect(recentSection).not.toMatch(/Dump-only constraints keep packet slots/);
+    expect(recentSection).not.toMatch(/Merge lock beats Merge PR/);
+    const notes = packet.split("### Handoff notes")[1] ?? "";
+    expect(notes).toMatch(/Wait-for-review next when merge is locked/);
+    expect(notes).not.toMatch(/Changelog titles/);
+    expect(notes).not.toMatch(/Packet current state/);
+    expect(notes).not.toMatch(/Dump-only constraints keep packet slots/);
     expect(packet).not.toMatch(/- Current state:.*Dogfood dump/);
     expect(packet).not.toMatch(/- Current state: active - Product: dump/);
     expect(packet).toMatch(/Trying to become: Session 2 should start warm/);
