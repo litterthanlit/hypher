@@ -363,12 +363,17 @@ export function compileHeuristicMemory(input: {
   const eventReceipts = (input.events ?? [])
     .filter((event) => isProductWorkReceipt(event))
     .map((event) => summarizeEvent(event.title, event.body));
+  const eventConstraintSentences = (input.events ?? [])
+    .filter((event) => isProductWorkReceipt(event))
+    .flatMap((event) => splitSentences(`${event.title}. ${event.body}`));
   const eventQuestions = (input.events ?? [])
     .filter((event) => event.kind === "question")
     .map((event) => summarizeEvent(event.title, event.body));
 
   const dumpTexts = itemTexts;
-  const incomingConstraints = expandConstraintLines(sentences.filter(looksLikeConstraint));
+  const incomingConstraints = expandConstraintLines(
+    [...sentences, ...eventConstraintSentences].filter(looksLikeConstraint)
+  );
   const constraints = uniqueConstraintLines([
     ...incomingConstraints,
     ...expandConstraintLines(existingLines(existing, "constraints")),

@@ -479,4 +479,28 @@ describe("Unit 4 hook-shaped receipts do not become identity", () => {
     expect(brief).not.toMatch(/\bno toke\.\.\./i);
     expect(nextActionLine(brief).toLowerCase()).not.toContain("continue: dogfood");
   });
+
+  it("lifts intact do-not lines out of a real handoff body", () => {
+    const applied = applyReceiptToMemory({
+      existing: null,
+      event: {
+        id: "handoff-constraints",
+        kind: "handoff",
+        source: "cursor",
+        title: "Units 4-5: writeback quality and one next move",
+        body: "PR 62. Do not: widen OAuth, rebuild the canvas. Pulse stays three panels. Next move: deploy Convex so production receipt filtering is live.",
+        suggestedActions: ["Deploy Convex so isProductWorkReceipt and OAuth activity are live in production"],
+      },
+      now: NOW,
+    });
+    expect(applied.applied).toBe(true);
+    if (!applied.applied) return;
+    expect(applied.memory.constraints.some((line) => /oauth/i.test(line))).toBe(true);
+    expect(applied.memory.constraints.some((line) => /canvas/i.test(line))).toBe(true);
+    expect(applied.memory.constraints.some((line) => /pulse/i.test(line) && /three panels/i.test(line))).toBe(true);
+    expect(applied.memory.constraints.every((line) => !line.includes("..."))).toBe(true);
+    expect(applied.memory.nextActions[0]?.title).toContain("isProductWorkReceipt");
+    expect(applied.memory.summary).toContain("PR 62");
+    expect(applied.memory.summary).not.toMatch(/session-end receipt/i);
+  });
 });
