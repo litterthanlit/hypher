@@ -406,7 +406,7 @@ describe("builderBriefFields", () => {
   it("matches get_project_context when OAuth recency-12 is all compiler changelog", () => {
     const dump = "Dogfood dump on the real hypher project. Product: dump → one note agents read → writeback. Session 2 should start warm. Do not: invent dumps, gate bind on a github token, or treat try hypher as the home. Next: confirm silent synthesis thickened this note without a generate button.";
     const merge = "Merge PR 62 and deploy Vercel plus Convex so production get_project_context drops the dump echo";
-    const latestBody = "Do not widen OAuth. Pulse stays three panels. Do not rebuild the canvas. Do not merge until reviewed.";
+    const latestBody = "Do not widen OAuth. Pulse stays three panels. Do not rebuild the canvas. Do not merge until reviewed. GitHub is a signal. Cursor is the door.";
     const echoed: ProjectMemory = {
       ...memory,
       summary: dump,
@@ -466,6 +466,8 @@ describe("builderBriefFields", () => {
     expect(pulse.nextMove).toBe(packet.match(/^- Next action: (.+)$/m)?.[1]?.replace(/^\[[^\]]+\]\s*/, ""));
     expect(pulse.summary.toLowerCase()).not.toContain("dogfood dump");
     expect(pulse.summary).not.toMatch(/Changelog titles/);
+    expect(pulse.decisions.some((line) => /Cursor is the door/i.test(line))).toBe(true);
+    expect(pulse.decisions.some((line) => /is a signal/i.test(line))).toBe(true);
   });
 });
 

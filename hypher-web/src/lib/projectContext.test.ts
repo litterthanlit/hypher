@@ -1294,7 +1294,7 @@ describe("compileBuilderBrief", () => {
   it("keeps Wait-for-review identity when the fetch window is full of compiler changelog", () => {
     const dump =
       "Dogfood dump on the real hypher project. Product: dump → one note agents read → writeback. Session 2 should start warm. Do not: invent dumps, gate bind on a github token, or treat try hypher as the home. Next: confirm silent synthesis thickened this note without a generate button.";
-    const latestBody = "Do not widen OAuth. Pulse stays three panels. Do not rebuild the canvas. Do not merge until reviewed.";
+    const latestBody = "Do not widen OAuth. Pulse stays three panels. Do not rebuild the canvas. Do not merge until reviewed. GitHub is a signal. Cursor is the door.";
     const changelogTitles = [
       "Suggested next move is wait-for-review, not dump Next",
       "Changelog titles do not replace identity",
@@ -1398,6 +1398,12 @@ describe("compileBuilderBrief", () => {
     expect(recencyRecent).not.toMatch(/Changelog titles/);
     expect(hydratePacketAgentEvents(recencyWindow, recencyMemory, recencyCaptures)[0]?.title)
       .toBe("Wait for review before merging PR 62");
+    const recencyDecisions = recencyPacket.split("### Accepted memory")[1]?.split("###")[0] ?? "";
+    expect(recencyDecisions).toMatch(/Pulse stays three panels/);
+    expect(recencyDecisions).toMatch(/Cursor is the door/);
+    expect(recencyDecisions).toMatch(/GitHub is a signal/);
+    expect(recencyPacket).toContain("- Target tool: Cursor");
+    expect(recencyPacket).not.toContain("- Target tool: GitHub");
 
     const recencyWide = compileBuilderBrief({
       project: { ...project, name: "hypher", description: "" },

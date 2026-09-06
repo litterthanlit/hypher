@@ -424,7 +424,7 @@ describe("buildMcpToolResult", () => {
     const dump =
       "Dogfood dump on the real hypher project. Product: dump → one note agents read → writeback. Session 2 should start warm. Do not: invent dumps, gate bind on a github token, or treat try hypher as the home. Next: confirm silent synthesis thickened this note without a generate button.";
     const merge = "Merge PR 62 and deploy Vercel plus Convex so production get_project_context drops the dump echo";
-    const latestBody = "Do not widen OAuth. Pulse stays three panels. Do not rebuild the canvas. Do not merge until reviewed.";
+    const latestBody = "Do not widen OAuth. Pulse stays three panels. Do not rebuild the canvas. Do not merge until reviewed. GitHub is a signal. Cursor is the door.";
     const changelogEvents: AgentEvent[] = Array.from({ length: 12 }, (_, index) => ({
       id: `cl-${index}`,
       userId: "u1",
@@ -494,6 +494,10 @@ describe("buildMcpToolResult", () => {
     expect(brief).toMatch(/- Next action: \[next:suggested\] Wait for review before merging PR 62/);
     expect(brief).not.toMatch(/- Short summary: Dogfood dump/);
     expect(brief).not.toMatch(/- Short summary: Changelog titles/);
+    expect(brief).toMatch(/Cursor is the door/);
+    expect(brief).toMatch(/GitHub is a signal/);
+    expect(brief).toContain("- Target tool: Cursor");
+    expect(brief).not.toContain("- Target tool: GitHub");
   });
 
   it("prepares a concise handoff with account-linking wording", () => {
