@@ -419,7 +419,9 @@ export function selectCompiledIdentity(params: {
   const eventSentences = productEvents.flatMap((event) => splitSentences(`${event.title}. ${event.body}`));
   const dumpSentences = [...dumpTexts, stickyDump].filter(Boolean).flatMap(splitSentences);
 
-  const storedOk = !isUnusableCompiledIdentity(storedSummary, dumpTexts) && !looksLikeIdentityDump(storedSummary);
+  const storedOk = !isUnusableCompiledIdentity(storedSummary, dumpTexts)
+    && !looksLikeIdentityDump(storedSummary)
+    && !looksLikeBriefSelfTalk(storedSummary);
   const fromStored = storedOk ? storedSummary : "";
   const fromDescription = !isUnusableCompiledIdentity(params.projectDescription, dumpTexts)
     ? normalizeText(params.projectDescription)

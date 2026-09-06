@@ -1349,6 +1349,51 @@ describe("compileBuilderBrief", () => {
     expect(recentSection).not.toMatch(/Changelog titles leave Recent changes/);
   });
 
+  it("does not use a stored compiler-changelog summary as session identity", () => {
+    const dump =
+      "Dogfood dump on the real hypher project. Product: dump → one note agents read → writeback. Session 2 should start warm. Do not: invent dumps, gate bind on a github token, or treat try hypher as the home. Next: confirm silent synthesis thickened this note without a generate button.";
+    const latestBody = "Do not widen OAuth. Pulse stays three panels. Do not rebuild the canvas. Do not merge until reviewed.";
+    const packet = compileBuilderBrief({
+      project: { ...project, name: "hypher", description: "" },
+      memory: {
+        ...memory,
+        summary: "Changelog titles leave the fetch window",
+        currentGoal: "",
+        currentDirection: "",
+        importantDecisions: [],
+        openQuestions: [],
+        blockers: [],
+        staleAssumptions: [],
+      },
+      captures: [{
+        id: "n-dump",
+        kind: "note",
+        content: dump,
+        maturity: "fleeting",
+        projectId: "p1",
+        createdAt: 40,
+        modifiedAt: 60,
+      }],
+      actions: [],
+      agentEvents: [{
+        id: "cl-1",
+        userId: "u1",
+        projectId: "p1",
+        source: "cursor",
+        kind: "handoff",
+        title: "Changelog titles leave the fetch window",
+        body: latestBody,
+        status: "reviewed",
+        createdAt: 2000,
+      }],
+      generatedAt: 2000,
+    });
+    expect(packet).not.toMatch(/- Short summary: Changelog titles leave the fetch window/);
+    expect(packet).not.toMatch(/- Current state: Changelog titles leave the fetch window/);
+    expect(packet).toMatch(/- Short summary: Session 2 should start warm/);
+    expect(packet).toMatch(/Trying to become: Session 2 should start warm/);
+  });
+
   it("does not drop dump-only do-nots behind a full writeback constraint list", () => {
     const dump =
       "Dogfood dump on the real hypher project. Product: dump → one note agents read → writeback. Session 2 should start warm. Do not: invent dumps, gate bind on a github token, or treat try hypher as the home. Next: confirm silent synthesis thickened this note without a generate button.";

@@ -856,6 +856,39 @@ describe("Unit 4 hook-shaped receipts do not become identity", () => {
     expect(applied.memory.constraints.every((line) => !line.includes("..."))).toBe(true);
     expect(applied.memory.nextActions[0]?.title.toLowerCase()).toContain("warmer than product.md");
   });
+
+  it("does not let a compiler-changelog receipt replace product-state identity or crowd it out of notes", () => {
+    const wait = "Wait-for-review next when merge is locked";
+    const changelog = "Changelog titles leave the fetch window";
+    const applied = applyReceiptToMemory({
+      existing: {
+        summary: wait,
+        currentGoal: "Session 2 should start warm",
+        currentDirection: "Product: dump → one note agents read → writeback.",
+        recentChanges: [wait, "Bare PR no longer reroutes the Hypher brief to GitHub"],
+        handoffNotes: [wait, "Bare PR no longer reroutes the Hypher brief to GitHub"],
+        constraints: ["Do not merge until reviewed."],
+      },
+      event: {
+        id: "changelog-receipt",
+        kind: "handoff",
+        source: "cursor",
+        title: changelog,
+        body: "Do not widen OAuth. Pulse stays three panels. Do not rebuild the canvas. Do not merge until reviewed.",
+        createdAt: NOW,
+      },
+      now: NOW + 1,
+    });
+    expect(applied.applied).toBe(true);
+    if (!applied.applied) return;
+    expect(applied.memory.summary).toBe(wait);
+    expect(applied.memory.summary).not.toBe(changelog);
+    expect(applied.memory.recentChanges[0]).toBe(wait);
+    expect(applied.memory.handoffNotes[0]).toBe(wait);
+    expect(applied.memory.recentChanges).toContain(wait);
+    expect(applied.memory.handoffNotes).toContain(wait);
+    expect(applied.memory.currentDirection).not.toBe(changelog);
+  });
 });
 
 describe("Unit 3 AI synthesis must not restore dump echo", () => {

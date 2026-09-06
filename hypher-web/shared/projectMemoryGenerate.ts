@@ -547,6 +547,8 @@ export function compileHeuristicMemory(input: {
     .slice()
     .sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0));
   const eventReceipts = productEvents.map((event) => summarizeEvent(event.title, event.body));
+  const productReceipts = eventReceipts.filter((title) => !looksLikeBriefSelfTalk(title));
+  const selfTalkReceipts = eventReceipts.filter((title) => looksLikeBriefSelfTalk(title));
   const eventConstraintSentences = productEvents.flatMap((event) => splitSentences(`${event.title}. ${event.body}`));
   const eventQuestions = (input.events ?? [])
     .filter((event) => event.kind === "question")
@@ -575,10 +577,11 @@ export function compileHeuristicMemory(input: {
     /^(shipped|landed|fixed|merged|closed|added|implemented|wrote|updated|finished|dumped)\b/i.test(line)
   );
   const recentChanges = uniqueLines([
-    ...eventReceipts,
+    ...productReceipts,
     ...recentFromDump,
     ...itemTexts.map((text) => dumpHeadline(text)),
     ...existingLines(existing, "recentChanges"),
+    ...selfTalkReceipts,
   ]);
   const existingGoal = normalize(existing?.currentGoal);
   const nextFromEvents = productEvents
@@ -588,10 +591,12 @@ export function compileHeuristicMemory(input: {
   const dumpGoal = extractCurrentTask(sentences) ?? "";
   const eventGoal = extractCurrentTask(eventConstraintSentences) ?? nextFromEvents[0] ?? "";
   const dumpSummary = itemTexts[0] ? dumpHeadline(itemTexts[0]) : "";
-  const storedSummaryOk = !isUnusableCompiledIdentity(existingSummary, dumpTexts);
-  const summary = eventReceipts[0]
+  const storedSummaryOk = !isUnusableCompiledIdentity(existingSummary, dumpTexts)
+    && !looksLikeBriefSelfTalk(existingSummary);
+  const summary = productReceipts[0]
     || (storedSummaryOk ? existingSummary : "")
     || dumpSummary
+    || existingSummary
     || `${input.projectName} is in progress.`;
   const nextTitlesForClone = [...nextFromEvents, eventGoal, dumpGoal].filter(Boolean);
   const existingGoalOk = !isUnusableCompiledIdentity(existingGoal, echoCorpus)
@@ -613,6 +618,7 @@ export function compileHeuristicMemory(input: {
     && !extractCurrentTask([line])
     && !isDumpPrefixEcho(line, dumpTexts)
     && !isDumpPrefixEcho(line, echoCorpus)
+    && !looksLikeBriefSelfTalk(line)
     && !/^(shipped|landed|fixed|merged|closed|added|implemented|wrote|updated|finished|dumped)\b/i.test(line)
   ));
   const existingDirection = normalize(existing?.currentDirection);
@@ -671,8 +677,9 @@ export function compileHeuristicMemory(input: {
     ]),
     staleAssumptions: existingLines(existing, "staleAssumptions"),
     handoffNotes: uniqueLines([
-      ...eventReceipts,
+      ...productReceipts,
       ...existingLines(existing, "handoffNotes"),
+      ...selfTalkReceipts,
     ]),
     nextActions,
     acceptedCrystallizedSuggestions: existing?.acceptedCrystallizedSuggestions ?? [],
@@ -766,11 +773,11 @@ export function applyReceiptToMemory(input: {
     applied: true,
     memory: {
       ...compiled,
-      summary: compiled.summary || truncate(summary, SUMMARY_LIMIT),
+      summary: compiled.summary || (looksLikeBriefSelfTalk(summary) ? "" : truncate(summary, SUMMARY_LIMIT)),
       currentGoal: compiled.currentGoal || nextMove || "",
-      currentDirection: compiled.currentDirection || truncate(summary, SUMMARY_LIMIT),
-      recentChanges: uniqueLines([summary, ...compiled.recentChanges]),
-      handoffNotes: uniqueLines([summary, ...compiled.handoffNotes]),
+      currentDirection: compiled.currentDirection || (looksLikeBriefSelfTalk(summary) ? "" : truncate(summary, SUMMARY_LIMIT)),
+      recentChanges: compiled.recentChanges,
+      handoffNotes: compiled.handoffNotes,
       nextActions,
       acceptedCrystallizedSuggestions: crystallized,
     },
