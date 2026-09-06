@@ -8,7 +8,7 @@ Use it so the next Grok (or any agent) holds that line.
 
 ## Make it right
 
-Hypher is thin because the **loop still needs a ritual**. Dump and matched receipts now compile identity. A human still has to remember `/hypher-brief` and hope the agent calls `post_agent_event`.
+Hypher is thin because the **loop still needs a ritual** outside the local IDE plugin. Dump and matched receipts compile identity. Local hooks can inject a brief. Cloud agents still have to call MCP, and the live brief is still a dump echo.
 
 Thickness is not more UI. Thickness is:
 
@@ -17,11 +17,11 @@ Thickness is not more UI. Thickness is:
 | Hole | Do | Do not |
 |---|---|---|
 | **1. Silent synthesis** | Shipped in Phase 1a. Dump or matched writeback updates summary / direction / decisions / next move. Same generate guts, no button. | Put “Generate memory” back on cards. |
-| **2. No session hooks** | `sessionStart` injects the Builder Brief once (`additional_context`). `sessionEnd` posts **one** `handoff` (script with the user’s Hypher token, or a hard instruction the agent cannot skip). Skills stay as fallback. | Hope the agent remembers a skill. Spam `build_log`. |
+| **2. Session start** | IDE plugin hooks shipped. Cloud agents load the brief once via MCP (`resolve_project_for_repo`, then `get_project_context`). `sessionEnd` posts **one** `handoff`. Skills stay as fallback. | Hope the agent remembers a skill. Spam `build_log`. Rebuild IDE hooks. |
 | **3. Receipt memory** | Shipped in Phase 1a. `handoff` / `build_log` receipts patch memory when they match a project. Pulse still shows them. **Accept stays for questions and suggestions**. | Make the builder click every time work happened. Auto-accept opinions. |
 | **4. GitHub ≠ memory** | Leave it. CI / stale PR / blocker signals only. | Ingest the repo. Auto-mint projects from Cursor remotes. |
 
-**Build order:** see [`docs/PLAN.md`](../PLAN.md). Next coding slice is Cursor session hooks (Phase 1b). Hole 4 is a lock, not a ticket.
+**Build order:** see [`docs/PLAN.md`](../PLAN.md). Next coding slice is Phase 1c (cloud load) then packet quality. Hole 4 is a lock, not a ticket.
 
 ---
 
@@ -48,7 +48,7 @@ Product is only dump → one Builder Brief → writeback. Home is dump. Pulse is
 
 Turn any notes into a bounded brief. Synthesis is silent, after dump or writeback. Never a Generate memory button.
 
-Success is session 2, not a prettier first screen. The product feels thin because the loop still needs ceremony. Make it thick by removing ceremony: auto-memory after dump/handoff, sessionStart/sessionEnd hooks, handoff receipts thicken identity without Accept. Keep Accept for questions and suggestions. GitHub is a signal, never repo ingest.
+Success is session 2, not a prettier first screen. Make it thick by removing ceremony: auto-memory after dump/handoff, IDE session hooks, cloud MCP load, a brief that beats the repo docs, handoff receipts thicken identity without Accept. Keep Accept for questions and suggestions. GitHub is a signal, never repo ingest.
 
 docs/PRODUCT.md is the only product source of truth.
 
@@ -86,12 +86,12 @@ JOB: Turn any notes (rants, screenshots, chat exports, “don’t widen OAuth”
 
 SUCCESS: session 2 — a new chat that already knows the last chat’s decisions. Not a prettier empty screen.
 
-WHY IT FEELS THIN: the loop exists; it still needs ritual (/hypher-brief, Accept, hoping the agent calls tools). Make it right by removing ceremony, not by adding surfaces. Thickness is a warmer brief over time.
+WHY IT FEELS THIN: IDE hooks exist; cloud agents still start cold; the live brief still echoes the dump. Make it right by removing ceremony and fixing the packet, not by adding surfaces. Thickness is a warmer brief over time.
 
 THE FOUR HOLES — DO IN ORDER:
-1) Silent synthesis after a dump is assigned to a project and after a matched writeback. /api/project-memory/generate is an implementation detail, not a button.
-2) Cursor sessionStart loads the brief once (additional_context). sessionEnd posts one handoff. Skills are fallback.
-3) Matched handoff/build_log receipts thicken identity without Accept. Pulse still shows them. Accept remains for questions and suggestions.
+1) Silent synthesis after a dump is assigned to a project and after a matched writeback. Shipped. /api/project-memory/generate is an implementation detail, not a button.
+2) Cursor IDE sessionStart/sessionEnd hooks shipped. Cloud agents still load the brief once via MCP. Skills are fallback. Then make the brief beat docs/PRODUCT.md instead of echoing a dump.
+3) Matched handoff/build_log receipts thicken identity without Accept. Shipped. Pulse still shows them. Accept remains for questions and suggestions.
 4) GitHub = CI/stale-PR/blocker signals only. NEVER ingest the repo. Cursor already has the code. This is a lock, not a ticket.
 
 COLD START: one messy dump, or the first session writes the seed via handoff. If they dump nothing, ask once: goal, current task, do-not-do, done. Unmatched repo → link it. Do not invent status.
