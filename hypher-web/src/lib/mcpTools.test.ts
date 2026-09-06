@@ -316,7 +316,7 @@ describe("buildMcpToolResult", () => {
 
   it("does not return a merge next move when the brief says do not merge until reviewed", () => {
     const dump =
-      "Dogfood dump on the real hypher project. Product: dump → one note agents read → writeback. Session 2 should start warm. Do not: invent dumps, gate bind on a github token, or treat try hypher as the home.";
+      "Dogfood dump on the real hypher project. Product: dump → one note agents read → writeback. Session 2 should start warm. Do not: invent dumps, gate bind on a github token, or treat try hypher as the home. Next: confirm silent synthesis thickened this note without a generate button.";
     const merge = "Merge PR 62 and deploy Convex so production memory and packet compile drop the dump echo";
     const locked: HypherMcpContext = {
       ...context,
@@ -332,14 +332,32 @@ describe("buildMcpToolResult", () => {
               "Changelog titles are not session identity. Do not widen OAuth. Pulse stays three panels. Do not rebuild the canvas.",
               "Wait-for-review next when merge is locked. Do not widen OAuth. Pulse stays three panels. Do not rebuild the canvas.",
             ],
-            nextActions: [{
-              id: "na",
-              title: merge,
-              rationale: "Compiled from the latest dump or writeback.",
-              status: "suggested",
-              createdAt: 90,
-              updatedAt: 90,
-            }],
+            nextActions: [
+              {
+                id: "continue",
+                title: "Continue: Dogfood dump on the real hypher project.",
+                rationale: "Compiled from the latest dump or writeback.",
+                status: "suggested",
+                createdAt: 92,
+                updatedAt: 92,
+              },
+              {
+                id: "dump-next",
+                title: "confirm silent synthesis thickened this note without a generate button",
+                rationale: "Compiled from the latest dump or writeback.",
+                status: "suggested",
+                createdAt: 91,
+                updatedAt: 91,
+              },
+              {
+                id: "na",
+                title: merge,
+                rationale: "Compiled from the latest dump or writeback.",
+                status: "suggested",
+                createdAt: 90,
+                updatedAt: 90,
+              },
+            ],
           },
           captures: [{
             id: "n-dump",
@@ -390,6 +408,8 @@ describe("buildMcpToolResult", () => {
     const move = buildMcpToolResult("get_next_move", { projectId: "p1" }, locked).structuredContent;
     const brief = String(buildMcpToolResult("get_project_context", { projectId: "p1" }, locked).structuredContent.context);
     expect(String(move.nextMove)).not.toMatch(/Merge PR 62/i);
+    expect(String(move.nextMove)).not.toMatch(/silent synthesis/i);
+    expect(String(move.nextMove)).not.toMatch(/Continue:/i);
     expect(String(move.nextMove)).toBe("Wait for review before merging PR 62");
     expect(String(move.rationale)).not.toMatch(/Compiled from the latest dump/i);
     expect(String(move.rationale)).toBe("Start with Wait for review before merging PR 62.");

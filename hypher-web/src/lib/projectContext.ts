@@ -24,6 +24,7 @@ import {
   extractProductAim,
   honorConstraintBlockedNext,
   isContinueDumpEcho,
+  isDumpLabeledNextEcho,
   isDumpPrefixEcho,
   isNextActionClone,
   isProductWorkReceipt,
@@ -526,6 +527,7 @@ export function selectCompiledNextAction(params: {
 }): ProjectNextAction | null {
   const dumpTexts = dumpTextsForBrief(params.memory, params.captures ?? []);
   const generatedAt = params.generatedAt ?? 0;
+  const hasProductReceipts = (params.agentEvents ?? []).some((event) => isProductWorkReceipt(event));
   const constraints = selectCompiledConstraints({
     memory: params.memory,
     captures: params.captures,
@@ -535,6 +537,7 @@ export function selectCompiledNextAction(params: {
     const text = normalizeText(title);
     if (!text) return false;
     if (isContinueDumpEcho(text, dumpTexts) || isDumpPrefixEcho(text, dumpTexts)) return false;
+    if (hasProductReceipts && isDumpLabeledNextEcho(text, dumpTexts)) return false;
     if (actionBlockedByConstraints(text, constraints)) return false;
     return true;
   };
@@ -593,12 +596,14 @@ export function selectCompiledNextAction(params: {
       updatedAt: generatedAt,
     }
     : null;
+  const acceptedStored = usableMemoryActions.filter((action) => action.status === "accepted");
   const selected =
-    selectPrimaryNextAction(usableMemoryActions)
+    selectPrimaryNextAction(acceptedStored)
     ?? fromEvent
+    ?? fromLock
+    ?? selectPrimaryNextAction(usableMemoryActions)
     ?? actionFromQueue(queuedActions)
-    ?? fromTask
-    ?? fromLock;
+    ?? fromTask;
   if (!selected) return null;
   return {
     ...selected,
@@ -653,10 +658,12 @@ export function compileProjectContextWithMeta(params: CompileProjectContextParam
     captures: liveCaptures,
     agentEvents: params.agentEvents,
   });
+  const hasProductReceipts = params.agentEvents.some((event) => isProductWorkReceipt(event));
   const usableNextTitle = (title: string): boolean => {
     const text = normalizeText(title);
     if (!text) return false;
     if (isContinueDumpEcho(text, dumpTexts) || isDumpPrefixEcho(text, dumpTexts)) return false;
+    if (hasProductReceipts && isDumpLabeledNextEcho(text, dumpTexts)) return false;
     return !actionBlockedByConstraints(text, compiledConstraints);
   };
   const activeActions = selectProjectActionQueue(params.actions)

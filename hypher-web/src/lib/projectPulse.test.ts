@@ -318,7 +318,7 @@ describe("builderBriefFields", () => {
   });
 
   it("does not show a merge next move when the brief forbids merge until reviewed", () => {
-    const dump = "Dogfood dump on the real hypher project. Product: dump → one note agents read → writeback. Session 2 should start warm. Do not: invent dumps, gate bind on a github token, or treat try hypher as the home.";
+    const dump = "Dogfood dump on the real hypher project. Product: dump → one note agents read → writeback. Session 2 should start warm. Do not: invent dumps, gate bind on a github token, or treat try hypher as the home. Next: confirm silent synthesis thickened this note without a generate button.";
     const merge = "Merge PR 62 and deploy Vercel plus Convex so production get_project_context drops the dump echo";
     const echoed: ProjectMemory = {
       ...memory,
@@ -326,14 +326,32 @@ describe("builderBriefFields", () => {
       currentGoal: "",
       currentDirection: "",
       constraints: ["Do not invent dumps"],
-      nextActions: [{
-        id: "echo",
-        title: merge,
-        rationale: "Compiled from the latest dump or writeback.",
-        status: "suggested",
-        createdAt: 50,
-        updatedAt: 50,
-      }],
+      nextActions: [
+        {
+          id: "continue",
+          title: "Continue: Dogfood dump on the real hypher project.",
+          rationale: "Compiled from the latest dump or writeback.",
+          status: "suggested",
+          createdAt: 52,
+          updatedAt: 52,
+        },
+        {
+          id: "dump-next",
+          title: "confirm silent synthesis thickened this note without a generate button",
+          rationale: "Compiled from the latest dump or writeback.",
+          status: "suggested",
+          createdAt: 51,
+          updatedAt: 51,
+        },
+        {
+          id: "echo",
+          title: merge,
+          rationale: "Compiled from the latest dump or writeback.",
+          status: "suggested",
+          createdAt: 50,
+          updatedAt: 50,
+        },
+      ],
     };
     const captures = [{
       id: "n-dump",
@@ -372,6 +390,9 @@ describe("builderBriefFields", () => {
       agentEvents: events,
     });
     expect(pulse.nextMove).not.toMatch(/Merge PR 62/);
+    expect(pulse.nextMove).not.toMatch(/silent synthesis/i);
+    expect(pulse.nextMove).not.toMatch(/continue:/i);
+    expect(pulse.summary.toLowerCase()).not.toContain("dogfood dump");
     expect(pulse.nextMove).toBe("Wait for review before merging PR 62");
     expect(model.primaryNextAction?.title).toBe("Wait for review before merging PR 62");
     expect(model.primaryNextAction?.rationale).toBe("Start with Wait for review before merging PR 62.");

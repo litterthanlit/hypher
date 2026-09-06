@@ -1058,6 +1058,22 @@ describe("compileBuilderBrief", () => {
         ],
         nextActions: [
           {
+            id: "continue",
+            title: "Continue: Dogfood dump on the real hypher project.",
+            rationale: "Compiled from the latest dump or writeback.",
+            status: "suggested",
+            createdAt: 950,
+            updatedAt: 950,
+          },
+          {
+            id: "dump-next",
+            title: "confirm silent synthesis thickened this note without a generate button",
+            rationale: "Compiled from the latest dump or writeback.",
+            status: "suggested",
+            createdAt: 940,
+            updatedAt: 940,
+          },
+          {
             id: "na1",
             title: nextMove,
             rationale: "Compiled from the latest dump or writeback.",
@@ -1094,6 +1110,28 @@ describe("compileBuilderBrief", () => {
       }],
       actions: [],
       agentEvents: [
+        {
+          id: "replace-identity",
+          userId: "u1",
+          projectId: "p1",
+          source: "cursor",
+          kind: "handoff",
+          title: "Changelog titles do not replace identity",
+          body: latestBody,
+          status: "reviewed",
+          createdAt: 1400,
+        },
+        {
+          id: "fetch-window",
+          userId: "u1",
+          projectId: "p1",
+          source: "cursor",
+          kind: "handoff",
+          title: "Changelog titles leave the fetch window",
+          body: latestBody,
+          status: "reviewed",
+          createdAt: 1300,
+        },
         {
           id: "leads-recent",
           userId: "u1",
@@ -1218,6 +1256,9 @@ describe("compileBuilderBrief", () => {
     expect(packet).not.toMatch(/Next: Merge PR 62/);
     expect(packet).toMatch(/- Next action: \[next:suggested\] Wait for review before merging PR 62/);
     expect(packet).toMatch(/- Work on: Wait for review before merging PR 62/);
+    expect(packet).not.toMatch(/- Next action:.*silent synthesis/i);
+    expect(packet).not.toMatch(/- Work on:.*silent synthesis/i);
+    expect(packet).not.toMatch(/Continue: Dogfood dump/);
     expect(packet).toContain("- Target tool: Cursor");
     expect(packet).not.toContain("- Target tool: GitHub");
     expect(packet).toContain("- Compact mode: off");

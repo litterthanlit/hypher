@@ -265,6 +265,23 @@ export function isContinueDumpEcho(title: string, _dumpTexts: string[] = []): bo
   return /^continue:\s+/i.test(normalize(title));
 }
 
+/** Dump `Next:` clauses are first-session tasks. After a writeback they are stale echo. */
+export function isDumpLabeledNextEcho(title: string, dumpTexts: string[] = []): boolean {
+  const needle = normalize(title)
+    .replace(/^(continue:\s*)/i, "")
+    .replace(/[.!?]+$/, "")
+    .toLowerCase();
+  if (needle.length < 12) return false;
+  for (const dump of dumpTexts) {
+    const task = extractCurrentTask(splitSentences(dump));
+    if (!task) continue;
+    const hay = normalize(task).replace(/[.!?]+$/, "").toLowerCase();
+    if (!hay) continue;
+    if (hay === needle || needle.startsWith(hay) || hay.startsWith(needle)) return true;
+  }
+  return false;
+}
+
 export function isUnusableCompiledIdentity(value: string | undefined | null, dumpTexts: string[] = []): boolean {
   const text = normalize(value);
   if (!text) return true;
@@ -587,9 +604,15 @@ export function compileHeuristicMemory(input: {
   const nextFromEvents = productEvents
     .flatMap((event) => event.suggestedActions ?? [])
     .map(normalize)
-    .filter((title) => Boolean(title) && !isContinueDumpEcho(title, dumpTexts) && !isDumpPrefixEcho(title, echoCorpus));
+    .filter((title) => (
+      Boolean(title)
+      && !isContinueDumpEcho(title, dumpTexts)
+      && !isDumpPrefixEcho(title, echoCorpus)
+      && !isDumpLabeledNextEcho(title, dumpTexts)
+    ));
   const dumpGoal = extractCurrentTask(sentences) ?? "";
   const eventGoal = extractCurrentTask(eventConstraintSentences) ?? nextFromEvents[0] ?? "";
+  const dumpNextStale = productEvents.length > 0;
   const dumpSummary = itemTexts[0] ? dumpHeadline(itemTexts[0]) : "";
   const storedSummaryOk = !isUnusableCompiledIdentity(existingSummary, dumpTexts)
     && !looksLikeBriefSelfTalk(existingSummary);
@@ -611,7 +634,9 @@ export function compileHeuristicMemory(input: {
     : productEvents.length > 0
       ? (aim || eventGoal || dumpGoal)
       : (eventGoal || dumpGoal || aim || "");
-  const currentTask = eventGoal || dumpGoal || currentGoal;
+  const currentTask = eventGoal
+    || (dumpNextStale ? "" : dumpGoal)
+    || (dumpNextStale ? "" : currentGoal);
   const directionParts = [...sentences, ...eventConstraintSentences].filter((line) => (
     !looksLikeConstraint(line)
     && !looksLikeQuestion(line)
@@ -638,8 +663,15 @@ export function compileHeuristicMemory(input: {
     ...(existing?.nextActions ?? [])
       .filter((action) => action.status !== "dismissed")
       .map((action) => action.title)
-      .filter((title) => !isContinueDumpEcho(title, dumpTexts) && !isDumpPrefixEcho(title, dumpTexts)),
-  ], 5, NEXT_ACTION_LIMIT).filter((title) => !isContinueDumpEcho(title, dumpTexts));
+      .filter((title) => (
+        !isContinueDumpEcho(title, dumpTexts)
+        && !isDumpPrefixEcho(title, dumpTexts)
+        && !(dumpNextStale && isDumpLabeledNextEcho(title, dumpTexts))
+      )),
+  ], 5, NEXT_ACTION_LIMIT).filter((title) => (
+    !isContinueDumpEcho(title, dumpTexts)
+    && !(dumpNextStale && isDumpLabeledNextEcho(title, dumpTexts))
+  ));
   const nextActions: SilentMemoryAction[] = nextTitles.map((title) => ({
     title: truncate(title, 100),
     rationale: "Compiled from the latest dump or writeback.",
@@ -668,7 +700,9 @@ export function compileHeuristicMemory(input: {
     activeTasks: uniqueByWordStem([
       ...nextTitles,
       ...existingLines(existing, "activeTasks").filter((title) => (
-        !isContinueDumpEcho(title, dumpTexts) && !isDumpPrefixEcho(title, dumpTexts)
+        !isContinueDumpEcho(title, dumpTexts)
+        && !isDumpPrefixEcho(title, dumpTexts)
+        && !(dumpNextStale && isDumpLabeledNextEcho(title, dumpTexts))
       )),
     ]),
     blockers: uniqueLines([
@@ -906,6 +940,7 @@ export function mergeAiShapeIntoSnapshot(
   const parsedNext = parsed.nextActions.filter((action) => (
     !isContinueDumpEcho(action.title, dumpTexts)
     && !isDumpPrefixEcho(action.title, dumpTexts)
+    && !isDumpLabeledNextEcho(action.title, dumpTexts)
     && !isUnusableCompiledIdentity(action.title, dumpTexts)
   ));
   const nextSource = parsedNext.length > 0 ? parsedNext : heuristic.nextActions;

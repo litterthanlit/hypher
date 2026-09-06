@@ -8,6 +8,7 @@ import {
   expandConstraintLines,
   fallbackProjectMemory,
   isContinueDumpEcho,
+  isDumpLabeledNextEcho,
   isHookShapedReceipt,
   isProductWorkReceipt,
   isSkeletonSummary,
@@ -390,6 +391,23 @@ function briefFromDump(dump: string, existing?: Parameters<typeof compileHeurist
   return { compiled, brief };
 }
 
+describe("isDumpLabeledNextEcho", () => {
+  it("matches the dump Next clause and ignores wait-for-review", () => {
+    expect(isDumpLabeledNextEcho(
+      "confirm silent synthesis thickened this note without a generate button",
+      [LIVE_DUMP_2026_09_06],
+    )).toBe(true);
+    expect(isDumpLabeledNextEcho(
+      "Wait for review before merging PR 62",
+      [LIVE_DUMP_2026_09_06],
+    )).toBe(false);
+    expect(isDumpLabeledNextEcho(
+      "Keep the packet warmer than PRODUCT.md",
+      [LIVE_DUMP_2026_09_06],
+    )).toBe(false);
+  });
+});
+
 describe("Unit 2 packet baseline", () => {
   it("records that the 2026-09-06 live brief echoed the dump and truncated a do-not", () => {
     const evidence = readFileSync(
@@ -453,6 +471,7 @@ describe("Unit 3 compile identity, do not echo the dump", () => {
     expect(compiled.currentGoal?.toLowerCase()).not.toContain("dogfood dump");
     expect(compiled.nextActions[0]?.title.toLowerCase()).toContain("silent synthesis");
     expect(compiled.nextActions.some((action) => /^continue:/i.test(action.title))).toBe(false);
+    expect(isDumpLabeledNextEcho(compiled.nextActions[0]?.title ?? "", [LIVE_DUMP_2026_09_06])).toBe(true);
     expect(compiled.currentDirection.toLowerCase()).toContain("product:");
     assertPacketDoesNotEchoDump(brief, LIVE_DUMP_2026_09_06);
   });
@@ -546,6 +565,7 @@ describe("Unit 3 compile identity, do not echo the dump", () => {
     expect(compiled.currentDirection.toLowerCase()).toContain("product:");
     expect(compiled.importantDecisions.some((line) => /three panels/i.test(line))).toBe(true);
     expect(compiled.nextActions[0]?.title.toLowerCase()).toContain("warmer than product.md");
+    expect(compiled.nextActions.some((action) => /silent synthesis/i.test(action.title))).toBe(false);
     expect(compiled.nextActions.filter((action) => /merge pr 62/i.test(action.title)).length).toBeLessThanOrEqual(1);
     expect(compiled.constraints.some((line) => /oauth/i.test(line))).toBe(true);
     expect(compiled.constraints.some((line) => /three panels/i.test(line))).toBe(true);
@@ -607,6 +627,7 @@ describe("Unit 3 compile identity, do not echo the dump", () => {
     expect(brief.toLowerCase()).toMatch(/three panels/);
     expect(brief.toLowerCase()).toMatch(/rebuild the canvas/);
     expect(nextActionLine(brief).toLowerCase()).toContain("warmer than product.md");
+    expect(nextActionLine(brief).toLowerCase()).not.toContain("silent synthesis");
     const decisionSection = brief.split("### Accepted memory")[1]?.split("###")[0] ?? "";
     expect(decisionSection.toLowerCase()).toMatch(/three panels/);
     expect(brief).not.toMatch(/Continue: Dogfood dump/i);

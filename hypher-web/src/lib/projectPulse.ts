@@ -33,7 +33,7 @@ export function builderBriefFields(
   });
   return {
     empty: isEmptyBuilderBrief(memory),
-    summary: identity.summary || memory?.summary || "",
+    summary: identity.summary || "",
     direction: identity.currentDirection,
     decisions: selectCompiledDecisions({
       memory: memory ?? null,
