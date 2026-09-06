@@ -5,7 +5,7 @@ alwaysApply: true
 
 Hypher is the project memory / control plane for this workspace. Cursor is the execution environment.
 
-Plugin hooks are the default session loop: `sessionStart` loads the Builder Brief once; `sessionEnd` posts one `handoff`. `/hypher-brief` and `/hypher-handoff` are manual overrides.
+Plugin hooks are the default local session loop: `sessionStart` loads the Builder Brief once when a Hypher token is in the hook process; otherwise it tells you to call the MCP tools. `sessionEnd` posts one `handoff` only when that token is present. Cursor does not give MCP OAuth to shell hooks. Cloud agents never run these hooks. Prefer one `post_agent_event` from the agent. `/hypher-brief` and `/hypher-handoff` are manual overrides.
 
 When the Hypher MCP server is connected:
 

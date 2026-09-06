@@ -19,6 +19,7 @@ import {
   runSessionEnd,
   runSessionStart,
   shouldSkipSessionEnd,
+  textLooksLikePostedHandoff,
   transcriptHasHandoff,
 } from "./hypher-session.mjs";
 
@@ -81,6 +82,8 @@ test("load-once instruction asks for one resolve + one brief + one handoff", () 
   assert.match(text, /Do not spam build_log/);
   assert.match(text, /\/hypher-brief/);
   assert.match(text, /\/hypher-handoff/);
+  assert.match(text, /This start instruction is not a posted handoff/);
+  assert.equal(textLooksLikePostedHandoff(text), false);
 });
 
 test("injected brief tells the agent not to reload every turn", () => {
@@ -315,6 +318,87 @@ test("transcriptHasHandoff detects an existing writeback", () => {
   writeFileSync(file, `{"tool":"post_agent_event","args":{"kind":"handoff"}}\n`);
   assert.equal(transcriptHasHandoff(file), true);
   assert.equal(transcriptHasHandoff(join(dir, "missing.json")), false);
+});
+
+test("transcriptHasHandoff ignores session-start instruction text", () => {
+  const dir = mkdtempSync(join(tmpdir(), "hypher-hook-"));
+  const file = join(dir, "start-only.jsonl");
+  const instruction = buildLoadOnceInstruction({
+    remote: "git@github.com:litterthanlit/hypher.git",
+    repo: "litterthanlit/hypher",
+    branch: "main",
+  });
+  writeFileSync(file, `${JSON.stringify({ additional_context: instruction })}\n`);
+  assert.equal(textLooksLikePostedHandoff(instruction), false);
+  assert.equal(transcriptHasHandoff(file), false);
+});
+
+test("sessionEnd still posts when the transcript only contains the start instruction", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "hypher-hook-"));
+  const file = join(dir, "start-only.jsonl");
+  writeFileSync(file, `${JSON.stringify({
+    additional_context: buildLoadOnceInstruction({
+      remote: "git@github.com:litterthanlit/hypher.git",
+      repo: "litterthanlit/hypher",
+      branch: "main",
+    }),
+  })}\n`);
+  const names = [];
+  const result = await runSessionEnd({
+    input: { session_id: "s-start-text", duration_ms: 20_000 },
+    env: {
+      HYPHER_HOOK_MARKER_DIR: dir,
+      HYPHER_ACCESS_TOKEN: "oauth-token",
+      HYPHER_HOOK_PROJECT_ID: "p1",
+      CURSOR_TRANSCRIPT_PATH: file,
+      HYPHER_MCP_URL: "https://www.hypher.app/api/mcp",
+    },
+    git: { repo: "litterthanlit/hypher", branch: "main", commitSha: "abc", changedFiles: [] },
+    fetchImpl: mcpFetch({
+      post_agent_event: (body) => {
+        names.push(body.params.arguments.kind);
+        return jsonResponse({ jsonrpc: "2.0", id: 1, result: { structuredContent: { ok: true } } });
+      },
+    }),
+  });
+  assert.equal(result.posted, true);
+  assert.deepEqual(names, ["handoff"]);
+});
+
+test("sessionEnd re-resolves after a start-hook unmatched marker", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "hypher-hook-"));
+  writeFileSync(join(dir, "s-relink.json"), JSON.stringify({
+    sessionId: "s-relink",
+    phase: "start",
+    posted: false,
+    matched: "0",
+    repo: "litterthanlit/hypher",
+  }));
+  const names = [];
+  const result = await runSessionEnd({
+    input: { session_id: "s-relink", reason: "completed", duration_ms: 20_000 },
+    env: {
+      HYPHER_HOOK_MARKER_DIR: dir,
+      HYPHER_ACCESS_TOKEN: "oauth-token",
+      HYPHER_HOOK_MATCHED: "0",
+      HYPHER_MCP_URL: "https://www.hypher.app/api/mcp",
+    },
+    git: { repo: "litterthanlit/hypher", remote: "https://github.com/litterthanlit/hypher.git", branch: "main", commitSha: "abc", changedFiles: [] },
+    fetchImpl: mcpFetch({
+      resolve_project_for_repo: () => jsonResponse({
+        jsonrpc: "2.0",
+        id: 1,
+        result: { structuredContent: { matched: true, projectId: "p1", projectName: "hypher" } },
+      }),
+      post_agent_event: (body) => {
+        names.push(body.params.arguments.kind);
+        assert.equal(body.params.arguments.projectId, "p1");
+        return jsonResponse({ jsonrpc: "2.0", id: 1, result: { structuredContent: { ok: true } } });
+      },
+    }),
+  });
+  assert.equal(result.posted, true);
+  assert.deepEqual(names, ["handoff"]);
 });
 
 test("session-start.mjs prints JSON additional_context for a real git repo", async () => {
