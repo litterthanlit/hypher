@@ -8,7 +8,7 @@ import { apiKeyProbeRateLimitKey } from "./apiKeys";
 import type { Id } from "./_generated/dataModel";
 import { GITHUB_LOOP_SOURCE, planGithubLoopWrites } from "./lib/githubAgentEvents";
 import { normalizeGitHubRepo } from "../shared/githubRepo";
-import { isWorkReceipt } from "../shared/projectMemoryGenerate";
+import { isProductWorkReceipt } from "../shared/projectMemoryGenerate";
 import { applyReceiptForEvent } from "./lib/projectMemoryWrite";
 
 const eventKind = v.union(
@@ -275,7 +275,7 @@ async function persistAgentEventForUser(
   }
 
   const now = Date.now();
-  const receipt = Boolean(matched && isWorkReceipt(parsed.value.kind, parsed.value.source));
+  const receipt = Boolean(matched && isProductWorkReceipt(parsed.value));
   const eventId = await ctx.runMutation(_internal.agentEvents.createForApiUser, {
     userId,
     projectId: matched?.id ? (matched.id as Id<"objects">) : undefined,
@@ -485,7 +485,7 @@ export const moveToProject = mutation({
       throw new Error("Invalid project");
     }
     await ctx.db.patch(eventId, { projectId });
-    if (isWorkReceipt(event.kind, event.source)) {
+    if (isProductWorkReceipt(event)) {
       const now = Date.now();
       await applyReceiptForEvent(ctx, {
         userId,

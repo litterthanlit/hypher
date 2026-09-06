@@ -240,11 +240,8 @@ export function isDumpPrefixEcho(value: string, dumpTexts: string[]): boolean {
   return false;
 }
 
-export function isContinueDumpEcho(title: string, dumpTexts: string[]): boolean {
-  const text = normalize(title);
-  const match = text.match(/^continue:\s*(.+)$/i);
-  if (!match?.[1]) return false;
-  return isDumpPrefixEcho(match[1], dumpTexts) || isDumpPrefixEcho(text, dumpTexts);
+export function isContinueDumpEcho(title: string, _dumpTexts: string[] = []): boolean {
+  return /^continue:\s+/i.test(normalize(title));
 }
 
 function extractCurrentTask(sentences: string[]): string | undefined {
@@ -287,6 +284,23 @@ export function looksLikeDecision(item: string): boolean {
 export function isWorkReceipt(kind: string, source: string): boolean {
   if (normalize(source).toLowerCase() === GITHUB_SIGNAL_SOURCE) return false;
   return kind === "handoff" || kind === "build_log";
+}
+
+export function isHookShapedReceipt(title: string, body: string): boolean {
+  const text = `${normalize(title)}\n${normalize(body)}`;
+  if (/cursor session-end receipt/i.test(text)) return true;
+  if (/no product status inferred/i.test(text)) return true;
+  return false;
+}
+
+export function isProductWorkReceipt(event: {
+  kind: string;
+  source: string;
+  title?: string;
+  body?: string;
+}): boolean {
+  if (!isWorkReceipt(event.kind, event.source)) return false;
+  return !isHookShapedReceipt(event.title ?? "", event.body ?? "");
 }
 
 export function agentEventNeedsHumanAccept(kind: string, _source: string): boolean {
@@ -347,7 +361,7 @@ export function compileHeuristicMemory(input: {
   const itemTexts = sourceTexts(input.items);
   const sentences = itemTexts.flatMap(splitSentences);
   const eventReceipts = (input.events ?? [])
-    .filter((event) => isWorkReceipt(event.kind, event.source))
+    .filter((event) => isProductWorkReceipt(event))
     .map((event) => summarizeEvent(event.title, event.body));
   const eventQuestions = (input.events ?? [])
     .filter((event) => event.kind === "question")
@@ -504,7 +518,7 @@ export function applyReceiptToMemory(input: {
   event: SilentMemorySourceEvent;
   now: number;
 }): { applied: false } | { applied: true; memory: SilentMemorySnapshot } {
-  if (!isWorkReceipt(input.event.kind, input.event.source)) {
+  if (!isProductWorkReceipt(input.event)) {
     return { applied: false };
   }
   const summary = summarizeEvent(input.event.title, input.event.body);

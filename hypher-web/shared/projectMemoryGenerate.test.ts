@@ -8,6 +8,8 @@ import {
   expandConstraintLines,
   fallbackProjectMemory,
   isContinueDumpEcho,
+  isHookShapedReceipt,
+  isProductWorkReceipt,
   isSkeletonSummary,
   isWorkReceipt,
   looksLikeDoNotDo,
@@ -376,5 +378,105 @@ describe("Unit 3 compile identity, do not echo the dump", () => {
     });
     expect(compiled.constraints.some((line) => /oauth/i.test(line))).toBe(true);
     expect(compiled.constraints[0]?.toLowerCase()).toMatch(/oauth/);
+  });
+});
+
+describe("Unit 4 hook-shaped receipts do not become identity", () => {
+  const hookBody = [
+    "Cursor session-end receipt. One handoff event. Not a compiled Builder Brief. No product status inferred.",
+    "",
+    "Repo: litterthanlit/hypher",
+    "Branch: main",
+    "",
+    "Local git status (files only):",
+    "- M hypher-web/shared/projectMemoryGenerate.ts",
+  ].join("\n");
+
+  it("does not treat git-status sessionEnd receipts as product work", () => {
+    expect(isHookShapedReceipt("Cursor session ended (litterthanlit/hypher)", hookBody)).toBe(true);
+    expect(isProductWorkReceipt({
+      kind: "handoff",
+      source: "cursor",
+      title: "Cursor session ended (litterthanlit/hypher)",
+      body: hookBody,
+    })).toBe(false);
+    expect(isWorkReceipt("handoff", "cursor")).toBe(true);
+  });
+
+  it("does not copy a hook-shaped receipt into summary or direction", () => {
+    const applied = applyReceiptToMemory({
+      existing: null,
+      event: {
+        id: "hook-1",
+        kind: "handoff",
+        source: "cursor",
+        title: "Cursor session ended (litterthanlit/hypher)",
+        body: hookBody,
+      },
+      now: NOW,
+    });
+    expect(applied.applied).toBe(false);
+
+    const compiled = compileHeuristicMemory({
+      projectName: "Hypher",
+      items: [],
+      events: [{
+        kind: "handoff",
+        source: "cursor",
+        title: "Cursor session ended (litterthanlit/hypher)",
+        body: hookBody,
+      }],
+      now: NOW,
+    });
+    expect(compiled.summary.toLowerCase()).not.toContain("session-end receipt");
+    expect(compiled.currentDirection.toLowerCase()).not.toContain("session-end receipt");
+    expect(compiled.handoffNotes.join(" ").toLowerCase()).not.toContain("no product status inferred");
+  });
+
+  it("still thickens identity from a real agent handoff body", () => {
+    const body = [
+      "Compiled identity instead of echoing the dump.",
+      "Constraints stay whole. Pulse stays three panels.",
+      "Next move: keep session-end git-status receipts out of summary.",
+    ].join(" ");
+    const applied = applyReceiptToMemory({
+      existing: null,
+      event: {
+        id: "real-1",
+        kind: "handoff",
+        source: "cursor",
+        title: "Closed packet echo on hypher",
+        body,
+        suggestedActions: ["Keep session-end git-status receipts out of summary"],
+      },
+      now: NOW,
+    });
+    expect(applied.applied).toBe(true);
+    if (!applied.applied) return;
+    expect(applied.memory.summary.toLowerCase()).toContain("compiled identity");
+    expect(applied.memory.summary.toLowerCase()).not.toContain("session-end receipt");
+    expect(applied.memory.nextActions[0]?.title.toLowerCase()).toContain("git-status");
+    expect(applied.memory.handoffNotes.join(" ").toLowerCase()).toContain("compiled identity");
+
+    const brief = compileBuilderBrief({
+      project,
+      memory: asMemory(applied.memory),
+      captures: [],
+      actions: [],
+      agentEvents: [{
+        id: "real-1",
+        userId: "u1",
+        projectId: "p1",
+        source: "cursor",
+        kind: "handoff",
+        title: "Closed packet echo on hypher",
+        body,
+        status: "reviewed",
+        createdAt: NOW,
+      }],
+    });
+    expect(brief.toLowerCase()).toContain("compiled identity");
+    expect(brief).not.toMatch(/\bno toke\.\.\./i);
+    expect(nextActionLine(brief).toLowerCase()).not.toContain("continue: dogfood");
   });
 });
