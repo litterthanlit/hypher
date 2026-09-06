@@ -6,7 +6,7 @@ Build order: [docs/PLAN.md](docs/PLAN.md). Next coding slice is Phase 1c (every 
 
 Hypher is project memory under agents: dump → one brief → writeback. Cursor already has the code.
 
-If Hypher MCP tools are connected, resolve this git remote with `resolve_project_for_repo`, then load `get_project_context` once at session start. Do not reload the full Builder Brief every turn. Use the brief for the last handoff, the current next move, and constraints that are not already in `docs/PRODUCT.md`. At session end, post one `handoff` with `post_agent_event`. If the repo is unmatched, point at Settings → Integrations. Do not invent status.
+If Hypher MCP tools are connected, resolve this git remote with `resolve_project_for_repo`, then load `get_project_context` once at session start. Do not reload the full Builder Brief every turn. Use the brief for the last handoff, the current next move, and constraints that are not already in `docs/PRODUCT.md`. If that brief is still a skeleton or heuristic dump echo, call `get_synthesis_input` once, compile identity JSON on your model from the returned prompt, then `write_project_memory` once. Skip when `needsSynthesis` is false. Hypher stores the note; it does not host the model and does not use MCP sampling. At session end, post one `handoff` with `post_agent_event`. If the repo is unmatched, point at Settings → Integrations. Do not invent status.
 
 How, not what:
 

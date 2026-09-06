@@ -17,10 +17,12 @@ import { isRequestBodyTooLarge, readJsonWithLimit } from "@/lib/requestBody";
 import {
   buildMcpToolResult,
   formatAgentEventWriteResult,
+  formatWriteProjectMemoryResult,
   getHypherMcpToolDescriptors,
   isMcpWriteTool,
   mcpToolNeedsProjectContext,
   parsePostAgentEventArgs,
+  parseWriteProjectMemoryArgs,
   type HypherMcpContext,
   type HypherMcpProjectContext,
 } from "@/lib/mcpTools";
@@ -340,6 +342,56 @@ export async function POST(req: NextRequest) {
     }
 
     if (isMcpWriteTool(toolName)) {
+      if (toolName === "write_project_memory") {
+        const parsed = parseWriteProjectMemoryArgs(args);
+        const writeArgs = {
+          projectId: parsed.projectId,
+          compiledJson: parsed.compiledJson,
+          source: parsed.source,
+        };
+        let memoryResult: {
+          ok: boolean;
+          status?: number;
+          error?: string;
+          projectId?: string;
+          identityKind?: string;
+          model?: string;
+        };
+        if (usingApiKey) {
+          memoryResult = await fetchAction((api as any).projectMemoryMcp.writeCompiledFromApiRequest, {
+            apiKey: accessToken,
+            ...writeArgs,
+          }) as typeof memoryResult;
+        } else if (accessToken) {
+          memoryResult = await fetchAction((api as any).projectMemoryMcp.writeCompiledFromOAuthRequest, {
+            tokenHash: sha256Base64url(accessToken),
+            resource: mcpRequestResource(req),
+            scope: HYPHER_MCP_SCOPE,
+            now: Date.now(),
+            ...writeArgs,
+          }) as typeof memoryResult;
+        } else {
+          const { getToken } = await auth();
+          const convexToken = await getToken({ template: "convex" });
+          if (!convexToken) {
+            return jsonRpcError(body.id, -32001, "unauth", 401, {
+              "WWW-Authenticate": authChallenge(req),
+            });
+          }
+          memoryResult = await fetchAction(
+            (api as any).projectMemoryMcp.writeCompiledFromSession,
+            writeArgs,
+            { token: convexToken }
+          ) as typeof memoryResult;
+        }
+        if (memoryResult.status === 401) {
+          return jsonRpcError(body.id, -32001, "unauth", 401, {
+            "WWW-Authenticate": authChallenge(req),
+          });
+        }
+        return jsonRpc(body.id, formatWriteProjectMemoryResult(memoryResult));
+      }
+
       if (toolName !== "post_agent_event") {
         throw new Error("unknown-tool");
       }

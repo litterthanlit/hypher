@@ -22,6 +22,16 @@ Hypher is the project memory / control plane for this workspace. Cursor is the e
    - Call `post_agent_event` with `kind: handoff`, `source: cursor`, a short `title`, a bounded `body` (what changed, decisions, open questions, best next move), and `repo` / `branch` / `commitSha` when available.
    - Post exactly one event. If you already posted a handoff this session, do not post another. Do not spam `build_log`.
 
+## Thicken identity on your model (no Hypher brain)
+
+Dump still gets an instant heuristic note. If the loaded brief is skeleton or heuristic (`get_synthesis_input.needsSynthesis` is true), do this **once** in the session:
+
+1. Call `get_synthesis_input` with the `projectId`.
+2. Compile the returned prompt into strict identity JSON on **your** model (Cursor / Claude / Codex). No markdown.
+3. Call `write_project_memory` with that JSON. Hypher validates, merges, and stores the note.
+
+Skip when `needsSynthesis` is false. Do not use MCP sampling / `createMessage`. Do not ask Hypher for `ANTHROPIC_API_KEY`. There is no Generate button.
+
 ## Connecting (plug and play)
 
-The Hypher MCP server accepts either a browser OAuth token (IDE) or a Hypher API key (`hyp_…`) sent as a Bearer credential. For headless/cloud agents, a single API key from Settings → API keys enables both reading the brief and posting the handoff — no OAuth browser step and no copy-paste. Never print the key back to the user or into a handoff body.
+The Hypher MCP server accepts either a browser OAuth token (IDE) or a Hypher API key (`hyp_…`) sent as a Bearer credential. For headless/cloud agents, a single API key from Settings → API keys enables both reading the brief and posting the handoff — no OAuth browser step and no copy-paste. Never print the key back to the user or into a handoff body. The same credentials can call `get_synthesis_input` and `write_project_memory` so the agent compiles identity on its own model; Hypher stores the note and does not host the brain.

@@ -53,7 +53,9 @@ If the repo is not linked, Hypher will not invent status. Connect `owner/repo` o
 
 Preferred: OAuth. The plugin uses public client `hypher-cursor` and the same Hypher MCP scope as ChatGPT (`hypher.projects.read`). That token can read briefs and write session events.
 
-Headless / cloud: a Hypher API key from Settings → API keys, sent as a Bearer credential on the Hypher MCP server. The MCP endpoint accepts `hyp_…` API keys for both reading briefs (`get_project_context`, `resolve_project_for_repo`, `get_current_state`, `get_next_move`, `prepare_handoff`) and writing events (`post_agent_event`) — the same access as the OAuth token, without the browser step. In the Cursor IDE, prefer OAuth; do not configure two credentials unless OAuth is blocked.
+Headless / cloud: a Hypher API key from Settings → API keys, sent as a Bearer credential on the Hypher MCP server. The MCP endpoint accepts `hyp_…` API keys for both reading briefs (`get_project_context`, `resolve_project_for_repo`, `get_current_state`, `get_next_move`, `prepare_handoff`, `get_synthesis_input`) and writing (`post_agent_event`, `write_project_memory`) — the same access as the OAuth token, without the browser step. In the Cursor IDE, prefer OAuth; do not configure two credentials unless OAuth is blocked.
+
+If the brief is still a skeleton or heuristic after dump, the agent compiles identity on its own model: `get_synthesis_input` → compile JSON → `write_project_memory` once. Hypher does not call Anthropic for that path and does not use MCP sampling.
 
 The `sessionEnd` hook process cannot see Cursor's stored MCP OAuth token. Automatic writeback from the hook itself needs `HYPHER_API_KEY` or `HYPHER_ACCESS_TOKEN` in the environment; otherwise the agent still posts one `handoff` through MCP (`post_agent_event`), and `/hypher-handoff` remains the override.
 

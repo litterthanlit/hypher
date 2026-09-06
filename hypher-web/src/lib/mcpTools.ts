@@ -3,11 +3,15 @@ import { buildAgentContextApiResponse } from "./agentContextApi";
 import { selectPrimaryNextAction } from "./projectMemory";
 import { selectCompiledIdentity, selectCompiledNextAction, captureDumpTexts, hydratePacketAgentEvents } from "./projectContext";
 import {
+  buildSynthesisInput,
   dropBriefSelfTalkWhenProductStateExists,
   isContinueDumpEcho,
   isDumpPrefixEcho,
   isProductWorkReceipt,
+  PROJECT_MEMORY_COMPILED_JSON_MAX,
   splitSentences,
+  unwrapProjectMemoryJson,
+  type ExistingSilentMemory,
 } from "../../shared/projectMemoryGenerate";
 import {
   AGENT_EVENT_KINDS,
@@ -80,12 +84,13 @@ const PROJECT_ID_SCHEMA = {
   additionalProperties: false,
 };
 
-const WRITE_TOOLS = new Set(["post_agent_event"]);
+const WRITE_TOOLS = new Set(["post_agent_event", "write_project_memory"]);
 const PROJECT_CONTEXT_TOOLS = new Set([
   "get_project_context",
   "get_current_state",
   "get_next_move",
   "prepare_handoff",
+  "get_synthesis_input",
 ]);
 
 export function isMcpWriteTool(toolName: string): boolean {
@@ -147,6 +152,38 @@ export function getHypherMcpToolDescriptors(): HypherMcpToolDescriptor[] {
         additionalProperties: false,
       },
       annotations: READ_ONLY,
+    },
+    {
+      name: "get_synthesis_input",
+      title: "Get synthesis input",
+      description:
+        "Return raw captures, current memory, the heuristic snapshot, and buildProjectMemoryPrompt(...) so this agent can compile project identity JSON on its own model. Hypher stores the note; it does not host the model. If needsSynthesis is true, compile the prompt to strict JSON then call write_project_memory once. Skip when needsSynthesis is false. Do not use MCP sampling.",
+      inputSchema: PROJECT_ID_SCHEMA,
+      annotations: READ_ONLY,
+    },
+    {
+      name: "write_project_memory",
+      title: "Write project memory",
+      description:
+        "Store agent-compiled project identity JSON. Hypher validates with parseProjectMemoryJson, merges with the heuristic snapshot (same path as Anthropic generate), and upserts durable memory. Does not call Anthropic. Pass projectId plus memory (object) or memoryJson (string).",
+      inputSchema: {
+        type: "object",
+        properties: {
+          projectId: { type: "string", description: "Hypher project id from resolve_project_for_repo." },
+          memoryJson: {
+            type: "string",
+            description: "Strict JSON string of the compiled identity from get_synthesis_input.",
+          },
+          memory: {
+            type: "object",
+            description: "Compiled identity object (same shape as memoryJson).",
+          },
+          source: { type: "string", description: "Defaults to cursor." },
+        },
+        required: ["projectId"],
+        additionalProperties: false,
+      },
+      annotations: WRITE,
     },
     {
       name: "post_agent_event",
@@ -411,6 +448,126 @@ export function formatAgentEventWriteResult(result: {
   );
 }
 
+function captureItemContent(item: AnyObject): string {
+  if (item.kind === "note") return item.content ?? "";
+  if (item.kind === "artifact") return item.name ?? "";
+  return item.name ?? item.description ?? "";
+}
+
+function existingFromProjectMemory(memory?: ProjectMemory | null): ExistingSilentMemory {
+  if (!memory) return null;
+  return {
+    summary: memory.summary,
+    currentGoal: memory.currentGoal,
+    currentDirection: memory.currentDirection,
+    recentChanges: memory.recentChanges ?? [],
+    importantDecisions: memory.importantDecisions ?? [],
+    constraints: memory.constraints ?? [],
+    openQuestions: memory.openQuestions ?? [],
+    activeTasks: memory.activeTasks ?? [],
+    blockers: memory.blockers ?? [],
+    staleAssumptions: memory.staleAssumptions ?? [],
+    handoffNotes: memory.handoffNotes ?? [],
+    nextActions: memory.nextActions,
+    acceptedCrystallizedSuggestions: memory.acceptedCrystallizedSuggestions,
+  };
+}
+
+function synthesisInputTool(args: JsonObject, context: HypherMcpContext): HypherMcpToolResult {
+  const projectContext = requireProjectContext(args, context);
+  const { project, memory, captures, agentEvents } = projectContext;
+  const items = captures
+    .filter((item) => item.kind !== "project")
+    .slice()
+    .sort((a, b) => (b.modifiedAt ?? 0) - (a.modifiedAt ?? 0))
+    .slice(0, 24)
+    .map((item) => ({
+      id: item.id,
+      name: item.kind === "note" ? (item.content ?? "").slice(0, 80) : item.name,
+      content: captureItemContent(item),
+      modifiedAt: item.modifiedAt,
+    }));
+  const built = buildSynthesisInput({
+    project: {
+      id: project.id,
+      name: project.name,
+      description: project.description,
+      status: project.status,
+      blockers: project.blockers,
+    },
+    items,
+    events: agentEvents.map((event) => ({
+      id: event.id,
+      kind: event.kind,
+      source: event.source,
+      title: event.title,
+      body: event.body,
+      suggestedActions: event.suggestedActions,
+      createdAt: event.createdAt,
+    })),
+    existing: existingFromProjectMemory(memory),
+    identityMemory: memory ? { summary: memory.summary, model: memory.model } : null,
+    now: memory?.generatedAt ?? project.modifiedAt ?? 0,
+  });
+  const instruction = built.needsSynthesis
+    ? "Compile this into strict project-memory JSON on your model, then call write_project_memory with projectId and that JSON. Hypher stores the note and does not host the model. Do not use MCP sampling."
+    : "Identity is already compiled. Skip write_project_memory unless the builder asked to rebuild.";
+  return textResult(
+    {
+      projectId: project.id,
+      identityKind: built.identityKind,
+      needsSynthesis: built.needsSynthesis,
+      generationInput: built.generationInput,
+      prompt: built.prompt,
+    },
+    `${instruction}\n\n${built.prompt}`
+  );
+}
+
+export function parseWriteProjectMemoryArgs(args: JsonObject): {
+  projectId: string;
+  compiledJson: string;
+  source: string;
+} {
+  const projectId = getProjectId(args);
+  const source = typeof args.source === "string" && args.source.trim() ? args.source.trim() : "cursor";
+  let compiledJson = "";
+  if (args.memory && typeof args.memory === "object") {
+    compiledJson = JSON.stringify(args.memory);
+  } else if (typeof args.memoryJson === "string") {
+    compiledJson = unwrapProjectMemoryJson(args.memoryJson);
+  }
+  if (!compiledJson) throw new Error("missing-compiled-memory");
+  if (compiledJson.length > PROJECT_MEMORY_COMPILED_JSON_MAX) {
+    throw new Error("compiled-json-too-large");
+  }
+  return { projectId, compiledJson, source };
+}
+
+export function formatWriteProjectMemoryResult(result: {
+  ok: boolean;
+  error?: string;
+  projectId?: string;
+  identityKind?: string;
+  model?: string;
+}): HypherMcpToolResult {
+  if (!result.ok) {
+    return textResult(
+      { ok: false, error: result.error ?? "write-failed" },
+      result.error ?? "Could not store project memory."
+    );
+  }
+  return textResult(
+    {
+      ok: true,
+      projectId: result.projectId,
+      identityKind: result.identityKind ?? "compiled",
+      model: result.model,
+    },
+    "Stored agent-compiled project memory. Next get_project_context will be warmer."
+  );
+}
+
 function handoffTool(args: JsonObject, context: HypherMcpContext): HypherMcpToolResult {
   const projectContext = requireProjectContext(args, context);
   const current = currentStateTool(args, context).structuredContent;
@@ -446,6 +603,8 @@ export function buildMcpToolResult(toolName: string, args: JsonObject, context: 
       return handoffTool(args, context);
     case "resolve_project_for_repo":
       return resolveProjectForRepo(args, context);
+    case "get_synthesis_input":
+      return synthesisInputTool(args, context);
     default:
       throw new Error("unknown-tool");
   }

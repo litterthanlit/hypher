@@ -26,6 +26,7 @@ Load project memory once, then work in Cursor.
    - Call `get_project_context` with the returned `projectId`.
    - Treat that Builder Brief as working context for the rest of the session.
    - Optionally call `get_next_move` if the user has not already named a task.
+   - If the brief is still a skeleton or heuristic dump echo, call `get_synthesis_input` once. When `needsSynthesis` is true, compile the returned prompt into identity JSON on your model and call `write_project_memory` once. Skip when `needsSynthesis` is false. Hypher stores the note; it does not host the model.
 4. If `matched` is false:
    - Tell the user no Hypher project is linked to this repo.
    - Offer the `link-project` skill and open https://hypher.app/app/settings/integrations.

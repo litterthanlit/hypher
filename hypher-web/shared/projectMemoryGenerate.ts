@@ -999,3 +999,162 @@ export function mergeAiShapeIntoSnapshot(
     acceptedCrystallizedSuggestions: heuristic.acceptedCrystallizedSuggestions,
   };
 }
+
+/** Agent-written identity. Hypher stores the note; it does not host the model. */
+export const AGENT_SYNTHESIS_MODEL_PREFIX = "agent-synthesis";
+export const PROJECT_MEMORY_COMPILED_JSON_MAX = 16_000;
+
+export type ProjectMemoryIdentityKind = "empty" | "skeleton" | "heuristic" | "compiled";
+
+export function unwrapProjectMemoryJson(text: string): string {
+  const trimmed = text.trim();
+  const fenced = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
+  return (fenced?.[1] ?? trimmed).trim();
+}
+
+export function agentSynthesisModel(source?: string): string {
+  const raw = normalize(source)
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, "")
+    .slice(0, 32);
+  return `${AGENT_SYNTHESIS_MODEL_PREFIX}:${raw || "mcp"}`;
+}
+
+export function projectMemoryIdentityKind(
+  memory?: { summary?: string; model?: string } | null
+): ProjectMemoryIdentityKind {
+  if (!memory) return "empty";
+  if (isSkeletonSummary(memory.summary)) return "skeleton";
+  const model = normalize(memory.model).toLowerCase();
+  if (!model) return "heuristic";
+  if (model === "manual" || model.endsWith("+manual")) return "compiled";
+  if (model.startsWith(AGENT_SYNTHESIS_MODEL_PREFIX)) return "compiled";
+  if (model.includes("generate-fallback") || model.startsWith("generate+")) return "heuristic";
+  if (model.includes("claude") || model.includes("anthropic") || model.includes("sonnet")) {
+    return "compiled";
+  }
+  return "heuristic";
+}
+
+export function projectMemoryNeedsAgentSynthesis(
+  memory?: { summary?: string; model?: string } | null
+): boolean {
+  const kind = projectMemoryIdentityKind(memory);
+  return kind === "empty" || kind === "skeleton" || kind === "heuristic";
+}
+
+export function snapshotForGeneratedUpsert(
+  projectId: string,
+  snapshot: SilentMemorySnapshot,
+  now: number
+) {
+  return {
+    summary: snapshot.summary,
+    currentGoal: snapshot.currentGoal,
+    currentDirection: snapshot.currentDirection,
+    recentChanges: snapshot.recentChanges,
+    importantDecisions: snapshot.importantDecisions,
+    constraints: snapshot.constraints,
+    openQuestions: snapshot.openQuestions,
+    activeTasks: snapshot.activeTasks,
+    blockers: snapshot.blockers,
+    staleAssumptions: snapshot.staleAssumptions,
+    handoffNotes: snapshot.handoffNotes,
+    nextActions: snapshot.nextActions.map((action, index) => ({
+      id: `${projectId}:action:${index}:${now}`,
+      title: action.title,
+      rationale: action.rationale,
+      requiredContext: action.requiredContext,
+      suggestedTargetTool: asProjectMemoryTargetTool(action.suggestedTargetTool),
+      confidence: action.confidence,
+      sourceCaptureIds: action.sourceCaptureIds,
+      status: action.status ?? "suggested" as const,
+      createdAt: action.createdAt ?? now,
+      updatedAt: now,
+    })),
+  };
+}
+
+export function filterSynthesisEvents<T extends { source: string }>(events: T[]): T[] {
+  return events.filter((event) => normalize(event.source).toLowerCase() !== GITHUB_SIGNAL_SOURCE);
+}
+
+export function snapshotFromCompiledJson(input: {
+  heuristic: SilentMemorySnapshot;
+  compiledText: string;
+  now: number;
+  dumpTexts?: string[];
+}): { ok: true; snapshot: SilentMemorySnapshot } | { ok: false; error: string } {
+  const parsed = parseProjectMemoryJson(unwrapProjectMemoryJson(input.compiledText));
+  if (!parsed.ok) return parsed;
+  return {
+    ok: true,
+    snapshot: mergeAiShapeIntoSnapshot(
+      input.heuristic,
+      parsed.value,
+      input.now,
+      input.dumpTexts ?? []
+    ),
+  };
+}
+
+export interface SynthesisGenerationInput {
+  project: {
+    id: string;
+    name: string;
+    description: string;
+    status?: string;
+    blockers?: string;
+  };
+  items: Array<{ id?: string; name?: string; content: string; modifiedAt?: number }>;
+  events: SilentMemorySourceEvent[];
+  existing: ExistingSilentMemory;
+  heuristic: SilentMemorySnapshot;
+}
+
+export function buildSynthesisInput(input: {
+  project: SynthesisGenerationInput["project"];
+  items: SynthesisGenerationInput["items"];
+  events?: SilentMemorySourceEvent[];
+  existing?: ExistingSilentMemory;
+  identityMemory?: { summary?: string; model?: string } | null;
+  now: number;
+}): {
+  generationInput: SynthesisGenerationInput;
+  prompt: string;
+  identityKind: ProjectMemoryIdentityKind;
+  needsSynthesis: boolean;
+} {
+  const events = filterSynthesisEvents(input.events ?? []);
+  const heuristic = compileHeuristicMemory({
+    projectName: input.project.name,
+    projectDescription: input.project.description,
+    projectBlockers: input.project.blockers,
+    items: input.items.map((item) => ({
+      id: item.id,
+      name: item.name,
+      content: item.content,
+    })),
+    events,
+    existing: input.existing,
+    now: input.now,
+  });
+  const generationInput: SynthesisGenerationInput = {
+    project: input.project,
+    items: input.items,
+    events,
+    existing: input.existing ?? null,
+    heuristic,
+  };
+  const identityMemory = input.identityMemory ?? (
+    input.existing
+      ? { summary: input.existing.summary, model: undefined }
+      : null
+  );
+  return {
+    generationInput,
+    prompt: buildProjectMemoryPrompt(generationInput),
+    identityKind: projectMemoryIdentityKind(identityMemory),
+    needsSynthesis: projectMemoryNeedsAgentSynthesis(identityMemory),
+  };
+}
