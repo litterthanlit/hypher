@@ -24,22 +24,24 @@ The launch *is* a 90-second with/without. One tweet. One landing. Controlled bet
 
 ## Now
 
-Dogfood is already possible. It is still manual. The MCP account has been seen with only **Try Hypher**. `litterthanlit/hypher` was unmatched — link it in Settings → Integrations or writebacks land on the wrong project.
+`litterthanlit/hypher` resolves to the real **hypher** project. A dump exists. The live brief is still a truncated echo of that dump, and Cursor cloud agents still start without it. Do not treat that as dogfood done.
 
-Do this immediately, in parallel with Phase 1. If it does not happen, nothing else matters.
+Do this in parallel with Phase 1c:
 
-1. Create or open a real Hypher project for this repo. Bind `litterthanlit/hypher`. Not “Try Hypher.”
-2. Dump the actual constraints once. Messy is enough. Include: Pulse stays three panels. Do not widen OAuth. Do not rebuild the canvas. GitHub is a signal, not memory. `docs/PRODUCT.md` wins.
-3. Every real coding session: load the brief at start (`/hypher-brief` until hooks exist), one `handoff` at end, Accept only questions and suggestions.
+1. Keep the GitHub bind on the **hypher** project. Do not write back to **Try Hypher**.
+2. Dump the actual constraints if they are still missing from the brief. Include: Pulse stays three panels. Do not widen OAuth. Do not rebuild the canvas. GitHub is a signal, not memory. `docs/PRODUCT.md` wins.
+3. Every real coding session: load the brief at start (plugin hook locally, MCP once on cloud), one `handoff` at end, Accept only questions and suggestions.
 4. Session 2 should be obviously better than session 1. If it is not, fix the packet before adding product.
 
-Done when: this repo resolves, Pulse shows Hypher’s own handoffs, and a new Cursor chat can read a brief that is not a skeleton of “nothing captured yet.”
+Done when: a new Cursor cloud agent on this repo loads a brief that is not a dump echo, and Pulse shows that session’s handoff.
+
+Diagnosis and remaining sequence: [`.audit/fix-agent-context/PLAYBOOK.md`](../.audit/fix-agent-context/PLAYBOOK.md).
 
 ---
 
 ## Phase 1 — Loop without ceremony
 
-This is the “runs in the background” slice. **1a is done.** Do **1b** next.
+This is the “runs in the background” slice. **1a and 1b are done.** Do **1c** next. Then fix the packet before Phase 2.
 
 ### 1a. Silent synthesis + receipt memory — done
 
@@ -52,20 +54,26 @@ After a dump is assigned to a project, and after a matched `handoff` / `build_lo
 
 Done when: dump “don’t widen OAuth” → brief contains it as a constraint without a click. Post a handoff → next brief includes what changed and the next move without Accept.
 
-### 1b. Session hooks
+### 1b. Session hooks — done in the IDE plugin
 
-When the Cursor plugin is connected and the repo is linked:
+Shipped in `#58`. `extensions/cursor/hooks/hooks.json` runs `session-start.mjs` and `session-end.mjs`.
 
-- `sessionStart` loads the Builder Brief once (`additional_context`). Not every turn.
-- `sessionEnd` posts **one** `handoff`. Not a firehose of `build_log`.
-- `/hypher-brief` and `/hypher-handoff` stay as manual overrides.
-- Unmatched repo: do not invent status. Point at Integrations.
+Caveats that are not Phase 1b work:
 
-Where: `extensions/cursor/` — `hooks/hooks.json`, plugin manifest, skills as fallback. Contract: `docs/product/cursor-plugin-v1-spec.md`.
+- Automatic inject and hook writeback need `HYPHER_ACCESS_TOKEN` or `HYPHER_API_KEY` in the hook process. Cursor does not expose MCP OAuth to shell hooks.
+- Hooks do not run on Cursor cloud agents.
 
-Done when: opening this repo in Cursor with the plugin on loads the brief without a slash command, and stopping the session writes one event Hypher can see.
+`/hypher-brief` and `/hypher-handoff` stay as manual overrides. Unmatched repo: do not invent status.
 
-Until 1a and 1b ship, dogfood with `/hypher-brief` and `/hypher-handoff`. Do not wait to dump.
+### 1c. Agents that never get IDE hooks
+
+Cloud agents, background agents, and any session where the plugin hooks do not fire still have Hypher MCP. They must load the brief once (`resolve_project_for_repo`, then `get_project_context`) and post one `handoff` at the end.
+
+`AGENTS.md` carries that instruction because it already always applies in this repo. `docs/PRODUCT.md` still wins if the brief disagrees.
+
+Done when: a new Cursor cloud agent on this repo calls `get_project_context` once without the user asking, and a handoff lands in Pulse.
+
+Until 1c is true, dogfood with MCP load plus `/hypher-handoff`. Do not wait to dump. Do not skip to Phase 2 while cloud sessions start cold.
 
 ---
 
@@ -154,6 +162,7 @@ GitHub stays a signal (CI, stale PRs, labeled blockers). That is a lock, not a l
 | [`PRODUCT.md`](./PRODUCT.md) | What Hypher is |
 | This file | What to build next |
 | [`bots/hypher-ceo.md`](./bots/hypher-ceo.md) | Ship-or-cut judgment |
-| [`product/cursor-plugin-v1-spec.md`](./product/cursor-plugin-v1-spec.md) | Plugin contract for Phase 1b |
+| [`product/cursor-plugin-v1-spec.md`](./product/cursor-plugin-v1-spec.md) | Plugin contract for IDE hooks |
+| [`.audit/fix-agent-context/PLAYBOOK.md`](../.audit/fix-agent-context/PLAYBOOK.md) | Why cloud sessions stay cold, and the packet-quality sequence |
 
-Next coding session: **Phase 1b**. Session start/end hooks. Skills stay as fallback.
+Next coding session: **Phase 1c**. Cloud and other non-hook agents load the brief once. Then fix the packet so it beats `docs/PRODUCT.md` instead of echoing a dump.
