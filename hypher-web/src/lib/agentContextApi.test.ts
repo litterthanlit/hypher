@@ -104,13 +104,13 @@ const handoffs: Handoff[] = [
 ];
 
 describe("getAgentContextLimits", () => {
-  it("keeps free packets smaller than paid packets", () => {
+  it("does not shrink free packets into compact mode", () => {
     expect(getAgentContextLimits(null)).toEqual({
-      captures: 3,
-      actions: 3,
-      agentEvents: 3,
-      recentChanges: 3,
-      openQuestions: 3,
+      captures: 5,
+      actions: 5,
+      agentEvents: 5,
+      recentChanges: 5,
+      openQuestions: 5,
     });
     expect(getAgentContextLimits({ status: "active", plan: "pro_monthly" })).toEqual({
       captures: 8,
@@ -215,9 +215,11 @@ describe("buildAgentContextApiResponse", () => {
     });
 
     expect(response.plan).toBe("free");
-    expect(response.limits.captures).toBe(3);
+    expect(response.limits.captures).toBe(5);
     expect(response.context).toContain("# Builder Brief: Hypher");
+    expect(response.context).toContain("- Compact mode: off");
     expect(response.context).toContain("- No explicit Do Not Do items recorded yet.");
-    expect(response.context).not.toContain("- [capture:note] Capture 2");
+    expect(response.context).toContain("- [capture:note] Capture 2");
+    expect(response.context).not.toContain("- [capture:note] Capture 0");
   });
 });
