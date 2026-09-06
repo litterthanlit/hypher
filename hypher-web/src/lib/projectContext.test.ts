@@ -994,6 +994,9 @@ describe("compileBuilderBrief", () => {
       generatedAt: 900,
     });
     expect(packet).toMatch(/- Short summary: Dump-only constraints keep packet slots/);
+    expect(packet).toMatch(/- Current state: Dump-only constraints keep packet slots/);
+    expect(packet).not.toMatch(/- Current state:.*Dogfood dump/);
+    expect(packet).not.toMatch(/- Current state:.*Product: dump/);
     expect(packet).toMatch(/Do not merge until reviewed/);
     expect(packet).not.toMatch(/- Next action:.*Merge PR 62/i);
     expect(packet).not.toMatch(/- Work on:.*Merge PR 62/i);
@@ -1115,6 +1118,9 @@ describe("compileBuilderBrief", () => {
 
     expect(packet).toMatch(/- Short summary: Dump-only constraints keep packet slots/);
     expect(packet).not.toMatch(/- Short summary: Dogfood dump/);
+    expect(packet).toMatch(/- Current state: Dump-only constraints keep packet slots/);
+    expect(packet).not.toMatch(/- Current state:.*Dogfood dump/);
+    expect(packet).not.toMatch(/- Current state: active - Product: dump/);
     expect(packet).toMatch(/Trying to become: Session 2 should start warm/);
     expect(packet).not.toMatch(/Trying to become: .*Merge PR 62/i);
     expect(packet).toMatch(/Product: dump → one note agents read → writeback/);

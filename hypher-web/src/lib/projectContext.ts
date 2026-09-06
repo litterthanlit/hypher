@@ -701,9 +701,9 @@ export function compileProjectContextWithMeta(params: CompileProjectContextParam
   const shortSummary = identity.summary || "No short summary captured yet.";
   const currentGoal = identity.currentGoal;
   const currentDirection = identity.currentDirection;
-  const currentState = currentDirection
-    ? `${params.project.status} - ${currentDirection}`
-    : params.project.status;
+  const currentState = identity.summary
+    || identity.currentDirection
+    || params.project.status;
   const tryingToBecome = currentGoal || "No goal captured yet.";
   const productDirection = currentDirection
     || (normalizeText(params.project.description) && !isDumpPrefixEcho(params.project.description, dumpTexts)

@@ -305,6 +305,8 @@ describe("buildMcpToolResult", () => {
 
     const brief = String(buildMcpToolResult("get_project_context", { projectId: "p1" }, dumpContext).structuredContent.context);
     expect(brief).toMatch(/- Short summary: Dump reprints no longer crowd Recent changes or constraints/);
+    expect(brief).toMatch(/- Current state: Dump reprints no longer crowd Recent changes or constraints/);
+    expect(brief).not.toMatch(/- Current state:.*Dogfood dump/);
     expect(brief).not.toMatch(/Continue: Dogfood dump/);
     expect(brief).not.toMatch(/reprin\.\.\./);
     expect(brief).toMatch(/Do not widen OAuth/);
