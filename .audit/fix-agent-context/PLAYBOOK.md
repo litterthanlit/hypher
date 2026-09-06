@@ -153,17 +153,33 @@ Do not paywall list width in a way that turns the product off. `getAgentContextL
 
 Check: dump `Don't widen OAuth. Pulse stays three panels. Do not rebuild the canvas.` produces three intact constraint lines and a goal that is not that paragraph. The Unit 2 snapshot assertions go green.
 
+Also in this unit, because they drop dumped constraints even when synthesis ran:
+
+- Align the two `looksLikeDoNotDo` matchers. Heuristic accepts a mid-sentence don't. The packet only keeps lines that start with don't.
+- `ARRAY_LIMIT` 8 is existing-first. A ninth constraint never enters durable memory.
+- Home dump stays unsorted until assign. Inbox notes do not compile.
+- Heuristic persist then async Claude can rewrite summary and next move after session 2 already loaded.
+
 ### Unit 4. Writeback without a second secret, without polluting memory
 
 Session-end git-status receipts must not become summary or direction. Prefer one agent `handoff` with what changed, decisions, and next move. If the hook cannot post, the always-on instruction must.
 
-Check: post a hook-shaped receipt in a test. Memory summary does not become "Cursor session-end receipt." A real `handoff` body does land in the next brief.
+Desktop hooks have the same hole as cloud, just quieter. Without `HYPHER_ACCESS_TOKEN` in the hook process, start only prints "call the tools." End skips `no-credential`. Settings → Add to Cursor installs MCP, not hooks.
+
+Also in this unit:
+
+- `transcriptHasHandoff` is a regex for `post_agent_event` and `handoff`. Session-start instructions contain both strings. A false skip means no writeback.
+- A start-hook `matched=0` marker suppresses the whole session's end write, even if the repo is linked later.
+- Free-plan 3 event slots plus Pulse-ranked GitHub questions can hide the handoff line. Warmth then depends only on durable `handoffNotes`.
+- `artifact` and `next_action` neither receipt nor Accept. Inbox Save as note does not ingest. Mark reviewed orphans the row.
+
+Check: post a hook-shaped receipt in a test. Memory summary does not become "Cursor session-end receipt." A real `handoff` body does land in the next brief. A transcript that only contains the start instruction still posts.
 
 ### Unit 5. Every agent surface, same packet
 
-Local plugin hooks, cloud MCP, handoff CLI. Same brief. Unmatched repo still does not invent status.
+Local plugin hooks, cloud MCP, handoff CLI. Same brief. Unmatched repo still does not invent status. OAuth MCP currently omits activity that Clerk MCP includes. Pulse "latest brief" is a stored handoff row, not the live compile agents get.
 
-Check: local plugin test suite already in `extensions/cursor/scripts/hypher-session.test.mjs`, plus one cloud transcript that shows brief load and one handoff.
+Check: local plugin test suite already in `extensions/cursor/scripts/hypher-session.test.mjs`, plus one cloud transcript that shows brief load and one handoff. Pulse preview and `get_project_context` must not disagree on current next move.
 
 ### Unit 6. With/without on product context, then launch
 
