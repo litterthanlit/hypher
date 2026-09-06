@@ -4,6 +4,7 @@ import {
   internalQuery,
   internalMutation,
 } from "./_generated/server";
+import type { QueryCtx } from "./_generated/server";
 import { v } from "convex/values";
 import { hasBetaAccess, requireBetaAccess } from "./lib/auth";
 import type { Id } from "./_generated/dataModel";
@@ -134,73 +135,86 @@ export type ValidateResult = {
   rateLimitKey: string;
 };
 
+/**
+ * Validate a plaintext `hyp_` API key against the current + legacy hash schemes.
+ * Pure query-context reads so it can be reused by both `validate` (internalQuery)
+ * and the MCP read-context query. Returns null for unknown, revoked, sunsetted,
+ * or non-beta keys.
+ */
+export async function validateApiKey(
+  ctx: QueryCtx,
+  key: string
+): Promise<ValidateResult | null> {
+  const parts = splitKey(key);
+  if (parts) {
+    const candidates = await ctx.db
+      .query("apiKeys")
+      .withIndex("by_prefix", (q) => q.eq("prefix", parts.prefix))
+      .collect();
+
+    for (const row of candidates) {
+      if (row.revokedAt !== undefined) continue;
+      if (!row.remainderBcrypt) continue;
+      if (bcrypt.compareSync(parts.remainder, row.remainderBcrypt)) {
+        if (!row.prefix) continue;
+        if (!(await hasBetaAccess(ctx, row.userId))) return null;
+        return {
+          userId: row.userId,
+          keyId: row._id,
+          rateLimitKey: row.prefix,
+        };
+      }
+    }
+  }
+
+  const legacyFp = legacyHashFullKey(key);
+
+  const byLegacyIndex = await ctx.db
+    .query("apiKeys")
+    .withIndex("by_legacy_full", (q) => q.eq("legacyFullKeyHash", legacyFp))
+    .first();
+  if (
+    byLegacyIndex &&
+    byLegacyIndex.revokedAt === undefined &&
+    byLegacyIndex.legacyFullKeyHash !== undefined &&
+    isLegacyKeyValidationAllowed(byLegacyIndex) &&
+    timingSafeEqualStr(legacyFp, byLegacyIndex.legacyFullKeyHash)
+  ) {
+    if (!(await hasBetaAccess(ctx, byLegacyIndex.userId))) return null;
+    return {
+      userId: byLegacyIndex.userId,
+      keyId: byLegacyIndex._id,
+      rateLimitKey:
+        byLegacyIndex.prefix ?? legacyFp.slice(0, PREFIX_LEN),
+    };
+  }
+
+  const byOldKey = await ctx.db
+    .query("apiKeys")
+    .withIndex("by_key", (q) => q.eq("key", legacyFp))
+    .first();
+  if (
+    byOldKey &&
+    byOldKey.revokedAt === undefined &&
+    byOldKey.key !== undefined &&
+    isLegacyKeyValidationAllowed(byOldKey) &&
+    timingSafeEqualStr(legacyFp, byOldKey.key)
+  ) {
+    if (!(await hasBetaAccess(ctx, byOldKey.userId))) return null;
+    return {
+      userId: byOldKey.userId,
+      keyId: byOldKey._id,
+      rateLimitKey: byOldKey.prefix ?? legacyFp.slice(0, PREFIX_LEN),
+    };
+  }
+
+  return null;
+}
+
 export const validate = internalQuery({
   args: { key: v.string() },
   handler: async (ctx, { key }): Promise<ValidateResult | null> => {
-    const parts = splitKey(key);
-    if (parts) {
-      const candidates = await ctx.db
-        .query("apiKeys")
-        .withIndex("by_prefix", (q) => q.eq("prefix", parts.prefix))
-        .collect();
-
-      for (const row of candidates) {
-        if (row.revokedAt !== undefined) continue;
-        if (!row.remainderBcrypt) continue;
-        if (bcrypt.compareSync(parts.remainder, row.remainderBcrypt)) {
-          if (!row.prefix) continue;
-          if (!(await hasBetaAccess(ctx, row.userId))) return null;
-          return {
-            userId: row.userId,
-            keyId: row._id,
-            rateLimitKey: row.prefix,
-          };
-        }
-      }
-    }
-
-    const legacyFp = legacyHashFullKey(key);
-
-    const byLegacyIndex = await ctx.db
-      .query("apiKeys")
-      .withIndex("by_legacy_full", (q) => q.eq("legacyFullKeyHash", legacyFp))
-      .first();
-    if (
-      byLegacyIndex &&
-      byLegacyIndex.revokedAt === undefined &&
-      byLegacyIndex.legacyFullKeyHash !== undefined &&
-      isLegacyKeyValidationAllowed(byLegacyIndex) &&
-      timingSafeEqualStr(legacyFp, byLegacyIndex.legacyFullKeyHash)
-    ) {
-      if (!(await hasBetaAccess(ctx, byLegacyIndex.userId))) return null;
-      return {
-        userId: byLegacyIndex.userId,
-        keyId: byLegacyIndex._id,
-        rateLimitKey:
-          byLegacyIndex.prefix ?? legacyFp.slice(0, PREFIX_LEN),
-      };
-    }
-
-    const byOldKey = await ctx.db
-      .query("apiKeys")
-      .withIndex("by_key", (q) => q.eq("key", legacyFp))
-      .first();
-    if (
-      byOldKey &&
-      byOldKey.revokedAt === undefined &&
-      byOldKey.key !== undefined &&
-      isLegacyKeyValidationAllowed(byOldKey) &&
-      timingSafeEqualStr(legacyFp, byOldKey.key)
-    ) {
-      if (!(await hasBetaAccess(ctx, byOldKey.userId))) return null;
-      return {
-        userId: byOldKey.userId,
-        keyId: byOldKey._id,
-        rateLimitKey: byOldKey.prefix ?? legacyFp.slice(0, PREFIX_LEN),
-      };
-    }
-
-    return null;
+    return await validateApiKey(ctx, key);
   },
 });
 

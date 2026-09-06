@@ -146,6 +146,32 @@ async function getMcpContext(token: string, projectId?: string): Promise<HypherM
   return { projects, projectContexts };
 }
 
+function isHypherApiKey(token: string | null): token is string {
+  return typeof token === "string" && token.startsWith("hyp_");
+}
+
+async function getMcpContextForApiKey(apiKey: string, projectId?: string): Promise<HypherMcpContext | null> {
+  let data: { projects: Project[]; projectContext: HypherMcpProjectContext | null } | null;
+  try {
+    data = await fetchQuery((api as any).mcpApiKey.dataForApiKey, {
+      key: apiKey,
+      projectId,
+    }) as { projects: Project[]; projectContext: HypherMcpProjectContext | null } | null;
+  } catch (err) {
+    if (isMissingConvexFunctionError(err)) {
+      console.warn("[api/mcp] mcpApiKey.dataForApiKey is unavailable in the configured Convex backend");
+      return null;
+    }
+    throw err;
+  }
+  if (!data) return null;
+
+  return {
+    projects: data.projects,
+    projectContexts: projectId && data.projectContext ? { [projectId]: data.projectContext } : {},
+  };
+}
+
 async function getMcpContextForAccessToken(accessToken: string, resource: string, projectId?: string): Promise<HypherMcpContext | null> {
   const tokenHash = sha256Base64url(accessToken);
   const now = Date.now();
@@ -252,9 +278,15 @@ export async function POST(req: NextRequest) {
 
   try {
     const accessToken = bearerToken(req);
+    const usingApiKey = isHypherApiKey(accessToken);
     let context: HypherMcpContext | null = null;
 
-    if (accessToken) {
+    if (usingApiKey) {
+      context = await getMcpContextForApiKey(
+        accessToken,
+        mcpToolNeedsProjectContext(toolName) ? projectId : undefined
+      );
+    } else if (accessToken) {
       context = await getMcpContextForAccessToken(
         accessToken,
         mcpRequestResource(req),
@@ -297,7 +329,12 @@ export async function POST(req: NextRequest) {
         matchedProjectName?: string;
         needsReview?: boolean;
       };
-      if (accessToken) {
+      if (usingApiKey) {
+        result = await fetchAction((api as any).agentEvents.createFromApiRequest, {
+          apiKey: accessToken,
+          payload: parsed.payload,
+        }) as typeof result;
+      } else if (accessToken) {
         result = await fetchAction((api as any).agentEvents.createFromOAuthRequest, {
           tokenHash: sha256Base64url(accessToken),
           resource: mcpRequestResource(req),
