@@ -45,23 +45,26 @@ export const metadata: Metadata = {
     icon: "/hypher-logo.svg",
   },
   openGraph: {
-    images: [{ url: "/brand/hypher-field.jpg", width: 1024, height: 560, alt: "hypher" }],
+    images: [{ url: "/hypher-logo.svg", width: 596, height: 151, alt: "hypher" }],
   },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
+  const clerkPublishableKey = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY?.trim();
+  const app = (
+    <ConvexProviderWrapper>
+      {children}
+      <Toaster richColors position="top-center" />
+    </ConvexProviderWrapper>
+  );
+
   return (
     <html
       lang="en"
       className={`${geist.variable} ${geistMono.variable} ${hypherWordmark.variable} ${hypherDisplay.variable}`}
     >
       <body>
-        <ClerkProvider>
-          <ConvexProviderWrapper>
-            {children}
-            <Toaster richColors position="top-center" />
-          </ConvexProviderWrapper>
-        </ClerkProvider>
+        {clerkPublishableKey ? <ClerkProvider>{app}</ClerkProvider> : app}
       </body>
     </html>
   );

@@ -9,7 +9,7 @@ export const metadata: Metadata = {
     title: "Hypher — The context they never find in git",
     description:
       "Give your agents the context the repo can't. One brief. They read it. They write back.",
-    images: [{ url: "/brand/hypher-field.jpg", width: 1024, height: 560, alt: "hypher" }],
+    images: [{ url: "/hypher-logo.svg", width: 596, height: 151, alt: "hypher" }],
   },
 };
 
