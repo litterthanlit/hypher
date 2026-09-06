@@ -24,7 +24,7 @@ Hypher is the project memory / control plane for this workspace. Cursor is the e
 
 ## Thicken identity on your model (no Hypher brain)
 
-Dump still gets an instant heuristic note. If the loaded brief is skeleton or heuristic (`get_synthesis_input.needsSynthesis` is true), do this **once** in the session:
+Dump still gets an instant heuristic note. If the loaded brief is skeleton or heuristic (`get_synthesis_input.needsSynthesis` is true), follow the `thicken-note` skill **once** in the session:
 
 1. Call `get_synthesis_input` with the `projectId`.
 2. Compile the returned prompt into strict identity JSON on **your** model (Cursor / Claude / Codex). No markdown.
