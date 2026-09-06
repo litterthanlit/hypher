@@ -141,6 +141,56 @@ function uniqueLines(items: string[]): string[] {
   return result;
 }
 
+function unlabeledPacketLine(line: string): string {
+  return normalizeText(line.replace(/^\[[^\]]+\]\s*/, ""));
+}
+
+function uniqueByUnlabeled(items: string[]): string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const item of items) {
+    const key = unlabeledPacketLine(item).toLowerCase();
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    result.push(item);
+  }
+  return result;
+}
+
+function unlabeledLead(line: string): string {
+  const text = unlabeledPacketLine(line).toLowerCase();
+  const first = (splitSentences(text)[0] ?? text).replace(/[.!?]+$/, "");
+  return first.slice(0, 140);
+}
+
+function uniqueByUnlabeledLead(items: string[]): string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const item of items) {
+    const key = unlabeledLead(item);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    result.push(item);
+  }
+  return result;
+}
+
+function withoutDumpEchoLines(items: string[], dumpTexts: string[]): string[] {
+  return items.filter((item) => {
+    const text = unlabeledPacketLine(item);
+    return !isDumpReprintLine(text, dumpTexts);
+  });
+}
+
+function isDumpReprintLine(text: string, dumpTexts: string[]): boolean {
+  return isContinueDumpEcho(text, dumpTexts) || isDumpPrefixEcho(text, dumpTexts);
+}
+
+function looksLikeIdentityDump(content: string): boolean {
+  const sentences = splitSentences(normalizeText(content));
+  return sentences.length >= 3 && sentences.some((line) => looksLikeDoNotDo(line) || looksLikeConstraint(line));
+}
+
 type AcceptedMemoryKind = Exclude<CrystallizedSuggestionKind, "current_task" | "open_action">;
 
 function acceptedMemoryStatus(item: AcceptedCrystallizedSuggestion): "active" | "stale" | "excluded" {
@@ -574,41 +624,60 @@ export function compileProjectContextWithMeta(params: CompileProjectContextParam
     .flatMap((event) => expandConstraintLines(
       splitSentences(`${event.title}. ${event.body}`).filter((line) => looksLikeDoNotDo(line) || looksLikeConstraint(line))
     ).map((line) => constraintLabeledLine(`agent:${normalizeText(event.source)}/constraint`, line)));
-  const constraintLines = uniqueLines([
+  const constraintLines = uniqueByUnlabeled([
     ...eventConstraintLines,
     ...captureConstraintLines,
     ...rawConstraintTexts.map((item) => constraintLabeledLine("memory:constraint", item)),
     ...activeAcceptedMemoryItems(memory, ["constraint", "do_not_do"]).map((item) => constraintLabeledLine(acceptedMemorySourceLabel(item), item.text)),
   ]).slice(0, limits.constraints);
-  const doNotDoLines = uniqueLines([
+  const doNotDoLines = uniqueByUnlabeled([
     ...eventConstraintLines,
     ...captureConstraintLines,
     ...rawConstraintTexts.filter(looksLikeDoNotDo).map((item) => constraintLabeledLine("memory:constraint", item)),
     ...activeAcceptedMemoryItems(memory, ["do_not_do"]).map((item) => constraintLabeledLine(acceptedMemorySourceLabel(item), item.text)),
   ]).slice(0, limits.doNotDo);
-  const recentProgressLines = uniqueLines(memory?.recentChanges ?? [])
-    .map((item) => labeledLine("memory:recent_change", item, PACKET_LINE_LIMIT))
-    .slice(0, limits.recentProgress);
+  const identityDumpTexts = captureDumpTexts(includedCaptures);
+  const hasProductHandoffs = params.agentEvents.some((event) => isProductWorkReceipt(event));
+  const stickyDumpCorpus = [
+    normalizeText(memory?.summary),
+    ...(memory?.recentChanges ?? []),
+    ...(memory?.handoffNotes ?? []),
+  ].filter(Boolean);
+  const dumpReprintCorpus = hasProductHandoffs ? identityDumpTexts : [];
+  const recentProgressLines = withoutDumpEchoLines(
+    uniqueLines(memory?.recentChanges ?? [])
+      .map((item) => labeledLine("memory:recent_change", item, PACKET_LINE_LIMIT)),
+    dumpReprintCorpus,
+  ).slice(0, limits.recentProgress);
   const recentActivityLines = (params.activity ?? [])
     .slice()
     .sort((a, b) => b.timestamp - a.timestamp)
     .slice(0, limits.recentActivity)
     .map((entry) => labeledLine(`activity:${entry.action}`, activityLine(entry), PACKET_LINE_LIMIT));
   const recentCaptureLines = includedCaptures
+    .filter((item) => {
+      if (!hasProductHandoffs || item.kind !== "note") return true;
+      const content = normalizeText(item.content);
+      if (!content) return true;
+      return !isDumpReprintLine(content, stickyDumpCorpus) && !looksLikeIdentityDump(content);
+    })
     .map((item) => labeledLine(captureSourceLabel(item), captureLine(item), PACKET_LINE_LIMIT))
     .slice(0, limits.captures);
-  const recentAcceptedMemoryLines = activeAcceptedSuggestions(memory)
-    .slice()
-    .sort((a, b) => (b.updatedAt ?? b.createdAt) - (a.updatedAt ?? a.createdAt))
-    .slice(0, limits.recentChanges)
-    .map((item) => labeledLine(acceptedMemorySourceLabel(item), item.text, PACKET_LINE_LIMIT));
-  const recentChangeLines = uniqueLines([
-    ...recentActivityLines,
-    ...recentProgressLines,
-    ...recentCaptureLines,
-    ...recentAcceptedMemoryLines,
+  const recentAcceptedMemoryLines = withoutDumpEchoLines(
+    activeAcceptedSuggestions(memory)
+      .slice()
+      .sort((a, b) => (b.updatedAt ?? b.createdAt) - (a.updatedAt ?? a.createdAt))
+      .slice(0, limits.recentChanges)
+      .map((item) => labeledLine(acceptedMemorySourceLabel(item), item.text, PACKET_LINE_LIMIT)),
+    dumpReprintCorpus,
+  );
+  const recentChangeLines = uniqueByUnlabeledLead([
     ...agentHandoffLines,
     ...recentHandoffLines,
+    ...recentProgressLines,
+    ...recentActivityLines,
+    ...recentCaptureLines,
+    ...recentAcceptedMemoryLines,
   ]).slice(0, limits.recentChanges + limits.captures + limits.agentEvents + limits.handoffs);
   const agentQuestionLines = params.agentEvents
     .filter((event) => (

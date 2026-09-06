@@ -606,4 +606,66 @@ describe("compileBuilderBrief", () => {
     expect(packet).not.toContain("Watch stale warning");
     expect(packet).not.toContain("Excluded handoff note");
   });
+
+  it("puts the last product handoff first in Recent changes and lists each do-not once", () => {
+    const dump =
+      "Dogfood dump on the real hypher project. Product: dump → one note agents read → writeback. Session 2 should start warm. Do not: invent dumps, gate bind on a github token, or treat try hypher as the home. Next: confirm silent synthesis thickened this note without a generate button.";
+    const packet = compileBuilderBrief({
+      project,
+      memory: {
+        ...memory,
+        summary: dump,
+        currentGoal: "Dogfood dump on the real hypher project.",
+        currentDirection: "Dogfood dump on the real hypher project.",
+        recentChanges: [dump, "note got thicker. dumped on the real hypher project."],
+        constraints: ["Do not: invent dumps, gate bind on a github token, or treat try hypher as the home."],
+        handoffNotes: [dump],
+        nextActions: [{
+          id: "echo",
+          title: "Continue: Dogfood dump on the real hypher project.",
+          rationale: "Compiled from the latest dump or writeback.",
+          status: "suggested",
+          createdAt: 80,
+          updatedAt: 80,
+        }],
+      },
+      captures: [{
+        id: "n-dump",
+        kind: "note",
+        content: dump,
+        maturity: "fleeting",
+        projectId: "p1",
+        createdAt: 40,
+        modifiedAt: 60,
+      }],
+      actions: [],
+      agentEvents: [{
+        id: "session-2",
+        userId: "u1",
+        projectId: "p1",
+        source: "cursor",
+        kind: "handoff",
+        title: "Keep dump echo out of identity",
+        body: "Do not widen OAuth. Pulse stays three panels. Do not rebuild the canvas. Next move: keep the packet warmer than PRODUCT.md.",
+        suggestedActions: ["Keep the packet warmer than PRODUCT.md"],
+        status: "reviewed",
+        createdAt: 200,
+      }],
+      generatedAt: 200,
+    });
+
+    const recentSection = packet.split("## Recent changes")[1]?.split("##")[0] ?? "";
+    const firstBullet = recentSection.split("\n").find((line) => line.startsWith("- ["));
+    expect(firstBullet).toMatch(/Keep dump echo out of identity/);
+    expect(recentSection).not.toMatch(/Dogfood dump on the real hypher project/);
+    expect(packet).not.toMatch(/Continue: Make Hypher the default project-memory packet/);
+    expect(packet).not.toMatch(/Continue: Dogfood dump on the real hypher project/);
+    const constraintSection = packet.split("### Important constraints")[1]?.split("##")[0] ?? "";
+    expect(constraintSection).toMatch(/Do not widen OAuth/);
+    expect(constraintSection).toMatch(/Pulse stays three panels/);
+    expect(constraintSection).toMatch(/Do not rebuild the canvas/);
+    expect(constraintSection.match(/Do not widen OAuth/g)?.length).toBe(1);
+    expect(constraintSection.match(/Pulse stays three panels/g)?.length).toBe(1);
+    expect(constraintSection.match(/Do not rebuild the canvas/g)?.length).toBe(1);
+  });
 });

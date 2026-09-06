@@ -455,6 +455,13 @@ describe("Unit 3 compile identity, do not echo the dump", () => {
     expect(nextActionLine(brief).toLowerCase()).toContain("warmer than product.md");
     expect(brief).not.toMatch(/Continue: Dogfood dump/i);
     expect(brief).not.toMatch(/\bno toke\.\.\./i);
+    const recentSection = brief.split("## Recent changes")[1]?.split("##")[0] ?? "";
+    expect(recentSection).toMatch(/Session 2 writeback/);
+    expect(recentSection).not.toMatch(/Dogfood dump on the real hypher project/);
+    const constraintSection = brief.split("### Important constraints")[1]?.split("##")[0] ?? "";
+    expect(constraintSection.match(/widen oauth/gi)?.length).toBe(1);
+    expect(constraintSection.match(/three panels/gi)?.length).toBe(1);
+    expect(constraintSection.match(/rebuild the canvas/gi)?.length).toBe(1);
     assertPacketDoesNotEchoDump(brief, dump);
   });
 
