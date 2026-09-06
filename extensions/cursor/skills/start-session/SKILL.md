@@ -5,7 +5,9 @@ description: Start a Hypher-backed coding session. Use when opening a linked rep
 
 # Start a Hypher session
 
-The plugin `sessionStart` hook is the default path. Use this skill when the user runs `/hypher-brief`, or when the brief was not injected this session.
+The plugin `sessionStart` hook is the default path in the Cursor IDE. Use this skill when the user runs `/hypher-brief`, when the brief was not injected this session, or when hooks do not fire at all.
+
+**Cloud / background agents and other MCP clients have no hooks.** In those environments this skill is not optional — run it automatically at the first action of the session so the next agent starts warm. The builder should never have to paste the brief from the Hypher app.
 
 Load project memory once, then work in Cursor.
 

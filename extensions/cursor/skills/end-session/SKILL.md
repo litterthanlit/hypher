@@ -5,7 +5,9 @@ description: End a Hypher-backed coding session. Use when wrapping up, creating 
 
 # End a Hypher session
 
-The plugin `sessionEnd` hook is the default path (one `handoff`). Use this skill when the user runs `/hypher-handoff`, or when you need to write back before the session actually ends.
+The plugin `sessionEnd` hook is the default path (one `handoff`) in the Cursor IDE. Use this skill when the user runs `/hypher-handoff`, when you need to write back before the session ends, or when hooks do not fire at all.
+
+**Cloud / background agents and other MCP clients have no hooks.** In those environments this skill is not optional — write one handoff yourself before finishing, via `post_agent_event`, so session 2 knows what session 1 did. No copy-paste into the Hypher app.
 
 Write one structured handoff back to Hypher so the next session starts warmer.
 

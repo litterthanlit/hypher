@@ -3,14 +3,25 @@ description: Prefer Hypher MCP tools for project context when the plugin is conn
 alwaysApply: true
 ---
 
-Hypher is the project memory / control plane for this workspace. Cursor is the execution environment.
+Hypher is the project memory / control plane for this workspace. Cursor is the execution environment. Keep the context loop closed: read the Builder Brief at the start, write one handoff at the end.
 
-Plugin hooks are the default session loop: `sessionStart` loads the Builder Brief once; `sessionEnd` posts one `handoff`. `/hypher-brief` and `/hypher-handoff` are manual overrides.
+## Two ways the loop runs
 
-When the Hypher MCP server is connected:
+**IDE with hooks (default, zero effort):** the plugin `sessionStart` hook loads the Builder Brief once and `sessionEnd` posts one `handoff`. `/hypher-brief` and `/hypher-handoff` are manual overrides. When the brief was already injected this session, do not reload it.
 
-- Use Hypher tools for project status instead of guessing from the repo alone.
-- At session start, if the hook did not already inject the Builder Brief, resolve the git remote with `resolve_project_for_repo`, then load `get_project_context` once. Do not reload the full Builder Brief every turn.
-- When stuck, call `get_current_state` or `get_next_move`.
-- At session end, write one `handoff` with `post_agent_event` unless a handoff for this session already landed. Do not spam `build_log`.
-- If the repo is not linked, point the builder to https://hypher.app/app/settings/integrations rather than inventing project status.
+**No hooks (Cursor cloud agents, background/remote agents, or any other MCP client):** hooks do NOT fire, so you MUST run the loop yourself through the Hypher MCP tools. Do it automatically — the builder should not have to paste anything from the Hypher app.
+
+## When hooks did not run, do this
+
+1. **At the start of the session (first action), load memory once:**
+   - Call `resolve_project_for_repo` with the workspace git remote (`git remote get-url origin`), plus branch if available.
+   - If `matched` is true: call `get_project_context` once with the returned `projectId` and treat that Builder Brief as working context for the rest of the session. Do not reload it every turn.
+   - If `matched` is false: tell the builder to link `owner/repo` at https://hypher.app/app/settings/integrations and do not invent project status from the repo alone.
+2. **While working:** use `get_current_state` or `get_next_move` when you need direction. Do not reload the full brief each turn.
+3. **At the end of the session (before you finish), write back once:**
+   - Call `post_agent_event` with `kind: handoff`, `source: cursor`, a short `title`, a bounded `body` (what changed, decisions, open questions, best next move), and `repo` / `branch` / `commitSha` when available.
+   - Post exactly one event. If you already posted a handoff this session, do not post another. Do not spam `build_log`.
+
+## Connecting (plug and play)
+
+The Hypher MCP server accepts either a browser OAuth token (IDE) or a Hypher API key (`hyp_…`) sent as a Bearer credential. For headless/cloud agents, a single API key from Settings → API keys enables both reading the brief and posting the handoff — no OAuth browser step and no copy-paste. Never print the key back to the user or into a handoff body.
