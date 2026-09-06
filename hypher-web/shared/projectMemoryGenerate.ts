@@ -327,11 +327,8 @@ export function splitSentences(text: string): string[] {
 
 export function summarizeEvent(title: string, body: string): string {
   const heading = normalize(title);
-  const details = truncate(body, LINE_LIMIT);
-  if (!details || details.toLowerCase() === heading.toLowerCase()) {
-    return truncate(heading, LINE_LIMIT);
-  }
-  return truncate(`${heading}. ${details}`, LINE_LIMIT);
+  if (heading) return heading;
+  return truncate(body, LINE_LIMIT, false);
 }
 
 function existingLines(existing: ExistingSilentMemory, key: keyof SilentMemorySnapshot): string[] {

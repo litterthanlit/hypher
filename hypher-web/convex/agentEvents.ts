@@ -8,7 +8,7 @@ import { apiKeyProbeRateLimitKey } from "./apiKeys";
 import type { Id } from "./_generated/dataModel";
 import { GITHUB_LOOP_SOURCE, planGithubLoopWrites } from "./lib/githubAgentEvents";
 import { normalizeGitHubRepo } from "../shared/githubRepo";
-import { isProductWorkReceipt } from "../shared/projectMemoryGenerate";
+import { isProductWorkReceipt, summarizeEvent } from "../shared/projectMemoryGenerate";
 import { applyReceiptForEvent } from "./lib/projectMemoryWrite";
 
 const eventKind = v.union(
@@ -552,14 +552,6 @@ function uniqueStrings(values: string[]): string[] {
     result.push(cleaned);
   }
   return result;
-}
-
-function summarizeEvent(title: string, body: string): string {
-  const heading = normalizeTitle(title);
-  const details = normalizeTitle(body);
-  if (!details || details === heading) return heading.slice(0, 180);
-  const combined = `${heading}. ${details}`;
-  return combined.length <= 180 ? combined : `${combined.slice(0, 179).trimEnd()}...`;
 }
 
 export const accept = mutation({

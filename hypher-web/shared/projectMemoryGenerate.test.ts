@@ -14,6 +14,7 @@ import {
   isWorkReceipt,
   looksLikeDoNotDo,
   mergeAiShapeIntoSnapshot,
+  summarizeEvent,
 } from "./projectMemoryGenerate";
 import { compileBuilderBrief } from "../src/lib/projectContext";
 import type { Project, ProjectMemory } from "../src/types";
@@ -551,10 +552,12 @@ describe("Unit 4 hook-shaped receipts do not become identity", () => {
     });
     expect(applied.applied).toBe(true);
     if (!applied.applied) return;
-    expect(applied.memory.summary.toLowerCase()).toContain("compiled identity");
+    expect(applied.memory.summary.toLowerCase()).toContain("closed packet echo");
     expect(applied.memory.summary.toLowerCase()).not.toContain("session-end receipt");
     expect(applied.memory.nextActions[0]?.title.toLowerCase()).toContain("git-status");
-    expect(applied.memory.handoffNotes.join(" ").toLowerCase()).toContain("compiled identity");
+    expect(applied.memory.handoffNotes.join(" ").toLowerCase()).toContain("closed packet echo");
+    expect(applied.memory.summary).not.toMatch(/\.\.\./);
+    expect(applied.memory.handoffNotes.every((note) => !note.includes("..."))).toBe(true);
 
     const brief = compileBuilderBrief({
       project,
@@ -573,7 +576,8 @@ describe("Unit 4 hook-shaped receipts do not become identity", () => {
         createdAt: NOW,
       }],
     });
-    expect(brief.toLowerCase()).toContain("compiled identity");
+    expect(brief.toLowerCase()).toContain("closed packet echo");
+    expect(brief.toLowerCase()).toContain("pulse stays three panels");
     expect(brief).not.toMatch(/\bno toke\.\.\./i);
     expect(nextActionLine(brief).toLowerCase()).not.toContain("continue: dogfood");
   });
@@ -598,8 +602,40 @@ describe("Unit 4 hook-shaped receipts do not become identity", () => {
     expect(applied.memory.constraints.some((line) => /pulse/i.test(line) && /three panels/i.test(line))).toBe(true);
     expect(applied.memory.constraints.every((line) => !line.includes("..."))).toBe(true);
     expect(applied.memory.nextActions[0]?.title).toContain("isProductWorkReceipt");
-    expect(applied.memory.summary).toContain("PR 62");
+    expect(applied.memory.summary).toContain("Units 4-5");
+    expect(applied.memory.summary).not.toMatch(/\.\.\./);
     expect(applied.memory.summary).not.toMatch(/session-end receipt/i);
+  });
+
+  it("stores the handoff title instead of a 180-character mash", () => {
+    const title = "Writeback titles replace mashed 180-char recent-change mush";
+    const body = [
+      "PR 62 commit 8460a4e on litterthanlit/hypher, branch cursor/agent-context-packet-d1ed.",
+      "Recent changes now show the writeback title, not a 180-character mash of title plus body.",
+      "Do not widen OAuth. Pulse stays three panels. Do not rebuild the canvas.",
+      "Next: merge PR 62 and deploy Convex so production memory and packet compile drop the dump echo.",
+    ].join(" ");
+    expect(summarizeEvent(title, body)).toBe(title);
+    expect(summarizeEvent(title, body)).not.toMatch(/\.\.\./);
+    const applied = applyReceiptToMemory({
+      existing: null,
+      event: {
+        id: "title-only",
+        kind: "handoff",
+        source: "cursor",
+        title,
+        body,
+        suggestedActions: ["Merge PR 62 and deploy Convex so production memory and packet compile drop the dump echo"],
+      },
+      now: NOW,
+    });
+    expect(applied.applied).toBe(true);
+    if (!applied.applied) return;
+    expect(applied.memory.summary).toBe(title);
+    expect(applied.memory.recentChanges[0]).toBe(title);
+    expect(applied.memory.handoffNotes[0]).toBe(title);
+    expect(applied.memory.summary).not.toMatch(/wri\.\.\.|reprin\.\.\.|butto\.\.\./);
+    expect(applied.memory.recentChanges.join(" ")).not.toMatch(/\.\.\./);
   });
 
   it("replaces a sticky dump-echo summary when a real handoff lands", () => {
