@@ -227,7 +227,7 @@ describe("buildMcpToolResult", () => {
   it("returns focused current state and next move views", () => {
     expect(buildMcpToolResult("get_current_state", { projectId: "p1" }, context).structuredContent).toMatchObject({
       projectId: "p1",
-      currentState: "Build the read-only MCP surface.",
+      currentState: "Context endpoint shipped",
     });
 
     expect(buildMcpToolResult("get_next_move", { projectId: "p1" }, context).structuredContent).toMatchObject({
@@ -294,8 +294,8 @@ describe("buildMcpToolResult", () => {
 
     const state = buildMcpToolResult("get_current_state", { projectId: "p1" }, dumpContext).structuredContent;
     const recentChanges = Array.isArray(state.recentChanges) ? state.recentChanges.map(String) : [];
-    expect(state.currentState).toMatch(/Product: dump/i);
-    expect(state.currentState).not.toMatch(/^Dogfood dump on the real hypher project/i);
+    expect(state.currentState).toBe("Dump reprints no longer crowd Recent changes or constraints");
+    expect(state.currentState).not.toMatch(/Dogfood dump on the real hypher project/i);
     expect(recentChanges[0]).toBe("Dump reprints no longer crowd Recent changes or constraints.");
     expect(recentChanges.some((item) => /Dogfood dump on the real hypher project/i.test(item))).toBe(false);
     expect(recentChanges.some((item) => /\.\.\./.test(item))).toBe(false);

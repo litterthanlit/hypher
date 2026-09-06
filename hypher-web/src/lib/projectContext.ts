@@ -842,9 +842,9 @@ export function compileProjectContextWithMeta(params: CompileProjectContextParam
   ]);
   pushSection(lines, "Recent changes", bulletList(recentChangeLines, "No recent changes captured yet."));
   pushSection(lines, "Active decisions", [
-    "### Pinned decisions",
-    ...bulletList(pinnedDecisionLines, "No pinned decisions captured yet."),
-    "",
+    ...(pinnedDecisionLines.length
+      ? ["### Pinned decisions", ...bulletList(pinnedDecisionLines, "No pinned decisions captured yet."), ""]
+      : []),
     "### Accepted memory",
     ...bulletList(decisionLines.filter((line) => !pinnedDecisionLines.includes(line)), "No accepted decisions captured yet."),
     "",

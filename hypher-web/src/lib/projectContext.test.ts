@@ -912,8 +912,9 @@ describe("compileBuilderBrief", () => {
   it("compiles today's live production shape: last-handoff identity, product aim, compiled decisions, one Merge PR stem", () => {
     const dump =
       "Dogfood dump on the real hypher project. Product: dump → one note agents read → writeback. Session 2 should start warm. Do not: invent dumps, gate bind on a github token, or treat try hypher as the home. Next: confirm silent synthesis thickened this note without a generate button.";
-    const latestTitle = "Last-handoff identity always wins at packet compile";
+    const latestTitle = "Read-time decisions and session-2 aim";
     const nextMove = "Merge PR 62 and deploy Vercel plus Convex so production get_project_context drops the dump echo";
+    const latestBody = "Do not widen OAuth. Pulse stays three panels. Do not rebuild the canvas. Do not merge until reviewed.";
     const mashedSticky =
       "Sticky dump identity dies after the dump capture rolls off. PR 62 commit f065324 on litterthanlit/hypher, branch cursor/agent-context-packet-d1ed. Sticky dump summary stayed usabl...";
     const mashedBare =
@@ -993,7 +994,7 @@ describe("compileBuilderBrief", () => {
           source: "cursor",
           kind: "handoff",
           title: latestTitle,
-          body: "Do not widen OAuth. Pulse stays three panels. Do not rebuild the canvas.",
+          body: latestBody,
           suggestedActions: [nextMove],
           status: "reviewed",
           createdAt: 900,
@@ -1014,7 +1015,7 @@ describe("compileBuilderBrief", () => {
       generatedAt: 900,
     });
 
-    expect(packet).toMatch(/- Short summary: Last-handoff identity always wins at packet compile/);
+    expect(packet).toMatch(/- Short summary: Read-time decisions and session-2 aim/);
     expect(packet).not.toMatch(/- Short summary: Dogfood dump/);
     expect(packet).toMatch(/Trying to become: Session 2 should start warm/);
     expect(packet).not.toMatch(/Trying to become: .*Merge PR 62/i);
@@ -1023,6 +1024,7 @@ describe("compileBuilderBrief", () => {
     expect(packet).toContain("- Target tool: Cursor");
     expect(packet).not.toContain("- Target tool: GitHub");
     expect(packet).toContain("- Compact mode: off");
+    expect(packet).not.toMatch(/No pinned decisions captured yet/);
     const decisionSection = packet.split("### Accepted memory")[1]?.split("###")[0] ?? "";
     expect(decisionSection).not.toMatch(/No accepted decisions captured yet/);
     expect(decisionSection).toMatch(/Pulse stays three panels/);
@@ -1031,7 +1033,10 @@ describe("compileBuilderBrief", () => {
     expect(constraintSection).toMatch(/Do not widen OAuth/);
     expect(constraintSection).toMatch(/Pulse stays three panels/);
     expect(constraintSection).toMatch(/Do not rebuild the canvas/);
+    expect(constraintSection).toMatch(/Do not merge until reviewed/);
     expect(constraintSection).toMatch(/Do not invent dumps/);
+    expect(constraintSection).toMatch(/github token/i);
+    expect(constraintSection).toMatch(/try hypher/i);
     expect(constraintSection.match(/Do not invent dumps/g)?.length).toBe(1);
     const taskSection = packet.split("### Active tasks")[1]?.split("##")[0] ?? "";
     expect(taskSection.match(/Merge PR 62/g)?.length).toBe(1);

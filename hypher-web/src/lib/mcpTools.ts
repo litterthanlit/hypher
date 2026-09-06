@@ -278,7 +278,7 @@ function currentStateTool(args: JsonObject, context: HypherMcpContext): HypherMc
     agentEvents,
     projectDescription: project.description,
   });
-  const currentState = identity.currentDirection || identity.summary || normalize(project.description);
+  const currentState = identity.summary || identity.currentDirection || normalize(project.description);
   const recentChanges = recentChangeLeads({ memory, captures, agentEvents });
   const openQuestions = (memory?.openQuestions ?? []).map(normalize).filter(Boolean).slice(0, 5);
 
