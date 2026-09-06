@@ -7,7 +7,7 @@ const SUMMARY_LIMIT = 280;
 const LINE_LIMIT = 280;
 /** Incoming constraints take slots first so a ninth do-not is not dropped behind older filler. */
 const ARRAY_LIMIT = 8;
-const CONSTRAINT_ARRAY_LIMIT = 12;
+export const CONSTRAINT_ARRAY_LIMIT = 12;
 const NEXT_ACTION_LIMIT = 3;
 
 export const PROJECT_MEMORY_TARGET_TOOLS = [

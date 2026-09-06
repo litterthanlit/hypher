@@ -1044,4 +1044,52 @@ describe("compileBuilderBrief", () => {
     expect(packet).not.toMatch(/Merg\.\.\./);
     expect(packet).not.toMatch(/now\.\.\.\./);
   });
+
+  it("does not drop dump-only do-nots behind a full writeback constraint list", () => {
+    const dump =
+      "Dogfood dump on the real hypher project. Product: dump → one note agents read → writeback. Session 2 should start warm. Do not: invent dumps, gate bind on a github token, or treat try hypher as the home. Next: confirm silent synthesis thickened this note without a generate button.";
+    const filler = Array.from({ length: 12 }, (_, index) => `Do not ship filler surface ${index}.`);
+    const packet = compileBuilderBrief({
+      project: { ...project, name: "hypher", description: "" },
+      memory: {
+        ...memory,
+        summary: dump,
+        currentGoal: "",
+        currentDirection: "",
+        importantDecisions: [],
+        constraints: [],
+      },
+      captures: [{
+        id: "n-dump",
+        kind: "note",
+        content: dump,
+        maturity: "fleeting",
+        projectId: "p1",
+        createdAt: 40,
+        modifiedAt: 60,
+      }],
+      actions: [],
+      agentEvents: [{
+        id: "locks",
+        userId: "u1",
+        projectId: "p1",
+        source: "cursor",
+        kind: "handoff",
+        title: "Writeback filled the constraint list",
+        body: filler.join(" "),
+        suggestedActions: ["Keep dump-only constraints on the packet"],
+        status: "reviewed",
+        createdAt: 900,
+      }],
+      generatedAt: 900,
+    });
+    const constraintSection = packet.split("### Important constraints")[1]?.split("##")[0] ?? "";
+    expect(constraintSection).toMatch(/Do not invent dumps/);
+    expect(constraintSection).toMatch(/github token/i);
+    expect(constraintSection).toMatch(/try hypher/i);
+    expect(constraintSection.match(/Do not invent dumps/g)?.length).toBe(1);
+    const doNotSection = packet.split("### What not to do")[1]?.split("###")[0] ?? "";
+    expect(doNotSection).toMatch(/Do not invent dumps/);
+    expect(doNotSection).toMatch(/try hypher/i);
+  });
 });

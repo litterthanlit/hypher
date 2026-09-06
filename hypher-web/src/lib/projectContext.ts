@@ -31,6 +31,7 @@ import {
   splitSentences,
   summarizeEvent,
   uniqueConstraintLines,
+  CONSTRAINT_ARRAY_LIMIT,
 } from "../../shared/projectMemoryGenerate";
 
 export interface CompileBuilderBriefParams {
@@ -85,8 +86,8 @@ export const BUILDER_BRIEF_DEFAULT_LIMITS = {
   recentChanges: 5,
   openQuestions: 5,
   decisions: 5,
-  constraints: 8,
-  doNotDo: 8,
+  constraints: CONSTRAINT_ARRAY_LIMIT,
+  doNotDo: CONSTRAINT_ARRAY_LIMIT,
   recentProgress: 5,
   openActions: 6,
   agentWarnings: 6,
@@ -465,8 +466,8 @@ export function selectCompiledConstraints(params: {
       splitSentences(`${event.title}. ${event.body}`).filter((line) => looksLikeDoNotDo(line) || looksLikeConstraint(line))
     ));
   return uniqueConstraintLines([
-    ...eventConstraints,
     ...captureConstraints,
+    ...eventConstraints,
     ...expandConstraintLines(params.memory?.constraints ?? []),
   ]);
 }
@@ -710,14 +711,14 @@ export function compileProjectContextWithMeta(params: CompileProjectContextParam
       splitSentences(`${event.title}. ${event.body}`).filter((line) => looksLikeDoNotDo(line) || looksLikeConstraint(line))
     ).map((line) => constraintLabeledLine(`agent:${normalizeText(event.source)}/constraint`, line)));
   const constraintLines = uniqueByUnlabeled([
-    ...eventConstraintLines,
     ...captureConstraintLines,
+    ...eventConstraintLines,
     ...rawConstraintTexts.map((item) => constraintLabeledLine("memory:constraint", item)),
     ...activeAcceptedMemoryItems(memory, ["constraint", "do_not_do"]).map((item) => constraintLabeledLine(acceptedMemorySourceLabel(item), item.text)),
   ]).slice(0, limits.constraints);
   const doNotDoLines = uniqueByUnlabeled([
-    ...eventConstraintLines,
     ...captureConstraintLines,
+    ...eventConstraintLines,
     ...rawConstraintTexts.filter(looksLikeDoNotDo).map((item) => constraintLabeledLine("memory:constraint", item)),
     ...activeAcceptedMemoryItems(memory, ["do_not_do"]).map((item) => constraintLabeledLine(acceptedMemorySourceLabel(item), item.text)),
   ]).slice(0, limits.doNotDo);
