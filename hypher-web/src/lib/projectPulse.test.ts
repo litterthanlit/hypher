@@ -374,7 +374,10 @@ describe("builderBriefFields", () => {
     expect(pulse.nextMove).not.toMatch(/Merge PR 62/);
     expect(pulse.nextMove).toBe("Wait for review before merging PR 62");
     expect(model.primaryNextAction?.title).toBe("Wait for review before merging PR 62");
+    expect(model.primaryNextAction?.rationale).toBe("Start with Wait for review before merging PR 62.");
     expect(packet).not.toMatch(/- Next action:.*Merge PR 62/i);
+    expect(packet).not.toMatch(/Compiled from the latest dump/);
+    expect(packet).toMatch(/Suggested next move: Start with Wait for review before merging PR 62/);
     expect(packet).toMatch(/Wait for review before merging PR 62/);
     expect(pulse.nextMove).toBe(packet.match(/^- Next action: (.+)$/m)?.[1]?.replace(/^\[[^\]]+\]\s*/, ""));
   });

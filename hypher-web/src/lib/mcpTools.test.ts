@@ -368,8 +368,12 @@ describe("buildMcpToolResult", () => {
     const brief = String(buildMcpToolResult("get_project_context", { projectId: "p1" }, locked).structuredContent.context);
     expect(String(move.nextMove)).not.toMatch(/Merge PR 62/i);
     expect(String(move.nextMove)).toBe("Wait for review before merging PR 62");
+    expect(String(move.rationale)).not.toMatch(/Compiled from the latest dump/i);
+    expect(String(move.rationale)).toBe("Start with Wait for review before merging PR 62.");
     expect(brief).not.toMatch(/- Next action:.*Merge PR 62/i);
     expect(brief).toMatch(/Wait for review before merging PR 62/);
+    expect(brief).not.toMatch(/Compiled from the latest dump/);
+    expect(brief).toMatch(/Suggested next move: Start with Wait for review before merging PR 62/);
     expect(brief).toMatch(/Do not merge until reviewed/);
   });
 

@@ -333,6 +333,16 @@ function activityLine(entry: ActivityEntry): string {
     : `${entry.action} ${objectName}`;
 }
 
+function isGenericCompiledRationale(value: string): boolean {
+  return /^compiled from the latest dump or writeback\.?$/i.test(normalizeText(value));
+}
+
+function nextMoveRationale(title: string, rationale?: string): string {
+  const text = normalizeText(rationale);
+  if (text && !isGenericCompiledRationale(text)) return text;
+  return `Start with ${normalizeText(title)}.`;
+}
+
 function isCompactMode(limits: typeof DEFAULT_LIMITS): boolean {
   return (Object.keys(DEFAULT_LIMITS) as Array<keyof typeof DEFAULT_LIMITS>)
     .some((key) => limits[key] < DEFAULT_LIMITS[key]);
@@ -533,7 +543,7 @@ export function selectCompiledNextAction(params: {
     ? {
       id: "event-next-action",
       title: latestEventAction,
-      rationale: "Compiled from the latest dump or writeback.",
+      rationale: nextMoveRationale(latestEventAction),
       status: "suggested" as const,
       createdAt: generatedAt,
       updatedAt: generatedAt,
@@ -568,17 +578,23 @@ export function selectCompiledNextAction(params: {
     ? {
       id: "constraint-next-action",
       title: honored,
-      rationale: "Compiled from the latest dump or writeback.",
+      rationale: nextMoveRationale(honored),
       status: "suggested" as const,
       createdAt: generatedAt,
       updatedAt: generatedAt,
     }
     : null;
-  return selectPrimaryNextAction(usableMemoryActions)
+  const selected =
+    selectPrimaryNextAction(usableMemoryActions)
     ?? fromEvent
     ?? actionFromQueue(queuedActions)
     ?? fromTask
     ?? fromLock;
+  if (!selected) return null;
+  return {
+    ...selected,
+    rationale: nextMoveRationale(selected.title, selected.rationale),
+  };
 }
 
 function sourceUpdatedAt(params: CompileProjectContextParams): number {
@@ -883,8 +899,9 @@ export function compileProjectContextWithMeta(params: CompileProjectContextParam
   const nextActionLine = primaryAction
     ? labeledLine(`next:${primaryAction.status}`, primaryAction.title, PACKET_LINE_LIMIT)
     : "No next action captured yet.";
-  const suggestedNextMove = normalizeText(primaryAction?.rationale)
-    || (primaryAction ? `Start with ${primaryAction.title}.` : "No suggested next move captured yet.");
+  const suggestedNextMove = primaryAction
+    ? nextMoveRationale(primaryAction.title, primaryAction.rationale)
+    : "No suggested next move captured yet.";
   const compactMode = isCompactMode(limits) ? "on" : "off";
   const lines = [`# Builder Brief: ${projectName}`];
 
