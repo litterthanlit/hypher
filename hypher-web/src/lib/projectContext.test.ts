@@ -1180,6 +1180,11 @@ describe("compileBuilderBrief", () => {
     expect(packet).not.toMatch(/- Short summary: Suggested next move is Start with/);
     expect(packet).not.toMatch(/- Short summary: Dump-only constraints keep packet slots/);
     expect(packet).toMatch(/- Current state: Wait-for-review next when merge is locked/);
+    const recentSection = packet.split("## Recent changes")[1]?.split("##")[0] ?? "";
+    const firstBullet = recentSection.split("\n").find((line) => line.startsWith("- ["));
+    expect(firstBullet).toMatch(/Wait-for-review next when merge is locked/);
+    expect(firstBullet).not.toMatch(/Changelog titles/);
+    expect(firstBullet).not.toMatch(/Suggested next move is Start with/);
     expect(packet).not.toMatch(/- Current state:.*Dogfood dump/);
     expect(packet).not.toMatch(/- Current state: active - Product: dump/);
     expect(packet).toMatch(/Trying to become: Session 2 should start warm/);

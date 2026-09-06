@@ -6,6 +6,7 @@ import {
   isContinueDumpEcho,
   isDumpPrefixEcho,
   isProductWorkReceipt,
+  preferProductStateTitles,
   splitSentences,
 } from "../../shared/projectMemoryGenerate";
 import {
@@ -238,16 +239,19 @@ function recentChangeLeads(params: {
 }): string[] {
   const dumpTexts = captureDumpTexts(params.captures);
   const hasProductHandoffs = params.agentEvents.some((event) => isProductWorkReceipt(event));
-  const fromEvents = params.agentEvents
-    .filter((event) => isProductWorkReceipt(event))
-    .slice()
-    .sort((a, b) => b.createdAt - a.createdAt)
-    .map((event) => {
-      const title = normalize(event.title);
-      if (!title) return "";
-      return /[.!?]$/.test(title) ? title : `${title}.`;
-    })
-    .filter(Boolean);
+  const fromEvents = preferProductStateTitles(
+    params.agentEvents
+      .filter((event) => isProductWorkReceipt(event))
+      .slice()
+      .sort((a, b) => b.createdAt - a.createdAt)
+      .map((event) => {
+        const title = normalize(event.title);
+        if (!title) return "";
+        return /[.!?]$/.test(title) ? title : `${title}.`;
+      })
+      .filter(Boolean),
+    (title) => title,
+  );
   const fromMemory = (params.memory?.recentChanges ?? [])
     .map((item) => {
       const text = normalize(item);

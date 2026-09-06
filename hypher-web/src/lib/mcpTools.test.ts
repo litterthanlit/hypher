@@ -347,23 +347,41 @@ describe("buildMcpToolResult", () => {
             modifiedAt: 30,
           }],
           actions: [],
-          agentEvents: [{
-            id: "latest",
-            userId: "u1",
-            projectId: "p1",
-            source: "cursor",
-            kind: "handoff",
-            title: "Dump-only constraints keep packet slots",
-            body: "Do not widen OAuth. Pulse stays three panels. Do not rebuild the canvas. Do not merge until reviewed.",
-            suggestedActions: [merge],
-            status: "new",
-            createdAt: 90,
-          }],
+          agentEvents: [
+            {
+              id: "changelog",
+              userId: "u1",
+              projectId: "p1",
+              source: "cursor",
+              kind: "handoff",
+              title: "Changelog titles are not session identity",
+              body: "Do not widen OAuth. Pulse stays three panels. Do not rebuild the canvas. Do not merge until reviewed.",
+              status: "reviewed",
+              createdAt: 110,
+            },
+            {
+              id: "wait-lock",
+              userId: "u1",
+              projectId: "p1",
+              source: "cursor",
+              kind: "handoff",
+              title: "Wait-for-review next when merge is locked",
+              body: "Do not widen OAuth. Pulse stays three panels. Do not rebuild the canvas. Do not merge until reviewed.",
+              suggestedActions: [merge],
+              status: "new",
+              createdAt: 90,
+            },
+          ],
           handoffs: [],
           subscription: { status: "active", plan: "pro_monthly" },
         },
       },
     };
+    const state = buildMcpToolResult("get_current_state", { projectId: "p1" }, locked).structuredContent;
+    const recentChanges = Array.isArray(state.recentChanges) ? state.recentChanges.map(String) : [];
+    expect(String(state.currentState)).toBe("Wait-for-review next when merge is locked");
+    expect(recentChanges[0]).toBe("Wait-for-review next when merge is locked.");
+    expect(recentChanges[0]).not.toMatch(/Changelog titles/);
     const move = buildMcpToolResult("get_next_move", { projectId: "p1" }, locked).structuredContent;
     const brief = String(buildMcpToolResult("get_project_context", { projectId: "p1" }, locked).structuredContent.context);
     expect(String(move.nextMove)).not.toMatch(/Merge PR 62/i);

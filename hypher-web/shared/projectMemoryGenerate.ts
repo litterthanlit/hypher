@@ -331,6 +331,17 @@ export function looksLikeBriefSelfTalk(value: string | undefined | null): boolea
   return false;
 }
 
+/** Keep recency within each group, but product-state titles lead compiler changelog. */
+export function preferProductStateTitles<T>(items: T[], titleOf: (item: T) => string): T[] {
+  const product: T[] = [];
+  const selfTalk: T[] = [];
+  for (const item of items) {
+    if (looksLikeBriefSelfTalk(titleOf(item))) selfTalk.push(item);
+    else product.push(item);
+  }
+  return [...product, ...selfTalk];
+}
+
 export function looksLikeProductDecision(item: string): boolean {
   if (looksLikeDoNotDo(item)) return false;
   if (looksLikeDecision(item)) return true;

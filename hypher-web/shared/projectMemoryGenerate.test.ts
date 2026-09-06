@@ -19,6 +19,7 @@ import {
   honorConstraintBlockedNext,
   looksLikeBriefSelfTalk,
   looksLikeProductDecision,
+  preferProductStateTitles,
 } from "./projectMemoryGenerate";
 import { compileBuilderBrief } from "../src/lib/projectContext";
 import type { Project, ProjectMemory } from "../src/types";
@@ -223,6 +224,23 @@ describe("looksLikeBriefSelfTalk", () => {
     expect(looksLikeBriefSelfTalk("Keep dump echo out of identity")).toBe(false);
     expect(looksLikeBriefSelfTalk("Session 2 writeback")).toBe(false);
     expect(looksLikeBriefSelfTalk("Current build audited")).toBe(false);
+  });
+
+  it("leads with product-state titles and keeps recency inside each group", () => {
+    expect(preferProductStateTitles(
+      [
+        "Changelog titles are not session identity",
+        "Wait-for-review next when merge is locked",
+        "Suggested next move is Start with, not dump compile",
+        "Bare PR no longer reroutes the Hypher brief to GitHub",
+      ],
+      (title) => title,
+    )).toEqual([
+      "Wait-for-review next when merge is locked",
+      "Bare PR no longer reroutes the Hypher brief to GitHub",
+      "Changelog titles are not session identity",
+      "Suggested next move is Start with, not dump compile",
+    ]);
   });
 });
 

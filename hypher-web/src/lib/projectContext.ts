@@ -32,6 +32,7 @@ import {
   looksLikeConstraint,
   looksLikeDoNotDo,
   looksLikeProductDecision,
+  preferProductStateTitles,
   splitSentences,
   uniqueConstraintLines,
   CONSTRAINT_ARRAY_LIMIT,
@@ -699,10 +700,13 @@ export function compileProjectContextWithMeta(params: CompileProjectContextParam
       ];
     });
 
-  const agentHandoffLines = params.agentEvents
-    .filter((event) => isProductWorkReceipt(event))
-    .slice()
-    .sort((a, b) => b.createdAt - a.createdAt)
+  const agentHandoffLines = preferProductStateTitles(
+    params.agentEvents
+      .filter((event) => isProductWorkReceipt(event))
+      .slice()
+      .sort((a, b) => b.createdAt - a.createdAt),
+    (event) => event.title,
+  )
     .slice(0, limits.agentEvents)
     .map((event) => {
       const title = headingLine(event.title);
