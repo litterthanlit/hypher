@@ -15,12 +15,28 @@ import { selectProjectActionQueue } from "./actions";
 import { summarizeHandoffResult } from "./handoffResults";
 import { selectPrimaryNextAction } from "./projectMemory";
 import {
+  actionBlockedByConstraints,
+  agentEventNeedsHumanAccept,
+  dumpHeadline,
   expandConstraintLines,
+  extractCurrentTask,
+  extractDirectionLine,
+  extractProductAim,
+  honorConstraintBlockedNext,
   isContinueDumpEcho,
+  isDumpLabeledNextEcho,
   isDumpPrefixEcho,
+  isNextActionClone,
+  isProductWorkReceipt,
+  isUnusableCompiledIdentity,
+  looksLikeBriefSelfTalk,
   looksLikeConstraint,
   looksLikeDoNotDo,
+  looksLikeProductDecision,
+  dropBriefSelfTalkWhenProductStateExists,
   splitSentences,
+  uniqueConstraintLines,
+  CONSTRAINT_ARRAY_LIMIT,
 } from "../../shared/projectMemoryGenerate";
 
 export interface CompileBuilderBriefParams {
@@ -75,8 +91,8 @@ export const BUILDER_BRIEF_DEFAULT_LIMITS = {
   recentChanges: 5,
   openQuestions: 5,
   decisions: 5,
-  constraints: 8,
-  doNotDo: 8,
+  constraints: CONSTRAINT_ARRAY_LIMIT,
+  doNotDo: CONSTRAINT_ARRAY_LIMIT,
   recentProgress: 5,
   openActions: 6,
   agentWarnings: 6,
@@ -132,6 +148,88 @@ function uniqueLines(items: string[]): string[] {
     result.push(normalized);
   }
   return result;
+}
+
+function unlabeledPacketLine(line: string): string {
+  return normalizeText(line.replace(/^\[[^\]]+\]\s*/, ""));
+}
+
+function uniqueByUnlabeled(items: string[]): string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const item of items) {
+    const key = unlabeledPacketLine(item).toLowerCase();
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    result.push(item);
+  }
+  return result;
+}
+
+function unlabeledLead(line: string): string {
+  const text = unlabeledPacketLine(line).toLowerCase();
+  const first = (splitSentences(text)[0] ?? text).replace(/[.!?]+$/, "");
+  return first.slice(0, 140);
+}
+
+function uniqueByUnlabeledLead(items: string[]): string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const item of items) {
+    const key = unlabeledLead(item);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    result.push(item);
+  }
+  return result;
+}
+
+function taskStem(line: string): string {
+  return unlabeledPacketLine(line)
+    .toLowerCase()
+    .replace(/[.!?]+$/, "")
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 5)
+    .join(" ");
+}
+
+function uniqueByTaskStem(items: string[]): string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const item of items) {
+    const key = taskStem(item);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    result.push(item);
+  }
+  return result;
+}
+
+function withoutDumpEchoLines(items: string[], dumpTexts: string[]): string[] {
+  return items.filter((item) => {
+    const text = unlabeledPacketLine(item);
+    return !isDumpReprintLine(text, dumpTexts);
+  });
+}
+
+function isDumpReprintLine(text: string, dumpTexts: string[]): boolean {
+  return isContinueDumpEcho(text, dumpTexts) || isDumpPrefixEcho(text, dumpTexts);
+}
+
+function looksLikeIdentityDump(content: string): boolean {
+  const sentences = splitSentences(normalizeText(content));
+  return sentences.length >= 3 && sentences.some((line) => looksLikeDoNotDo(line) || looksLikeConstraint(line));
+}
+
+function leadSentence(value: string): string {
+  const text = normalizeText(value);
+  return splitSentences(text)[0] ?? text;
+}
+
+function headingLine(value: string): string {
+  const text = normalizeText(value);
+  return /[.!?]$/.test(text) ? text : `${text}.`;
 }
 
 type AcceptedMemoryKind = Exclude<CrystallizedSuggestionKind, "current_task" | "open_action">;
@@ -237,6 +335,16 @@ function activityLine(entry: ActivityEntry): string {
     : `${entry.action} ${objectName}`;
 }
 
+function isGenericCompiledRationale(value: string): boolean {
+  return /^compiled from the latest dump or writeback\.?$/i.test(normalizeText(value));
+}
+
+function nextMoveRationale(title: string, rationale?: string): string {
+  const text = normalizeText(rationale);
+  if (text && !isGenericCompiledRationale(text)) return text;
+  return `Start with ${normalizeText(title)}.`;
+}
+
 function isCompactMode(limits: typeof DEFAULT_LIMITS): boolean {
   return (Object.keys(DEFAULT_LIMITS) as Array<keyof typeof DEFAULT_LIMITS>)
     .some((key) => limits[key] < DEFAULT_LIMITS[key]);
@@ -245,7 +353,9 @@ function isCompactMode(limits: typeof DEFAULT_LIMITS): boolean {
 function inferTargetTool(action: string, role?: string): TargetTool {
   const text = `${action} ${role ?? ""}`.toLowerCase();
   if (/\b(linear|ticket|issue queue|triage)\b/.test(text)) return "Linear";
-  if (/\b(github|pull request|pr|repo|issue)\b/.test(text)) return "GitHub";
+  // GitHub is a signal, not the agent door. Bare "PR" / "repo" / "issue" show up in
+  // Hypher next moves ("Merge PR 62", "this repo") and must not reroute the session.
+  if (/\bgithub\b/.test(text) || /\bpull requests?\b/.test(text)) return "GitHub";
   if (/\b(cursor|code|implement|build|bug|fix|refactor|test)\b/.test(text)) return "Cursor";
   if (/\b(windsurf)\b/.test(text)) return "Windsurf";
   if (/\b(copilot)\b/.test(text)) return "GitHub Copilot";
@@ -267,6 +377,287 @@ function actionFromQueue(actions: ProjectAction[]): ProjectNextAction | null {
     status: action.status === "accepted" ? "accepted" : "suggested",
     createdAt: action.createdAt,
     updatedAt: action.updatedAt,
+  };
+}
+
+export function dumpTextsForBrief(memory?: ProjectMemory | null, captures: AnyObject[] = []): string[] {
+  return [
+    normalizeText(memory?.summary),
+    ...captures.map((item) => (item.kind === "note" ? normalizeText(item.content) : "")),
+  ].filter(Boolean);
+}
+
+export function captureDumpTexts(captures: AnyObject[] = []): string[] {
+  return captures
+    .map((item) => (item.kind === "note" ? normalizeText(item.content) : ""))
+    .filter(Boolean);
+}
+
+const RECOVERED_WAIT_EVENT_ID = "recovered-wait-for-review";
+
+/**
+ * Production OAuth `dataForToken` still slices recency-12. Compact changelog
+ * writebacks fill that window, so Wait-for-review never arrives. Recover the
+ * merge-lock next as a product-state handoff so Clerk and OAuth compile the
+ * same identity and next move without waiting on Convex prioritize.
+ */
+export function hydratePacketAgentEvents(
+  events: AgentEvent[],
+  memory?: ProjectMemory | null,
+  captures: AnyObject[] = [],
+): AgentEvent[] {
+  const live = events.filter((event) => event.status !== "dismissed");
+  if (live.some((event) => event.id === RECOVERED_WAIT_EVENT_ID)) return events;
+  if (live.some((event) => isProductWorkReceipt(event) && !looksLikeBriefSelfTalk(event.title))) {
+    return events;
+  }
+  const constraints = selectCompiledConstraints({ memory, captures, agentEvents: events });
+  const dumpTexts = dumpTextsForBrief(memory, captures);
+  const blockedTitles = [
+    ...(memory?.nextActions ?? []).filter((action) => action.status !== "dismissed").map((action) => action.title),
+    ...live.flatMap((event) => event.suggestedActions ?? []),
+  ]
+    .map((title) => normalizeText(title))
+    .filter((title) => (
+      Boolean(title)
+      && !isContinueDumpEcho(title, dumpTexts)
+      && !isDumpPrefixEcho(title, dumpTexts)
+      && actionBlockedByConstraints(title, constraints)
+    ));
+  const honored = honorConstraintBlockedNext(blockedTitles, constraints);
+  if (!honored) return events;
+  if (live.some((event) => normalizeText(event.title) === normalizeText(honored))) return events;
+  const seed = live.find((event) => isProductWorkReceipt(event));
+  const recovered: AgentEvent = {
+    id: RECOVERED_WAIT_EVENT_ID,
+    userId: seed?.userId ?? "",
+    projectId: seed?.projectId,
+    source: seed?.source || "cursor",
+    kind: "handoff",
+    title: honored,
+    body: seed?.body || "Do not merge until reviewed.",
+    status: "reviewed",
+    createdAt: Math.max(0, ...live.map((event) => event.createdAt), memory?.generatedAt ?? 0) + 1,
+  };
+  return [recovered, ...events];
+}
+
+export function selectCompiledIdentity(params: {
+  memory?: ProjectMemory | null;
+  captures?: AnyObject[];
+  agentEvents?: AgentEvent[];
+  projectDescription?: string;
+}): { summary: string; currentGoal: string; currentDirection: string } {
+  const captures = params.captures ?? [];
+  const agentEvents = hydratePacketAgentEvents(params.agentEvents ?? [], params.memory, captures);
+  const dumpTexts = captureDumpTexts(captures);
+  const storedSummary = normalizeText(params.memory?.summary);
+  const stickyDump = looksLikeIdentityDump(storedSummary) ? storedSummary : "";
+  const echoCorpus = [...dumpTexts, stickyDump, storedSummary].filter(Boolean);
+  const productEvents = agentEvents
+    .filter((event) => isProductWorkReceipt(event))
+    .slice()
+    .sort((a, b) => b.createdAt - a.createdAt);
+  const latestEvent = productEvents[0];
+  const identityEvent = productEvents.find((event) => {
+    const title = normalizeText(event.title);
+    return Boolean(title)
+      && !isUnusableCompiledIdentity(title, dumpTexts)
+      && !looksLikeBriefSelfTalk(title);
+  });
+  const latestReceipt = identityEvent ? normalizeText(identityEvent.title) : "";
+  const hasProductHandoffs = productEvents.length > 0;
+  const eventSentences = productEvents.flatMap((event) => splitSentences(`${event.title}. ${event.body}`));
+  const dumpSentences = [...dumpTexts, stickyDump].filter(Boolean).flatMap(splitSentences);
+
+  const storedOk = !isUnusableCompiledIdentity(storedSummary, dumpTexts)
+    && !looksLikeIdentityDump(storedSummary)
+    && !looksLikeBriefSelfTalk(storedSummary);
+  const fromStored = storedOk ? storedSummary : "";
+  const fromDescription = !isUnusableCompiledIdentity(params.projectDescription, dumpTexts)
+    ? normalizeText(params.projectDescription)
+    : "";
+  const storedGoal = normalizeText(params.memory?.currentGoal);
+  const eventGoal = extractCurrentTask(eventSentences)
+    || normalizeText(latestEvent?.suggestedActions?.[0]);
+  const dumpGoal = extractCurrentTask(dumpSentences) || "";
+  const nextTitles = [
+    ...(latestEvent?.suggestedActions ?? []).map((title) => normalizeText(title)),
+    eventGoal,
+    dumpGoal,
+  ].filter(Boolean);
+  const aim = extractProductAim([...dumpSentences, ...eventSentences], {
+    echoCorpus,
+    nextTitles,
+    summary: latestReceipt || fromStored,
+  });
+  // Last product-state handoff is session 2 identity. Compiler changelog titles
+  // ("Suggested next move is…", "packet slots") walk back. Dump never beats a writeback.
+  const summary = latestReceipt
+    || fromStored
+    || (hasProductHandoffs ? (aim || "") : "")
+    || fromDescription
+    || (!hasProductHandoffs && dumpTexts[0] ? dumpHeadline(dumpTexts[0]) : "")
+    || (!hasProductHandoffs && stickyDump ? dumpHeadline(stickyDump) : "");
+  const storedGoalOk = !isUnusableCompiledIdentity(storedGoal, echoCorpus)
+    && !looksLikeIdentityDump(storedGoal)
+    && !(hasProductHandoffs && isNextActionClone(storedGoal, nextTitles));
+  const currentGoal = storedGoalOk
+    ? storedGoal
+    : hasProductHandoffs
+      ? (aim || eventGoal || dumpGoal)
+      : (dumpGoal || eventGoal || aim || "");
+
+  const storedDirection = normalizeText(params.memory?.currentDirection);
+  const currentDirection = extractDirectionLine(dumpSentences)
+    || extractDirectionLine(eventSentences)
+    || (!isUnusableCompiledIdentity(storedDirection, echoCorpus) ? storedDirection : "")
+    || (!isUnusableCompiledIdentity(params.projectDescription, dumpTexts)
+      ? normalizeText(params.projectDescription)
+      : "");
+
+  return { summary, currentGoal, currentDirection };
+}
+
+export function selectCompiledConstraints(params: {
+  memory?: ProjectMemory | null;
+  captures?: AnyObject[];
+  agentEvents?: AgentEvent[];
+}): string[] {
+  const captureConstraints = (params.captures ?? []).flatMap((item) => {
+    const content = item.kind === "note" ? normalizeText(item.content) : "";
+    if (!content) return [];
+    return expandConstraintLines(
+      splitSentences(content).filter((line) => looksLikeDoNotDo(line) || looksLikeConstraint(line))
+    );
+  });
+  const eventConstraints = (params.agentEvents ?? [])
+    .filter((event) => isProductWorkReceipt(event))
+    .slice()
+    .sort((a, b) => b.createdAt - a.createdAt)
+    .flatMap((event) => expandConstraintLines(
+      splitSentences(`${event.title}. ${event.body}`).filter((line) => looksLikeDoNotDo(line) || looksLikeConstraint(line))
+    ));
+  return uniqueConstraintLines([
+    ...captureConstraints,
+    ...eventConstraints,
+    ...expandConstraintLines(params.memory?.constraints ?? []),
+  ]);
+}
+
+export function selectCompiledDecisions(params: {
+  memory?: ProjectMemory | null;
+  captures?: AnyObject[];
+  agentEvents?: AgentEvent[];
+}): string[] {
+  const captureDecisions = (params.captures ?? []).flatMap((item) => {
+    const content = item.kind === "note" ? normalizeText(item.content) : "";
+    if (!content) return [];
+    return splitSentences(content).filter(looksLikeProductDecision);
+  });
+  const eventDecisions = (params.agentEvents ?? [])
+    .filter((event) => isProductWorkReceipt(event))
+    .slice()
+    .sort((a, b) => b.createdAt - a.createdAt)
+    .flatMap((event) => splitSentences(`${event.title}. ${event.body}`).filter(looksLikeProductDecision));
+  return uniqueConstraintLines([
+    ...eventDecisions,
+    ...captureDecisions,
+    ...(params.memory?.importantDecisions ?? []),
+  ]);
+}
+
+export function selectCompiledNextAction(params: {
+  memory?: ProjectMemory | null;
+  actions?: ProjectAction[];
+  captures?: AnyObject[];
+  agentEvents?: AgentEvent[];
+  task?: string;
+  generatedAt?: number;
+}): ProjectNextAction | null {
+  const dumpTexts = dumpTextsForBrief(params.memory, params.captures ?? []);
+  const generatedAt = params.generatedAt ?? 0;
+  const hasProductReceipts = (params.agentEvents ?? []).some((event) => isProductWorkReceipt(event));
+  const constraints = selectCompiledConstraints({
+    memory: params.memory,
+    captures: params.captures,
+    agentEvents: params.agentEvents,
+  });
+  const usableTitle = (title: string): boolean => {
+    const text = normalizeText(title);
+    if (!text) return false;
+    if (isContinueDumpEcho(text, dumpTexts) || isDumpPrefixEcho(text, dumpTexts)) return false;
+    if (hasProductReceipts && isDumpLabeledNextEcho(text, dumpTexts)) return false;
+    if (actionBlockedByConstraints(text, constraints)) return false;
+    return true;
+  };
+  const usableMemoryActions = (params.memory?.nextActions ?? []).filter((action) => (
+    action.status !== "dismissed" && usableTitle(action.title)
+  ));
+  const latestEventAction = (params.agentEvents ?? [])
+    .filter((event) => isProductWorkReceipt(event))
+    .slice()
+    .sort((a, b) => b.createdAt - a.createdAt)
+    .flatMap((event) => event.suggestedActions ?? [])
+    .map((title) => normalizeText(title))
+    .find((title) => usableTitle(title));
+  const fromEvent = latestEventAction
+    ? {
+      id: "event-next-action",
+      title: latestEventAction,
+      rationale: nextMoveRationale(latestEventAction),
+      status: "suggested" as const,
+      createdAt: generatedAt,
+      updatedAt: generatedAt,
+    }
+    : null;
+  const fromTask = params.task && usableTitle(params.task)
+    ? {
+      id: "manual-next-action",
+      title: normalizeText(params.task),
+      rationale: "Hypher needs one concrete next action before handing this project to an agent.",
+      status: "suggested" as const,
+      createdAt: generatedAt,
+      updatedAt: generatedAt,
+    }
+    : null;
+  const queuedActions = (params.actions ?? []).filter((action) => usableTitle(action.title));
+  const blockedTitles = [
+    ...(params.memory?.nextActions ?? []).filter((action) => action.status !== "dismissed").map((action) => action.title),
+    ...(params.agentEvents ?? [])
+      .filter((event) => isProductWorkReceipt(event))
+      .flatMap((event) => event.suggestedActions ?? []),
+    ...(params.actions ?? []).map((action) => action.title),
+    params.task ?? "",
+  ].map((title) => normalizeText(title)).filter((title) => (
+    title
+    && !isContinueDumpEcho(title, dumpTexts)
+    && !isDumpPrefixEcho(title, dumpTexts)
+    && actionBlockedByConstraints(title, constraints)
+  ));
+  const honored = honorConstraintBlockedNext(blockedTitles, constraints);
+  const fromLock = honored
+    ? {
+      id: "constraint-next-action",
+      title: honored,
+      rationale: nextMoveRationale(honored),
+      status: "suggested" as const,
+      createdAt: generatedAt,
+      updatedAt: generatedAt,
+    }
+    : null;
+  const acceptedStored = usableMemoryActions.filter((action) => action.status === "accepted");
+  const selected =
+    selectPrimaryNextAction(acceptedStored)
+    ?? fromEvent
+    ?? fromLock
+    ?? selectPrimaryNextAction(usableMemoryActions)
+    ?? actionFromQueue(queuedActions)
+    ?? fromTask;
+  if (!selected) return null;
+  return {
+    ...selected,
+    rationale: nextMoveRationale(selected.title, selected.rationale),
   };
 }
 
@@ -297,7 +688,11 @@ function freshnessLabel(params: CompileProjectContextParams): string {
   return `Fresh: memory reflects sources through ${new Date(params.memory.sourceUpdatedAt || params.memory.generatedAt).toISOString()}`;
 }
 
-export function compileProjectContextWithMeta(params: CompileProjectContextParams): CompiledProjectContext {
+export function compileProjectContextWithMeta(incoming: CompileProjectContextParams): CompiledProjectContext {
+  const params: CompileProjectContextParams = {
+    ...incoming,
+    agentEvents: hydratePacketAgentEvents(incoming.agentEvents, incoming.memory, incoming.captures),
+  };
   const limits = { ...DEFAULT_LIMITS, ...params.limits };
   const memory = params.memory ?? null;
   const generatedAt = params.generatedAt ?? sourceUpdatedAt(params);
@@ -306,40 +701,45 @@ export function compileProjectContextWithMeta(params: CompileProjectContextParam
   const excludedCaptures = captureCandidates.filter(
     (item) => item.captureStatus === "archived" || item.stale || item.excludeFromPackets
   );
-  const includedCaptures = captureCandidates
+  const liveCaptures = captureCandidates
     .filter((item) => !excludedCaptures.includes(item))
-    .sort((a, b) => (b.modifiedAt ?? 0) - (a.modifiedAt ?? 0))
-    .slice(0, limits.captures);
+    .sort((a, b) => (b.modifiedAt ?? 0) - (a.modifiedAt ?? 0));
+  const includedCaptures = liveCaptures.slice(0, limits.captures);
 
+  const dumpTexts = dumpTextsForBrief(memory, liveCaptures);
+  const compiledConstraints = selectCompiledConstraints({
+    memory,
+    captures: liveCaptures,
+    agentEvents: params.agentEvents,
+  });
+  const hasProductReceipts = params.agentEvents.some((event) => isProductWorkReceipt(event));
+  const usableNextTitle = (title: string): boolean => {
+    const text = normalizeText(title);
+    if (!text) return false;
+    if (isContinueDumpEcho(text, dumpTexts) || isDumpPrefixEcho(text, dumpTexts)) return false;
+    if (hasProductReceipts && isDumpLabeledNextEcho(text, dumpTexts)) return false;
+    return !actionBlockedByConstraints(text, compiledConstraints);
+  };
   const activeActions = selectProjectActionQueue(params.actions)
     .filter((action) => action.status !== "dismissed" && action.status !== "completed")
+    .filter((action) => usableNextTitle(action.title))
     .slice(0, limits.actions);
-
-  const dumpTexts = [
-    normalizeText(memory?.summary),
-    ...includedCaptures.map((item) => (item.kind === "note" ? normalizeText(item.content) : "")),
-  ].filter(Boolean);
 
   const sourceCaptureIds = includedCaptures.map((item) => item.id);
   const excludedSourceCaptureIds = excludedCaptures.map((item) => item.id);
 
   const usableMemoryActions = (memory?.nextActions ?? []).filter((action) => (
-    action.status !== "dismissed"
-    && !isContinueDumpEcho(action.title, dumpTexts)
-    && !isDumpPrefixEcho(action.title, dumpTexts)
+    action.status !== "dismissed" && usableNextTitle(action.title)
   ));
 
-  const primaryAction =
-    selectPrimaryNextAction(usableMemoryActions) ??
-    actionFromQueue(params.actions) ??
-    (params.task && !isContinueDumpEcho(params.task, dumpTexts) && !isDumpPrefixEcho(params.task, dumpTexts) ? {
-      id: "manual-next-action",
-      title: normalizeText(params.task),
-      rationale: "Hypher needs one concrete next action before handing this project to an agent.",
-      status: "suggested" as const,
-      createdAt: generatedAt,
-      updatedAt: generatedAt,
-    } : null);
+  const primaryAction = selectCompiledNextAction({
+    memory,
+    actions: params.actions,
+    captures: liveCaptures,
+    agentEvents: params.agentEvents,
+    task: params.task,
+    generatedAt,
+  });
 
   const requestedTask = normalizeText(primaryAction?.title) || "No current task captured yet.";
   const targetTool = params.targetTool ?? primaryAction?.suggestedTargetTool ?? inferTargetTool(requestedTask, params.role);
@@ -352,32 +752,47 @@ export function compileProjectContextWithMeta(params: CompileProjectContextParam
     .slice()
     .sort((a, b) => b.generatedAt - a.generatedAt)
     .slice(0, limits.handoffs)
-    .flatMap((handoff) => [
-      labeledLine(`handoff:${handoff.targetTool}/${handoff.status}`, `Previous ${handoff.targetTool} brief was ${handoff.status}: ${truncate(handoff.requestedTask, 140)}.`, PACKET_LINE_LIMIT),
-      ...summarizeHandoffResult(handoff).map((line) => labeledLine(`handoff:${handoff.targetTool}/result`, line, PACKET_LINE_LIMIT)),
-    ]);
+    .flatMap((handoff) => {
+      const requested = normalizeText(handoff.requestedTask);
+      const taskLabel = isContinueDumpEcho(requested) || isDumpPrefixEcho(requested, dumpTexts)
+        ? `${handoff.status}`
+        : `${handoff.status}: ${truncate(handoff.requestedTask, 140)}`;
+      return [
+        labeledLine(`handoff:${handoff.targetTool}/${handoff.status}`, `Previous ${handoff.targetTool} brief was ${taskLabel}.`, PACKET_LINE_LIMIT),
+        ...summarizeHandoffResult(handoff).map((line) => labeledLine(`handoff:${handoff.targetTool}/result`, line, PACKET_LINE_LIMIT)),
+      ];
+    });
 
-  const agentHandoffLines = params.agentEvents
-    .slice()
-    .sort((a, b) => b.createdAt - a.createdAt)
+  const agentHandoffLines = dropBriefSelfTalkWhenProductStateExists(
+    params.agentEvents
+      .filter((event) => isProductWorkReceipt(event))
+      .slice()
+      .sort((a, b) => b.createdAt - a.createdAt),
+    (event) => event.title,
+  )
     .slice(0, limits.agentEvents)
     .map((event) => {
-      const summary = truncate(event.body, PACKET_LINE_LIMIT);
-      const actions = event.suggestedActions?.length
-        ? ` Suggested actions: ${event.suggestedActions.slice(0, 3).join("; ")}.`
-        : "";
-      return labeledLine(`agent:${normalizeText(event.source)}/${event.kind}`, `${normalizeText(event.title)}. ${summary}${actions}`, PACKET_LINE_LIMIT);
+      const title = headingLine(event.title);
+      const next = normalizeText(event.suggestedActions?.[0]);
+      const text = next && usableNextTitle(next) && !title.toLowerCase().includes(next.toLowerCase())
+        ? `${title} Next: ${next}`
+        : title;
+      return labeledLine(`agent:${normalizeText(event.source)}/${event.kind}`, text, PACKET_LINE_LIMIT, false);
     });
 
   const projectName = normalizeText(params.project.name) || "Project";
-  const shortSummary = normalizeText(memory?.summary || params.project.description) || "No short summary captured yet.";
-  const rawGoal = normalizeText(memory?.currentGoal);
-  const rawDirection = normalizeText(memory?.currentDirection);
-  const currentGoal = rawGoal && !isDumpPrefixEcho(rawGoal, dumpTexts) ? rawGoal : "";
-  const currentDirection = rawDirection && !isDumpPrefixEcho(rawDirection, dumpTexts) ? rawDirection : "";
-  const currentState = currentDirection
-    ? `${params.project.status} - ${currentDirection}`
-    : params.project.status;
+  const identity = selectCompiledIdentity({
+    memory,
+    captures: liveCaptures,
+    agentEvents: params.agentEvents,
+    projectDescription: params.project.description,
+  });
+  const shortSummary = identity.summary || "No short summary captured yet.";
+  const currentGoal = identity.currentGoal;
+  const currentDirection = identity.currentDirection;
+  const currentState = identity.summary
+    || identity.currentDirection
+    || params.project.status;
   const tryingToBecome = currentGoal || "No goal captured yet.";
   const productDirection = currentDirection
     || (normalizeText(params.project.description) && !isDumpPrefixEcho(params.project.description, dumpTexts)
@@ -395,19 +810,26 @@ export function compileProjectContextWithMeta(params: CompileProjectContextParam
     .map((action) => labeledLine(`next:${action.status}`, action.title, PACKET_LINE_LIMIT));
   const activeAcceptedActionLines = activeAcceptedSuggestions(memory)
     .filter((item) => item.kind === "current_task" || item.kind === "open_action")
+    .filter((item) => usableNextTitle(item.text))
     .map((item) => labeledLine(acceptedMemorySourceLabel(item), item.text, PACKET_LINE_LIMIT));
-  const activeTaskLines = uniqueLines([
+  const activeTaskLines = uniqueByTaskStem([
     ...activeActions.map((action) => labeledLine(`action:${action.status}`, action.title, PACKET_LINE_LIMIT)),
     ...activeMemoryActions,
     ...activeAcceptedActionLines,
     ...(memory?.activeTasks ?? [])
-      .filter((item) => !isMilestoneLine(item) && !isContinueDumpEcho(item, dumpTexts) && !isDumpPrefixEcho(item, dumpTexts))
+      .filter((item) => !isMilestoneLine(item) && usableNextTitle(item))
       .map((item) => labeledLine("memory:task", item, PACKET_LINE_LIMIT)),
+    ...(primaryAction
+      ? [labeledLine(`next:${primaryAction.status}`, primaryAction.title, PACKET_LINE_LIMIT)]
+      : []),
   ]).slice(0, limits.actions);
-  const rawDecisionTexts = withoutInactiveAcceptedMemory(memory, ["decision"], uniqueLines([
-    ...(memory?.importantDecisions ?? []),
-  ]));
-  const decisionLines = uniqueLines([
+  const compiledDecisions = selectCompiledDecisions({
+    memory,
+    captures: liveCaptures,
+    agentEvents: params.agentEvents,
+  });
+  const rawDecisionTexts = withoutInactiveAcceptedMemory(memory, ["decision"], uniqueLines(compiledDecisions));
+  const decisionLines = uniqueByUnlabeled([
     ...rawDecisionTexts.map((item) => labeledLine("memory:decision", item, PACKET_LINE_LIMIT)),
     ...activeAcceptedMemoryItems(memory, ["decision"]).map((item) => labeledLine(acceptedMemorySourceLabel(item), item.text, PACKET_LINE_LIMIT)),
     ...pinnedDecisionLines,
@@ -415,45 +837,76 @@ export function compileProjectContextWithMeta(params: CompileProjectContextParam
   const rawConstraintTexts = withoutInactiveAcceptedMemory(memory, ["constraint", "do_not_do"], uniqueLines(
     expandConstraintLines(memory?.constraints ?? [])
   ));
-  const captureConstraintLines = includedCaptures.flatMap((item) => {
+  const captureConstraintLines = liveCaptures.flatMap((item) => {
     const content = item.kind === "note" ? normalizeText(item.content) : captureLine(item);
     return expandConstraintLines(splitSentences(content).filter((line) => looksLikeDoNotDo(line) || looksLikeConstraint(line)))
       .map((line) => constraintLabeledLine(captureSourceLabel(item), line));
   });
-  const constraintLines = uniqueLines([
+  const eventConstraintLines = params.agentEvents
+    .filter((event) => isProductWorkReceipt(event))
+    .slice()
+    .sort((a, b) => b.createdAt - a.createdAt)
+    .flatMap((event) => expandConstraintLines(
+      splitSentences(`${event.title}. ${event.body}`).filter((line) => looksLikeDoNotDo(line) || looksLikeConstraint(line))
+    ).map((line) => constraintLabeledLine(`agent:${normalizeText(event.source)}/constraint`, line)));
+  const constraintLines = uniqueByUnlabeled([
+    ...captureConstraintLines,
+    ...eventConstraintLines,
     ...rawConstraintTexts.map((item) => constraintLabeledLine("memory:constraint", item)),
     ...activeAcceptedMemoryItems(memory, ["constraint", "do_not_do"]).map((item) => constraintLabeledLine(acceptedMemorySourceLabel(item), item.text)),
-    ...captureConstraintLines,
   ]).slice(0, limits.constraints);
-  const doNotDoLines = uniqueLines([
+  const doNotDoLines = uniqueByUnlabeled([
+    ...captureConstraintLines,
+    ...eventConstraintLines,
     ...rawConstraintTexts.filter(looksLikeDoNotDo).map((item) => constraintLabeledLine("memory:constraint", item)),
     ...activeAcceptedMemoryItems(memory, ["do_not_do"]).map((item) => constraintLabeledLine(acceptedMemorySourceLabel(item), item.text)),
-    ...captureConstraintLines,
   ]).slice(0, limits.doNotDo);
-  const recentProgressLines = uniqueLines(memory?.recentChanges ?? [])
-    .map((item) => labeledLine("memory:recent_change", item, PACKET_LINE_LIMIT))
-    .slice(0, limits.recentProgress);
+  const identityDumpTexts = captureDumpTexts(liveCaptures);
+  const hasProductHandoffs = params.agentEvents.some((event) => isProductWorkReceipt(event));
+  const stickyDumpCorpus = [
+    normalizeText(memory?.summary),
+    ...(memory?.recentChanges ?? []),
+    ...(memory?.handoffNotes ?? []),
+  ].filter(Boolean);
+  const dumpReprintCorpus = hasProductHandoffs ? identityDumpTexts : [];
+  const recentProgressLines = withoutDumpEchoLines(
+    uniqueLines((memory?.recentChanges ?? []).map(leadSentence))
+      .map((item) => labeledLine("memory:recent_change", item, PACKET_LINE_LIMIT, false)),
+    dumpReprintCorpus,
+  ).slice(0, limits.recentProgress);
   const recentActivityLines = (params.activity ?? [])
     .slice()
     .sort((a, b) => b.timestamp - a.timestamp)
     .slice(0, limits.recentActivity)
     .map((entry) => labeledLine(`activity:${entry.action}`, activityLine(entry), PACKET_LINE_LIMIT));
   const recentCaptureLines = includedCaptures
+    .filter((item) => {
+      if (!hasProductHandoffs || item.kind !== "note") return true;
+      const content = normalizeText(item.content);
+      if (!content) return true;
+      return !isDumpReprintLine(content, stickyDumpCorpus) && !looksLikeIdentityDump(content);
+    })
     .map((item) => labeledLine(captureSourceLabel(item), captureLine(item), PACKET_LINE_LIMIT))
     .slice(0, limits.captures);
-  const recentAcceptedMemoryLines = activeAcceptedSuggestions(memory)
-    .slice()
-    .sort((a, b) => (b.updatedAt ?? b.createdAt) - (a.updatedAt ?? a.createdAt))
-    .slice(0, limits.recentChanges)
-    .map((item) => labeledLine(acceptedMemorySourceLabel(item), item.text, PACKET_LINE_LIMIT));
-  const recentChangeLines = uniqueLines([
-    ...recentActivityLines,
-    ...recentProgressLines,
-    ...recentCaptureLines,
-    ...recentAcceptedMemoryLines,
-    ...agentHandoffLines,
-    ...recentHandoffLines,
-  ]).slice(0, limits.recentChanges + limits.captures + limits.agentEvents + limits.handoffs);
+  const recentAcceptedMemoryLines = withoutDumpEchoLines(
+    activeAcceptedSuggestions(memory)
+      .slice()
+      .sort((a, b) => (b.updatedAt ?? b.createdAt) - (a.updatedAt ?? a.createdAt))
+      .slice(0, limits.recentChanges)
+      .map((item) => labeledLine(acceptedMemorySourceLabel(item), item.text, PACKET_LINE_LIMIT)),
+    dumpReprintCorpus,
+  );
+  const recentChangeLines = dropBriefSelfTalkWhenProductStateExists(
+    uniqueByUnlabeledLead([
+      ...agentHandoffLines,
+      ...recentHandoffLines,
+      ...recentProgressLines,
+      ...recentActivityLines,
+      ...recentCaptureLines,
+      ...recentAcceptedMemoryLines,
+    ]),
+    unlabeledPacketLine,
+  ).slice(0, limits.recentChanges + limits.captures + limits.agentEvents + limits.handoffs);
   const agentQuestionLines = params.agentEvents
     .filter((event) => (
       event.kind === "question"
@@ -475,10 +928,17 @@ export function compileProjectContextWithMeta(params: CompileProjectContextParam
     ...splitLines(params.project.blockers).map((item) => labeledLine("project:blocker", item, PACKET_LINE_LIMIT)),
   ]).slice(0, limits.openQuestions);
   const needsReviewLines = params.agentEvents
-    .filter((event) => event.status === "new")
+    .filter((event) => (
+      event.status === "new"
+      && agentEventNeedsHumanAccept(event.kind, event.source)
+    ))
     .sort((a, b) => b.createdAt - a.createdAt)
     .slice(0, limits.agentEvents)
-    .map((event) => labeledLine(`agent:${normalizeText(event.source)}/needs-review`, event.title, PACKET_LINE_LIMIT));
+    .map((event) => labeledLine(
+      `agent:${normalizeText(event.source)}/needs-review`,
+      event.title,
+      PACKET_LINE_LIMIT
+    ));
   const ambiguityLines = uniqueLines([
     ...(memory?.staleAssumptions ?? []).map((item) => labeledLine("memory:stale_assumption", `Do not assume: ${item}`, PACKET_LINE_LIMIT)),
   ]).slice(0, limits.agentWarnings);
@@ -504,19 +964,23 @@ export function compileProjectContextWithMeta(params: CompileProjectContextParam
     ...activeAcceptedMemoryItems(memory, ["acceptance_criterion"]).map((item) => labeledLine(acceptedMemorySourceLabel(item), item.text, PACKET_LINE_LIMIT)),
     ...defaultAcceptanceLines.map((item) => labeledLine("criteria", item, PACKET_LINE_LIMIT)),
   ]).slice(0, limits.acceptanceCriteria);
-  const handoffLines = uniqueLines([
-    ...withoutInactiveAcceptedMemory(memory, ["handoff_note"], uniqueLines([
-      ...(memory?.handoffNotes ?? []),
-    ])).map((item) => labeledLine("memory:handoff_note", item, PACKET_LINE_LIMIT)),
-    ...activeAcceptedMemoryItems(memory, ["handoff_note"]).map((item) => labeledLine(acceptedMemorySourceLabel(item), item.text, PACKET_LINE_LIMIT)),
-    ...recentHandoffLines,
-    ...agentHandoffLines,
-  ]).slice(0, limits.handoffNotes);
+  const handoffLines = dropBriefSelfTalkWhenProductStateExists(
+    uniqueByUnlabeledLead([
+      ...agentHandoffLines,
+      ...recentHandoffLines,
+      ...withoutInactiveAcceptedMemory(memory, ["handoff_note"], uniqueLines(
+        memory?.handoffNotes ?? []
+      )).map((item) => labeledLine("memory:handoff_note", leadSentence(item), PACKET_LINE_LIMIT, false)),
+      ...activeAcceptedMemoryItems(memory, ["handoff_note"]).map((item) => labeledLine(acceptedMemorySourceLabel(item), leadSentence(item.text), PACKET_LINE_LIMIT, false)),
+    ]),
+    unlabeledPacketLine,
+  ).slice(0, limits.handoffNotes);
   const nextActionLine = primaryAction
     ? labeledLine(`next:${primaryAction.status}`, primaryAction.title, PACKET_LINE_LIMIT)
     : "No next action captured yet.";
-  const suggestedNextMove = normalizeText(primaryAction?.rationale)
-    || (primaryAction ? `Start with ${primaryAction.title}.` : "No suggested next move captured yet.");
+  const suggestedNextMove = primaryAction
+    ? nextMoveRationale(primaryAction.title, primaryAction.rationale)
+    : "No suggested next move captured yet.";
   const compactMode = isCompactMode(limits) ? "on" : "off";
   const lines = [`# Builder Brief: ${projectName}`];
 
@@ -532,9 +996,9 @@ export function compileProjectContextWithMeta(params: CompileProjectContextParam
   ]);
   pushSection(lines, "Recent changes", bulletList(recentChangeLines, "No recent changes captured yet."));
   pushSection(lines, "Active decisions", [
-    "### Pinned decisions",
-    ...bulletList(pinnedDecisionLines, "No pinned decisions captured yet."),
-    "",
+    ...(pinnedDecisionLines.length
+      ? ["### Pinned decisions", ...bulletList(pinnedDecisionLines, "No pinned decisions captured yet."), ""]
+      : []),
     "### Accepted memory",
     ...bulletList(decisionLines.filter((line) => !pinnedDecisionLines.includes(line)), "No accepted decisions captured yet."),
     "",

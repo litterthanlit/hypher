@@ -8,7 +8,7 @@ import { apiKeyProbeRateLimitKey } from "./apiKeys";
 import type { Id } from "./_generated/dataModel";
 import { GITHUB_LOOP_SOURCE, planGithubLoopWrites } from "./lib/githubAgentEvents";
 import { normalizeGitHubRepo } from "../shared/githubRepo";
-import { isWorkReceipt } from "../shared/projectMemoryGenerate";
+import { isProductWorkReceipt, PACKET_AGENT_EVENT_FETCH_LIMIT, prioritizeAgentEventsForPacket, summarizeEvent } from "../shared/projectMemoryGenerate";
 import { applyReceiptForEvent } from "./lib/projectMemoryWrite";
 
 const eventKind = v.union(
@@ -181,26 +181,18 @@ function matchProject(
   return contains ? { id: contains.id, name: contains.name ?? "Project" } : null;
 }
 
-function prioritizeForPulse<T extends { status: string; kind: string; createdAt: number }>(
+function prioritizeForPulse<T extends {
+  status: string;
+  kind: string;
+  createdAt: number;
+  title?: string;
+  body?: string;
+  source?: string;
+}>(
   events: T[],
   limit: number
 ): T[] {
-  const rank = (event: T): number => {
-    if (event.status === "new" && event.kind === "question") return 0;
-    if (event.status === "new" && event.kind === "next_action") return 1;
-    if (event.status === "new") return 2;
-    if (event.kind === "question") return 3;
-    return 4;
-  };
-  return events
-    .filter((event) => event.status !== "dismissed")
-    .slice()
-    .sort((a, b) => {
-      const delta = rank(a) - rank(b);
-      if (delta !== 0) return delta;
-      return b.createdAt - a.createdAt;
-    })
-    .slice(0, limit);
+  return prioritizeAgentEventsForPacket(events, limit);
 }
 
 function toClientEvent(event: any) {
@@ -275,7 +267,7 @@ async function persistAgentEventForUser(
   }
 
   const now = Date.now();
-  const receipt = Boolean(matched && isWorkReceipt(parsed.value.kind, parsed.value.source));
+  const receipt = Boolean(matched && isProductWorkReceipt(parsed.value));
   const eventId = await ctx.runMutation(_internal.agentEvents.createForApiUser, {
     userId,
     projectId: matched?.id ? (matched.id as Id<"objects">) : undefined,
@@ -453,7 +445,7 @@ export const listForProject = query({
       .query("agentEvents")
       .withIndex("by_user_project", (q) => q.eq("userId", userId).eq("projectId", projectId))
       .collect();
-    return prioritizeForPulse(rows, limit ?? 8).map(toClientEvent);
+    return prioritizeForPulse(rows, limit ?? PACKET_AGENT_EVENT_FETCH_LIMIT).map(toClientEvent);
   },
 });
 
@@ -485,7 +477,7 @@ export const moveToProject = mutation({
       throw new Error("Invalid project");
     }
     await ctx.db.patch(eventId, { projectId });
-    if (isWorkReceipt(event.kind, event.source)) {
+    if (isProductWorkReceipt(event)) {
       const now = Date.now();
       await applyReceiptForEvent(ctx, {
         userId,
@@ -552,14 +544,6 @@ function uniqueStrings(values: string[]): string[] {
     result.push(cleaned);
   }
   return result;
-}
-
-function summarizeEvent(title: string, body: string): string {
-  const heading = normalizeTitle(title);
-  const details = normalizeTitle(body);
-  if (!details || details === heading) return heading.slice(0, 180);
-  const combined = `${heading}. ${details}`;
-  return combined.length <= 180 ? combined : `${combined.slice(0, 179).trimEnd()}...`;
 }
 
 export const accept = mutation({

@@ -1,6 +1,5 @@
-import type { ActivityEntry, AnyObject, Project, ProjectMemory } from "@/types";
-import type { AgentEvent, ProjectAction } from "@/types";
-import { selectPrimaryNextAction } from "./projectMemory";
+import type { ActivityEntry, AgentEvent, AnyObject, Handoff, Project, ProjectAction, ProjectMemory } from "@/types";
+import { compileBuilderBrief, selectCompiledConstraints, selectCompiledDecisions, selectCompiledIdentity, selectCompiledNextAction } from "./projectContext";
 import {
   agentEventNeedsHumanAccept,
   isSkeletonSummary,
@@ -17,17 +16,56 @@ export function isEmptyBuilderBrief(memory: ProjectMemory | null | undefined): b
   return isSkeletonSummary(memory.summary);
 }
 
-export function builderBriefFields(memory: ProjectMemory | null | undefined) {
-  const next = selectPrimaryNextAction(memory?.nextActions ?? []);
+export function builderBriefFields(
+  memory: ProjectMemory | null | undefined,
+  extras: { actions?: ProjectAction[]; captures?: AnyObject[]; agentEvents?: AgentEvent[] } = {}
+) {
+  const identity = selectCompiledIdentity({
+    memory: memory ?? null,
+    captures: extras.captures ?? [],
+    agentEvents: extras.agentEvents ?? [],
+  });
+  const next = selectCompiledNextAction({
+    memory: memory ?? null,
+    actions: extras.actions ?? [],
+    captures: extras.captures ?? [],
+    agentEvents: extras.agentEvents ?? [],
+  });
   return {
     empty: isEmptyBuilderBrief(memory),
-    summary: memory?.summary ?? "",
-    direction: memory?.currentDirection ?? "",
-    decisions: memory?.importantDecisions ?? [],
-    constraints: memory?.constraints ?? [],
+    summary: identity.summary || "",
+    direction: identity.currentDirection,
+    decisions: selectCompiledDecisions({
+      memory: memory ?? null,
+      captures: extras.captures ?? [],
+      agentEvents: extras.agentEvents ?? [],
+    }),
+    constraints: selectCompiledConstraints({
+      memory: memory ?? null,
+      captures: extras.captures ?? [],
+      agentEvents: extras.agentEvents ?? [],
+    }),
     questions: memory?.openQuestions ?? [],
     nextMove: next?.title ?? "",
   };
+}
+
+export function livePulseBriefPacket(params: {
+  project: Project;
+  model: ReturnType<typeof buildProjectPulseModel>;
+  actionQueue: ProjectAction[];
+  agentEvents: AgentEvent[];
+  handoffs?: Handoff[];
+}): string {
+  return compileBuilderBrief({
+    ...buildProjectContextInput({
+      project: params.project,
+      model: params.model,
+      actionQueue: params.actionQueue,
+      agentEvents: params.agentEvents,
+    }),
+    handoffs: params.handoffs ?? [],
+  });
 }
 
 export function buildProjectPulseModel(params: {
@@ -35,6 +73,8 @@ export function buildProjectPulseModel(params: {
   allObjects: AnyObject[];
   activity: ActivityEntry[];
   memories?: ProjectMemory[];
+  actions?: ProjectAction[];
+  agentEvents?: AgentEvent[];
 }) {
   const latestCaptures = params.allObjects
     .filter((obj) => obj.kind !== "project" && obj.projectId === params.project.id && obj.captureStatus !== "archived")
@@ -52,7 +92,12 @@ export function buildProjectPulseModel(params: {
     latestCaptures,
     recentActivity,
     memory,
-    primaryNextAction: selectPrimaryNextAction(memory?.nextActions ?? []),
+    primaryNextAction: selectCompiledNextAction({
+      memory,
+      captures: latestCaptures,
+      actions: params.actions ?? [],
+      agentEvents: params.agentEvents ?? [],
+    }),
   };
 }
 

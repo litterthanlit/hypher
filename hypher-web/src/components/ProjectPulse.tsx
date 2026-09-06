@@ -17,6 +17,7 @@ import type {
 import { getDisplayName } from "@/types";
 import { selectProjectActionQueue } from "@/lib/actions";
 import { compileProjectContextWithMeta } from "@/lib/projectContext";
+import { PACKET_AGENT_EVENT_FETCH_LIMIT } from "../../shared/projectMemoryGenerate";
 import {
   BUILDER_BRIEF_COPY_ERROR_TOAST,
   BUILDER_BRIEF_COPY_LABEL,
@@ -25,6 +26,7 @@ import {
   buildProjectContextInput,
   buildProjectPulseModel,
   builderBriefFields,
+  livePulseBriefPacket,
 } from "@/lib/projectPulse";
 
 interface Props {
@@ -71,7 +73,7 @@ export function ProjectPulse({
   const agentEvents = useQuery(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (api as any).agentEvents.listForProject,
-    { projectId: project.id as Id<"objects">, limit: 8 }
+    { projectId: project.id as Id<"objects">, limit: PACKET_AGENT_EVENT_FETCH_LIMIT }
   ) as AgentEvent[] | undefined;
   const handoffs = useQuery(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -92,8 +94,15 @@ export function ProjectPulse({
   const createHandoff = useMutation((api as any).handoffs.create);
 
   const model = useMemo(
-    () => buildProjectPulseModel({ project, allObjects, activity, memories: memory ? [memory] : [] }),
-    [project, allObjects, activity, memory]
+    () => buildProjectPulseModel({
+      project,
+      allObjects,
+      activity,
+      memories: memory ? [memory] : [],
+      actions: projectActions ?? [],
+      agentEvents: agentEvents ?? [],
+    }),
+    [project, allObjects, activity, memory, projectActions, agentEvents]
   );
 
   const actionQueue = useMemo(
@@ -101,12 +110,25 @@ export function ProjectPulse({
     [projectActions]
   );
 
+  const livePacket = useMemo(
+    () => livePulseBriefPacket({
+      project,
+      model,
+      actionQueue,
+      agentEvents: agentEvents ?? [],
+      handoffs: handoffs ?? [],
+    }),
+    [project, model, actionQueue, agentEvents, handoffs]
+  );
+
   const lastBrief = latestPacket
     ? { packet: latestPacket, generatedAt: null as number | null }
-    : handoffs?.[0]
-      ? { packet: handoffs[0].packetContent, generatedAt: handoffs[0].generatedAt }
-      : null;
-  const brief = builderBriefFields(memory ?? null);
+    : { packet: livePacket, generatedAt: null as number | null };
+  const brief = builderBriefFields(memory ?? null, {
+    actions: projectActions ?? [],
+    captures: model.latestCaptures,
+    agentEvents: agentEvents ?? [],
+  });
 
   const handleGenerateHandoff = async () => {
     if (packetBusy) return;

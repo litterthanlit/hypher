@@ -7,7 +7,7 @@ const SUMMARY_LIMIT = 280;
 const LINE_LIMIT = 280;
 /** Incoming constraints take slots first so a ninth do-not is not dropped behind older filler. */
 const ARRAY_LIMIT = 8;
-const CONSTRAINT_ARRAY_LIMIT = 12;
+export const CONSTRAINT_ARRAY_LIMIT = 12;
 const NEXT_ACTION_LIMIT = 3;
 
 export const PROJECT_MEMORY_TARGET_TOOLS = [
@@ -79,6 +79,7 @@ export interface SilentMemorySourceEvent {
   title: string;
   body: string;
   suggestedActions?: string[];
+  createdAt?: number;
 }
 
 export type ExistingSilentMemory = Partial<SilentMemorySnapshot> | null | undefined;
@@ -152,8 +153,28 @@ export function uniqueLines(
   return result;
 }
 
-function uniqueConstraintLines(items: string[], limit = CONSTRAINT_ARRAY_LIMIT): string[] {
+export function uniqueConstraintLines(items: string[], limit = CONSTRAINT_ARRAY_LIMIT): string[] {
   return uniqueLines(items, limit, { maxChars: null, ellipsis: false });
+}
+
+export function uniqueByWordStem(items: string[], wordCount = 5, limit = ARRAY_LIMIT): string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const item of items) {
+    const normalized = normalize(item);
+    const stem = normalized
+      .toLowerCase()
+      .replace(/[.!?]+$/, "")
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, wordCount)
+      .join(" ");
+    if (!normalized || !stem || seen.has(stem)) continue;
+    seen.add(stem);
+    result.push(normalized);
+    if (result.length >= limit) break;
+  }
+  return result;
 }
 
 export function isSkeletonSummary(value: string | undefined | null): boolean {
@@ -240,26 +261,49 @@ export function isDumpPrefixEcho(value: string, dumpTexts: string[]): boolean {
   return false;
 }
 
-export function isContinueDumpEcho(title: string, dumpTexts: string[]): boolean {
-  const text = normalize(title);
-  const match = text.match(/^continue:\s*(.+)$/i);
-  if (!match?.[1]) return false;
-  return isDumpPrefixEcho(match[1], dumpTexts) || isDumpPrefixEcho(text, dumpTexts);
+export function isContinueDumpEcho(title: string, _dumpTexts: string[] = []): boolean {
+  return /^continue:\s+/i.test(normalize(title));
 }
 
-function extractCurrentTask(sentences: string[]): string | undefined {
+/** Dump `Next:` clauses are first-session tasks. After a writeback they are stale echo. */
+export function isDumpLabeledNextEcho(title: string, dumpTexts: string[] = []): boolean {
+  const needle = normalize(title)
+    .replace(/^(continue:\s*)/i, "")
+    .replace(/[.!?]+$/, "")
+    .toLowerCase();
+  if (needle.length < 12) return false;
+  for (const dump of dumpTexts) {
+    const task = extractCurrentTask(splitSentences(dump));
+    if (!task) continue;
+    const hay = normalize(task).replace(/[.!?]+$/, "").toLowerCase();
+    if (!hay) continue;
+    if (hay === needle || needle.startsWith(hay) || hay.startsWith(needle)) return true;
+  }
+  return false;
+}
+
+export function isUnusableCompiledIdentity(value: string | undefined | null, dumpTexts: string[] = []): boolean {
+  const text = normalize(value);
+  if (!text) return true;
+  if (isSkeletonSummary(text)) return true;
+  if (isContinueDumpEcho(text, dumpTexts)) return true;
+  if (isDumpPrefixEcho(text, dumpTexts)) return true;
+  return false;
+}
+
+export function extractCurrentTask(sentences: string[]): string | undefined {
   for (const line of sentences) {
     const match = normalize(line).match(
       /^(?:next(?:\s+move|\s+action|\s+step)?|current(?:\s+task|\s+goal)?|todo|need to)\s*[:\-]\s*(.+)$/i
     );
-    if (match?.[1] && !looksLikeConstraint(match[1])) {
+    if (match?.[1] && !looksLikeDoNotDo(match[1])) {
       return normalize(match[1]).replace(/[.]+$/, "");
     }
   }
   return undefined;
 }
 
-function extractDirectionLine(sentences: string[]): string | undefined {
+export function extractDirectionLine(sentences: string[]): string | undefined {
   for (const line of sentences) {
     if (/^(?:product|direction|aim)\s*[:\-]/i.test(normalize(line)) && !looksLikeConstraint(line)) {
       return normalize(line);
@@ -268,7 +312,7 @@ function extractDirectionLine(sentences: string[]): string | undefined {
   return undefined;
 }
 
-function dumpHeadline(text: string): string {
+export function dumpHeadline(text: string): string {
   const sentences = splitSentences(text);
   const withoutConstraints = sentences.filter((line) => !looksLikeConstraint(line) && !extractCurrentTask([line]));
   const headline = withoutConstraints.slice(0, 2).join(" ");
@@ -281,12 +325,187 @@ export function looksLikeQuestion(item: string): boolean {
 }
 
 export function looksLikeDecision(item: string): boolean {
-  return /\b(decision|decided|we will|we chose|choose|chosen|lock|locked)\b/i.test(normalize(item));
+  const text = normalize(item);
+  if (/\b(decision|decided|we will|we chose|choose|chosen)\b/i.test(text)) return true;
+  // Changelog titles like "Merge lock beats Merge PR" or "when merge is locked"
+  // are not product decisions. Keep explicit product locks.
+  if (/\bwe locked\b/i.test(text) || /\blocked in\b/i.test(text)) return true;
+  if (/\bis the door\b/i.test(text)) return true;
+  if (/\bproduct\.md\b/i.test(text) && /\bwin/i.test(text)) return true;
+  return false;
+}
+
+/** Packet-compiler changelog titles are last-session noise, not session 2 identity. */
+export function looksLikeBriefSelfTalk(value: string | undefined | null): boolean {
+  const text = normalize(value).toLowerCase();
+  if (!text) return false;
+  if (/\bsuggested next move is\b/.test(text)) return true;
+  if (/\bpacket current state\b/.test(text)) return true;
+  if (/\bpacket slots\b/.test(text)) return true;
+  if (/\bchangelog titles\b/.test(text)) return true;
+  if (/\baccepted memory\b/.test(text) && /\b(fill|crowd)/.test(text)) return true;
+  if (/\bdump compile\b/.test(text) || /\bcompiled from the latest dump\b/.test(text)) return true;
+  if (/\bmerge lock beats\b/.test(text)) return true;
+  return false;
+}
+
+/** Keep recency within each group, but product-state titles lead compiler changelog. */
+export function preferProductStateTitles<T>(items: T[], titleOf: (item: T) => string): T[] {
+  const product: T[] = [];
+  const selfTalk: T[] = [];
+  for (const item of items) {
+    if (looksLikeBriefSelfTalk(titleOf(item))) selfTalk.push(item);
+    else product.push(item);
+  }
+  return [...product, ...selfTalk];
+}
+
+/** Compiler changelog is last-session noise. Keep it only when no product-state title exists. */
+export function dropBriefSelfTalkWhenProductStateExists<T>(
+  items: T[],
+  titleOf: (item: T) => string,
+): T[] {
+  const product = items.filter((item) => !looksLikeBriefSelfTalk(titleOf(item)));
+  return product.length > 0 ? product : items;
+}
+
+/** Compact changelog writebacks fill a recency-12 window. Fetch this many so Wait-for-review still arrives on production recency-only Convex. */
+export const PACKET_AGENT_EVENT_FETCH_LIMIT = 24;
+
+/** Fetch windows (Pulse/MCP/OAuth) must keep product-state handoffs, not only newest changelog. */
+export function prioritizeAgentEventsForPacket<T extends {
+  status: string;
+  kind: string;
+  createdAt: number;
+  title?: string;
+  body?: string;
+  source?: string;
+}>(events: T[], limit: number): T[] {
+  const live = events.filter((event) => event.status !== "dismissed");
+  const recency = (left: T, right: T) => right.createdAt - left.createdAt;
+  const needsReview = live
+    .filter((event) => event.status === "new" && agentEventNeedsHumanAccept(event.kind, event.source ?? ""))
+    .slice()
+    .sort(recency);
+  const productState = live
+    .filter((event) => (
+      isProductWorkReceipt({
+        kind: event.kind,
+        source: event.source ?? "",
+        title: event.title,
+        body: event.body,
+      })
+      && !looksLikeBriefSelfTalk(event.title)
+    ))
+    .slice()
+    .sort(recency);
+  const rest = live.slice().sort(recency);
+  const seen = new Set<T>();
+  const result: T[] = [];
+  for (const event of [...needsReview, ...productState, ...rest]) {
+    if (seen.has(event)) continue;
+    seen.add(event);
+    result.push(event);
+    if (result.length >= limit) break;
+  }
+  return result;
+}
+
+export function looksLikeProductDecision(item: string): boolean {
+  if (looksLikeDoNotDo(item)) return false;
+  if (looksLikeDecision(item)) return true;
+  const text = normalize(item);
+  if (/\bstays\b/i.test(text) && text.length <= 120) return true;
+  if (/\bis a signal\b/i.test(text)) return true;
+  return false;
+}
+
+export function isNextActionClone(value: string | undefined | null, nextTitles: string[]): boolean {
+  const key = normalize(value).replace(/[.!?]+$/, "").toLowerCase();
+  if (!key) return false;
+  return nextTitles.some((title) => normalize(title).replace(/[.!?]+$/, "").toLowerCase() === key);
+}
+
+function firstActionWord(value: string): string {
+  const text = normalize(value).replace(/^\[[^\]]+\]\s*/, "").toLowerCase();
+  return (text.split(/\s+/)[0] ?? "").replace(/[^a-z0-9]/g, "");
+}
+
+function doNotRemainder(item: string): string {
+  return normalize(item).replace(/^(do not|don't|dont|don’t|avoid|never)\s*:?\s*/i, "");
+}
+
+/** A next move must not be the thing a do-not-do already forbids. */
+export function actionBlockedByConstraints(title: string, constraints: string[]): boolean {
+  const actionFirst = firstActionWord(title);
+  if (actionFirst.length < 4) return false;
+  const lines = uniqueConstraintLines(expandConstraintLines(constraints));
+  for (const raw of lines) {
+    const line = normalize(raw);
+    if (!looksLikeDoNotDo(line)) continue;
+    const constraintFirst = firstActionWord(doNotRemainder(line));
+    if (constraintFirst.length >= 4 && constraintFirst === actionFirst) return true;
+  }
+  return false;
+}
+
+/** When every queued next move is forbidden, say to wait — do not leave session 2 with no work. */
+export function honorConstraintBlockedNext(blockedTitles: string[], constraints: string[]): string | undefined {
+  const lines = uniqueConstraintLines(expandConstraintLines(constraints));
+  const mergeLock = lines.find((line) => /\bdo not merge\b/i.test(normalize(line)));
+  if (!mergeLock || !/until reviewed/i.test(mergeLock)) return undefined;
+  const mergeTitle = blockedTitles.find((title) => firstActionWord(title) === "merge");
+  if (!mergeTitle) return undefined;
+  const pr = normalize(mergeTitle).replace(/^\[[^\]]+\]\s*/, "").match(/\bpr\s+(\d+)/i)?.[1];
+  return pr ? `Wait for review before merging PR ${pr}` : "Wait for review before merging";
+}
+
+export function extractProductAim(
+  sentences: string[],
+  options: { echoCorpus?: string[]; nextTitles?: string[]; summary?: string } = {}
+): string | undefined {
+  const echoCorpus = options.echoCorpus ?? [];
+  const next = new Set(
+    (options.nextTitles ?? [])
+      .map((title) => normalize(title).replace(/[.!?]+$/, "").toLowerCase())
+      .filter(Boolean)
+  );
+  const summary = normalize(options.summary).replace(/[.!?]+$/, "").toLowerCase();
+  for (const line of sentences) {
+    const text = normalize(line);
+    if (!text || text.length > 160) continue;
+    if (looksLikeConstraint(text) || looksLikeDoNotDo(text)) continue;
+    if (extractCurrentTask([text])) continue;
+    if (extractDirectionLine([text])) continue;
+    if (isUnusableCompiledIdentity(text, echoCorpus)) continue;
+    const key = text.replace(/[.!?]+$/, "").toLowerCase();
+    if (summary && key === summary) continue;
+    if (next.has(key)) continue;
+    return text.replace(/[.]+$/, "");
+  }
+  return undefined;
 }
 
 export function isWorkReceipt(kind: string, source: string): boolean {
   if (normalize(source).toLowerCase() === GITHUB_SIGNAL_SOURCE) return false;
   return kind === "handoff" || kind === "build_log";
+}
+
+export function isHookShapedReceipt(title: string, body: string): boolean {
+  const text = `${normalize(title)}\n${normalize(body)}`;
+  if (/cursor session-end receipt/i.test(text)) return true;
+  if (/no product status inferred/i.test(text)) return true;
+  return false;
+}
+
+export function isProductWorkReceipt(event: {
+  kind: string;
+  source: string;
+  title?: string;
+  body?: string;
+}): boolean {
+  if (!isWorkReceipt(event.kind, event.source)) return false;
+  return !isHookShapedReceipt(event.title ?? "", event.body ?? "");
 }
 
 export function agentEventNeedsHumanAccept(kind: string, _source: string): boolean {
@@ -303,11 +522,8 @@ export function splitSentences(text: string): string[] {
 
 export function summarizeEvent(title: string, body: string): string {
   const heading = normalize(title);
-  const details = truncate(body, LINE_LIMIT);
-  if (!details || details.toLowerCase() === heading.toLowerCase()) {
-    return truncate(heading, LINE_LIMIT);
-  }
-  return truncate(`${heading}. ${details}`, LINE_LIMIT);
+  if (heading) return heading;
+  return truncate(body, LINE_LIMIT, false);
 }
 
 function existingLines(existing: ExistingSilentMemory, key: keyof SilentMemorySnapshot): string[] {
@@ -346,22 +562,31 @@ export function compileHeuristicMemory(input: {
   const existing = input.existing ?? null;
   const itemTexts = sourceTexts(input.items);
   const sentences = itemTexts.flatMap(splitSentences);
-  const eventReceipts = (input.events ?? [])
-    .filter((event) => isWorkReceipt(event.kind, event.source))
-    .map((event) => summarizeEvent(event.title, event.body));
+  const productEvents = (input.events ?? [])
+    .filter((event) => isProductWorkReceipt(event))
+    .slice()
+    .sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0));
+  const eventReceipts = productEvents.map((event) => summarizeEvent(event.title, event.body));
+  const productReceipts = eventReceipts.filter((title) => !looksLikeBriefSelfTalk(title));
+  const selfTalkReceipts = eventReceipts.filter((title) => looksLikeBriefSelfTalk(title));
+  const eventConstraintSentences = productEvents.flatMap((event) => splitSentences(`${event.title}. ${event.body}`));
   const eventQuestions = (input.events ?? [])
     .filter((event) => event.kind === "question")
     .map((event) => summarizeEvent(event.title, event.body));
 
   const dumpTexts = itemTexts;
-  const incomingConstraints = expandConstraintLines(sentences.filter(looksLikeConstraint));
+  const existingSummary = normalize(existing?.summary);
+  const echoCorpus = [...dumpTexts, existingSummary].filter(Boolean);
+  const incomingConstraints = expandConstraintLines(
+    [...sentences, ...eventConstraintSentences].filter(looksLikeConstraint)
+  );
   const constraints = uniqueConstraintLines([
     ...incomingConstraints,
     ...expandConstraintLines(existingLines(existing, "constraints")),
   ]);
   const decisions = uniqueLines([
+    ...[...eventConstraintSentences, ...sentences].filter(looksLikeProductDecision),
     ...existingLines(existing, "importantDecisions"),
-    ...sentences.filter((line) => looksLikeDecision(line) && !looksLikeConstraint(line)),
   ]);
   const questions = uniqueLines([
     ...existingLines(existing, "openQuestions"),
@@ -372,53 +597,84 @@ export function compileHeuristicMemory(input: {
     /^(shipped|landed|fixed|merged|closed|added|implemented|wrote|updated|finished|dumped)\b/i.test(line)
   );
   const recentChanges = uniqueLines([
-    ...eventReceipts,
+    ...productReceipts,
     ...recentFromDump,
     ...itemTexts.map((text) => dumpHeadline(text)),
     ...existingLines(existing, "recentChanges"),
+    ...selfTalkReceipts,
   ]);
-  const currentTask = extractCurrentTask(sentences);
-  const directionParts = sentences.filter((line) => (
+  const existingGoal = normalize(existing?.currentGoal);
+  const nextFromEvents = productEvents
+    .flatMap((event) => event.suggestedActions ?? [])
+    .map(normalize)
+    .filter((title) => (
+      Boolean(title)
+      && !isContinueDumpEcho(title, dumpTexts)
+      && !isDumpPrefixEcho(title, echoCorpus)
+      && !isDumpLabeledNextEcho(title, dumpTexts)
+    ));
+  const dumpGoal = extractCurrentTask(sentences) ?? "";
+  const eventGoal = extractCurrentTask(eventConstraintSentences) ?? nextFromEvents[0] ?? "";
+  const dumpNextStale = productEvents.length > 0;
+  const dumpSummary = itemTexts[0] ? dumpHeadline(itemTexts[0]) : "";
+  const storedSummaryOk = !isUnusableCompiledIdentity(existingSummary, dumpTexts)
+    && !looksLikeBriefSelfTalk(existingSummary);
+  const summary = productReceipts[0]
+    || (storedSummaryOk ? existingSummary : "")
+    || dumpSummary
+    || existingSummary
+    || `${input.projectName} is in progress.`;
+  const nextTitlesForClone = [...nextFromEvents, eventGoal, dumpGoal].filter(Boolean);
+  const existingGoalOk = !isUnusableCompiledIdentity(existingGoal, echoCorpus)
+    && !(productEvents.length > 0 && isNextActionClone(existingGoal, nextTitlesForClone));
+  const aim = extractProductAim([...sentences, ...eventConstraintSentences], {
+    echoCorpus,
+    nextTitles: nextTitlesForClone,
+    summary,
+  });
+  const currentGoal = existingGoalOk
+    ? existingGoal
+    : productEvents.length > 0
+      ? (aim || eventGoal || dumpGoal)
+      : (eventGoal || dumpGoal || aim || "");
+  const currentTask = eventGoal
+    || (dumpNextStale ? "" : dumpGoal)
+    || (dumpNextStale ? "" : currentGoal);
+  const directionParts = [...sentences, ...eventConstraintSentences].filter((line) => (
     !looksLikeConstraint(line)
     && !looksLikeQuestion(line)
     && !extractCurrentTask([line])
     && !isDumpPrefixEcho(line, dumpTexts)
+    && !isDumpPrefixEcho(line, echoCorpus)
+    && !looksLikeBriefSelfTalk(line)
     && !/^(shipped|landed|fixed|merged|closed|added|implemented|wrote|updated|finished|dumped)\b/i.test(line)
   ));
-  const dumpSummary = itemTexts[0] ? dumpHeadline(itemTexts[0]) : eventReceipts[0] ?? "";
-  const existingSummary = normalize(existing?.summary);
-  const summary = !isSkeletonSummary(existingSummary)
-    ? existingSummary
-    : dumpSummary || existingSummary || `${input.projectName} is in progress.`;
   const existingDirection = normalize(existing?.currentDirection);
-  const labeledDirection = extractDirectionLine(sentences);
+  const labeledDirection = extractDirectionLine(sentences) ?? extractDirectionLine(eventConstraintSentences);
   const currentDirection = labeledDirection
     || directionParts[0]
-    || (existingDirection && !isSkeletonSummary(existingDirection) && !isDumpPrefixEcho(existingDirection, dumpTexts)
-      ? existingDirection
-      : "")
+    || (!isUnusableCompiledIdentity(existingDirection, echoCorpus) ? existingDirection : "")
     || normalize(input.projectDescription);
-  const existingGoal = normalize(existing?.currentGoal);
-  const currentGoal = existingGoal && !isDumpPrefixEcho(existingGoal, dumpTexts)
-    ? existingGoal
-    : (currentTask ?? "");
-  const nextFromEvents = (input.events ?? [])
-    .flatMap((event) => event.suggestedActions ?? [])
-    .map(normalize)
-    .filter(Boolean);
   const taskLines = sentences.filter((line) =>
     /\b(next step|next move|todo|need to|verify|follow up)\b/i.test(line)
     && !looksLikeConstraint(line)
   );
-  const nextTitles = uniqueLines([
+  const nextTitles = uniqueByWordStem([
     ...nextFromEvents,
     ...(currentTask ? [currentTask] : []),
     ...taskLines,
     ...(existing?.nextActions ?? [])
       .filter((action) => action.status !== "dismissed")
       .map((action) => action.title)
-      .filter((title) => !isContinueDumpEcho(title, dumpTexts) && !isDumpPrefixEcho(title, dumpTexts)),
-  ], NEXT_ACTION_LIMIT).filter((title) => !isContinueDumpEcho(title, dumpTexts));
+      .filter((title) => (
+        !isContinueDumpEcho(title, dumpTexts)
+        && !isDumpPrefixEcho(title, dumpTexts)
+        && !(dumpNextStale && isDumpLabeledNextEcho(title, dumpTexts))
+      )),
+  ], 5, NEXT_ACTION_LIMIT).filter((title) => (
+    !isContinueDumpEcho(title, dumpTexts)
+    && !(dumpNextStale && isDumpLabeledNextEcho(title, dumpTexts))
+  ));
   const nextActions: SilentMemoryAction[] = nextTitles.map((title) => ({
     title: truncate(title, 100),
     rationale: "Compiled from the latest dump or writeback.",
@@ -444,10 +700,12 @@ export function compileHeuristicMemory(input: {
     importantDecisions: decisions,
     constraints,
     openQuestions: questions,
-    activeTasks: uniqueLines([
+    activeTasks: uniqueByWordStem([
       ...nextTitles,
       ...existingLines(existing, "activeTasks").filter((title) => (
-        !isContinueDumpEcho(title, dumpTexts) && !isDumpPrefixEcho(title, dumpTexts)
+        !isContinueDumpEcho(title, dumpTexts)
+        && !isDumpPrefixEcho(title, dumpTexts)
+        && !(dumpNextStale && isDumpLabeledNextEcho(title, dumpTexts))
       )),
     ]),
     blockers: uniqueLines([
@@ -456,8 +714,9 @@ export function compileHeuristicMemory(input: {
     ]),
     staleAssumptions: existingLines(existing, "staleAssumptions"),
     handoffNotes: uniqueLines([
-      ...eventReceipts,
+      ...productReceipts,
       ...existingLines(existing, "handoffNotes"),
+      ...selfTalkReceipts,
     ]),
     nextActions,
     acceptedCrystallizedSuggestions: existing?.acceptedCrystallizedSuggestions ?? [],
@@ -504,7 +763,7 @@ export function applyReceiptToMemory(input: {
   event: SilentMemorySourceEvent;
   now: number;
 }): { applied: false } | { applied: true; memory: SilentMemorySnapshot } {
-  if (!isWorkReceipt(input.event.kind, input.event.source)) {
+  if (!isProductWorkReceipt(input.event)) {
     return { applied: false };
   }
   const summary = summarizeEvent(input.event.title, input.event.body);
@@ -547,17 +806,15 @@ export function applyReceiptToMemory(input: {
         },
       ];
 
-  const existingSummary = normalize(input.existing?.summary);
   return {
     applied: true,
     memory: {
       ...compiled,
-      summary: isSkeletonSummary(existingSummary) ? truncate(summary, SUMMARY_LIMIT) : compiled.summary,
-      currentDirection: isSkeletonSummary(input.existing?.currentDirection)
-        ? truncate(summary, SUMMARY_LIMIT)
-        : compiled.currentDirection,
-      recentChanges: uniqueLines([summary, ...compiled.recentChanges]),
-      handoffNotes: uniqueLines([summary, ...compiled.handoffNotes]),
+      summary: compiled.summary || (looksLikeBriefSelfTalk(summary) ? "" : truncate(summary, SUMMARY_LIMIT)),
+      currentGoal: compiled.currentGoal || nextMove || "",
+      currentDirection: compiled.currentDirection || (looksLikeBriefSelfTalk(summary) ? "" : truncate(summary, SUMMARY_LIMIT)),
+      recentChanges: compiled.recentChanges,
+      handoffNotes: compiled.handoffNotes,
       nextActions,
       acceptedCrystallizedSuggestions: crystallized,
     },
@@ -680,20 +937,34 @@ export function parseProjectMemoryJson(text: string): ProjectMemoryParseResult {
 export function mergeAiShapeIntoSnapshot(
   heuristic: SilentMemorySnapshot,
   parsed: ProjectMemoryAiShape,
-  now: number
+  now: number,
+  dumpTexts: string[] = []
 ): SilentMemorySnapshot {
+  const parsedNext = parsed.nextActions.filter((action) => (
+    !isContinueDumpEcho(action.title, dumpTexts)
+    && !isDumpPrefixEcho(action.title, dumpTexts)
+    && !isDumpLabeledNextEcho(action.title, dumpTexts)
+    && !isUnusableCompiledIdentity(action.title, dumpTexts)
+  ));
+  const nextSource = parsedNext.length > 0 ? parsedNext : heuristic.nextActions;
   return {
-    summary: parsed.summary,
-    currentGoal: parsed.currentGoal || heuristic.currentGoal,
-    currentDirection: parsed.currentDirection,
+    summary: !isUnusableCompiledIdentity(parsed.summary, dumpTexts)
+      ? parsed.summary
+      : heuristic.summary,
+    currentGoal: !isUnusableCompiledIdentity(parsed.currentGoal, dumpTexts)
+      ? (parsed.currentGoal || heuristic.currentGoal)
+      : heuristic.currentGoal,
+    currentDirection: !isUnusableCompiledIdentity(parsed.currentDirection, dumpTexts)
+      ? parsed.currentDirection
+      : heuristic.currentDirection,
     recentChanges: uniqueLines([...(parsed.recentChanges ?? []), ...heuristic.recentChanges]),
     importantDecisions: uniqueLines([
       ...heuristic.importantDecisions,
       ...(parsed.importantDecisions ?? []),
     ]),
     constraints: uniqueConstraintLines([
-      ...expandConstraintLines(parsed.constraints ?? []),
       ...heuristic.constraints,
+      ...expandConstraintLines(parsed.constraints ?? []).filter((line) => !line.includes("...")),
     ]),
     openQuestions: uniqueLines([
       ...heuristic.openQuestions,
@@ -701,7 +972,9 @@ export function mergeAiShapeIntoSnapshot(
     ]),
     activeTasks: uniqueLines([
       ...heuristic.activeTasks,
-      ...(parsed.activeTasks ?? []),
+      ...(parsed.activeTasks ?? []).filter((title) => (
+        !isContinueDumpEcho(title, dumpTexts) && !isDumpPrefixEcho(title, dumpTexts)
+      )),
     ]),
     blockers: uniqueLines([
       ...heuristic.blockers,
@@ -712,19 +985,17 @@ export function mergeAiShapeIntoSnapshot(
       ...(parsed.staleAssumptions ?? []),
     ]),
     handoffNotes: heuristic.handoffNotes,
-    nextActions: parsed.nextActions.length > 0
-      ? parsed.nextActions.map((action) => ({
-          title: action.title,
-          rationale: action.rationale,
-          requiredContext: action.requiredContext,
-          suggestedTargetTool: action.suggestedTargetTool,
-          confidence: action.confidence,
-          sourceCaptureIds: action.sourceCaptureIds,
-          status: "suggested" as const,
-          createdAt: now,
-          updatedAt: now,
-        }))
-      : heuristic.nextActions,
+    nextActions: nextSource.map((action) => ({
+      title: action.title,
+      rationale: action.rationale,
+      requiredContext: action.requiredContext,
+      suggestedTargetTool: action.suggestedTargetTool,
+      confidence: action.confidence,
+      sourceCaptureIds: action.sourceCaptureIds,
+      status: "suggested" as const,
+      createdAt: now,
+      updatedAt: now,
+    })),
     acceptedCrystallizedSuggestions: heuristic.acceptedCrystallizedSuggestions,
   };
 }

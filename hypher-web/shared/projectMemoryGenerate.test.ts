@@ -8,9 +8,22 @@ import {
   expandConstraintLines,
   fallbackProjectMemory,
   isContinueDumpEcho,
+  isDumpLabeledNextEcho,
+  isHookShapedReceipt,
+  isProductWorkReceipt,
   isSkeletonSummary,
   isWorkReceipt,
   looksLikeDoNotDo,
+  mergeAiShapeIntoSnapshot,
+  summarizeEvent,
+  actionBlockedByConstraints,
+  honorConstraintBlockedNext,
+  looksLikeBriefSelfTalk,
+  looksLikeProductDecision,
+  preferProductStateTitles,
+  dropBriefSelfTalkWhenProductStateExists,
+  PACKET_AGENT_EVENT_FETCH_LIMIT,
+  prioritizeAgentEventsForPacket,
 } from "./projectMemoryGenerate";
 import { compileBuilderBrief } from "../src/lib/projectContext";
 import type { Project, ProjectMemory } from "../src/types";
@@ -170,6 +183,155 @@ describe("writeback receipts", () => {
   });
 });
 
+describe("actionBlockedByConstraints", () => {
+  it("blocks a merge next move when the brief says do not merge until reviewed", () => {
+    expect(actionBlockedByConstraints(
+      "Merge PR 62 and deploy Vercel plus Convex so production get_project_context drops the dump echo",
+      ["Do not merge until reviewed."],
+    )).toBe(true);
+  });
+
+  it("does not block an unrelated next move", () => {
+    expect(actionBlockedByConstraints(
+      "Keep dump-only constraints on the packet",
+      ["Do not merge until reviewed.", "Do not rebuild the canvas."],
+    )).toBe(false);
+    expect(actionBlockedByConstraints(
+      "Merge PR 62 and deploy Convex so production memory drops the dump echo",
+      ["Do not invent dumps", "Do not rebuild the canvas."],
+    )).toBe(false);
+  });
+
+  it("turns a blocked merge into wait-for-review instead of an empty next", () => {
+    expect(honorConstraintBlockedNext(
+      ["Merge PR 62 and deploy Vercel plus Convex so production get_project_context drops the dump echo"],
+      ["Do not merge until reviewed."],
+    )).toBe("Wait for review before merging PR 62");
+    expect(honorConstraintBlockedNext(
+      ["Keep dump-only constraints on the packet"],
+      ["Do not merge until reviewed."],
+    )).toBeUndefined();
+    expect(honorConstraintBlockedNext(
+      ["Merge PR 62 and deploy Convex"],
+      ["Do not rebuild the canvas."],
+    )).toBeUndefined();
+  });
+});
+
+describe("looksLikeBriefSelfTalk", () => {
+  it("skips packet-compiler changelog titles and keeps product-state handoffs", () => {
+    expect(looksLikeBriefSelfTalk("Changelog titles do not fill Accepted memory")).toBe(true);
+    expect(looksLikeBriefSelfTalk("Suggested next move is Start with, not dump compile")).toBe(true);
+    expect(looksLikeBriefSelfTalk("Packet current state is last-handoff")).toBe(true);
+    expect(looksLikeBriefSelfTalk("Dump-only constraints keep packet slots")).toBe(true);
+    expect(looksLikeBriefSelfTalk("Wait-for-review next when merge is locked")).toBe(false);
+    expect(looksLikeBriefSelfTalk("Keep dump echo out of identity")).toBe(false);
+    expect(looksLikeBriefSelfTalk("Last-handoff identity always wins at packet compile")).toBe(false);
+    expect(looksLikeBriefSelfTalk("Merge lock beats Merge PR next move")).toBe(true);
+    expect(looksLikeBriefSelfTalk("Packet current state leads Recent changes")).toBe(true);
+    expect(looksLikeBriefSelfTalk("Session 2 writeback")).toBe(false);
+    expect(looksLikeBriefSelfTalk("Current build audited")).toBe(false);
+  });
+
+  it("leads with product-state titles and keeps recency inside each group", () => {
+    expect(preferProductStateTitles(
+      [
+        "Changelog titles are not session identity",
+        "Wait-for-review next when merge is locked",
+        "Suggested next move is Start with, not dump compile",
+        "Bare PR no longer reroutes the Hypher brief to GitHub",
+      ],
+      (title) => title,
+    )).toEqual([
+      "Wait-for-review next when merge is locked",
+      "Bare PR no longer reroutes the Hypher brief to GitHub",
+      "Changelog titles are not session identity",
+      "Suggested next move is Start with, not dump compile",
+    ]);
+  });
+
+  it("drops compiler changelog when a product-state title exists, and keeps it otherwise", () => {
+    expect(dropBriefSelfTalkWhenProductStateExists(
+      [
+        "Packet current state leads Recent changes",
+        "Wait-for-review next when merge is locked",
+        "Changelog titles are not session identity",
+        "Bare PR no longer reroutes the Hypher brief to GitHub",
+      ],
+      (title) => title,
+    )).toEqual([
+      "Wait-for-review next when merge is locked",
+      "Bare PR no longer reroutes the Hypher brief to GitHub",
+    ]);
+    expect(dropBriefSelfTalkWhenProductStateExists(
+      [
+        "Changelog titles are not session identity",
+        "Packet current state leads Recent changes",
+      ],
+      (title) => title,
+    )).toEqual([
+      "Changelog titles are not session identity",
+      "Packet current state leads Recent changes",
+    ]);
+  });
+
+  it("keeps product-state handoffs in a Pulse/MCP-sized fetch window", () => {
+    const changelog = Array.from({ length: 12 }, (_, index) => ({
+      status: "reviewed",
+      kind: "handoff",
+      source: "cursor",
+      title: `Changelog titles leave Recent changes ${index}`,
+      createdAt: 2000 + index,
+    }));
+    const wait = {
+      status: "reviewed",
+      kind: "handoff",
+      source: "cursor",
+      title: "Wait-for-review next when merge is locked",
+      createdAt: 100,
+    };
+    const question = {
+      status: "new",
+      kind: "question",
+      source: "cursor",
+      title: "Should the brief load without a slash command?",
+      createdAt: 50,
+    };
+    const recencyOnly = [...changelog, wait, question]
+      .filter((event) => event.status !== "dismissed")
+      .sort((a, b) => b.createdAt - a.createdAt)
+      .slice(0, 8);
+    expect(recencyOnly.some((event) => event.title === wait.title)).toBe(false);
+    const recencyTwelve = [...changelog, wait, question]
+      .filter((event) => event.status !== "dismissed")
+      .sort((a, b) => b.createdAt - a.createdAt)
+      .slice(0, 12);
+    expect(recencyTwelve.some((event) => event.title === wait.title)).toBe(false);
+    const recencyWide = [...changelog, wait, question]
+      .filter((event) => event.status !== "dismissed")
+      .sort((a, b) => b.createdAt - a.createdAt)
+      .slice(0, PACKET_AGENT_EVENT_FETCH_LIMIT);
+    expect(recencyWide.some((event) => event.title === wait.title)).toBe(true);
+    const selected = prioritizeAgentEventsForPacket([...changelog, wait, question], 8);
+    expect(selected.some((event) => event.title === wait.title)).toBe(true);
+    expect(selected.some((event) => event.title === question.title)).toBe(true);
+    expect(selected[0]?.title).toBe(question.title);
+    expect(selected).toHaveLength(8);
+  });
+});
+
+describe("looksLikeProductDecision", () => {
+  it("keeps product locks and ignores merge-lock changelog titles", () => {
+    expect(looksLikeProductDecision("Pulse stays three panels.")).toBe(true);
+    expect(looksLikeProductDecision("Cursor is the door.")).toBe(true);
+    expect(looksLikeProductDecision("GitHub is a signal, not the agent door.")).toBe(true);
+    expect(looksLikeProductDecision("We locked Pulse at three panels.")).toBe(true);
+    expect(looksLikeProductDecision("Wait-for-review next when merge is locked.")).toBe(false);
+    expect(looksLikeProductDecision("Merge lock beats Merge PR next move.")).toBe(false);
+    expect(looksLikeProductDecision("Do not merge until reviewed.")).toBe(false);
+  });
+});
+
 const LIVE_DUMP_2026_09_06 =
   "Dogfood dump on the real hypher project. Product: dump → one note agents read → writeback. Session 2 should start warm. Do not: invent dumps, gate bind on a github token, or treat try hypher as the home. Next: confirm silent synthesis thickened this note without a generate button.";
 
@@ -240,6 +402,23 @@ function briefFromDump(dump: string, existing?: Parameters<typeof compileHeurist
   return { compiled, brief };
 }
 
+describe("isDumpLabeledNextEcho", () => {
+  it("matches the dump Next clause and ignores wait-for-review", () => {
+    expect(isDumpLabeledNextEcho(
+      "confirm silent synthesis thickened this note without a generate button",
+      [LIVE_DUMP_2026_09_06],
+    )).toBe(true);
+    expect(isDumpLabeledNextEcho(
+      "Wait for review before merging PR 62",
+      [LIVE_DUMP_2026_09_06],
+    )).toBe(false);
+    expect(isDumpLabeledNextEcho(
+      "Keep the packet warmer than PRODUCT.md",
+      [LIVE_DUMP_2026_09_06],
+    )).toBe(false);
+  });
+});
+
 describe("Unit 2 packet baseline", () => {
   it("records that the 2026-09-06 live brief echoed the dump and truncated a do-not", () => {
     const evidence = readFileSync(
@@ -303,6 +482,7 @@ describe("Unit 3 compile identity, do not echo the dump", () => {
     expect(compiled.currentGoal?.toLowerCase()).not.toContain("dogfood dump");
     expect(compiled.nextActions[0]?.title.toLowerCase()).toContain("silent synthesis");
     expect(compiled.nextActions.some((action) => /^continue:/i.test(action.title))).toBe(false);
+    expect(isDumpLabeledNextEcho(compiled.nextActions[0]?.title ?? "", [LIVE_DUMP_2026_09_06])).toBe(true);
     expect(compiled.currentDirection.toLowerCase()).toContain("product:");
     assertPacketDoesNotEchoDump(brief, LIVE_DUMP_2026_09_06);
   });
@@ -360,9 +540,117 @@ describe("Unit 3 compile identity, do not echo the dump", () => {
     expect(constraints.some((line) => /github token/i.test(line))).toBe(true);
     expect(constraints.some((line) => /try hypher/i.test(line))).toBe(true);
     expect(constraints.every((line) => !line.includes("..."))).toBe(true);
-    expect(tryingToBecome(packet)).toMatch(/no goal captured yet/i);
+    expect(tryingToBecome(packet).toLowerCase()).toContain("silent synthesis");
+    expect(tryingToBecome(packet).toLowerCase()).not.toContain("dogfood dump");
     expect(packet).not.toMatch(/Continue: Dogfood dump on the real hypher project/i);
     assertPacketDoesNotEchoDump(packet, dump);
+  });
+
+  it("compiles last-handoff identity over a sticky dump when events are on the packet", () => {
+    const dump = LIVE_DUMP_2026_09_06;
+    const eventBody = "Do not widen OAuth. Pulse stays three panels. Do not rebuild the canvas. Next move: keep the packet warmer than PRODUCT.md.";
+    const compiled = compileHeuristicMemory({
+      projectName: "Hypher",
+      items: [{ content: dump }],
+      events: [{
+        kind: "handoff",
+        source: "cursor",
+        title: "Session 2 writeback",
+        body: eventBody,
+        suggestedActions: ["Keep the packet warmer than PRODUCT.md"],
+        createdAt: NOW,
+      }],
+      existing: {
+        summary: dump,
+        currentGoal: "Dogfood dump on the real hypher project.",
+        currentDirection: "Dogfood dump on the real hypher project.",
+        constraints: ["Do not: invent dumps, gate bind on a github token, or treat try hypher as the home."],
+      },
+      now: NOW,
+    });
+    expect(compiled.summary.toLowerCase()).not.toContain("dogfood dump");
+    expect(compiled.summary.toLowerCase()).toContain("session 2 writeback");
+    expect(compiled.currentGoal?.toLowerCase()).toContain("session 2 should start warm");
+    expect(compiled.currentGoal?.toLowerCase()).not.toContain("dogfood dump");
+    expect(compiled.currentGoal?.toLowerCase()).not.toContain("warmer than product.md");
+    expect(compiled.currentDirection.toLowerCase()).toContain("product:");
+    expect(compiled.importantDecisions.some((line) => /three panels/i.test(line))).toBe(true);
+    expect(compiled.nextActions[0]?.title.toLowerCase()).toContain("warmer than product.md");
+    expect(compiled.nextActions.some((action) => /silent synthesis/i.test(action.title))).toBe(false);
+    expect(compiled.nextActions.filter((action) => /merge pr 62/i.test(action.title)).length).toBeLessThanOrEqual(1);
+    expect(compiled.constraints.some((line) => /oauth/i.test(line))).toBe(true);
+    expect(compiled.constraints.some((line) => /three panels/i.test(line))).toBe(true);
+    expect(compiled.constraints.some((line) => /canvas/i.test(line))).toBe(true);
+
+    const brief = compileBuilderBrief({
+      project,
+      memory: {
+        projectId: "p1",
+        summary: dump,
+        currentGoal: "Dogfood dump on the real hypher project.",
+        currentDirection: "Dogfood dump on the real hypher project.",
+        recentChanges: [dump],
+        constraints: ["Do not: invent dumps, gate bind on a github token, or treat try hypher as the home."],
+        openQuestions: [],
+        activeTasks: ["Continue: Dogfood dump on the real hypher project."],
+        nextActions: [{
+          id: "echo",
+          title: "Continue: Dogfood dump on the real hypher project.",
+          rationale: "Compiled from the latest dump or writeback.",
+          status: "suggested",
+          createdAt: NOW,
+          updatedAt: NOW,
+        }],
+        generatedAt: NOW,
+        sourceUpdatedAt: NOW,
+        model: "test",
+      },
+      captures: [{
+        id: "n1",
+        kind: "note",
+        content: dump,
+        maturity: "fleeting",
+        projectId: "p1",
+        createdAt: NOW,
+        modifiedAt: NOW,
+      }],
+      actions: [],
+      agentEvents: [{
+        id: "session-2",
+        userId: "u1",
+        projectId: "p1",
+        source: "cursor",
+        kind: "handoff",
+        title: "Session 2 writeback",
+        body: eventBody,
+        suggestedActions: ["Keep the packet warmer than PRODUCT.md"],
+        status: "reviewed",
+        createdAt: NOW,
+      }],
+    });
+    expect(brief).toMatch(/- Short summary: Session 2 writeback/i);
+    expect(brief).not.toMatch(/- Short summary: Dogfood dump/i);
+    expect(tryingToBecome(brief).toLowerCase()).toContain("session 2 should start warm");
+    expect(tryingToBecome(brief).toLowerCase()).not.toContain("dogfood dump");
+    expect(tryingToBecome(brief).toLowerCase()).not.toContain("warmer than product.md");
+    expect(brief).toMatch(/Product: dump/i);
+    expect(brief.toLowerCase()).toMatch(/widen oauth/);
+    expect(brief.toLowerCase()).toMatch(/three panels/);
+    expect(brief.toLowerCase()).toMatch(/rebuild the canvas/);
+    expect(nextActionLine(brief).toLowerCase()).toContain("warmer than product.md");
+    expect(nextActionLine(brief).toLowerCase()).not.toContain("silent synthesis");
+    const decisionSection = brief.split("### Accepted memory")[1]?.split("###")[0] ?? "";
+    expect(decisionSection.toLowerCase()).toMatch(/three panels/);
+    expect(brief).not.toMatch(/Continue: Dogfood dump/i);
+    expect(brief).not.toMatch(/\bno toke\.\.\./i);
+    const recentSection = brief.split("## Recent changes")[1]?.split("##")[0] ?? "";
+    expect(recentSection).toMatch(/Session 2 writeback/);
+    expect(recentSection).not.toMatch(/Dogfood dump on the real hypher project/);
+    const constraintSection = brief.split("### Important constraints")[1]?.split("##")[0] ?? "";
+    expect(constraintSection.match(/widen oauth/gi)?.length).toBe(1);
+    expect(constraintSection.match(/three panels/gi)?.length).toBe(1);
+    expect(constraintSection.match(/rebuild the canvas/gi)?.length).toBe(1);
+    assertPacketDoesNotEchoDump(brief, dump);
   });
 
   it("lets a new constraint in even when eight older filler lines exist", () => {
@@ -376,5 +664,309 @@ describe("Unit 3 compile identity, do not echo the dump", () => {
     });
     expect(compiled.constraints.some((line) => /oauth/i.test(line))).toBe(true);
     expect(compiled.constraints[0]?.toLowerCase()).toMatch(/oauth/);
+  });
+
+  it("keeps one Merge PR next-action stem and compiles Pulse stays as a decision", () => {
+    const compiled = compileHeuristicMemory({
+      projectName: "Hypher",
+      items: [{ content: LIVE_DUMP_2026_09_06 }],
+      events: [{
+        kind: "handoff",
+        source: "cursor",
+        title: "Last-handoff identity always wins at packet compile",
+        body: "Do not widen OAuth. Pulse stays three panels. Do not rebuild the canvas. GitHub is a signal, not the agent door. Cursor is the door.",
+        suggestedActions: ["Merge PR 62 and deploy Vercel plus Convex so production get_project_context drops the dump echo"],
+        createdAt: NOW,
+      }],
+      existing: {
+        nextActions: [
+          { title: "Merge PR 62 and deploy Convex so production memory and packet compile drop the dump echo", rationale: "x", status: "suggested", createdAt: NOW, updatedAt: NOW },
+          { title: "Merge PR 62 and deploy Convex so production memory drops the dogfood dump echo", rationale: "x", status: "suggested", createdAt: NOW, updatedAt: NOW },
+        ],
+        activeTasks: [
+          "Merge PR 62 and deploy Vercel plus Convex so production get_project_context drops the dump echo",
+          "Merge PR 62 and deploy Convex so production memory and packet compile drop the dump echo",
+        ],
+      },
+      now: NOW,
+    });
+    expect(compiled.nextActions.filter((action) => /merge pr 62/i.test(action.title))).toHaveLength(1);
+    expect(compiled.activeTasks.filter((task) => /merge pr 62/i.test(task))).toHaveLength(1);
+    expect(compiled.importantDecisions.some((line) => /three panels/i.test(line))).toBe(true);
+    expect(compiled.importantDecisions.some((line) => /cursor is the door/i.test(line))).toBe(true);
+    expect(compiled.currentGoal?.toLowerCase()).toContain("session 2 should start warm");
+  });
+});
+
+describe("Unit 4 hook-shaped receipts do not become identity", () => {
+  const hookBody = [
+    "Cursor session-end receipt. One handoff event. Not a compiled Builder Brief. No product status inferred.",
+    "",
+    "Repo: litterthanlit/hypher",
+    "Branch: main",
+    "",
+    "Local git status (files only):",
+    "- M hypher-web/shared/projectMemoryGenerate.ts",
+  ].join("\n");
+
+  it("does not treat git-status sessionEnd receipts as product work", () => {
+    expect(isHookShapedReceipt("Cursor session ended (litterthanlit/hypher)", hookBody)).toBe(true);
+    expect(isProductWorkReceipt({
+      kind: "handoff",
+      source: "cursor",
+      title: "Cursor session ended (litterthanlit/hypher)",
+      body: hookBody,
+    })).toBe(false);
+    expect(isWorkReceipt("handoff", "cursor")).toBe(true);
+  });
+
+  it("does not copy a hook-shaped receipt into summary or direction", () => {
+    const applied = applyReceiptToMemory({
+      existing: null,
+      event: {
+        id: "hook-1",
+        kind: "handoff",
+        source: "cursor",
+        title: "Cursor session ended (litterthanlit/hypher)",
+        body: hookBody,
+      },
+      now: NOW,
+    });
+    expect(applied.applied).toBe(false);
+
+    const compiled = compileHeuristicMemory({
+      projectName: "Hypher",
+      items: [],
+      events: [{
+        kind: "handoff",
+        source: "cursor",
+        title: "Cursor session ended (litterthanlit/hypher)",
+        body: hookBody,
+      }],
+      now: NOW,
+    });
+    expect(compiled.summary.toLowerCase()).not.toContain("session-end receipt");
+    expect(compiled.currentDirection.toLowerCase()).not.toContain("session-end receipt");
+    expect(compiled.handoffNotes.join(" ").toLowerCase()).not.toContain("no product status inferred");
+  });
+
+  it("still thickens identity from a real agent handoff body", () => {
+    const body = [
+      "Compiled identity instead of echoing the dump.",
+      "Constraints stay whole. Pulse stays three panels.",
+      "Next move: keep session-end git-status receipts out of summary.",
+    ].join(" ");
+    const applied = applyReceiptToMemory({
+      existing: null,
+      event: {
+        id: "real-1",
+        kind: "handoff",
+        source: "cursor",
+        title: "Closed packet echo on hypher",
+        body,
+        suggestedActions: ["Keep session-end git-status receipts out of summary"],
+      },
+      now: NOW,
+    });
+    expect(applied.applied).toBe(true);
+    if (!applied.applied) return;
+    expect(applied.memory.summary.toLowerCase()).toContain("closed packet echo");
+    expect(applied.memory.summary.toLowerCase()).not.toContain("session-end receipt");
+    expect(applied.memory.nextActions[0]?.title.toLowerCase()).toContain("git-status");
+    expect(applied.memory.handoffNotes.join(" ").toLowerCase()).toContain("closed packet echo");
+    expect(applied.memory.summary).not.toMatch(/\.\.\./);
+    expect(applied.memory.handoffNotes.every((note) => !note.includes("..."))).toBe(true);
+
+    const brief = compileBuilderBrief({
+      project,
+      memory: asMemory(applied.memory),
+      captures: [],
+      actions: [],
+      agentEvents: [{
+        id: "real-1",
+        userId: "u1",
+        projectId: "p1",
+        source: "cursor",
+        kind: "handoff",
+        title: "Closed packet echo on hypher",
+        body,
+        status: "reviewed",
+        createdAt: NOW,
+      }],
+    });
+    expect(brief.toLowerCase()).toContain("closed packet echo");
+    expect(brief.toLowerCase()).toContain("pulse stays three panels");
+    expect(brief).not.toMatch(/\bno toke\.\.\./i);
+    expect(nextActionLine(brief).toLowerCase()).not.toContain("continue: dogfood");
+  });
+
+  it("lifts intact do-not lines out of a real handoff body", () => {
+    const applied = applyReceiptToMemory({
+      existing: null,
+      event: {
+        id: "handoff-constraints",
+        kind: "handoff",
+        source: "cursor",
+        title: "Units 4-5: writeback quality and one next move",
+        body: "PR 62. Do not: widen OAuth, rebuild the canvas. Pulse stays three panels. Next move: deploy Convex so production receipt filtering is live.",
+        suggestedActions: ["Deploy Convex so isProductWorkReceipt and OAuth activity are live in production"],
+      },
+      now: NOW,
+    });
+    expect(applied.applied).toBe(true);
+    if (!applied.applied) return;
+    expect(applied.memory.constraints.some((line) => /oauth/i.test(line))).toBe(true);
+    expect(applied.memory.constraints.some((line) => /canvas/i.test(line))).toBe(true);
+    expect(applied.memory.constraints.some((line) => /pulse/i.test(line) && /three panels/i.test(line))).toBe(true);
+    expect(applied.memory.constraints.every((line) => !line.includes("..."))).toBe(true);
+    expect(applied.memory.nextActions[0]?.title).toContain("isProductWorkReceipt");
+    expect(applied.memory.summary).toContain("Units 4-5");
+    expect(applied.memory.summary).not.toMatch(/\.\.\./);
+    expect(applied.memory.summary).not.toMatch(/session-end receipt/i);
+  });
+
+  it("stores the handoff title instead of a 180-character mash", () => {
+    const title = "Writeback titles replace mashed 180-char recent-change mush";
+    const body = [
+      "PR 62 commit 8460a4e on litterthanlit/hypher, branch cursor/agent-context-packet-d1ed.",
+      "Recent changes now show the writeback title, not a 180-character mash of title plus body.",
+      "Do not widen OAuth. Pulse stays three panels. Do not rebuild the canvas.",
+      "Next: merge PR 62 and deploy Convex so production memory and packet compile drop the dump echo.",
+    ].join(" ");
+    expect(summarizeEvent(title, body)).toBe(title);
+    expect(summarizeEvent(title, body)).not.toMatch(/\.\.\./);
+    const applied = applyReceiptToMemory({
+      existing: null,
+      event: {
+        id: "title-only",
+        kind: "handoff",
+        source: "cursor",
+        title,
+        body,
+        suggestedActions: ["Merge PR 62 and deploy Convex so production memory and packet compile drop the dump echo"],
+      },
+      now: NOW,
+    });
+    expect(applied.applied).toBe(true);
+    if (!applied.applied) return;
+    expect(applied.memory.summary).toBe(title);
+    expect(applied.memory.recentChanges[0]).toBe(title);
+    expect(applied.memory.handoffNotes[0]).toBe(title);
+    expect(applied.memory.summary).not.toMatch(/wri\.\.\.|reprin\.\.\.|butto\.\.\./);
+    expect(applied.memory.recentChanges.join(" ")).not.toMatch(/\.\.\./);
+  });
+
+  it("replaces a sticky dump-echo summary when a real handoff lands", () => {
+    const applied = applyReceiptToMemory({
+      existing: {
+        summary: LIVE_DUMP_2026_09_06,
+        currentGoal: "Dogfood dump on the real hypher project.",
+        currentDirection: "Dogfood dump on the real hypher project.",
+        constraints: ["Do not invent dumps"],
+      },
+      event: {
+        id: "session-2",
+        kind: "handoff",
+        source: "cursor",
+        title: "Session 2 writeback",
+        body: "Do not widen OAuth. Pulse stays three panels. Do not rebuild the canvas. Next move: keep the packet warmer than PRODUCT.md.",
+        suggestedActions: ["Keep the packet warmer than PRODUCT.md"],
+        createdAt: NOW,
+      },
+      now: NOW,
+    });
+    expect(applied.applied).toBe(true);
+    if (!applied.applied) return;
+    expect(applied.memory.summary.toLowerCase()).not.toContain("dogfood dump");
+    expect(applied.memory.summary.toLowerCase()).toContain("session 2 writeback");
+    expect(applied.memory.currentGoal?.toLowerCase()).not.toContain("dogfood dump");
+    expect(applied.memory.currentGoal?.toLowerCase()).toMatch(/warmer than product\.md|keep the packet/i);
+    expect(applied.memory.currentDirection.toLowerCase()).not.toBe("dogfood dump on the real hypher project.");
+    expect(applied.memory.constraints.some((line) => /oauth/i.test(line))).toBe(true);
+    expect(applied.memory.constraints.some((line) => /pulse/i.test(line) && /three panels/i.test(line))).toBe(true);
+    expect(applied.memory.constraints.some((line) => /canvas/i.test(line))).toBe(true);
+    expect(applied.memory.constraints.every((line) => !line.includes("..."))).toBe(true);
+    expect(applied.memory.nextActions[0]?.title.toLowerCase()).toContain("warmer than product.md");
+  });
+
+  it("does not let a compiler-changelog receipt replace product-state identity or crowd it out of notes", () => {
+    const wait = "Wait-for-review next when merge is locked";
+    const changelog = "Changelog titles leave the fetch window";
+    const applied = applyReceiptToMemory({
+      existing: {
+        summary: wait,
+        currentGoal: "Session 2 should start warm",
+        currentDirection: "Product: dump → one note agents read → writeback.",
+        recentChanges: [wait, "Bare PR no longer reroutes the Hypher brief to GitHub"],
+        handoffNotes: [wait, "Bare PR no longer reroutes the Hypher brief to GitHub"],
+        constraints: ["Do not merge until reviewed."],
+      },
+      event: {
+        id: "changelog-receipt",
+        kind: "handoff",
+        source: "cursor",
+        title: changelog,
+        body: "Do not widen OAuth. Pulse stays three panels. Do not rebuild the canvas. Do not merge until reviewed.",
+        createdAt: NOW,
+      },
+      now: NOW + 1,
+    });
+    expect(applied.applied).toBe(true);
+    if (!applied.applied) return;
+    expect(applied.memory.summary).toBe(wait);
+    expect(applied.memory.summary).not.toBe(changelog);
+    expect(applied.memory.recentChanges[0]).toBe(wait);
+    expect(applied.memory.handoffNotes[0]).toBe(wait);
+    expect(applied.memory.recentChanges).toContain(wait);
+    expect(applied.memory.handoffNotes).toContain(wait);
+    expect(applied.memory.currentDirection).not.toBe(changelog);
+  });
+});
+
+describe("Unit 3 AI synthesis must not restore dump echo", () => {
+  it("keeps heuristic identity when Claude copies the dump as summary and Continue dump as next", () => {
+    const dump = LIVE_DUMP_2026_09_06;
+    const heuristic = compileHeuristicMemory({
+      projectName: "Hypher",
+      items: [{ content: dump }],
+      events: [{
+        kind: "handoff",
+        source: "cursor",
+        title: "Session 2 writeback",
+        body: "Do not widen OAuth. Pulse stays three panels. Do not rebuild the canvas. Next move: keep the packet warmer than PRODUCT.md.",
+        suggestedActions: ["Keep the packet warmer than PRODUCT.md"],
+        createdAt: NOW,
+      }],
+      existing: {
+        summary: dump,
+        currentGoal: "Dogfood dump on the real hypher project.",
+        currentDirection: "Dogfood dump on the real hypher project.",
+      },
+      now: NOW,
+    });
+    const merged = mergeAiShapeIntoSnapshot(heuristic, {
+      summary: dump,
+      currentGoal: "Dogfood dump on the real hypher project.",
+      currentDirection: "Dogfood dump on the real hypher project.",
+      recentChanges: [dump],
+      constraints: ["Do not: invent dumps, gate bind on a github token, or treat try hypher as the home. no toke..."],
+      openQuestions: [],
+      nextActions: [{
+        title: "Continue: Dogfood dump on the real hypher project.",
+        rationale: "Compiled from the latest dump or writeback.",
+      }],
+    }, NOW, [dump]);
+
+    expect(merged.summary.toLowerCase()).toContain("session 2 writeback");
+    expect(merged.summary.toLowerCase()).not.toContain("dogfood dump");
+    expect(merged.currentGoal?.toLowerCase()).toContain("session 2 should start warm");
+    expect(merged.currentGoal?.toLowerCase()).not.toContain("dogfood dump");
+    expect(merged.currentDirection.toLowerCase()).toContain("product:");
+    expect(merged.nextActions[0]?.title.toLowerCase()).toContain("warmer than product.md");
+    expect(merged.nextActions.some((action) => /^continue:/i.test(action.title))).toBe(false);
+    expect(merged.constraints.some((line) => /oauth/i.test(line))).toBe(true);
+    expect(merged.constraints.some((line) => /three panels/i.test(line))).toBe(true);
+    expect(merged.constraints.some((line) => /canvas/i.test(line))).toBe(true);
+    expect(merged.constraints.every((line) => !line.includes("..."))).toBe(true);
   });
 });

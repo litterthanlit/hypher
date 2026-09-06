@@ -192,7 +192,8 @@ export function buildLoadOnceInstruction(git) {
     "2. If matched is true: call get_project_context once with that projectId. Treat the Builder Brief as working context for the rest of this session.",
     `3. If matched is false: tell the builder to link the repo at ${INTEGRATIONS_URL}. Do not invent project status from the repo.`,
     "4. At session end, post one handoff with post_agent_event (kind: handoff, source: cursor), including repo, branch, and commit SHA when available. Do not spam build_log.",
-    "5. /hypher-brief and /hypher-handoff stay as manual overrides. Prefer one event total — if you already posted a handoff, do not post another.",
+    "5. /hypher-brief and /hypher-handoff stay as manual overrides. Prefer one event total.",
+    "6. This start instruction is not a posted handoff. Call post_agent_event at session end even though this text names those tools. The sessionEnd hook does not post unless a Hypher token is in the hook process.",
   );
   return lines.join("\n");
 }
@@ -452,13 +453,20 @@ export function shouldSkipSessionEnd(input = {}, marker = null) {
   return null;
 }
 
+export function textLooksLikePostedHandoff(text) {
+  const slice = String(text ?? "");
+  if (!slice.trim()) return false;
+  return /"(?:name|tool)"\s*:\s*"post_agent_event"/i.test(slice)
+    && /"kind"\s*:\s*"handoff"/i.test(slice);
+}
+
 export function transcriptHasHandoff(transcriptPath) {
   const file = String(transcriptPath ?? "").trim();
   if (!file) return false;
   try {
     const raw = readFileSync(file, "utf8");
     const slice = raw.length > 200_000 ? raw.slice(-200_000) : raw;
-    return /post_agent_event/i.test(slice) && /handoff/i.test(slice);
+    return textLooksLikePostedHandoff(slice);
   } catch {
     return false;
   }
@@ -494,12 +502,6 @@ export async function runSessionEnd({
     return { skipped: "agent-already-posted" };
   }
 
-  const matchedFlag = env.HYPHER_HOOK_MATCHED ?? marker?.matched;
-  if (matchedFlag === "0" || matchedFlag === false) {
-    if (sessionId) writeMarker(sessionId, { ...(marker ?? {}), phase: "end", posted: false, skip: "unmatched" }, env);
-    return { skipped: "unmatched" };
-  }
-
   const creds = readCredentials(env);
   if (!creds.apiKey && !creds.accessToken) {
     if (sessionId) writeMarker(sessionId, { ...(marker ?? {}), phase: "end", posted: false, skip: "no-credential" }, env);
@@ -513,8 +515,39 @@ export async function runSessionEnd({
     return { skipped: "no-repo" };
   }
 
-  const projectId = env.HYPHER_HOOK_PROJECT_ID || marker?.projectId || "";
-  const projectName = env.HYPHER_HOOK_PROJECT_NAME || marker?.projectName || "";
+  let matchedFlag = env.HYPHER_HOOK_MATCHED ?? marker?.matched;
+  let projectId = env.HYPHER_HOOK_PROJECT_ID || marker?.projectId || "";
+  let projectName = env.HYPHER_HOOK_PROJECT_NAME || marker?.projectName || "";
+
+  if ((matchedFlag === "0" || matchedFlag === false) && creds.accessToken) {
+    try {
+      const resolvedPayload = await callMcpTool({
+        url: mcpUrl(env),
+        token: creds.accessToken,
+        name: "resolve_project_for_repo",
+        args: identity.branch
+          ? { repo: identity.remote || identity.repo, branch: identity.branch }
+          : { repo: identity.remote || identity.repo },
+        fetchImpl,
+      });
+      const resolved = extractStructured(resolvedPayload);
+      if (resolved?.matched && resolved.projectId) {
+        matchedFlag = "1";
+        projectId = String(resolved.projectId);
+        if (typeof resolved.projectName === "string" && resolved.projectName.trim()) {
+          projectName = resolved.projectName.trim();
+        }
+      }
+    } catch {
+      // Still unmatched. Skip rather than invent a project.
+    }
+  }
+
+  if (matchedFlag === "0" || matchedFlag === false) {
+    if (sessionId) writeMarker(sessionId, { ...(marker ?? {}), phase: "end", posted: false, skip: "unmatched" }, env);
+    return { skipped: "unmatched" };
+  }
+
   const payload = buildHandoffPayload({ git: identity, input, projectName });
 
   try {
