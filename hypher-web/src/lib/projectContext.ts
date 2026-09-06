@@ -375,12 +375,11 @@ export function selectCompiledIdentity(params: {
   const eventSentences = productEvents.flatMap((event) => splitSentences(`${event.title}. ${event.body}`));
   const dumpSentences = [...dumpTexts, stickyDump].filter(Boolean).flatMap(splitSentences);
 
-  // A sticky dump summary stays "usable" once the dump capture rolls off the
-  // packet window. Last product handoff then has to win at read time.
-  const summary = (!isUnusableCompiledIdentity(storedSummary, dumpTexts) && !looksLikeIdentityDump(storedSummary)
-    ? storedSummary
-    : "")
-    || latestReceipt
+  const storedOk = !isUnusableCompiledIdentity(storedSummary, dumpTexts) && !looksLikeIdentityDump(storedSummary);
+  // Last product handoff is session 2 identity. A stored dump, dump headline, or
+  // older summary must not beat the writeback once a real receipt exists.
+  const summary = latestReceipt
+    || (storedOk ? storedSummary : "")
     || (!isUnusableCompiledIdentity(params.projectDescription, dumpTexts)
       ? normalizeText(params.projectDescription)
       : "")

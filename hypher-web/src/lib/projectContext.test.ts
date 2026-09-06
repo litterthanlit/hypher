@@ -225,7 +225,7 @@ describe("compileBuilderBrief", () => {
       generatedAt: 123,
     });
 
-    expect(packet).toContain("Hypher keeps AI builder agents on track");
+    expect(packet).toContain("- Short summary: Current build audited");
     expect(packet).toContain("Ship the first Builder Brief workflow inside Project Pulse.");
     expect(packet).toContain("Implement Copy Builder Brief in Project Pulse");
     expect(packet).toContain("- Next action: [next:accepted] Implement Copy Builder Brief in Project Pulse");
@@ -747,6 +747,47 @@ describe("compileBuilderBrief", () => {
     expect(packet).not.toMatch(/- Short summary: Dogfood dump/);
     expect(packet).toMatch(/Product: dump → one note agents read → writeback/);
     expect(packet).toMatch(/Do not widen OAuth/);
+    expect(packet).toContain("- Target tool: Cursor");
+  });
+
+  it("replaces a stored dump headline when a product handoff exists", () => {
+    const headline =
+      "Dogfood dump on the real hypher project. Product: dump → one note agents read → writeback.";
+    const packet = compileBuilderBrief({
+      project: { ...project, name: "hypher", description: "" },
+      memory: {
+        ...memory,
+        summary: headline,
+        currentGoal: "",
+        currentDirection: "",
+      },
+      captures: Array.from({ length: 5 }, (_, index): AnyObject => ({
+        id: `n-new-${index}`,
+        kind: "note",
+        content: `Later note ${index}`,
+        maturity: "fleeting",
+        projectId: "p1",
+        createdAt: 100 + index,
+        modifiedAt: 400 + index,
+      })),
+      actions: [],
+      agentEvents: [{
+        id: "session-2",
+        userId: "u1",
+        projectId: "p1",
+        source: "cursor",
+        kind: "handoff",
+        title: "Last-handoff identity always wins at packet compile",
+        body: "Do not widen OAuth. Pulse stays three panels. Do not rebuild the canvas.",
+        suggestedActions: ["Merge PR 62 and deploy Vercel plus Convex so production get_project_context drops the dump echo"],
+        status: "reviewed",
+        createdAt: 900,
+      }],
+      generatedAt: 900,
+    });
+
+    expect(packet).toMatch(/- Short summary: Last-handoff identity always wins at packet compile/);
+    expect(packet).not.toMatch(/- Short summary: Dogfood dump/);
     expect(packet).toContain("- Target tool: Cursor");
   });
 
