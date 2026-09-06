@@ -318,6 +318,19 @@ export function looksLikeDecision(item: string): boolean {
   return false;
 }
 
+/** Packet-compiler changelog titles are last-session noise, not session 2 identity. */
+export function looksLikeBriefSelfTalk(value: string | undefined | null): boolean {
+  const text = normalize(value).toLowerCase();
+  if (!text) return false;
+  if (/\bsuggested next move is\b/.test(text)) return true;
+  if (/\bpacket current state\b/.test(text)) return true;
+  if (/\bpacket slots\b/.test(text)) return true;
+  if (/\bchangelog titles\b/.test(text)) return true;
+  if (/\baccepted memory\b/.test(text) && /\b(fill|crowd)/.test(text)) return true;
+  if (/\bdump compile\b/.test(text) || /\bcompiled from the latest dump\b/.test(text)) return true;
+  return false;
+}
+
 export function looksLikeProductDecision(item: string): boolean {
   if (looksLikeDoNotDo(item)) return false;
   if (looksLikeDecision(item)) return true;

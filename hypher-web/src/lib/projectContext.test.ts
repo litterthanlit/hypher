@@ -985,7 +985,7 @@ describe("compileBuilderBrief", () => {
         projectId: "p1",
         source: "cursor",
         kind: "handoff",
-        title: "Dump-only constraints keep packet slots",
+        title: "Wait-for-review next when merge is locked",
         body: "Do not widen OAuth. Pulse stays three panels. Do not rebuild the canvas. Do not merge until reviewed.",
         suggestedActions: [merge],
         status: "new",
@@ -993,8 +993,8 @@ describe("compileBuilderBrief", () => {
       }],
       generatedAt: 900,
     });
-    expect(packet).toMatch(/- Short summary: Dump-only constraints keep packet slots/);
-    expect(packet).toMatch(/- Current state: Dump-only constraints keep packet slots/);
+    expect(packet).toMatch(/- Short summary: Wait-for-review next when merge is locked/);
+    expect(packet).toMatch(/- Current state: Wait-for-review next when merge is locked/);
     expect(packet).not.toMatch(/- Current state:.*Dogfood dump/);
     expect(packet).not.toMatch(/- Current state:.*Product: dump/);
     expect(packet).toMatch(/Do not merge until reviewed/);
@@ -1007,7 +1007,7 @@ describe("compileBuilderBrief", () => {
     expect(taskSection).not.toMatch(/Merge PR 62/);
     expect(taskSection).toMatch(/Wait for review before merging PR 62/);
     const reviewSection = packet.split("### Needs review")[1]?.split("###")[0] ?? "";
-    expect(reviewSection).not.toMatch(/Dump-only constraints keep packet slots/);
+    expect(reviewSection).not.toMatch(/Wait-for-review next when merge is locked/);
   });
 
   it("compiles today's live production shape: last-handoff identity, product aim, compiled decisions, merge lock honored", () => {
@@ -1092,6 +1092,39 @@ describe("compileBuilderBrief", () => {
       actions: [],
       agentEvents: [
         {
+          id: "changelog",
+          userId: "u1",
+          projectId: "p1",
+          source: "cursor",
+          kind: "handoff",
+          title: "Changelog titles do not fill Accepted memory",
+          body: latestBody,
+          status: "reviewed",
+          createdAt: 1100,
+        },
+        {
+          id: "dump-compile",
+          userId: "u1",
+          projectId: "p1",
+          source: "cursor",
+          kind: "handoff",
+          title: "Suggested next move is Start with, not dump compile",
+          body: latestBody,
+          status: "reviewed",
+          createdAt: 1050,
+        },
+        {
+          id: "packet-state",
+          userId: "u1",
+          projectId: "p1",
+          source: "cursor",
+          kind: "handoff",
+          title: "Packet current state is last-handoff",
+          body: latestBody,
+          status: "reviewed",
+          createdAt: 1000,
+        },
+        {
           id: "latest",
           userId: "u1",
           projectId: "p1",
@@ -1138,12 +1171,15 @@ describe("compileBuilderBrief", () => {
           createdAt: 800,
         },
       ],
-      generatedAt: 900,
+      generatedAt: 1100,
     });
 
-    expect(packet).toMatch(/- Short summary: Dump-only constraints keep packet slots/);
+    expect(packet).toMatch(/- Short summary: Wait-for-review next when merge is locked/);
     expect(packet).not.toMatch(/- Short summary: Dogfood dump/);
-    expect(packet).toMatch(/- Current state: Dump-only constraints keep packet slots/);
+    expect(packet).not.toMatch(/- Short summary: Changelog titles/);
+    expect(packet).not.toMatch(/- Short summary: Suggested next move is Start with/);
+    expect(packet).not.toMatch(/- Short summary: Dump-only constraints keep packet slots/);
+    expect(packet).toMatch(/- Current state: Wait-for-review next when merge is locked/);
     expect(packet).not.toMatch(/- Current state:.*Dogfood dump/);
     expect(packet).not.toMatch(/- Current state: active - Product: dump/);
     expect(packet).toMatch(/Trying to become: Session 2 should start warm/);

@@ -17,6 +17,7 @@ import {
   summarizeEvent,
   actionBlockedByConstraints,
   honorConstraintBlockedNext,
+  looksLikeBriefSelfTalk,
   looksLikeProductDecision,
 } from "./projectMemoryGenerate";
 import { compileBuilderBrief } from "../src/lib/projectContext";
@@ -209,6 +210,19 @@ describe("actionBlockedByConstraints", () => {
       ["Merge PR 62 and deploy Convex"],
       ["Do not rebuild the canvas."],
     )).toBeUndefined();
+  });
+});
+
+describe("looksLikeBriefSelfTalk", () => {
+  it("skips packet-compiler changelog titles and keeps product-state handoffs", () => {
+    expect(looksLikeBriefSelfTalk("Changelog titles do not fill Accepted memory")).toBe(true);
+    expect(looksLikeBriefSelfTalk("Suggested next move is Start with, not dump compile")).toBe(true);
+    expect(looksLikeBriefSelfTalk("Packet current state is last-handoff")).toBe(true);
+    expect(looksLikeBriefSelfTalk("Dump-only constraints keep packet slots")).toBe(true);
+    expect(looksLikeBriefSelfTalk("Wait-for-review next when merge is locked")).toBe(false);
+    expect(looksLikeBriefSelfTalk("Keep dump echo out of identity")).toBe(false);
+    expect(looksLikeBriefSelfTalk("Session 2 writeback")).toBe(false);
+    expect(looksLikeBriefSelfTalk("Current build audited")).toBe(false);
   });
 });
 

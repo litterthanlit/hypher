@@ -28,11 +28,11 @@ import {
   isNextActionClone,
   isProductWorkReceipt,
   isUnusableCompiledIdentity,
+  looksLikeBriefSelfTalk,
   looksLikeConstraint,
   looksLikeDoNotDo,
   looksLikeProductDecision,
   splitSentences,
-  summarizeEvent,
   uniqueConstraintLines,
   CONSTRAINT_ARRAY_LIMIT,
 } from "../../shared/projectMemoryGenerate";
@@ -407,24 +407,22 @@ export function selectCompiledIdentity(params: {
     .slice()
     .sort((a, b) => b.createdAt - a.createdAt);
   const latestEvent = productEvents[0];
-  const latestTitle = latestEvent ? normalizeText(latestEvent.title) : "";
-  const latestReceipt = latestEvent
-    ? (!isUnusableCompiledIdentity(latestTitle, dumpTexts) ? latestTitle : summarizeEvent(latestEvent.title, latestEvent.body))
-    : "";
+  const identityEvent = productEvents.find((event) => {
+    const title = normalizeText(event.title);
+    return Boolean(title)
+      && !isUnusableCompiledIdentity(title, dumpTexts)
+      && !looksLikeBriefSelfTalk(title);
+  });
+  const latestReceipt = identityEvent ? normalizeText(identityEvent.title) : "";
+  const hasProductHandoffs = productEvents.length > 0;
   const eventSentences = productEvents.flatMap((event) => splitSentences(`${event.title}. ${event.body}`));
   const dumpSentences = [...dumpTexts, stickyDump].filter(Boolean).flatMap(splitSentences);
 
   const storedOk = !isUnusableCompiledIdentity(storedSummary, dumpTexts) && !looksLikeIdentityDump(storedSummary);
-  // Last product handoff is session 2 identity. A stored dump, dump headline, or
-  // older summary must not beat the writeback once a real receipt exists.
-  const summary = latestReceipt
-    || (storedOk ? storedSummary : "")
-    || (!isUnusableCompiledIdentity(params.projectDescription, dumpTexts)
-      ? normalizeText(params.projectDescription)
-      : "")
-    || (dumpTexts[0] ? dumpHeadline(dumpTexts[0]) : "")
-    || (stickyDump ? dumpHeadline(stickyDump) : "");
-
+  const fromStored = storedOk ? storedSummary : "";
+  const fromDescription = !isUnusableCompiledIdentity(params.projectDescription, dumpTexts)
+    ? normalizeText(params.projectDescription)
+    : "";
   const storedGoal = normalizeText(params.memory?.currentGoal);
   const eventGoal = extractCurrentTask(eventSentences)
     || normalizeText(latestEvent?.suggestedActions?.[0]);
@@ -434,17 +432,25 @@ export function selectCompiledIdentity(params: {
     eventGoal,
     dumpGoal,
   ].filter(Boolean);
-  const storedGoalOk = !isUnusableCompiledIdentity(storedGoal, echoCorpus)
-    && !looksLikeIdentityDump(storedGoal)
-    && !(latestReceipt && isNextActionClone(storedGoal, nextTitles));
   const aim = extractProductAim([...dumpSentences, ...eventSentences], {
     echoCorpus,
     nextTitles,
-    summary,
+    summary: latestReceipt || fromStored,
   });
+  // Last product-state handoff is session 2 identity. Compiler changelog titles
+  // ("Suggested next move is…", "packet slots") walk back. Dump never beats a writeback.
+  const summary = latestReceipt
+    || fromStored
+    || (hasProductHandoffs ? (aim || "") : "")
+    || fromDescription
+    || (!hasProductHandoffs && dumpTexts[0] ? dumpHeadline(dumpTexts[0]) : "")
+    || (!hasProductHandoffs && stickyDump ? dumpHeadline(stickyDump) : "");
+  const storedGoalOk = !isUnusableCompiledIdentity(storedGoal, echoCorpus)
+    && !looksLikeIdentityDump(storedGoal)
+    && !(hasProductHandoffs && isNextActionClone(storedGoal, nextTitles));
   const currentGoal = storedGoalOk
     ? storedGoal
-    : latestReceipt
+    : hasProductHandoffs
       ? (aim || eventGoal || dumpGoal)
       : (dumpGoal || eventGoal || aim || "");
 
