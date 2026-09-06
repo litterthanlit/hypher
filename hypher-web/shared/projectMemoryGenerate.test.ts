@@ -13,6 +13,7 @@ import {
   isSkeletonSummary,
   isWorkReceipt,
   looksLikeDoNotDo,
+  mergeAiShapeIntoSnapshot,
 } from "./projectMemoryGenerate";
 import { compileBuilderBrief } from "../src/lib/projectContext";
 import type { Project, ProjectMemory } from "../src/types";
@@ -625,5 +626,52 @@ describe("Unit 4 hook-shaped receipts do not become identity", () => {
     expect(applied.memory.constraints.some((line) => /canvas/i.test(line))).toBe(true);
     expect(applied.memory.constraints.every((line) => !line.includes("..."))).toBe(true);
     expect(applied.memory.nextActions[0]?.title.toLowerCase()).toContain("warmer than product.md");
+  });
+});
+
+describe("Unit 3 AI synthesis must not restore dump echo", () => {
+  it("keeps heuristic identity when Claude copies the dump as summary and Continue dump as next", () => {
+    const dump = LIVE_DUMP_2026_09_06;
+    const heuristic = compileHeuristicMemory({
+      projectName: "Hypher",
+      items: [{ content: dump }],
+      events: [{
+        kind: "handoff",
+        source: "cursor",
+        title: "Session 2 writeback",
+        body: "Do not widen OAuth. Pulse stays three panels. Do not rebuild the canvas. Next move: keep the packet warmer than PRODUCT.md.",
+        suggestedActions: ["Keep the packet warmer than PRODUCT.md"],
+        createdAt: NOW,
+      }],
+      existing: {
+        summary: dump,
+        currentGoal: "Dogfood dump on the real hypher project.",
+        currentDirection: "Dogfood dump on the real hypher project.",
+      },
+      now: NOW,
+    });
+    const merged = mergeAiShapeIntoSnapshot(heuristic, {
+      summary: dump,
+      currentGoal: "Dogfood dump on the real hypher project.",
+      currentDirection: "Dogfood dump on the real hypher project.",
+      recentChanges: [dump],
+      constraints: ["Do not: invent dumps, gate bind on a github token, or treat try hypher as the home. no toke..."],
+      openQuestions: [],
+      nextActions: [{
+        title: "Continue: Dogfood dump on the real hypher project.",
+        rationale: "Compiled from the latest dump or writeback.",
+      }],
+    }, NOW, [dump]);
+
+    expect(merged.summary.toLowerCase()).toContain("session 2 writeback");
+    expect(merged.summary.toLowerCase()).not.toContain("dogfood dump");
+    expect(merged.currentGoal?.toLowerCase()).toMatch(/warmer than product\.md|keep the packet/i);
+    expect(merged.currentDirection.toLowerCase()).toContain("product:");
+    expect(merged.nextActions[0]?.title.toLowerCase()).toContain("warmer than product.md");
+    expect(merged.nextActions.some((action) => /^continue:/i.test(action.title))).toBe(false);
+    expect(merged.constraints.some((line) => /oauth/i.test(line))).toBe(true);
+    expect(merged.constraints.some((line) => /three panels/i.test(line))).toBe(true);
+    expect(merged.constraints.some((line) => /canvas/i.test(line))).toBe(true);
+    expect(merged.constraints.every((line) => !line.includes("..."))).toBe(true);
   });
 });

@@ -259,7 +259,7 @@ export function extractCurrentTask(sentences: string[]): string | undefined {
     const match = normalize(line).match(
       /^(?:next(?:\s+move|\s+action|\s+step)?|current(?:\s+task|\s+goal)?|todo|need to)\s*[:\-]\s*(.+)$/i
     );
-    if (match?.[1] && !looksLikeConstraint(match[1])) {
+    if (match?.[1] && !looksLikeDoNotDo(match[1])) {
       return normalize(match[1]).replace(/[.]+$/, "");
     }
   }
@@ -408,7 +408,15 @@ export function compileHeuristicMemory(input: {
     ...itemTexts.map((text) => dumpHeadline(text)),
     ...existingLines(existing, "recentChanges"),
   ]);
-  const currentTask = extractCurrentTask(eventConstraintSentences) ?? extractCurrentTask(sentences);
+  const existingGoal = normalize(existing?.currentGoal);
+  const nextFromEvents = productEvents
+    .flatMap((event) => event.suggestedActions ?? [])
+    .map(normalize)
+    .filter((title) => Boolean(title) && !isContinueDumpEcho(title, dumpTexts) && !isDumpPrefixEcho(title, echoCorpus));
+  const currentGoal = !isUnusableCompiledIdentity(existingGoal, echoCorpus)
+    ? existingGoal
+    : (extractCurrentTask(eventConstraintSentences) ?? nextFromEvents[0] ?? extractCurrentTask(sentences) ?? "");
+  const currentTask = currentGoal;
   const directionParts = [...sentences, ...eventConstraintSentences].filter((line) => (
     !looksLikeConstraint(line)
     && !looksLikeQuestion(line)
@@ -429,14 +437,6 @@ export function compileHeuristicMemory(input: {
     || directionParts[0]
     || (!isUnusableCompiledIdentity(existingDirection, echoCorpus) ? existingDirection : "")
     || normalize(input.projectDescription);
-  const existingGoal = normalize(existing?.currentGoal);
-  const nextFromEvents = productEvents
-    .flatMap((event) => event.suggestedActions ?? [])
-    .map(normalize)
-    .filter((title) => Boolean(title) && !isContinueDumpEcho(title, dumpTexts) && !isDumpPrefixEcho(title, echoCorpus));
-  const currentGoal = !isUnusableCompiledIdentity(existingGoal, echoCorpus)
-    ? existingGoal
-    : (currentTask ?? nextFromEvents[0] ?? "");
   const taskLines = sentences.filter((line) =>
     /\b(next step|next move|todo|need to|verify|follow up)\b/i.test(line)
     && !looksLikeConstraint(line)
@@ -709,20 +709,33 @@ export function parseProjectMemoryJson(text: string): ProjectMemoryParseResult {
 export function mergeAiShapeIntoSnapshot(
   heuristic: SilentMemorySnapshot,
   parsed: ProjectMemoryAiShape,
-  now: number
+  now: number,
+  dumpTexts: string[] = []
 ): SilentMemorySnapshot {
+  const parsedNext = parsed.nextActions.filter((action) => (
+    !isContinueDumpEcho(action.title, dumpTexts)
+    && !isDumpPrefixEcho(action.title, dumpTexts)
+    && !isUnusableCompiledIdentity(action.title, dumpTexts)
+  ));
+  const nextSource = parsedNext.length > 0 ? parsedNext : heuristic.nextActions;
   return {
-    summary: parsed.summary,
-    currentGoal: parsed.currentGoal || heuristic.currentGoal,
-    currentDirection: parsed.currentDirection,
+    summary: !isUnusableCompiledIdentity(parsed.summary, dumpTexts)
+      ? parsed.summary
+      : heuristic.summary,
+    currentGoal: !isUnusableCompiledIdentity(parsed.currentGoal, dumpTexts)
+      ? (parsed.currentGoal || heuristic.currentGoal)
+      : heuristic.currentGoal,
+    currentDirection: !isUnusableCompiledIdentity(parsed.currentDirection, dumpTexts)
+      ? parsed.currentDirection
+      : heuristic.currentDirection,
     recentChanges: uniqueLines([...(parsed.recentChanges ?? []), ...heuristic.recentChanges]),
     importantDecisions: uniqueLines([
       ...heuristic.importantDecisions,
       ...(parsed.importantDecisions ?? []),
     ]),
     constraints: uniqueConstraintLines([
-      ...expandConstraintLines(parsed.constraints ?? []),
       ...heuristic.constraints,
+      ...expandConstraintLines(parsed.constraints ?? []).filter((line) => !line.includes("...")),
     ]),
     openQuestions: uniqueLines([
       ...heuristic.openQuestions,
@@ -730,7 +743,9 @@ export function mergeAiShapeIntoSnapshot(
     ]),
     activeTasks: uniqueLines([
       ...heuristic.activeTasks,
-      ...(parsed.activeTasks ?? []),
+      ...(parsed.activeTasks ?? []).filter((title) => (
+        !isContinueDumpEcho(title, dumpTexts) && !isDumpPrefixEcho(title, dumpTexts)
+      )),
     ]),
     blockers: uniqueLines([
       ...heuristic.blockers,
@@ -741,19 +756,17 @@ export function mergeAiShapeIntoSnapshot(
       ...(parsed.staleAssumptions ?? []),
     ]),
     handoffNotes: heuristic.handoffNotes,
-    nextActions: parsed.nextActions.length > 0
-      ? parsed.nextActions.map((action) => ({
-          title: action.title,
-          rationale: action.rationale,
-          requiredContext: action.requiredContext,
-          suggestedTargetTool: action.suggestedTargetTool,
-          confidence: action.confidence,
-          sourceCaptureIds: action.sourceCaptureIds,
-          status: "suggested" as const,
-          createdAt: now,
-          updatedAt: now,
-        }))
-      : heuristic.nextActions,
+    nextActions: nextSource.map((action) => ({
+      title: action.title,
+      rationale: action.rationale,
+      requiredContext: action.requiredContext,
+      suggestedTargetTool: action.suggestedTargetTool,
+      confidence: action.confidence,
+      sourceCaptureIds: action.sourceCaptureIds,
+      status: "suggested" as const,
+      createdAt: now,
+      updatedAt: now,
+    })),
     acceptedCrystallizedSuggestions: heuristic.acceptedCrystallizedSuggestions,
   };
 }
