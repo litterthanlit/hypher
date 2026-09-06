@@ -17,6 +17,7 @@ import type {
 import { getDisplayName } from "@/types";
 import { selectProjectActionQueue } from "@/lib/actions";
 import { compileProjectContextWithMeta } from "@/lib/projectContext";
+import { PACKET_AGENT_EVENT_FETCH_LIMIT } from "../../shared/projectMemoryGenerate";
 import {
   BUILDER_BRIEF_COPY_ERROR_TOAST,
   BUILDER_BRIEF_COPY_LABEL,
@@ -72,7 +73,7 @@ export function ProjectPulse({
   const agentEvents = useQuery(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (api as any).agentEvents.listForProject,
-    { projectId: project.id as Id<"objects">, limit: 8 }
+    { projectId: project.id as Id<"objects">, limit: PACKET_AGENT_EVENT_FETCH_LIMIT }
   ) as AgentEvent[] | undefined;
   const handoffs = useQuery(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

@@ -8,7 +8,7 @@ import { apiKeyProbeRateLimitKey } from "./apiKeys";
 import type { Id } from "./_generated/dataModel";
 import { GITHUB_LOOP_SOURCE, planGithubLoopWrites } from "./lib/githubAgentEvents";
 import { normalizeGitHubRepo } from "../shared/githubRepo";
-import { isProductWorkReceipt, prioritizeAgentEventsForPacket, summarizeEvent } from "../shared/projectMemoryGenerate";
+import { isProductWorkReceipt, PACKET_AGENT_EVENT_FETCH_LIMIT, prioritizeAgentEventsForPacket, summarizeEvent } from "../shared/projectMemoryGenerate";
 import { applyReceiptForEvent } from "./lib/projectMemoryWrite";
 
 const eventKind = v.union(
@@ -445,7 +445,7 @@ export const listForProject = query({
       .query("agentEvents")
       .withIndex("by_user_project", (q) => q.eq("userId", userId).eq("projectId", projectId))
       .collect();
-    return prioritizeForPulse(rows, limit ?? 8).map(toClientEvent);
+    return prioritizeForPulse(rows, limit ?? PACKET_AGENT_EVENT_FETCH_LIMIT).map(toClientEvent);
   },
 });
 

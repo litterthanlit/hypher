@@ -5,6 +5,7 @@ import type { Id } from "../../../../../../convex/_generated/dataModel";
 import type { ActivityEntry, AgentEvent, AnyObject, Handoff, Project, ProjectAction, ProjectMemory } from "@/types";
 import { buildAgentContextApiResponse } from "@/lib/agentContextApi";
 import { authErrorJson, requireBetaAccess } from "@/lib/serverAuth";
+import { PACKET_AGENT_EVENT_FETCH_LIMIT } from "../../../../../../shared/projectMemoryGenerate";
 
 export const runtime = "nodejs";
 
@@ -46,7 +47,7 @@ export async function GET(req: NextRequest, context: RouteContext) {
     const [memories, actions, agentEvents, handoffs, subscription] = await Promise.all([
       fetchQuery((api as any).projectMemories.listForDashboard, {}, { token }) as Promise<ProjectMemory[]>,
       fetchQuery((api as any).actions.listForProject, { projectId: projectId as Id<"objects"> }, { token }) as Promise<ProjectAction[]>,
-      fetchQuery((api as any).agentEvents.listForProject, { projectId: projectId as Id<"objects">, limit: 12 }, { token }) as Promise<AgentEvent[]>,
+      fetchQuery((api as any).agentEvents.listForProject, { projectId: projectId as Id<"objects">, limit: PACKET_AGENT_EVENT_FETCH_LIMIT }, { token }) as Promise<AgentEvent[]>,
       fetchQuery((api as any).handoffs.listForProject, { projectId: projectId as Id<"objects">, limit: 6 }, { token }) as Promise<Handoff[]>,
       fetchQuery((api as any).subscriptions.getMine, {}, { token }) as Promise<{ status?: string; plan?: string } | null>,
     ]);

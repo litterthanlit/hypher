@@ -369,7 +369,10 @@ export function dropBriefSelfTalkWhenProductStateExists<T>(
   return product.length > 0 ? product : items;
 }
 
-/** Fetch windows (Pulse 8, MCP/OAuth 12) must keep product-state handoffs, not only newest changelog. */
+/** Compact changelog writebacks fill a recency-12 window. Fetch this many so Wait-for-review still arrives on production recency-only Convex. */
+export const PACKET_AGENT_EVENT_FETCH_LIMIT = 24;
+
+/** Fetch windows (Pulse/MCP/OAuth) must keep product-state handoffs, not only newest changelog. */
 export function prioritizeAgentEventsForPacket<T extends {
   status: string;
   kind: string;

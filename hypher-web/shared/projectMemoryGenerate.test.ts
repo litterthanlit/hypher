@@ -22,6 +22,7 @@ import {
   looksLikeProductDecision,
   preferProductStateTitles,
   dropBriefSelfTalkWhenProductStateExists,
+  PACKET_AGENT_EVENT_FETCH_LIMIT,
   prioritizeAgentEventsForPacket,
 } from "./projectMemoryGenerate";
 import { compileBuilderBrief } from "../src/lib/projectContext";
@@ -301,6 +302,16 @@ describe("looksLikeBriefSelfTalk", () => {
       .sort((a, b) => b.createdAt - a.createdAt)
       .slice(0, 8);
     expect(recencyOnly.some((event) => event.title === wait.title)).toBe(false);
+    const recencyTwelve = [...changelog, wait, question]
+      .filter((event) => event.status !== "dismissed")
+      .sort((a, b) => b.createdAt - a.createdAt)
+      .slice(0, 12);
+    expect(recencyTwelve.some((event) => event.title === wait.title)).toBe(false);
+    const recencyWide = [...changelog, wait, question]
+      .filter((event) => event.status !== "dismissed")
+      .sort((a, b) => b.createdAt - a.createdAt)
+      .slice(0, PACKET_AGENT_EVENT_FETCH_LIMIT);
+    expect(recencyWide.some((event) => event.title === wait.title)).toBe(true);
     const selected = prioritizeAgentEventsForPacket([...changelog, wait, question], 8);
     expect(selected.some((event) => event.title === wait.title)).toBe(true);
     expect(selected.some((event) => event.title === question.title)).toBe(true);

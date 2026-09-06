@@ -2,7 +2,7 @@ import { query } from "./_generated/server";
 import { v } from "convex/values";
 import { hasBetaAccess } from "./lib/auth";
 import { oauthResourcesEquivalent } from "../shared/oauthResources";
-import { prioritizeAgentEventsForPacket } from "../shared/projectMemoryGenerate";
+import { PACKET_AGENT_EVENT_FETCH_LIMIT, prioritizeAgentEventsForPacket } from "../shared/projectMemoryGenerate";
 
 function mapObject(doc: any) {
   const { _id, _creationTime, userId, ...rest } = doc;
@@ -133,7 +133,7 @@ export const dataForToken = query({
         captures: items,
         activity: selectActivityForOAuthContext(activities, token.userId, 24),
         actions: actions.sort((a, b) => b.updatedAt - a.updatedAt).map(mapAction),
-        agentEvents: prioritizeAgentEventsForPacket(agentEvents, 12).map(mapEvent),
+        agentEvents: prioritizeAgentEventsForPacket(agentEvents, PACKET_AGENT_EVENT_FETCH_LIMIT).map(mapEvent),
         handoffs: handoffs
           .sort((a, b) => b.generatedAt - a.generatedAt)
           .slice(0, 6)

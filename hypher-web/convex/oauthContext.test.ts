@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { selectActivityForOAuthContext } from "./oauthContext";
-import { prioritizeAgentEventsForPacket } from "../shared/projectMemoryGenerate";
+import { PACKET_AGENT_EVENT_FETCH_LIMIT, prioritizeAgentEventsForPacket } from "../shared/projectMemoryGenerate";
 
 describe("OAuth MCP project context activity", () => {
   it("keeps the same user-scoped recent activity the Clerk MCP path includes", () => {
@@ -29,7 +29,17 @@ describe("OAuth MCP project context activity", () => {
       title: "Wait-for-review next when merge is locked",
       createdAt: 100,
     };
-    const selected = prioritizeAgentEventsForPacket([...changelog, wait], 12);
+    const recencyTwelve = [...changelog, wait]
+      .filter((event) => event.status !== "dismissed")
+      .sort((a, b) => b.createdAt - a.createdAt)
+      .slice(0, 12);
+    expect(recencyTwelve.some((event) => event.title === wait.title)).toBe(false);
+    const recencyWide = [...changelog, wait]
+      .filter((event) => event.status !== "dismissed")
+      .sort((a, b) => b.createdAt - a.createdAt)
+      .slice(0, PACKET_AGENT_EVENT_FETCH_LIMIT);
+    expect(recencyWide.some((event) => event.title === wait.title)).toBe(true);
+    const selected = prioritizeAgentEventsForPacket([...changelog, wait], PACKET_AGENT_EVENT_FETCH_LIMIT);
     expect(selected.some((event) => event.title === wait.title)).toBe(true);
   });
 });

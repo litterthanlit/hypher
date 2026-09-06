@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { AgentEvent, AnyObject, Handoff, Project, ProjectAction, ProjectMemory } from "@/types";
 import { compileBuilderBrief, compileProjectContext, compileProjectContextWithMeta } from "./projectContext";
-import { prioritizeAgentEventsForPacket } from "../../shared/projectMemoryGenerate";
+import { PACKET_AGENT_EVENT_FETCH_LIMIT, prioritizeAgentEventsForPacket } from "../../shared/projectMemoryGenerate";
 
 const project: Project = {
   id: "p1",
@@ -1296,6 +1296,9 @@ describe("compileBuilderBrief", () => {
       "Dogfood dump on the real hypher project. Product: dump → one note agents read → writeback. Session 2 should start warm. Do not: invent dumps, gate bind on a github token, or treat try hypher as the home. Next: confirm silent synthesis thickened this note without a generate button.";
     const latestBody = "Do not widen OAuth. Pulse stays three panels. Do not rebuild the canvas. Do not merge until reviewed.";
     const changelogTitles = [
+      "Suggested next move is wait-for-review, not dump Next",
+      "Changelog titles do not replace identity",
+      "Changelog titles leave the fetch window",
       "Changelog titles leave Recent changes",
       "Packet current state leads Recent changes",
       "Changelog titles are not session identity",
@@ -1304,6 +1307,7 @@ describe("compileBuilderBrief", () => {
       "Packet current state is last-handoff",
       "Dump-only constraints keep packet slots",
       "Merge lock beats Merge PR next move",
+      "Changelog titles leave a recency-12 fetch window",
     ];
     const changelogEvents: AgentEvent[] = changelogTitles.map((title, index) => ({
       id: `cl-${index}`,
@@ -1330,7 +1334,7 @@ describe("compileBuilderBrief", () => {
     };
     const recencyWindow = [...changelogEvents, waitEvent]
       .sort((a, b) => b.createdAt - a.createdAt)
-      .slice(0, 8);
+      .slice(0, 12);
     const recencyPacket = compileBuilderBrief({
       project: { ...project, name: "hypher", description: "" },
       memory: {
@@ -1358,6 +1362,35 @@ describe("compileBuilderBrief", () => {
     });
     expect(recencyPacket).not.toMatch(/- Short summary: Wait-for-review next when merge is locked/);
 
+    const recencyWide = compileBuilderBrief({
+      project: { ...project, name: "hypher", description: "" },
+      memory: {
+        ...memory,
+        summary: dump,
+        currentGoal: "",
+        currentDirection: "",
+        importantDecisions: [],
+        openQuestions: [],
+        blockers: [],
+        staleAssumptions: [],
+      },
+      captures: [{
+        id: "n-dump",
+        kind: "note",
+        content: dump,
+        maturity: "fleeting",
+        projectId: "p1",
+        createdAt: 40,
+        modifiedAt: 60,
+      }],
+      actions: [],
+      agentEvents: [...changelogEvents, waitEvent]
+        .sort((a, b) => b.createdAt - a.createdAt)
+        .slice(0, PACKET_AGENT_EVENT_FETCH_LIMIT),
+      generatedAt: 2000,
+    });
+    expect(recencyWide).toMatch(/- Short summary: Wait-for-review next when merge is locked/);
+
     const packet = compileBuilderBrief({
       project: { ...project, name: "hypher", description: "" },
       memory: {
@@ -1380,7 +1413,7 @@ describe("compileBuilderBrief", () => {
         modifiedAt: 60,
       }],
       actions: [],
-      agentEvents: prioritizeAgentEventsForPacket([...changelogEvents, waitEvent], 8),
+      agentEvents: prioritizeAgentEventsForPacket([...changelogEvents, waitEvent], PACKET_AGENT_EVENT_FETCH_LIMIT),
       generatedAt: 2000,
     });
     expect(packet).toMatch(/- Short summary: Wait-for-review next when merge is locked/);
