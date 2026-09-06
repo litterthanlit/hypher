@@ -667,5 +667,117 @@ describe("compileBuilderBrief", () => {
     expect(constraintSection.match(/Do not widen OAuth/g)?.length).toBe(1);
     expect(constraintSection.match(/Pulse stays three panels/g)?.length).toBe(1);
     expect(constraintSection.match(/Do not rebuild the canvas/g)?.length).toBe(1);
+    expect(recentSection).not.toMatch(/\.\.\./);
+    expect(packet).toMatch(/- Short summary: Keep dump echo out of identity/);
+    expect(packet).toMatch(/Next: Keep the packet warmer than PRODUCT.md/);
+  });
+
+  it("compiles the 2026-09-06 production memory shape without dump echo or 180-char mush", () => {
+    const dump =
+      "Dogfood dump on the real hypher project. Product: dump → one note agents read → writeback. Session 2 should start warm. Do not: invent dumps, gate bind on a github token, or treat try hypher as the home. Next: confirm silent synthesis thickened this note without a generate button.";
+    const latestTitle = "Dump reprints no longer crowd Recent changes or constraints";
+    const latestBody = [
+      "PR 62 commit bb1e392 on litterthanlit/hypher, branch cursor/agent-context-packet-d1ed.",
+      "Packet compile no longer reprints the dogfood dump in Recent changes or lists the same do-not three times with different labels.",
+      "Do not widen OAuth. Pulse stays three panels. Do not rebuild the canvas.",
+      "GitHub is a signal, not memory. docs/PRODUCT.md wins.",
+      "Next: merge PR 62 and deploy Convex so production memory and packet compile drop the dump echo.",
+    ].join(" ");
+    const mashed = `${latestTitle}. ${latestBody}`;
+    const nextMove = "Merge PR 62 and deploy Convex so production memory and packet compile drop the dump echo";
+    const packet = compileBuilderBrief({
+      project: { ...project, name: "hypher", description: "" },
+      memory: {
+        ...memory,
+        summary: dump,
+        currentGoal: "",
+        currentDirection: "",
+        recentChanges: [
+          mashed,
+          "Claude merge can no longer restore dump-echo identity. PR 62 commit 9189d7c. Claude writeback synthesis can no longer restore the dogfood dump as summary or Continue dump as next.",
+        ],
+        constraints: [
+          "Do not invent dumps",
+          "Do not gate bind on a github token",
+          "Do not treat try hypher as the home",
+        ],
+        handoffNotes: [mashed],
+        nextActions: [{
+          id: "na",
+          title: nextMove,
+          rationale: "Compiled from the latest dump or writeback.",
+          status: "suggested",
+          createdAt: 900,
+          updatedAt: 900,
+        }],
+      },
+      captures: [{
+        id: "n-dump",
+        kind: "note",
+        content: dump,
+        maturity: "fleeting",
+        projectId: "p1",
+        createdAt: 40,
+        modifiedAt: 60,
+      }],
+      actions: [],
+      agentEvents: [
+        {
+          id: "latest",
+          userId: "u1",
+          projectId: "p1",
+          source: "cursor",
+          kind: "handoff",
+          title: latestTitle,
+          body: latestBody,
+          suggestedActions: [nextMove],
+          status: "reviewed",
+          createdAt: 900,
+        },
+        {
+          id: "older",
+          userId: "u1",
+          projectId: "p1",
+          source: "cursor",
+          kind: "handoff",
+          title: "Claude merge can no longer restore dump-echo identity",
+          body: "Do not widen OAuth. Pulse stays three panels. Do not rebuild the canvas. Next move: keep the packet warmer than PRODUCT.md.",
+          suggestedActions: ["Keep the packet warmer than PRODUCT.md"],
+          status: "reviewed",
+          createdAt: 800,
+        },
+      ],
+      generatedAt: 900,
+    });
+
+    expect(packet).toMatch(/- Short summary: Dump reprints no longer crowd Recent changes or constraints/);
+    expect(packet).not.toMatch(/- Short summary: Dogfood dump/);
+    expect(packet).toMatch(/Trying to become: .*merge PR 62 and deploy Convex so production memory and packet compile drop the dump echo/i);
+    expect(packet).toMatch(/Product: dump → one note agents read → writeback/);
+    expect(packet).toContain(`- Next action: [next:suggested] ${nextMove}`);
+    expect(packet).toContain("- Compact mode: off");
+    expect(packet).not.toMatch(/Continue: Dogfood dump/);
+    expect(packet).not.toMatch(/no toke\.\.\./);
+    expect(packet).not.toMatch(/reprin\.\.\./);
+    expect(packet).not.toMatch(/butto\.\.\./);
+    const recentSection = packet.split("## Recent changes")[1]?.split("##")[0] ?? "";
+    const firstBullet = recentSection.split("\n").find((line) => line.startsWith("- ["));
+    expect(firstBullet).toMatch(/Dump reprints no longer crowd Recent changes or constraints/);
+    expect(recentSection).not.toMatch(/Dogfood dump on the real hypher project/);
+    expect(recentSection).not.toMatch(/\.\.\./);
+    const constraintSection = packet.split("### Important constraints")[1]?.split("##")[0] ?? "";
+    expect(constraintSection).toMatch(/Do not widen OAuth/);
+    expect(constraintSection).toMatch(/Pulse stays three panels/);
+    expect(constraintSection).toMatch(/Do not rebuild the canvas/);
+    expect(constraintSection).toMatch(/Do not invent dumps/);
+    expect(constraintSection.match(/Do not widen OAuth/g)?.length).toBe(1);
+    expect(constraintSection.match(/Pulse stays three panels/g)?.length).toBe(1);
+    expect(constraintSection.match(/Do not rebuild the canvas/g)?.length).toBe(1);
+    expect(constraintSection.match(/Do not invent dumps/g)?.length).toBe(1);
+    expect(constraintSection).not.toMatch(/\.\.\./);
+    const notes = packet.split("### Handoff notes")[1] ?? "";
+    expect(notes).toMatch(/Dump reprints no longer crowd Recent changes or constraints/);
+    expect(notes).not.toMatch(/reprin\.\.\./);
+    expect(notes).not.toMatch(/no toke\.\.\./);
   });
 });

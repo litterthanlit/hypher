@@ -237,6 +237,78 @@ describe("buildMcpToolResult", () => {
     });
   });
 
+  it("does not report dump-echo current state or dump reprints as the latest change", () => {
+    const dump =
+      "Dogfood dump on the real hypher project. Product: dump → one note agents read → writeback. Session 2 should start warm. Do not: invent dumps, gate bind on a github token, or treat try hypher as the home.";
+    const nextMove = "Merge PR 62 and deploy Convex so production memory and packet compile drop the dump echo";
+    const dumpContext: HypherMcpContext = {
+      ...context,
+      projectContexts: {
+        p1: {
+          project,
+          memory: {
+            ...memory,
+            summary: dump,
+            currentGoal: "",
+            currentDirection: "Dogfood dump on the real hypher project.",
+            recentChanges: [
+              `${dump} Packet compile no longer reprints the dogfood dump in Recent changes.`,
+              "Dump reprints no longer crowd Recent changes or constraints. PR 62 commit bb1e392.",
+            ],
+            nextActions: [{
+              id: "na",
+              title: nextMove,
+              rationale: "Compiled from the latest dump or writeback.",
+              status: "suggested",
+              createdAt: 90,
+              updatedAt: 90,
+            }],
+          },
+          captures: [{
+            id: "n-dump",
+            kind: "note",
+            content: dump,
+            maturity: "fleeting",
+            projectId: "p1",
+            createdAt: 1,
+            modifiedAt: 30,
+          }],
+          actions: [],
+          agentEvents: [{
+            id: "latest",
+            userId: "u1",
+            projectId: "p1",
+            source: "cursor",
+            kind: "handoff",
+            title: "Dump reprints no longer crowd Recent changes or constraints",
+            body: "Do not widen OAuth. Pulse stays three panels. Do not rebuild the canvas.",
+            suggestedActions: [nextMove],
+            status: "reviewed",
+            createdAt: 90,
+          }],
+          handoffs: [],
+          subscription: { status: "active", plan: "pro_monthly" },
+        },
+      },
+    };
+
+    const state = buildMcpToolResult("get_current_state", { projectId: "p1" }, dumpContext).structuredContent;
+    const recentChanges = Array.isArray(state.recentChanges) ? state.recentChanges.map(String) : [];
+    expect(state.currentState).toMatch(/Product: dump/i);
+    expect(state.currentState).not.toMatch(/^Dogfood dump on the real hypher project/i);
+    expect(recentChanges).toContain("Dump reprints no longer crowd Recent changes or constraints.");
+    expect(recentChanges.some((item) => /Dogfood dump on the real hypher project/i.test(item))).toBe(false);
+
+    const move = buildMcpToolResult("get_next_move", { projectId: "p1" }, dumpContext).structuredContent;
+    expect(move.nextMove).toBe(nextMove);
+
+    const brief = String(buildMcpToolResult("get_project_context", { projectId: "p1" }, dumpContext).structuredContent.context);
+    expect(brief).toMatch(/- Short summary: Dump reprints no longer crowd Recent changes or constraints/);
+    expect(brief).not.toMatch(/Continue: Dogfood dump/);
+    expect(brief).not.toMatch(/reprin\.\.\./);
+    expect(brief).toMatch(/Do not widen OAuth/);
+  });
+
   it("prepares a concise handoff with account-linking wording", () => {
     const result = buildMcpToolResult("prepare_handoff", { projectId: "p1" }, context);
 

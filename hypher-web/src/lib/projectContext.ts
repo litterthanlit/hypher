@@ -191,6 +191,16 @@ function looksLikeIdentityDump(content: string): boolean {
   return sentences.length >= 3 && sentences.some((line) => looksLikeDoNotDo(line) || looksLikeConstraint(line));
 }
 
+function leadSentence(value: string): string {
+  const text = normalizeText(value);
+  return splitSentences(text)[0] ?? text;
+}
+
+function headingLine(value: string): string {
+  const text = normalizeText(value);
+  return /[.!?]$/.test(text) ? text : `${text}.`;
+}
+
 type AcceptedMemoryKind = Exclude<CrystallizedSuggestionKind, "current_task" | "open_action">;
 
 function acceptedMemoryStatus(item: AcceptedCrystallizedSuggestion): "active" | "stale" | "excluded" {
@@ -551,15 +561,17 @@ export function compileProjectContextWithMeta(params: CompileProjectContextParam
     });
 
   const agentHandoffLines = params.agentEvents
+    .filter((event) => isProductWorkReceipt(event))
     .slice()
     .sort((a, b) => b.createdAt - a.createdAt)
     .slice(0, limits.agentEvents)
     .map((event) => {
-      const summary = truncate(event.body, PACKET_LINE_LIMIT);
-      const actions = event.suggestedActions?.length
-        ? ` Suggested actions: ${event.suggestedActions.slice(0, 3).join("; ")}.`
-        : "";
-      return labeledLine(`agent:${normalizeText(event.source)}/${event.kind}`, `${normalizeText(event.title)}. ${summary}${actions}`, PACKET_LINE_LIMIT);
+      const title = headingLine(event.title);
+      const next = normalizeText(event.suggestedActions?.[0]);
+      const text = next && !title.toLowerCase().includes(next.toLowerCase())
+        ? `${title} Next: ${next}`
+        : title;
+      return labeledLine(`agent:${normalizeText(event.source)}/${event.kind}`, text, PACKET_LINE_LIMIT, false);
     });
 
   const projectName = normalizeText(params.project.name) || "Project";
@@ -645,8 +657,8 @@ export function compileProjectContextWithMeta(params: CompileProjectContextParam
   ].filter(Boolean);
   const dumpReprintCorpus = hasProductHandoffs ? identityDumpTexts : [];
   const recentProgressLines = withoutDumpEchoLines(
-    uniqueLines(memory?.recentChanges ?? [])
-      .map((item) => labeledLine("memory:recent_change", item, PACKET_LINE_LIMIT)),
+    uniqueLines((memory?.recentChanges ?? []).map(leadSentence))
+      .map((item) => labeledLine("memory:recent_change", item, PACKET_LINE_LIMIT, false)),
     dumpReprintCorpus,
   ).slice(0, limits.recentProgress);
   const recentActivityLines = (params.activity ?? [])
@@ -729,13 +741,13 @@ export function compileProjectContextWithMeta(params: CompileProjectContextParam
     ...activeAcceptedMemoryItems(memory, ["acceptance_criterion"]).map((item) => labeledLine(acceptedMemorySourceLabel(item), item.text, PACKET_LINE_LIMIT)),
     ...defaultAcceptanceLines.map((item) => labeledLine("criteria", item, PACKET_LINE_LIMIT)),
   ]).slice(0, limits.acceptanceCriteria);
-  const handoffLines = uniqueLines([
-    ...withoutInactiveAcceptedMemory(memory, ["handoff_note"], uniqueLines([
-      ...(memory?.handoffNotes ?? []),
-    ])).map((item) => labeledLine("memory:handoff_note", item, PACKET_LINE_LIMIT)),
-    ...activeAcceptedMemoryItems(memory, ["handoff_note"]).map((item) => labeledLine(acceptedMemorySourceLabel(item), item.text, PACKET_LINE_LIMIT)),
-    ...recentHandoffLines,
+  const handoffLines = uniqueByUnlabeledLead([
     ...agentHandoffLines,
+    ...recentHandoffLines,
+    ...withoutInactiveAcceptedMemory(memory, ["handoff_note"], uniqueLines(
+      memory?.handoffNotes ?? []
+    )).map((item) => labeledLine("memory:handoff_note", leadSentence(item), PACKET_LINE_LIMIT, false)),
+    ...activeAcceptedMemoryItems(memory, ["handoff_note"]).map((item) => labeledLine(acceptedMemorySourceLabel(item), leadSentence(item.text), PACKET_LINE_LIMIT, false)),
   ]).slice(0, limits.handoffNotes);
   const nextActionLine = primaryAction
     ? labeledLine(`next:${primaryAction.status}`, primaryAction.title, PACKET_LINE_LIMIT)

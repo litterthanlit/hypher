@@ -1,7 +1,13 @@
 import type { ActivityEntry, AgentEvent, AnyObject, Handoff, Project, ProjectAction, ProjectMemory } from "@/types";
 import { buildAgentContextApiResponse } from "./agentContextApi";
 import { selectPrimaryNextAction } from "./projectMemory";
-import { selectCompiledIdentity, selectCompiledNextAction } from "./projectContext";
+import { selectCompiledIdentity, selectCompiledNextAction, captureDumpTexts } from "./projectContext";
+import {
+  isContinueDumpEcho,
+  isDumpPrefixEcho,
+  isProductWorkReceipt,
+  splitSentences,
+} from "../../shared/projectMemoryGenerate";
 import {
   AGENT_EVENT_KINDS,
   matchProjectForAgentEvent,
@@ -234,7 +240,19 @@ function currentStateTool(args: JsonObject, context: HypherMcpContext): HypherMc
     projectDescription: project.description,
   });
   const currentState = identity.currentDirection || identity.summary || normalize(project.description);
-  const recentChanges = (memory?.recentChanges ?? []).map(normalize).filter(Boolean).slice(0, 5);
+  const dumpTexts = captureDumpTexts(captures);
+  const hasProductHandoffs = agentEvents.some((event) => isProductWorkReceipt(event));
+  const recentChanges = (memory?.recentChanges ?? [])
+    .map((item) => {
+      const text = normalize(item);
+      return splitSentences(text)[0] ?? text;
+    })
+    .filter((item) => (
+      !hasProductHandoffs
+      || (!isContinueDumpEcho(item, dumpTexts) && !isDumpPrefixEcho(item, dumpTexts))
+    ))
+    .filter(Boolean)
+    .slice(0, 5);
   const openQuestions = (memory?.openQuestions ?? []).map(normalize).filter(Boolean).slice(0, 5);
 
   return textResult(
