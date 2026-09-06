@@ -8,7 +8,9 @@ import {
   buildProjectContextInput,
   buildProjectPulseModel,
   builderBriefFields,
+  livePulseBriefPacket,
 } from "./projectPulse";
+import { compileBuilderBrief } from "./projectContext";
 
 const project: Project = {
   id: "p1",
@@ -158,6 +160,65 @@ describe("builderBriefFields", () => {
     ).toBe(true);
     expect(builderBriefFields(memory).empty).toBe(false);
     expect(builderBriefFields(memory).direction).toBe("Make capture become project memory quickly.");
+  });
+
+  it("uses the same next move as get_project_context instead of a stored dump echo", () => {
+    const echoed: ProjectMemory = {
+      ...memory,
+      nextActions: [
+        {
+          id: "echo",
+          title: "Continue: Dogfood dump on the real hypher project.",
+          rationale: "Compiled from the latest dump or writeback.",
+          status: "suggested",
+          createdAt: 50,
+          updatedAt: 50,
+        },
+        {
+          id: "real",
+          title: "Keep constraints whole in compileHeuristicMemory",
+          rationale: "Packet quality.",
+          status: "suggested",
+          createdAt: 51,
+          updatedAt: 51,
+        },
+      ],
+      constraints: ["Do not: invent dumps, gate bind on a github token, or treat try hypher as the home."],
+    };
+    const pulse = builderBriefFields(echoed, { actions: [], captures: objects });
+    const packet = compileBuilderBrief({
+      project,
+      memory: echoed,
+      captures: objects.filter((item) => item.kind !== "project"),
+      actions: [],
+      agentEvents: [],
+    });
+    const nextLine = packet.match(/^- Next action: (.+)$/m)?.[1] ?? "";
+    expect(pulse.nextMove).toBe("Keep constraints whole in compileHeuristicMemory");
+    expect(nextLine).toContain("Keep constraints whole in compileHeuristicMemory");
+    expect(pulse.nextMove).not.toMatch(/continue:/i);
+    expect(pulse.constraints.some((line) => /invent dumps/i.test(line))).toBe(true);
+    expect(pulse.constraints.some((line) => /github token/i.test(line))).toBe(true);
+
+    const live = livePulseBriefPacket({
+      project,
+      model: buildProjectPulseModel({ project, allObjects: objects, activity, memories: [echoed] }),
+      actionQueue: [],
+      agentEvents: [],
+      handoffs: [{
+        id: "stale",
+        userId: "u1",
+        projectId: "p1",
+        generatedAt: 1,
+        targetTool: "Cursor",
+        packetContent: "# Builder Brief: Hypher\n\n- Next action: Continue: Dogfood dump on the real hypher project.",
+        sourceCaptures: [],
+        requestedTask: "Continue: Dogfood dump on the real hypher project.",
+        status: "used",
+      }],
+    });
+    expect(live).toContain("Keep constraints whole in compileHeuristicMemory");
+    expect(live).not.toMatch(/Continue: Dogfood dump on the real hypher project/);
   });
 });
 

@@ -25,6 +25,7 @@ import {
   buildProjectContextInput,
   buildProjectPulseModel,
   builderBriefFields,
+  livePulseBriefPacket,
 } from "@/lib/projectPulse";
 
 interface Props {
@@ -101,12 +102,24 @@ export function ProjectPulse({
     [projectActions]
   );
 
+  const livePacket = useMemo(
+    () => livePulseBriefPacket({
+      project,
+      model,
+      actionQueue,
+      agentEvents: agentEvents ?? [],
+      handoffs: handoffs ?? [],
+    }),
+    [project, model, actionQueue, agentEvents, handoffs]
+  );
+
   const lastBrief = latestPacket
     ? { packet: latestPacket, generatedAt: null as number | null }
-    : handoffs?.[0]
-      ? { packet: handoffs[0].packetContent, generatedAt: handoffs[0].generatedAt }
-      : null;
-  const brief = builderBriefFields(memory ?? null);
+    : { packet: livePacket, generatedAt: null as number | null };
+  const brief = builderBriefFields(memory ?? null, {
+    actions: projectActions ?? [],
+    captures: model.latestCaptures,
+  });
 
   const handleGenerateHandoff = async () => {
     if (packetBusy) return;

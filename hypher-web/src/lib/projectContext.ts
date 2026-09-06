@@ -270,6 +270,44 @@ function actionFromQueue(actions: ProjectAction[]): ProjectNextAction | null {
   };
 }
 
+export function dumpTextsForBrief(memory?: ProjectMemory | null, captures: AnyObject[] = []): string[] {
+  return [
+    normalizeText(memory?.summary),
+    ...captures.map((item) => (item.kind === "note" ? normalizeText(item.content) : "")),
+  ].filter(Boolean);
+}
+
+export function selectCompiledNextAction(params: {
+  memory?: ProjectMemory | null;
+  actions?: ProjectAction[];
+  captures?: AnyObject[];
+  task?: string;
+  generatedAt?: number;
+}): ProjectNextAction | null {
+  const dumpTexts = dumpTextsForBrief(params.memory, params.captures ?? []);
+  const generatedAt = params.generatedAt ?? 0;
+  const usableMemoryActions = (params.memory?.nextActions ?? []).filter((action) => (
+    action.status !== "dismissed"
+    && !isContinueDumpEcho(action.title, dumpTexts)
+    && !isDumpPrefixEcho(action.title, dumpTexts)
+  ));
+  const fromTask = params.task
+    && !isContinueDumpEcho(params.task, dumpTexts)
+    && !isDumpPrefixEcho(params.task, dumpTexts)
+    ? {
+      id: "manual-next-action",
+      title: normalizeText(params.task),
+      rationale: "Hypher needs one concrete next action before handing this project to an agent.",
+      status: "suggested" as const,
+      createdAt: generatedAt,
+      updatedAt: generatedAt,
+    }
+    : null;
+  return selectPrimaryNextAction(usableMemoryActions)
+    ?? actionFromQueue(params.actions ?? [])
+    ?? fromTask;
+}
+
 function sourceUpdatedAt(params: CompileProjectContextParams): number {
   const captureTimes = params.captures.map((item) => item.modifiedAt ?? 0);
   const actionTimes = params.actions.map((item) => item.updatedAt ?? 0);
@@ -315,10 +353,7 @@ export function compileProjectContextWithMeta(params: CompileProjectContextParam
     .filter((action) => action.status !== "dismissed" && action.status !== "completed")
     .slice(0, limits.actions);
 
-  const dumpTexts = [
-    normalizeText(memory?.summary),
-    ...includedCaptures.map((item) => (item.kind === "note" ? normalizeText(item.content) : "")),
-  ].filter(Boolean);
+  const dumpTexts = dumpTextsForBrief(memory, includedCaptures);
 
   const sourceCaptureIds = includedCaptures.map((item) => item.id);
   const excludedSourceCaptureIds = excludedCaptures.map((item) => item.id);
@@ -329,17 +364,13 @@ export function compileProjectContextWithMeta(params: CompileProjectContextParam
     && !isDumpPrefixEcho(action.title, dumpTexts)
   ));
 
-  const primaryAction =
-    selectPrimaryNextAction(usableMemoryActions) ??
-    actionFromQueue(params.actions) ??
-    (params.task && !isContinueDumpEcho(params.task, dumpTexts) && !isDumpPrefixEcho(params.task, dumpTexts) ? {
-      id: "manual-next-action",
-      title: normalizeText(params.task),
-      rationale: "Hypher needs one concrete next action before handing this project to an agent.",
-      status: "suggested" as const,
-      createdAt: generatedAt,
-      updatedAt: generatedAt,
-    } : null);
+  const primaryAction = selectCompiledNextAction({
+    memory,
+    actions: params.actions,
+    captures: includedCaptures,
+    task: params.task,
+    generatedAt,
+  });
 
   const requestedTask = normalizeText(primaryAction?.title) || "No current task captured yet.";
   const targetTool = params.targetTool ?? primaryAction?.suggestedTargetTool ?? inferTargetTool(requestedTask, params.role);
@@ -352,10 +383,16 @@ export function compileProjectContextWithMeta(params: CompileProjectContextParam
     .slice()
     .sort((a, b) => b.generatedAt - a.generatedAt)
     .slice(0, limits.handoffs)
-    .flatMap((handoff) => [
-      labeledLine(`handoff:${handoff.targetTool}/${handoff.status}`, `Previous ${handoff.targetTool} brief was ${handoff.status}: ${truncate(handoff.requestedTask, 140)}.`, PACKET_LINE_LIMIT),
-      ...summarizeHandoffResult(handoff).map((line) => labeledLine(`handoff:${handoff.targetTool}/result`, line, PACKET_LINE_LIMIT)),
-    ]);
+    .flatMap((handoff) => {
+      const requested = normalizeText(handoff.requestedTask);
+      const taskLabel = isContinueDumpEcho(requested) || isDumpPrefixEcho(requested, dumpTexts)
+        ? `${handoff.status}`
+        : `${handoff.status}: ${truncate(handoff.requestedTask, 140)}`;
+      return [
+        labeledLine(`handoff:${handoff.targetTool}/${handoff.status}`, `Previous ${handoff.targetTool} brief was ${taskLabel}.`, PACKET_LINE_LIMIT),
+        ...summarizeHandoffResult(handoff).map((line) => labeledLine(`handoff:${handoff.targetTool}/result`, line, PACKET_LINE_LIMIT)),
+      ];
+    });
 
   const agentHandoffLines = params.agentEvents
     .slice()

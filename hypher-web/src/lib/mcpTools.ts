@@ -1,7 +1,7 @@
 import type { ActivityEntry, AgentEvent, AnyObject, Handoff, Project, ProjectAction, ProjectMemory } from "@/types";
 import { buildAgentContextApiResponse } from "./agentContextApi";
-import { selectProjectActionQueue } from "./actions";
 import { selectPrimaryNextAction } from "./projectMemory";
+import { selectCompiledNextAction } from "./projectContext";
 import {
   AGENT_EVENT_KINDS,
   matchProjectForAgentEvent,
@@ -244,11 +244,19 @@ function currentStateTool(args: JsonObject, context: HypherMcpContext): HypherMc
 }
 
 function nextMoveTool(args: JsonObject, context: HypherMcpContext): HypherMcpToolResult {
-  const { project, memory, actions } = requireProjectContext(args, context);
-  const action = selectProjectActionQueue(actions).find((item) => item.status === "accepted" || item.status === "suggested");
+  const { project, memory, actions, captures } = requireProjectContext(args, context);
+  const compiled = selectCompiledNextAction({
+    memory,
+    actions,
+    captures,
+  });
   const memoryAction = selectPrimaryNextAction(memory?.nextActions ?? []);
-  const nextMove = normalize(action?.title) || normalize(memoryAction?.title) || "No next move captured yet.";
-  const source = action ? "action_queue" : memoryAction ? "project_memory" : "empty";
+  const nextMove = normalize(compiled?.title) || "No next move captured yet.";
+  const source = compiled?.id && compiled.id === memoryAction?.id
+    ? "project_memory"
+    : compiled
+      ? "compiled_brief"
+      : "empty";
 
   return textResult(
     {
@@ -256,7 +264,7 @@ function nextMoveTool(args: JsonObject, context: HypherMcpContext): HypherMcpToo
       projectName: project.name,
       nextMove,
       source,
-      rationale: action?.rationale ?? memoryAction?.rationale,
+      rationale: compiled?.rationale ?? memoryAction?.rationale,
     },
     nextMove
   );

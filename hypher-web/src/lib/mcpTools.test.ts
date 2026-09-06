@@ -171,6 +171,42 @@ describe("buildMcpToolResult", () => {
     expect(result.structuredContent.context).toContain("- [handoff:Cursor/result] User note on previous Cursor brief: Use the same context as Project Pulse.");
   });
 
+  it("includes activity lines when OAuth context supplies them, matching Clerk", () => {
+    const withoutActivity = String(
+      buildMcpToolResult("get_project_context", { projectId: "p1" }, context).structuredContent.context
+    );
+    const withActivity = String(
+      buildMcpToolResult("get_project_context", { projectId: "p1" }, {
+        ...context,
+        projectContexts: {
+          p1: {
+            ...context.projectContexts.p1!,
+            activity: [{
+              id: "act-1",
+              action: "updated",
+              objectId: "n1",
+              objectKind: "note",
+              objectName: "Builder Brief source note",
+              timestamp: 130,
+              projectId: "p1",
+              summary: "Builder Brief source note was accepted into project memory.",
+            }],
+          },
+        },
+      }).structuredContent.context
+    );
+    expect(withoutActivity).not.toContain("[activity:updated]");
+    expect(withActivity).toContain("[activity:updated] Builder Brief source note was accepted into project memory.");
+  });
+
+  it("agrees with Pulse on the current next move", () => {
+    const packet = String(buildMcpToolResult("get_project_context", { projectId: "p1" }, context).structuredContent.context);
+    const next = buildMcpToolResult("get_next_move", { projectId: "p1" }, context).structuredContent;
+    const nextLine = packet.match(/^- Next action: (.+)$/m)?.[1] ?? "";
+    expect(next.nextMove).toBe("Add OAuth metadata");
+    expect(nextLine).toContain("Add OAuth metadata");
+  });
+
   it("keeps MCP Builder Brief output stable when no handoff result exists", () => {
     const result = buildMcpToolResult("get_project_context", { projectId: "p1" }, {
       ...context,
@@ -196,8 +232,8 @@ describe("buildMcpToolResult", () => {
 
     expect(buildMcpToolResult("get_next_move", { projectId: "p1" }, context).structuredContent).toMatchObject({
       projectId: "p1",
-      nextMove: "Define list_projects and get_project_context",
-      source: "action_queue",
+      nextMove: "Add OAuth metadata",
+      source: "project_memory",
     });
   });
 
