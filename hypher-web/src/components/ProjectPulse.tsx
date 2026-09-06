@@ -24,6 +24,7 @@ import {
   agentEventNeedsHumanAccept,
   buildProjectContextInput,
   buildProjectPulseModel,
+  builderBriefFields,
 } from "@/lib/projectPulse";
 
 interface Props {
@@ -105,6 +106,7 @@ export function ProjectPulse({
     : handoffs?.[0]
       ? { packet: handoffs[0].packetContent, generatedAt: handoffs[0].generatedAt }
       : null;
+  const brief = builderBriefFields(memory ?? null);
 
   const handleGenerateHandoff = async () => {
     if (packetBusy) return;
@@ -171,7 +173,7 @@ export function ProjectPulse({
     <section className="project-pulse">
       <header className="project-pulse-hero">
         <div>
-          <p className="project-pulse-kicker">Project Pulse</p>
+          <p className="project-pulse-kicker">Pulse</p>
           <h1>{project.name}</h1>
           {project.githubRepo ? (
             <p className="project-pulse-summary">{project.githubRepo}</p>
@@ -179,10 +181,10 @@ export function ProjectPulse({
         </div>
         <div className="project-pulse-actions">
           <button type="button" className="project-pulse-btn" onClick={onCapture}>
-            Capture
+            Add context
           </button>
           <button type="button" className="project-pulse-btn project-pulse-btn--primary" disabled={packetBusy} onClick={() => void handleGenerateHandoff()}>
-            {packetBusy ? "Preparing..." : BUILDER_BRIEF_COPY_LABEL}
+            {packetBusy ? "Copying…" : BUILDER_BRIEF_COPY_LABEL}
           </button>
         </div>
       </header>
@@ -190,7 +192,7 @@ export function ProjectPulse({
       <div className="project-pulse-grid">
         <section className="project-pulse-panel">
           <div className="project-pulse-panel-head">
-            <h2>Latest Captures</h2>
+            <h2>Latest</h2>
             <span>{model.latestCaptures.length}</span>
           </div>
           {model.latestCaptures.length > 0 ? (
@@ -206,24 +208,66 @@ export function ProjectPulse({
               ))}
             </div>
           ) : (
-            <p className="project-pulse-muted">No captures assigned yet.</p>
+            <p className="project-pulse-muted">Nothing in yet. Add context from home.</p>
           )}
         </section>
 
         <section className="project-pulse-panel project-pulse-panel--handoffs">
           <div className="project-pulse-panel-head">
-            <h2>Builder Brief</h2>
+            <h2>The brief</h2>
           </div>
-          <p className="project-pulse-muted">
-            Compiles this project&apos;s context into a packet for your coding agent.
-          </p>
-          <button type="button" className="project-pulse-inline-btn project-pulse-inline-btn--primary" disabled={packetBusy} onClick={() => void handleGenerateHandoff()}>
-            {packetBusy ? "Preparing..." : BUILDER_BRIEF_COPY_LABEL}
-          </button>
+          {brief.empty ? (
+            <div className="project-brief-skeleton">
+              <p className="project-pulse-muted">No summary captured yet.</p>
+              <p className="project-pulse-muted">
+                Give it the current goal, or start a session and we&apos;ll catch the first handoff.
+                Then this fills in.
+              </p>
+            </div>
+          ) : (
+            <dl className="project-memory-fields">
+              {brief.summary ? (
+                <div>
+                  <dt>Summary</dt>
+                  <dd>{brief.summary}</dd>
+                </div>
+              ) : null}
+              {brief.direction ? (
+                <div>
+                  <dt>Direction</dt>
+                  <dd>{brief.direction}</dd>
+                </div>
+              ) : null}
+              {brief.constraints.length > 0 ? (
+                <div>
+                  <dt>Do not</dt>
+                  <dd>{brief.constraints.join(" · ")}</dd>
+                </div>
+              ) : null}
+              {brief.decisions.length > 0 ? (
+                <div>
+                  <dt>Decisions</dt>
+                  <dd>{brief.decisions.join(" · ")}</dd>
+                </div>
+              ) : null}
+              {brief.questions.length > 0 ? (
+                <div>
+                  <dt>Open</dt>
+                  <dd>{brief.questions.join(" · ")}</dd>
+                </div>
+              ) : null}
+              {brief.nextMove ? (
+                <div>
+                  <dt>Next</dt>
+                  <dd>{brief.nextMove}</dd>
+                </div>
+              ) : null}
+            </dl>
+          )}
           {lastBrief ? (
             <details className="handoff-preview">
               <summary>
-                Latest brief{lastBrief.generatedAt ? ` · ${timeAgo(lastBrief.generatedAt)}` : ""}
+                Packet{lastBrief.generatedAt ? ` · ${timeAgo(lastBrief.generatedAt)}` : ""}
               </summary>
               <textarea readOnly value={lastBrief.packet} />
             </details>
@@ -232,7 +276,7 @@ export function ProjectPulse({
 
         <section className="project-pulse-panel project-pulse-panel--agent">
           <div className="project-pulse-panel-head">
-            <h2>Agent Updates</h2>
+            <h2>Wrote back</h2>
             <span>{agentEvents?.length ?? 0}</span>
           </div>
           {agentEvents?.length ? (
@@ -254,16 +298,18 @@ export function ProjectPulse({
                         Accept
                       </button>
                     ) : null}
-                    <button type="button" className="project-pulse-inline-btn" onClick={() => void handleAgentDismiss(event)}>
-                      Dismiss
-                    </button>
+                    {event.status === "new" ? (
+                      <button type="button" className="project-pulse-inline-btn" onClick={() => void handleAgentDismiss(event)}>
+                        Dismiss
+                      </button>
+                    ) : null}
                   </div>
                 </article>
               ))}
             </div>
           ) : (
             <p className="project-pulse-muted">
-              No agent updates yet. When an agent works on this project, its writeback lands here.
+              When an agent stops, its handoff lands here.
             </p>
           )}
         </section>

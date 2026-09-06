@@ -5,6 +5,7 @@ import Link from "next/link";
 import type { Project, AnyObject } from "@/types";
 import { CreateForm } from "./CreateForm";
 import { FolderIcon, PlusIcon } from "./Icons";
+import { HypherMark } from "./HypherMark";
 
 interface Props {
   projects: Project[];
@@ -40,9 +41,9 @@ export function Sidebar({
   return (
     <aside className={["sidebar", className].filter(Boolean).join(" ")}>
       <div className="sidebar-header">
-        <button className="logo-btn" onClick={() => { closeMobile(); onGoHome(); }} title="Capture (Cmd+N)">
+        <button className="logo-btn" onClick={() => { closeMobile(); onGoHome(); }} title="Home">
           <span className="logo logo--with-mark">
-            <img className="hypher-signal-mark hypher-signal-mark--sidebar" src="/hypher-logo.svg" alt="" aria-hidden />
+            <HypherMark className="hypher-signal-mark--sidebar" />
             hypher
           </span>
         </button>
@@ -65,7 +66,7 @@ export function Sidebar({
             className={`sidebar-primary-link${activeSection === "projects" ? " is-active" : ""}`}
             onClick={() => { closeMobile(); onDashboard(); }}
           >
-            Projects
+            All projects
           </button>
           {agentInboxCount > 0 && onAgentInbox ? (
             <button

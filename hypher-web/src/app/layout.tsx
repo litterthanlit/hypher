@@ -36,29 +36,35 @@ const hypherDisplay = Archivo_Narrow({
 
 export const metadata: Metadata = {
   title: {
-    default: "Hypher — The project context layer for AI builders and agents",
+    default: "Hypher — The context they never find in git",
     template: "%s — Hypher",
   },
   description:
-    "The project context layer for AI builders and agents. Capture the messy work, keep durable project memory, and hand your agents clean Builder Briefs.",
+    "Cursor already has the code. Hypher holds the decisions that never made it in, so the next agent session starts warm.",
   icons: {
     icon: "/hypher-logo.svg",
+  },
+  openGraph: {
+    images: [{ url: "/hypher-logo.svg", width: 596, height: 151, alt: "hypher" }],
   },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
+  const clerkPublishableKey = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY?.trim();
+  const app = (
+    <ConvexProviderWrapper>
+      {children}
+      <Toaster richColors position="top-center" />
+    </ConvexProviderWrapper>
+  );
+
   return (
     <html
       lang="en"
       className={`${geist.variable} ${geistMono.variable} ${hypherWordmark.variable} ${hypherDisplay.variable}`}
     >
       <body>
-        <ClerkProvider>
-          <ConvexProviderWrapper>
-            {children}
-            <Toaster richColors position="top-center" />
-          </ConvexProviderWrapper>
-        </ClerkProvider>
+        {clerkPublishableKey ? <ClerkProvider>{app}</ClerkProvider> : app}
       </body>
     </html>
   );

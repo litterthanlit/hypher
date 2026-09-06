@@ -95,6 +95,7 @@ export function BetaRequestForm() {
   if (submitted) {
     return (
       <div className="marketing-root beta-request-shell">
+        <div className="marketing-atmosphere" aria-hidden />
         <div className="beta-request-card">
           <MarketingBrand className="beta-request-logo" />
           <p className="launch-eyebrow">Private beta</p>
@@ -104,7 +105,7 @@ export function BetaRequestForm() {
           </p>
           <div className="beta-request-confirmation">
             <span>What happens next</span>
-            <p>Requests are reviewed manually so the early room stays focused on builders with real project context to test.</p>
+            <p>Requests are reviewed manually so the early room stays focused on builders who already drown in agent sessions.</p>
           </div>
           <div className="beta-request-actions">
             <Link href="/" className="marketing-cta marketing-cta--ghost">Back to homepage</Link>
@@ -117,12 +118,13 @@ export function BetaRequestForm() {
 
   return (
     <div className="marketing-root beta-request-shell">
+      <div className="marketing-atmosphere" aria-hidden />
       <form className="beta-request-card" onSubmit={(event) => void handleSubmit(event)}>
         <MarketingBrand className="beta-request-logo" />
         <p className="launch-eyebrow">Private beta</p>
         <h1>Request beta access.</h1>
         <p className="beta-request-lede">
-          A short signal check for builders carrying messy project context. No pitch deck required.
+          A short signal check for builders drowning in agent sessions. No pitch deck required.
         </p>
 
         <div className="beta-request-grid">
