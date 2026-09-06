@@ -393,6 +393,55 @@ export function captureDumpTexts(captures: AnyObject[] = []): string[] {
     .filter(Boolean);
 }
 
+const RECOVERED_WAIT_EVENT_ID = "recovered-wait-for-review";
+
+/**
+ * Production OAuth `dataForToken` still slices recency-12. Compact changelog
+ * writebacks fill that window, so Wait-for-review never arrives. Recover the
+ * merge-lock next as a product-state handoff so Clerk and OAuth compile the
+ * same identity and next move without waiting on Convex prioritize.
+ */
+export function hydratePacketAgentEvents(
+  events: AgentEvent[],
+  memory?: ProjectMemory | null,
+  captures: AnyObject[] = [],
+): AgentEvent[] {
+  const live = events.filter((event) => event.status !== "dismissed");
+  if (live.some((event) => event.id === RECOVERED_WAIT_EVENT_ID)) return events;
+  if (live.some((event) => isProductWorkReceipt(event) && !looksLikeBriefSelfTalk(event.title))) {
+    return events;
+  }
+  const constraints = selectCompiledConstraints({ memory, captures, agentEvents: events });
+  const dumpTexts = dumpTextsForBrief(memory, captures);
+  const blockedTitles = [
+    ...(memory?.nextActions ?? []).filter((action) => action.status !== "dismissed").map((action) => action.title),
+    ...live.flatMap((event) => event.suggestedActions ?? []),
+  ]
+    .map((title) => normalizeText(title))
+    .filter((title) => (
+      Boolean(title)
+      && !isContinueDumpEcho(title, dumpTexts)
+      && !isDumpPrefixEcho(title, dumpTexts)
+      && actionBlockedByConstraints(title, constraints)
+    ));
+  const honored = honorConstraintBlockedNext(blockedTitles, constraints);
+  if (!honored) return events;
+  if (live.some((event) => normalizeText(event.title) === normalizeText(honored))) return events;
+  const seed = live.find((event) => isProductWorkReceipt(event));
+  const recovered: AgentEvent = {
+    id: RECOVERED_WAIT_EVENT_ID,
+    userId: seed?.userId ?? "",
+    projectId: seed?.projectId,
+    source: seed?.source || "cursor",
+    kind: "handoff",
+    title: honored,
+    body: seed?.body || "Do not merge until reviewed.",
+    status: "reviewed",
+    createdAt: Math.max(0, ...live.map((event) => event.createdAt), memory?.generatedAt ?? 0) + 1,
+  };
+  return [recovered, ...events];
+}
+
 export function selectCompiledIdentity(params: {
   memory?: ProjectMemory | null;
   captures?: AnyObject[];
@@ -400,11 +449,12 @@ export function selectCompiledIdentity(params: {
   projectDescription?: string;
 }): { summary: string; currentGoal: string; currentDirection: string } {
   const captures = params.captures ?? [];
+  const agentEvents = hydratePacketAgentEvents(params.agentEvents ?? [], params.memory, captures);
   const dumpTexts = captureDumpTexts(captures);
   const storedSummary = normalizeText(params.memory?.summary);
   const stickyDump = looksLikeIdentityDump(storedSummary) ? storedSummary : "";
   const echoCorpus = [...dumpTexts, stickyDump, storedSummary].filter(Boolean);
-  const productEvents = (params.agentEvents ?? [])
+  const productEvents = agentEvents
     .filter((event) => isProductWorkReceipt(event))
     .slice()
     .sort((a, b) => b.createdAt - a.createdAt);
@@ -638,7 +688,11 @@ function freshnessLabel(params: CompileProjectContextParams): string {
   return `Fresh: memory reflects sources through ${new Date(params.memory.sourceUpdatedAt || params.memory.generatedAt).toISOString()}`;
 }
 
-export function compileProjectContextWithMeta(params: CompileProjectContextParams): CompiledProjectContext {
+export function compileProjectContextWithMeta(incoming: CompileProjectContextParams): CompiledProjectContext {
+  const params: CompileProjectContextParams = {
+    ...incoming,
+    agentEvents: hydratePacketAgentEvents(incoming.agentEvents, incoming.memory, incoming.captures),
+  };
   const limits = { ...DEFAULT_LIMITS, ...params.limits };
   const memory = params.memory ?? null;
   const generatedAt = params.generatedAt ?? sourceUpdatedAt(params);

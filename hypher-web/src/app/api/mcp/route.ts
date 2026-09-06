@@ -11,7 +11,8 @@ import {
   sha256Base64url,
 } from "@/lib/oauthBridge";
 import { canonicalizeOAuthResource } from "../../../../shared/oauthResources";
-import { PACKET_AGENT_EVENT_FETCH_LIMIT } from "../../../../shared/projectMemoryGenerate";
+import { PACKET_AGENT_EVENT_FETCH_LIMIT, prioritizeAgentEventsForPacket } from "../../../../shared/projectMemoryGenerate";
+import { hydratePacketAgentEvents } from "@/lib/projectContext";
 import { isRequestBodyTooLarge, readJsonWithLimit } from "@/lib/requestBody";
 import {
   buildMcpToolResult,
@@ -103,6 +104,18 @@ function mapProject(row: any): Project | null {
   };
 }
 
+function packetAgentEvents(
+  events: AgentEvent[],
+  memory?: ProjectMemory | null,
+  captures: AnyObject[] = [],
+): AgentEvent[] {
+  return hydratePacketAgentEvents(
+    prioritizeAgentEventsForPacket(events, PACKET_AGENT_EVENT_FETCH_LIMIT),
+    memory,
+    captures,
+  );
+}
+
 async function getProjectContext(projectId: string, token: string): Promise<HypherMcpProjectContext> {
   const generationInput = await fetchQuery(
     (api as any).projectMemories.generationInput,
@@ -123,13 +136,16 @@ async function getProjectContext(projectId: string, token: string): Promise<Hyph
     fetchQuery((api as any).subscriptions.getMine, {}, { token }) as Promise<{ status?: string; plan?: string } | null>,
   ]);
 
+  const memory = memories.find((item) => item.projectId === projectId) ?? null;
+  const captures = generationInput.items;
+
   return {
     project: generationInput.project,
-    memory: memories.find((item) => item.projectId === projectId) ?? null,
-    captures: generationInput.items,
+    memory,
+    captures,
     activity: generationInput.activities,
     actions,
-    agentEvents,
+    agentEvents: packetAgentEvents(agentEvents, memory, captures),
     handoffs,
     subscription,
   };
@@ -186,9 +202,20 @@ async function getMcpContextForAccessToken(accessToken: string, resource: string
   }
   if (!data) return null;
 
+  const projectContext = data.projectContext
+    ? {
+      ...data.projectContext,
+      agentEvents: packetAgentEvents(
+        data.projectContext.agentEvents,
+        data.projectContext.memory,
+        data.projectContext.captures,
+      ),
+    }
+    : null;
+
   return {
     projects: data.projects,
-    projectContexts: projectId && data.projectContext ? { [projectId]: data.projectContext } : {},
+    projectContexts: projectId && projectContext ? { [projectId]: projectContext } : {},
   };
 }
 

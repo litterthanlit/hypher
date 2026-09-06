@@ -402,6 +402,71 @@ describe("builderBriefFields", () => {
     expect(packet).toMatch(/Wait for review before merging PR 62/);
     expect(pulse.nextMove).toBe(packet.match(/^- Next action: (.+)$/m)?.[1]?.replace(/^\[[^\]]+\]\s*/, ""));
   });
+
+  it("matches get_project_context when OAuth recency-12 is all compiler changelog", () => {
+    const dump = "Dogfood dump on the real hypher project. Product: dump → one note agents read → writeback. Session 2 should start warm. Do not: invent dumps, gate bind on a github token, or treat try hypher as the home. Next: confirm silent synthesis thickened this note without a generate button.";
+    const merge = "Merge PR 62 and deploy Vercel plus Convex so production get_project_context drops the dump echo";
+    const latestBody = "Do not widen OAuth. Pulse stays three panels. Do not rebuild the canvas. Do not merge until reviewed.";
+    const echoed: ProjectMemory = {
+      ...memory,
+      summary: dump,
+      currentGoal: "",
+      currentDirection: "",
+      constraints: ["Do not invent dumps"],
+      nextActions: [
+        {
+          id: "continue",
+          title: "Continue: Dogfood dump on the real hypher project.",
+          rationale: "Compiled from the latest dump or writeback.",
+          status: "suggested",
+          createdAt: 52,
+          updatedAt: 52,
+        },
+        {
+          id: "echo",
+          title: merge,
+          rationale: "Compiled from the latest dump or writeback.",
+          status: "suggested",
+          createdAt: 50,
+          updatedAt: 50,
+        },
+      ],
+    };
+    const captures = [{
+      id: "n-dump",
+      kind: "note" as const,
+      content: dump,
+      maturity: "fleeting" as const,
+      projectId: "p1",
+      createdAt: 3,
+      modifiedAt: 30,
+    }];
+    const events: AgentEvent[] = Array.from({ length: 12 }, (_, index) => ({
+      id: `cl-${index}`,
+      userId: "u1",
+      projectId: "p1",
+      source: "cursor",
+      kind: "handoff",
+      title: `Changelog titles leave OAuth recency-12 ${index}`,
+      body: latestBody,
+      status: "reviewed",
+      createdAt: 2000 - index,
+    }));
+    const pulse = builderBriefFields(echoed, { actions: [], captures, agentEvents: events });
+    const packet = compileBuilderBrief({
+      project,
+      memory: echoed,
+      captures,
+      actions: [],
+      agentEvents: events,
+    });
+    expect(pulse.summary).toBe("Wait for review before merging PR 62");
+    expect(pulse.nextMove).toBe("Wait for review before merging PR 62");
+    expect(packet).toMatch(/- Short summary: Wait for review before merging PR 62/);
+    expect(pulse.nextMove).toBe(packet.match(/^- Next action: (.+)$/m)?.[1]?.replace(/^\[[^\]]+\]\s*/, ""));
+    expect(pulse.summary.toLowerCase()).not.toContain("dogfood dump");
+    expect(pulse.summary).not.toMatch(/Changelog titles/);
+  });
 });
 
 describe("agent event Accept gating", () => {

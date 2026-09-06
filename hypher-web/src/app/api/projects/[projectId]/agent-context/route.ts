@@ -5,7 +5,8 @@ import type { Id } from "../../../../../../convex/_generated/dataModel";
 import type { ActivityEntry, AgentEvent, AnyObject, Handoff, Project, ProjectAction, ProjectMemory } from "@/types";
 import { buildAgentContextApiResponse } from "@/lib/agentContextApi";
 import { authErrorJson, requireBetaAccess } from "@/lib/serverAuth";
-import { PACKET_AGENT_EVENT_FETCH_LIMIT } from "../../../../../../shared/projectMemoryGenerate";
+import { PACKET_AGENT_EVENT_FETCH_LIMIT, prioritizeAgentEventsForPacket } from "../../../../../../shared/projectMemoryGenerate";
+import { hydratePacketAgentEvents } from "@/lib/projectContext";
 
 export const runtime = "nodejs";
 
@@ -53,13 +54,18 @@ export async function GET(req: NextRequest, context: RouteContext) {
     ]);
 
     const memory = memories.find((item) => item.projectId === projectId) ?? null;
+    const captures = generationInput.items;
     const response = buildAgentContextApiResponse({
       project: generationInput.project,
       memory,
-      captures: generationInput.items,
+      captures,
       activity: generationInput.activities,
       actions,
-      agentEvents,
+      agentEvents: hydratePacketAgentEvents(
+        prioritizeAgentEventsForPacket(agentEvents, PACKET_AGENT_EVENT_FETCH_LIMIT),
+        memory,
+        captures,
+      ),
       handoffs,
       subscription,
       task: optionalParam(req, "task"),

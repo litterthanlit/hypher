@@ -1,7 +1,7 @@
 import type { ActivityEntry, AgentEvent, AnyObject, Handoff, Project, ProjectAction, ProjectMemory } from "@/types";
 import { buildAgentContextApiResponse } from "./agentContextApi";
 import { selectPrimaryNextAction } from "./projectMemory";
-import { selectCompiledIdentity, selectCompiledNextAction, captureDumpTexts } from "./projectContext";
+import { selectCompiledIdentity, selectCompiledNextAction, captureDumpTexts, hydratePacketAgentEvents } from "./projectContext";
 import {
   dropBriefSelfTalkWhenProductStateExists,
   isContinueDumpEcho,
@@ -237,10 +237,11 @@ function recentChangeLeads(params: {
   captures: AnyObject[];
   agentEvents: AgentEvent[];
 }): string[] {
+  const agentEvents = hydratePacketAgentEvents(params.agentEvents, params.memory, params.captures);
   const dumpTexts = captureDumpTexts(params.captures);
-  const hasProductHandoffs = params.agentEvents.some((event) => isProductWorkReceipt(event));
+  const hasProductHandoffs = agentEvents.some((event) => isProductWorkReceipt(event));
   const fromEvents = dropBriefSelfTalkWhenProductStateExists(
-    params.agentEvents
+    agentEvents
       .filter((event) => isProductWorkReceipt(event))
       .slice()
       .sort((a, b) => b.createdAt - a.createdAt)

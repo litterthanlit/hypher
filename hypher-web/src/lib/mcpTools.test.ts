@@ -420,6 +420,82 @@ describe("buildMcpToolResult", () => {
     expect(brief).toMatch(/Do not merge until reviewed/);
   });
 
+  it("recovers wait-for-review identity when OAuth recency-12 is all compiler changelog", () => {
+    const dump =
+      "Dogfood dump on the real hypher project. Product: dump → one note agents read → writeback. Session 2 should start warm. Do not: invent dumps, gate bind on a github token, or treat try hypher as the home. Next: confirm silent synthesis thickened this note without a generate button.";
+    const merge = "Merge PR 62 and deploy Vercel plus Convex so production get_project_context drops the dump echo";
+    const latestBody = "Do not widen OAuth. Pulse stays three panels. Do not rebuild the canvas. Do not merge until reviewed.";
+    const changelogEvents: AgentEvent[] = Array.from({ length: 12 }, (_, index) => ({
+      id: `cl-${index}`,
+      userId: "u1",
+      projectId: "p1",
+      source: "cursor",
+      kind: "handoff",
+      title: `Changelog titles leave OAuth recency-12 ${index}`,
+      body: latestBody,
+      status: "reviewed",
+      createdAt: 2000 - index,
+    }));
+    const oauthShaped: HypherMcpContext = {
+      ...context,
+      projectContexts: {
+        p1: {
+          project,
+          memory: {
+            ...memory,
+            summary: dump,
+            currentGoal: "",
+            currentDirection: "",
+            recentChanges: changelogEvents.slice(0, 6).map((event) => `${event.title}. ${latestBody}`),
+            nextActions: [
+              {
+                id: "continue",
+                title: "Continue: Dogfood dump on the real hypher project.",
+                rationale: "Compiled from the latest dump or writeback.",
+                status: "suggested",
+                createdAt: 92,
+                updatedAt: 92,
+              },
+              {
+                id: "na",
+                title: merge,
+                rationale: "Compiled from the latest dump or writeback.",
+                status: "suggested",
+                createdAt: 90,
+                updatedAt: 90,
+              },
+            ],
+          },
+          captures: [{
+            id: "n-dump",
+            kind: "note",
+            content: dump,
+            maturity: "fleeting",
+            projectId: "p1",
+            createdAt: 1,
+            modifiedAt: 30,
+          }],
+          actions: [],
+          agentEvents: changelogEvents,
+          handoffs: [],
+          subscription: { status: "active", plan: "pro_monthly" },
+        },
+      },
+    };
+    const state = buildMcpToolResult("get_current_state", { projectId: "p1" }, oauthShaped).structuredContent;
+    const move = buildMcpToolResult("get_next_move", { projectId: "p1" }, oauthShaped).structuredContent;
+    const brief = String(buildMcpToolResult("get_project_context", { projectId: "p1" }, oauthShaped).structuredContent.context);
+    const recentChanges = Array.isArray(state.recentChanges) ? state.recentChanges.map(String) : [];
+    expect(String(state.currentState)).toBe("Wait for review before merging PR 62");
+    expect(recentChanges[0]).toBe("Wait for review before merging PR 62.");
+    expect(recentChanges.join("\n")).not.toMatch(/Changelog titles/);
+    expect(String(move.nextMove)).toBe("Wait for review before merging PR 62");
+    expect(brief).toMatch(/- Short summary: Wait for review before merging PR 62/);
+    expect(brief).toMatch(/- Next action: \[next:suggested\] Wait for review before merging PR 62/);
+    expect(brief).not.toMatch(/- Short summary: Dogfood dump/);
+    expect(brief).not.toMatch(/- Short summary: Changelog titles/);
+  });
+
   it("prepares a concise handoff with account-linking wording", () => {
     const result = buildMcpToolResult("prepare_handoff", { projectId: "p1" }, context);
 

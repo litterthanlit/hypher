@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { AgentEvent, AnyObject, Handoff, Project, ProjectAction, ProjectMemory } from "@/types";
-import { compileBuilderBrief, compileProjectContext, compileProjectContextWithMeta } from "./projectContext";
+import { compileBuilderBrief, compileProjectContext, compileProjectContextWithMeta, hydratePacketAgentEvents } from "./projectContext";
 import { PACKET_AGENT_EVENT_FETCH_LIMIT, prioritizeAgentEventsForPacket } from "../../shared/projectMemoryGenerate";
 
 const project: Project = {
@@ -1335,32 +1335,69 @@ describe("compileBuilderBrief", () => {
     const recencyWindow = [...changelogEvents, waitEvent]
       .sort((a, b) => b.createdAt - a.createdAt)
       .slice(0, 12);
+    const recencyMemory = {
+      ...memory,
+      summary: dump,
+      currentGoal: "",
+      currentDirection: "",
+      importantDecisions: [],
+      openQuestions: [],
+      blockers: [],
+      staleAssumptions: [],
+      nextActions: [
+        {
+          id: "continue",
+          title: "Continue: Dogfood dump on the real hypher project.",
+          rationale: "Compiled from the latest dump or writeback.",
+          status: "suggested" as const,
+          createdAt: 950,
+          updatedAt: 950,
+        },
+        {
+          id: "dump-next",
+          title: "confirm silent synthesis thickened this note without a generate button",
+          rationale: "Compiled from the latest dump or writeback.",
+          status: "suggested" as const,
+          createdAt: 940,
+          updatedAt: 940,
+        },
+        {
+          id: "na1",
+          title: "Merge PR 62 and deploy Vercel plus Convex so production get_project_context drops the dump echo",
+          rationale: "Compiled from the latest dump or writeback.",
+          status: "suggested" as const,
+          createdAt: 900,
+          updatedAt: 900,
+        },
+      ],
+    };
+    const recencyCaptures = [{
+      id: "n-dump",
+      kind: "note" as const,
+      content: dump,
+      maturity: "fleeting" as const,
+      projectId: "p1",
+      createdAt: 40,
+      modifiedAt: 60,
+    }];
     const recencyPacket = compileBuilderBrief({
       project: { ...project, name: "hypher", description: "" },
-      memory: {
-        ...memory,
-        summary: dump,
-        currentGoal: "",
-        currentDirection: "",
-        importantDecisions: [],
-        openQuestions: [],
-        blockers: [],
-        staleAssumptions: [],
-      },
-      captures: [{
-        id: "n-dump",
-        kind: "note",
-        content: dump,
-        maturity: "fleeting",
-        projectId: "p1",
-        createdAt: 40,
-        modifiedAt: 60,
-      }],
+      memory: recencyMemory,
+      captures: recencyCaptures,
       actions: [],
       agentEvents: recencyWindow,
       generatedAt: 2000,
     });
     expect(recencyPacket).not.toMatch(/- Short summary: Wait-for-review next when merge is locked/);
+    expect(recencyPacket).toMatch(/- Short summary: Wait for review before merging PR 62/);
+    expect(recencyPacket).toMatch(/- Current state: Wait for review before merging PR 62/);
+    expect(recencyPacket).not.toMatch(/- Short summary: Session 2 should start warm/);
+    expect(recencyPacket).not.toMatch(/- Short summary: Changelog titles/);
+    const recencyRecent = recencyPacket.split("## Recent changes")[1]?.split("##")[0] ?? "";
+    expect(recencyRecent).toMatch(/Wait for review before merging PR 62/);
+    expect(recencyRecent).not.toMatch(/Changelog titles/);
+    expect(hydratePacketAgentEvents(recencyWindow, recencyMemory, recencyCaptures)[0]?.title)
+      .toBe("Wait for review before merging PR 62");
 
     const recencyWide = compileBuilderBrief({
       project: { ...project, name: "hypher", description: "" },
