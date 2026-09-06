@@ -15,6 +15,8 @@ import { selectProjectActionQueue } from "./actions";
 import { summarizeHandoffResult } from "./handoffResults";
 import { selectPrimaryNextAction } from "./projectMemory";
 import {
+  actionBlockedByConstraints,
+  agentEventNeedsHumanAccept,
   dumpHeadline,
   expandConstraintLines,
   extractCurrentTask,
@@ -504,10 +506,20 @@ export function selectCompiledNextAction(params: {
 }): ProjectNextAction | null {
   const dumpTexts = dumpTextsForBrief(params.memory, params.captures ?? []);
   const generatedAt = params.generatedAt ?? 0;
+  const constraints = selectCompiledConstraints({
+    memory: params.memory,
+    captures: params.captures,
+    agentEvents: params.agentEvents,
+  });
+  const usableTitle = (title: string): boolean => {
+    const text = normalizeText(title);
+    if (!text) return false;
+    if (isContinueDumpEcho(text, dumpTexts) || isDumpPrefixEcho(text, dumpTexts)) return false;
+    if (actionBlockedByConstraints(text, constraints)) return false;
+    return true;
+  };
   const usableMemoryActions = (params.memory?.nextActions ?? []).filter((action) => (
-    action.status !== "dismissed"
-    && !isContinueDumpEcho(action.title, dumpTexts)
-    && !isDumpPrefixEcho(action.title, dumpTexts)
+    action.status !== "dismissed" && usableTitle(action.title)
   ));
   const latestEventAction = (params.agentEvents ?? [])
     .filter((event) => isProductWorkReceipt(event))
@@ -515,7 +527,7 @@ export function selectCompiledNextAction(params: {
     .sort((a, b) => b.createdAt - a.createdAt)
     .flatMap((event) => event.suggestedActions ?? [])
     .map((title) => normalizeText(title))
-    .find((title) => title && !isContinueDumpEcho(title, dumpTexts) && !isDumpPrefixEcho(title, dumpTexts));
+    .find((title) => usableTitle(title));
   const fromEvent = latestEventAction
     ? {
       id: "event-next-action",
@@ -526,9 +538,7 @@ export function selectCompiledNextAction(params: {
       updatedAt: generatedAt,
     }
     : null;
-  const fromTask = params.task
-    && !isContinueDumpEcho(params.task, dumpTexts)
-    && !isDumpPrefixEcho(params.task, dumpTexts)
+  const fromTask = params.task && usableTitle(params.task)
     ? {
       id: "manual-next-action",
       title: normalizeText(params.task),
@@ -538,9 +548,10 @@ export function selectCompiledNextAction(params: {
       updatedAt: generatedAt,
     }
     : null;
+  const queuedActions = (params.actions ?? []).filter((action) => usableTitle(action.title));
   return selectPrimaryNextAction(usableMemoryActions)
     ?? fromEvent
-    ?? actionFromQueue(params.actions ?? [])
+    ?? actionFromQueue(queuedActions)
     ?? fromTask;
 }
 
@@ -585,19 +596,28 @@ export function compileProjectContextWithMeta(params: CompileProjectContextParam
     .sort((a, b) => (b.modifiedAt ?? 0) - (a.modifiedAt ?? 0));
   const includedCaptures = liveCaptures.slice(0, limits.captures);
 
+  const dumpTexts = dumpTextsForBrief(memory, liveCaptures);
+  const compiledConstraints = selectCompiledConstraints({
+    memory,
+    captures: liveCaptures,
+    agentEvents: params.agentEvents,
+  });
+  const usableNextTitle = (title: string): boolean => {
+    const text = normalizeText(title);
+    if (!text) return false;
+    if (isContinueDumpEcho(text, dumpTexts) || isDumpPrefixEcho(text, dumpTexts)) return false;
+    return !actionBlockedByConstraints(text, compiledConstraints);
+  };
   const activeActions = selectProjectActionQueue(params.actions)
     .filter((action) => action.status !== "dismissed" && action.status !== "completed")
+    .filter((action) => usableNextTitle(action.title))
     .slice(0, limits.actions);
-
-  const dumpTexts = dumpTextsForBrief(memory, liveCaptures);
 
   const sourceCaptureIds = includedCaptures.map((item) => item.id);
   const excludedSourceCaptureIds = excludedCaptures.map((item) => item.id);
 
   const usableMemoryActions = (memory?.nextActions ?? []).filter((action) => (
-    action.status !== "dismissed"
-    && !isContinueDumpEcho(action.title, dumpTexts)
-    && !isDumpPrefixEcho(action.title, dumpTexts)
+    action.status !== "dismissed" && usableNextTitle(action.title)
   ));
 
   const primaryAction = selectCompiledNextAction({
@@ -639,7 +659,7 @@ export function compileProjectContextWithMeta(params: CompileProjectContextParam
     .map((event) => {
       const title = headingLine(event.title);
       const next = normalizeText(event.suggestedActions?.[0]);
-      const text = next && !title.toLowerCase().includes(next.toLowerCase())
+      const text = next && usableNextTitle(next) && !title.toLowerCase().includes(next.toLowerCase())
         ? `${title} Next: ${next}`
         : title;
       return labeledLine(`agent:${normalizeText(event.source)}/${event.kind}`, text, PACKET_LINE_LIMIT, false);
@@ -675,13 +695,14 @@ export function compileProjectContextWithMeta(params: CompileProjectContextParam
     .map((action) => labeledLine(`next:${action.status}`, action.title, PACKET_LINE_LIMIT));
   const activeAcceptedActionLines = activeAcceptedSuggestions(memory)
     .filter((item) => item.kind === "current_task" || item.kind === "open_action")
+    .filter((item) => usableNextTitle(item.text))
     .map((item) => labeledLine(acceptedMemorySourceLabel(item), item.text, PACKET_LINE_LIMIT));
   const activeTaskLines = uniqueByTaskStem([
     ...activeActions.map((action) => labeledLine(`action:${action.status}`, action.title, PACKET_LINE_LIMIT)),
     ...activeMemoryActions,
     ...activeAcceptedActionLines,
     ...(memory?.activeTasks ?? [])
-      .filter((item) => !isMilestoneLine(item) && !isContinueDumpEcho(item, dumpTexts) && !isDumpPrefixEcho(item, dumpTexts))
+      .filter((item) => !isMilestoneLine(item) && usableNextTitle(item))
       .map((item) => labeledLine("memory:task", item, PACKET_LINE_LIMIT)),
   ]).slice(0, limits.actions);
   const compiledDecisions = selectCompiledDecisions({
@@ -786,10 +807,17 @@ export function compileProjectContextWithMeta(params: CompileProjectContextParam
     ...splitLines(params.project.blockers).map((item) => labeledLine("project:blocker", item, PACKET_LINE_LIMIT)),
   ]).slice(0, limits.openQuestions);
   const needsReviewLines = params.agentEvents
-    .filter((event) => event.status === "new")
+    .filter((event) => (
+      event.status === "new"
+      && agentEventNeedsHumanAccept(event.kind, event.source)
+    ))
     .sort((a, b) => b.createdAt - a.createdAt)
     .slice(0, limits.agentEvents)
-    .map((event) => labeledLine(`agent:${normalizeText(event.source)}/needs-review`, event.title, PACKET_LINE_LIMIT));
+    .map((event) => labeledLine(
+      `agent:${normalizeText(event.source)}/needs-review`,
+      event.title,
+      PACKET_LINE_LIMIT
+    ));
   const ambiguityLines = uniqueLines([
     ...(memory?.staleAssumptions ?? []).map((item) => labeledLine("memory:stale_assumption", `Do not assume: ${item}`, PACKET_LINE_LIMIT)),
   ]).slice(0, limits.agentWarnings);

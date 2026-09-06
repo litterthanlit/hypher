@@ -909,10 +909,105 @@ describe("compileBuilderBrief", () => {
     expect(notes).not.toMatch(/now\.\.\.\./);
   });
 
-  it("compiles today's live production shape: last-handoff identity, product aim, compiled decisions, one Merge PR stem", () => {
+  it("does not list product handoffs under Needs review", () => {
+    const packet = compileBuilderBrief({
+      project,
+      memory,
+      captures: [],
+      actions: [],
+      agentEvents: [
+        {
+          id: "handoff-new",
+          userId: "u1",
+          projectId: "p1",
+          source: "cursor",
+          kind: "handoff",
+          title: "Dump-only constraints keep packet slots",
+          body: "Do not merge until reviewed.",
+          status: "new",
+          createdAt: 90,
+        },
+        {
+          id: "question-new",
+          userId: "u1",
+          projectId: "p1",
+          source: "cursor",
+          kind: "question",
+          title: "Should the brief wait for review before naming a next merge?",
+          body: "Accept stays for questions.",
+          status: "new",
+          createdAt: 91,
+        },
+      ],
+      generatedAt: 91,
+    });
+    const reviewSection = packet.split("### Needs review")[1]?.split("###")[0] ?? "";
+    expect(reviewSection).toMatch(/Should the brief wait for review before naming a next merge/);
+    expect(reviewSection).not.toMatch(/Dump-only constraints keep packet slots/);
+    expect(reviewSection).not.toMatch(/needs-review.*handoff/i);
+  });
+
+  it("does not tell the next agent to merge when the brief says do not merge until reviewed", () => {
     const dump =
       "Dogfood dump on the real hypher project. Product: dump → one note agents read → writeback. Session 2 should start warm. Do not: invent dumps, gate bind on a github token, or treat try hypher as the home. Next: confirm silent synthesis thickened this note without a generate button.";
-    const latestTitle = "Read-time decisions and session-2 aim";
+    const merge = "Merge PR 62 and deploy Vercel plus Convex so production get_project_context drops the dump echo";
+    const packet = compileBuilderBrief({
+      project: { ...project, name: "hypher", description: "" },
+      memory: {
+        ...memory,
+        summary: dump,
+        currentGoal: "",
+        currentDirection: "",
+        importantDecisions: [],
+        nextActions: [{
+          id: "na",
+          title: merge,
+          rationale: "Compiled from the latest dump or writeback.",
+          status: "suggested",
+          createdAt: 900,
+          updatedAt: 900,
+        }],
+        activeTasks: [merge],
+      },
+      captures: [{
+        id: "n-dump",
+        kind: "note",
+        content: dump,
+        maturity: "fleeting",
+        projectId: "p1",
+        createdAt: 40,
+        modifiedAt: 60,
+      }],
+      actions: [],
+      agentEvents: [{
+        id: "latest",
+        userId: "u1",
+        projectId: "p1",
+        source: "cursor",
+        kind: "handoff",
+        title: "Dump-only constraints keep packet slots",
+        body: "Do not widen OAuth. Pulse stays three panels. Do not rebuild the canvas. Do not merge until reviewed.",
+        suggestedActions: [merge],
+        status: "new",
+        createdAt: 900,
+      }],
+      generatedAt: 900,
+    });
+    expect(packet).toMatch(/- Short summary: Dump-only constraints keep packet slots/);
+    expect(packet).toMatch(/Do not merge until reviewed/);
+    expect(packet).not.toMatch(/- Next action:.*Merge PR 62/i);
+    expect(packet).not.toMatch(/- Work on:.*Merge PR 62/i);
+    expect(packet).not.toMatch(/Next: Merge PR 62/);
+    const taskSection = packet.split("### Active tasks")[1]?.split("##")[0] ?? "";
+    expect(taskSection).not.toMatch(/Merge PR 62/);
+    const reviewSection = packet.split("### Needs review")[1]?.split("###")[0] ?? "";
+    expect(reviewSection).not.toMatch(/Dump-only constraints keep packet slots/);
+  });
+
+  it("compiles today's live production shape: last-handoff identity, product aim, compiled decisions, merge lock honored", () => {
+    const dump =
+      "Dogfood dump on the real hypher project. Product: dump → one note agents read → writeback. Session 2 should start warm. Do not: invent dumps, gate bind on a github token, or treat try hypher as the home. Next: confirm silent synthesis thickened this note without a generate button.";
+    const latestTitle = "Dump-only constraints keep packet slots";
     const nextMove = "Merge PR 62 and deploy Vercel plus Convex so production get_project_context drops the dump echo";
     const latestBody = "Do not widen OAuth. Pulse stays three panels. Do not rebuild the canvas. Do not merge until reviewed.";
     const mashedSticky =
@@ -1015,12 +1110,14 @@ describe("compileBuilderBrief", () => {
       generatedAt: 900,
     });
 
-    expect(packet).toMatch(/- Short summary: Read-time decisions and session-2 aim/);
+    expect(packet).toMatch(/- Short summary: Dump-only constraints keep packet slots/);
     expect(packet).not.toMatch(/- Short summary: Dogfood dump/);
     expect(packet).toMatch(/Trying to become: Session 2 should start warm/);
     expect(packet).not.toMatch(/Trying to become: .*Merge PR 62/i);
     expect(packet).toMatch(/Product: dump → one note agents read → writeback/);
-    expect(packet).toContain(`- Next action: [next:suggested] ${nextMove}`);
+    expect(packet).not.toMatch(/- Next action:.*Merge PR 62/i);
+    expect(packet).not.toMatch(/- Work on:.*Merge PR 62/i);
+    expect(packet).not.toMatch(/Next: Merge PR 62/);
     expect(packet).toContain("- Target tool: Cursor");
     expect(packet).not.toContain("- Target tool: GitHub");
     expect(packet).toContain("- Compact mode: off");
@@ -1039,7 +1136,7 @@ describe("compileBuilderBrief", () => {
     expect(constraintSection).toMatch(/try hypher/i);
     expect(constraintSection.match(/Do not invent dumps/g)?.length).toBe(1);
     const taskSection = packet.split("### Active tasks")[1]?.split("##")[0] ?? "";
-    expect(taskSection.match(/Merge PR 62/g)?.length).toBe(1);
+    expect(taskSection).not.toMatch(/Merge PR 62/);
     expect(packet).not.toMatch(/usabl\.\.\./);
     expect(packet).not.toMatch(/Merg\.\.\./);
     expect(packet).not.toMatch(/now\.\.\.\./);

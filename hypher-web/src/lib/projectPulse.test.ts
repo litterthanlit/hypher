@@ -316,6 +316,66 @@ describe("builderBriefFields", () => {
     expect(packet).not.toMatch(/Continue: Dogfood dump/);
     expect(pulse.nextMove).toBe(packet.match(/^- Next action: (.+)$/m)?.[1]?.replace(/^\[[^\]]+\]\s*/, ""));
   });
+
+  it("does not show a merge next move when the brief forbids merge until reviewed", () => {
+    const dump = "Dogfood dump on the real hypher project. Product: dump → one note agents read → writeback. Session 2 should start warm. Do not: invent dumps, gate bind on a github token, or treat try hypher as the home.";
+    const merge = "Merge PR 62 and deploy Vercel plus Convex so production get_project_context drops the dump echo";
+    const echoed: ProjectMemory = {
+      ...memory,
+      summary: dump,
+      currentGoal: "",
+      currentDirection: "",
+      constraints: ["Do not invent dumps"],
+      nextActions: [{
+        id: "echo",
+        title: merge,
+        rationale: "Compiled from the latest dump or writeback.",
+        status: "suggested",
+        createdAt: 50,
+        updatedAt: 50,
+      }],
+    };
+    const captures = [{
+      id: "n-dump",
+      kind: "note" as const,
+      content: dump,
+      maturity: "fleeting" as const,
+      projectId: "p1",
+      createdAt: 3,
+      modifiedAt: 30,
+    }];
+    const events: AgentEvent[] = [{
+      id: "session-2",
+      userId: "u1",
+      projectId: "p1",
+      source: "cursor",
+      kind: "handoff",
+      title: "Dump-only constraints keep packet slots",
+      body: "Do not widen OAuth. Pulse stays three panels. Do not rebuild the canvas. Do not merge until reviewed.",
+      suggestedActions: [merge],
+      status: "reviewed",
+      createdAt: 90,
+    }];
+    const pulse = builderBriefFields(echoed, { actions: [], captures, agentEvents: events });
+    const model = buildProjectPulseModel({
+      project,
+      allObjects: captures,
+      activity,
+      memories: [echoed],
+      agentEvents: events,
+    });
+    const packet = compileBuilderBrief({
+      project,
+      memory: echoed,
+      captures,
+      actions: [],
+      agentEvents: events,
+    });
+    expect(pulse.nextMove).not.toMatch(/Merge PR 62/);
+    expect(model.primaryNextAction).toBeNull();
+    expect(packet).not.toMatch(/- Next action:.*Merge PR 62/i);
+    expect(pulse.nextMove).toBe(model.primaryNextAction?.title ?? "");
+  });
 });
 
 describe("agent event Accept gating", () => {

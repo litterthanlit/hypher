@@ -330,6 +330,29 @@ export function isNextActionClone(value: string | undefined | null, nextTitles: 
   return nextTitles.some((title) => normalize(title).replace(/[.!?]+$/, "").toLowerCase() === key);
 }
 
+function firstActionWord(value: string): string {
+  const text = normalize(value).replace(/^\[[^\]]+\]\s*/, "").toLowerCase();
+  return (text.split(/\s+/)[0] ?? "").replace(/[^a-z0-9]/g, "");
+}
+
+function doNotRemainder(item: string): string {
+  return normalize(item).replace(/^(do not|don't|dont|don’t|avoid|never)\s*:?\s*/i, "");
+}
+
+/** A next move must not be the thing a do-not-do already forbids. */
+export function actionBlockedByConstraints(title: string, constraints: string[]): boolean {
+  const actionFirst = firstActionWord(title);
+  if (actionFirst.length < 4) return false;
+  const lines = uniqueConstraintLines(expandConstraintLines(constraints));
+  for (const raw of lines) {
+    const line = normalize(raw);
+    if (!looksLikeDoNotDo(line)) continue;
+    const constraintFirst = firstActionWord(doNotRemainder(line));
+    if (constraintFirst.length >= 4 && constraintFirst === actionFirst) return true;
+  }
+  return false;
+}
+
 export function extractProductAim(
   sentences: string[],
   options: { echoCorpus?: string[]; nextTitles?: string[]; summary?: string } = {}

@@ -15,6 +15,7 @@ import {
   looksLikeDoNotDo,
   mergeAiShapeIntoSnapshot,
   summarizeEvent,
+  actionBlockedByConstraints,
 } from "./projectMemoryGenerate";
 import { compileBuilderBrief } from "../src/lib/projectContext";
 import type { Project, ProjectMemory } from "../src/types";
@@ -171,6 +172,26 @@ describe("writeback receipts", () => {
     expect(agentEventNeedsHumanAccept("suggestion", "cursor")).toBe(true);
     expect(agentEventNeedsHumanAccept("question", "github")).toBe(true);
     expect(agentEventNeedsHumanAccept("build_log", "github")).toBe(false);
+  });
+});
+
+describe("actionBlockedByConstraints", () => {
+  it("blocks a merge next move when the brief says do not merge until reviewed", () => {
+    expect(actionBlockedByConstraints(
+      "Merge PR 62 and deploy Vercel plus Convex so production get_project_context drops the dump echo",
+      ["Do not merge until reviewed."],
+    )).toBe(true);
+  });
+
+  it("does not block an unrelated next move", () => {
+    expect(actionBlockedByConstraints(
+      "Keep dump-only constraints on the packet",
+      ["Do not merge until reviewed.", "Do not rebuild the canvas."],
+    )).toBe(false);
+    expect(actionBlockedByConstraints(
+      "Merge PR 62 and deploy Convex so production memory drops the dump echo",
+      ["Do not invent dumps", "Do not rebuild the canvas."],
+    )).toBe(false);
   });
 });
 

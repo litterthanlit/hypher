@@ -312,6 +312,63 @@ describe("buildMcpToolResult", () => {
     expect(brief).not.toContain("- Target tool: GitHub");
   });
 
+  it("does not return a merge next move when the brief says do not merge until reviewed", () => {
+    const dump =
+      "Dogfood dump on the real hypher project. Product: dump → one note agents read → writeback. Session 2 should start warm. Do not: invent dumps, gate bind on a github token, or treat try hypher as the home.";
+    const merge = "Merge PR 62 and deploy Convex so production memory and packet compile drop the dump echo";
+    const locked: HypherMcpContext = {
+      ...context,
+      projectContexts: {
+        p1: {
+          project,
+          memory: {
+            ...memory,
+            summary: dump,
+            currentGoal: "",
+            currentDirection: "",
+            nextActions: [{
+              id: "na",
+              title: merge,
+              rationale: "Compiled from the latest dump or writeback.",
+              status: "suggested",
+              createdAt: 90,
+              updatedAt: 90,
+            }],
+          },
+          captures: [{
+            id: "n-dump",
+            kind: "note",
+            content: dump,
+            maturity: "fleeting",
+            projectId: "p1",
+            createdAt: 1,
+            modifiedAt: 30,
+          }],
+          actions: [],
+          agentEvents: [{
+            id: "latest",
+            userId: "u1",
+            projectId: "p1",
+            source: "cursor",
+            kind: "handoff",
+            title: "Dump-only constraints keep packet slots",
+            body: "Do not widen OAuth. Pulse stays three panels. Do not rebuild the canvas. Do not merge until reviewed.",
+            suggestedActions: [merge],
+            status: "new",
+            createdAt: 90,
+          }],
+          handoffs: [],
+          subscription: { status: "active", plan: "pro_monthly" },
+        },
+      },
+    };
+    const move = buildMcpToolResult("get_next_move", { projectId: "p1" }, locked).structuredContent;
+    const brief = String(buildMcpToolResult("get_project_context", { projectId: "p1" }, locked).structuredContent.context);
+    expect(String(move.nextMove)).not.toMatch(/Merge PR 62/i);
+    expect(brief).not.toMatch(/- Next action:.*Merge PR 62/i);
+    expect(brief).toMatch(/Do not merge until reviewed/);
+  });
+
   it("prepares a concise handoff with account-linking wording", () => {
     const result = buildMcpToolResult("prepare_handoff", { projectId: "p1" }, context);
 
