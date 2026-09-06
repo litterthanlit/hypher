@@ -2,8 +2,8 @@
 
 Product direction: [`docs/PRODUCT.md`](../PRODUCT.md). This file is the plugin contract, not a second vision.
 
-Last updated: September 4, 2026.  
-Status: Skills and MCP tools shipped. Session hooks are the next slice.  
+Last updated: September 6, 2026.  
+Status: Skills, MCP tools, and IDE session hooks shipped. Cloud agents still load via MCP. Token visibility for shell hooks is still open.  
 Owner: Hypher product  
 Related: `hypher-web/src/app/api/mcp/route.ts`, `hypher-web/src/lib/mcpTools.ts`, `hypher-web/src/app/api/agent/events/route.ts`
 
@@ -182,4 +182,4 @@ Ordered for a thin vertical slice:
 
 ## Recommended next implementation ticket
 
-**Close the loop:** `sessionStart` / `sessionEnd` hooks + automatic memory update from matched handoff receipts. Skills stay as fallback. Dogfood on Hypher itself. See `docs/PRODUCT.md`.
+**Close the loop:** cloud and other non-hook agents load the brief once via MCP. Keep IDE hooks. Skills stay as fallback. Fix the packet so it beats `docs/PRODUCT.md`. See `docs/PRODUCT.md` and `.audit/fix-agent-context/PLAYBOOK.md`.

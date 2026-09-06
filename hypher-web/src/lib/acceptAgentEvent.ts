@@ -8,8 +8,7 @@ import {
   type AcceptedCrystallizedMemoryPatch,
   type CrystallizedSuggestion,
 } from "./crystallizeRecentActivity";
-
-const SUMMARY_LIMIT = 180;
+import { summarizeEvent } from "../../shared/projectMemoryGenerate";
 
 export interface AcceptAgentEventPlan {
   actionTitles: string[];
@@ -26,16 +25,11 @@ function normalize(value: string | undefined | null): string {
   return (value ?? "").trim().replace(/\s+/g, " ");
 }
 
-function truncate(value: string, max = SUMMARY_LIMIT): string {
-  const text = normalize(value);
-  return text.length <= max ? text : `${text.slice(0, max - 1).trimEnd()}...`;
-}
-
-function summarizeEvent(event: Pick<AgentEvent, "title" | "body">): string {
+function receiptOutput(event: Pick<AgentEvent, "title" | "body">): string {
   const title = normalize(event.title);
-  const body = truncate(event.body);
-  if (!body || body === title) return title;
-  return truncate(`${title}. ${body}`);
+  const body = normalize(event.body);
+  if (!body || body.toLowerCase() === title.toLowerCase()) return title;
+  return `${title}. ${body}`;
 }
 
 function uniqueTitles(titles: string[]): string[] {
@@ -68,7 +62,7 @@ export function buildAcceptAgentEventPlan(params: {
 }): AcceptAgentEventPlan {
   const { event, memory, pendingHandoff, acceptedAt } = params;
   const actionTitles = acceptActionTitles(event);
-  const summary = summarizeEvent(event);
+  const summary = summarizeEvent(event.title, event.body);
   let openQuestion: string | undefined;
   let memoryPatch: AcceptedCrystallizedMemoryPatch = {};
 
@@ -116,7 +110,7 @@ export function buildAcceptAgentEventPlan(params: {
   if (pendingHandoff && summary) {
     handoffUpdate = {
       handoffId: pendingHandoff.id,
-      returnedAgentOutput: summary,
+      returnedAgentOutput: receiptOutput(event),
       ...(event.kind === "handoff" ? { status: "used" as const } : {}),
     };
   }

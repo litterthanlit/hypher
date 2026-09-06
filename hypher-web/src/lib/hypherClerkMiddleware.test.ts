@@ -53,6 +53,18 @@ describe("resolveClerkMiddlewareKeys", () => {
       secretKey: "sk_test",
     });
   });
+
+  it("treats blank secret keys as missing", () => {
+    expect(
+      resolveClerkMiddlewareKeys({
+        NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: "pk_from_next_public",
+        CLERK_SECRET_KEY: "   ",
+      })
+    ).toEqual({
+      publishableKey: "pk_from_next_public",
+      secretKey: undefined,
+    });
+  });
 });
 
 describe("createHypherClerkMiddleware", () => {
@@ -72,6 +84,25 @@ describe("createHypherClerkMiddleware", () => {
     expect(() => middleware(request("/"), event())).not.toThrow();
     expect(middleware(request("/"), event())).toMatchObject({ status: 200 });
     expect(middleware(request("/pricing"), event())).toMatchObject({ status: 200 });
+  });
+
+  it("does not throw on a public path when secretKey is missing", async () => {
+    const createClerk = vi.fn(() => {
+      throw new Error("@clerk/nextjs: Missing secretKey");
+    });
+    const middleware = createHypherClerkMiddleware(
+      { publishableKey: "pk_test_preview" },
+      async () => {
+        throw new Error("handler should not run without a secret key");
+      },
+      createClerk
+    );
+
+    expect(createClerk).not.toHaveBeenCalled();
+    expect(() => middleware(request("/"), event())).not.toThrow();
+    expect(middleware(request("/"), event())).toMatchObject({ status: 200 });
+    expect(middleware(request("/pricing"), event())).toMatchObject({ status: 200 });
+    expect(middleware(request("/beta/request"), event())).toMatchObject({ status: 200 });
   });
 
   it("passes explicit keys to clerkMiddleware and still protects non-public routes", async () => {
@@ -138,7 +169,7 @@ describe("createHypherClerkMiddleware", () => {
     });
 
     const middleware = createHypherClerkMiddleware(
-      { publishableKey: "pk_test_explicit" },
+      { publishableKey: "pk_test_explicit", secretKey: "sk_test_explicit" },
       async () => undefined,
       createClerk as never
     );

@@ -212,7 +212,7 @@ export function HypherApp({ gateState }: { gateState: BetaGateState }) {
 
   if (!store.clerkLoaded) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[var(--bg-root)] text-[var(--text-secondary)]">
+      <div className="marketing-root auth-screen">
         <p className="text-sm tracking-wide">Loading…</p>
       </div>
     );
@@ -351,7 +351,7 @@ export function HypherApp({ gateState }: { gateState: BetaGateState }) {
             <button
               type="button"
               className="workspace-chrome-back"
-              aria-label="Back to capture home"
+              aria-label="Back to home"
               title="Home (⌘N)"
               onClick={() => {
                 setMobileSidebarOpen(false);
@@ -367,10 +367,10 @@ export function HypherApp({ gateState }: { gateState: BetaGateState }) {
               <span className="workspace-breadcrumb__sep">/</span>
               <span className="workspace-breadcrumb__current">
                 {contentMode === "dashboard"
-                  ? "projects"
+                  ? "Projects"
                   : contentMode === "agent-inbox"
-                    ? "agent inbox"
-                    : currentProject?.name ?? "pulse"}
+                    ? "Inbox"
+                    : currentProject?.name ?? "Pulse"}
               </span>
             </nav>
           </div>
@@ -387,11 +387,11 @@ export function HypherApp({ gateState }: { gateState: BetaGateState }) {
 
         {store.projects.length === 0 && contentMode !== "agent-inbox" ? (
           <div className="workspace-empty">
-            <p>No project pulse yet</p>
-            <p className="workspace-empty-sub">Dump a few real fragments first. Hypher will help group them into a project.</p>
+            <p>No pulse yet</p>
+            <p className="workspace-empty-sub">Give it a scrap of context first. Hypher will put it on a project.</p>
             <div className="workspace-empty-actions">
               <button type="button" className="workspace-empty-btn workspace-empty-btn--primary" onClick={() => setAppMode("capture")}>
-                Go to capture
+                Home
               </button>
               <button type="button" className="workspace-empty-btn" onClick={() => setShowCreateProject(true)}>
                 Create first project

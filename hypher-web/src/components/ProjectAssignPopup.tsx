@@ -102,7 +102,7 @@ export function ProjectAssignPopup({
 
   return (
     <div className="assign-popup" ref={containerRef}>
-      <div className="assign-label">Add to</div>
+      <div className="assign-label">Put it on</div>
       <p className="assign-captured-preview">{text}</p>
       <div className="assign-options">
         {options.map((opt, i) => (
@@ -130,7 +130,7 @@ export function ProjectAssignPopup({
 
         {!creatingProject ? (
           <button className="assign-pill new" onClick={() => setCreatingProject(true)}>
-            + New Project
+            + New project
           </button>
         ) : (
           <form className="assign-new-form" onSubmit={handleNewProjectSubmit}>

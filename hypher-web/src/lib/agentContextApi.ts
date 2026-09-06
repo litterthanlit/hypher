@@ -1,5 +1,5 @@
 import type { ActivityEntry, AgentEvent, AnyObject, Handoff, Project, ProjectAction, ProjectMemory } from "@/types";
-import { compileProjectContext } from "./projectContext";
+import { compileProjectContext, BUILDER_BRIEF_DEFAULT_LIMITS } from "./projectContext";
 
 type SubscriptionLike = {
   status?: string;
@@ -23,9 +23,18 @@ export function getAgentContextPlan(subscription: SubscriptionLike): AgentContex
 }
 
 export function getAgentContextLimits(subscription: SubscriptionLike): AgentContextLimits {
-  return getAgentContextPlan(subscription) === "pro"
-    ? { captures: 8, actions: 8, agentEvents: 8, recentChanges: 8, openQuestions: 8 }
-    : { captures: 3, actions: 3, agentEvents: 3, recentChanges: 3, openQuestions: 3 };
+  // The brief is the product. Do not shrink free packets into compact mode
+  // just because the plan is free. Charge for something else.
+  const width = getAgentContextPlan(subscription) === "pro"
+    ? 8
+    : BUILDER_BRIEF_DEFAULT_LIMITS.captures;
+  return {
+    captures: width,
+    actions: width,
+    agentEvents: width,
+    recentChanges: width,
+    openQuestions: width,
+  };
 }
 
 export function buildAgentContextApiResponse(params: {

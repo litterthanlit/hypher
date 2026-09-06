@@ -117,7 +117,12 @@ async function synthesizeForUser(
       });
       const parsed = parseProjectMemoryJson(extractText(response.content));
       if (parsed.ok) {
-        snapshot = mergeAiShapeIntoSnapshot(heuristic, parsed.value, now);
+        snapshot = mergeAiShapeIntoSnapshot(
+          heuristic,
+          parsed.value,
+          now,
+          input.items.map((item) => item.content).filter(Boolean)
+        );
         fallback = false;
       }
     } catch (error) {

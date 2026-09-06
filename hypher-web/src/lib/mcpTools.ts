@@ -1,7 +1,14 @@
 import type { ActivityEntry, AgentEvent, AnyObject, Handoff, Project, ProjectAction, ProjectMemory } from "@/types";
 import { buildAgentContextApiResponse } from "./agentContextApi";
-import { selectProjectActionQueue } from "./actions";
 import { selectPrimaryNextAction } from "./projectMemory";
+import { selectCompiledIdentity, selectCompiledNextAction, captureDumpTexts, hydratePacketAgentEvents } from "./projectContext";
+import {
+  dropBriefSelfTalkWhenProductStateExists,
+  isContinueDumpEcho,
+  isDumpPrefixEcho,
+  isProductWorkReceipt,
+  splitSentences,
+} from "../../shared/projectMemoryGenerate";
 import {
   AGENT_EVENT_KINDS,
   matchProjectForAgentEvent,
@@ -225,10 +232,62 @@ function projectContextTool(args: JsonObject, context: HypherMcpContext): Hypher
   return textResult(response, response.context);
 }
 
+function recentChangeLeads(params: {
+  memory?: ProjectMemory | null;
+  captures: AnyObject[];
+  agentEvents: AgentEvent[];
+}): string[] {
+  const agentEvents = hydratePacketAgentEvents(params.agentEvents, params.memory, params.captures);
+  const dumpTexts = captureDumpTexts(params.captures);
+  const hasProductHandoffs = agentEvents.some((event) => isProductWorkReceipt(event));
+  const fromEvents = dropBriefSelfTalkWhenProductStateExists(
+    agentEvents
+      .filter((event) => isProductWorkReceipt(event))
+      .slice()
+      .sort((a, b) => b.createdAt - a.createdAt)
+      .map((event) => {
+        const title = normalize(event.title);
+        if (!title) return "";
+        return /[.!?]$/.test(title) ? title : `${title}.`;
+      })
+      .filter(Boolean),
+    (title) => title,
+  );
+  const fromMemory = (params.memory?.recentChanges ?? [])
+    .map((item) => {
+      const text = normalize(item);
+      return splitSentences(text)[0] ?? text;
+    })
+    .filter((item) => (
+      !hasProductHandoffs
+      || (!isContinueDumpEcho(item, dumpTexts) && !isDumpPrefixEcho(item, dumpTexts))
+    ))
+    .filter(Boolean);
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const item of dropBriefSelfTalkWhenProductStateExists(
+    [...fromEvents, ...fromMemory],
+    (title) => title,
+  )) {
+    const key = (splitSentences(item)[0] ?? item).replace(/[.!?]+$/, "").toLowerCase().slice(0, 140);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    result.push(item);
+    if (result.length >= 5) break;
+  }
+  return result;
+}
+
 function currentStateTool(args: JsonObject, context: HypherMcpContext): HypherMcpToolResult {
-  const { project, memory } = requireProjectContext(args, context);
-  const currentState = normalize(memory?.currentDirection) || normalize(memory?.summary) || normalize(project.description);
-  const recentChanges = (memory?.recentChanges ?? []).map(normalize).filter(Boolean).slice(0, 5);
+  const { project, memory, captures, agentEvents } = requireProjectContext(args, context);
+  const identity = selectCompiledIdentity({
+    memory,
+    captures,
+    agentEvents,
+    projectDescription: project.description,
+  });
+  const currentState = identity.summary || identity.currentDirection || normalize(project.description);
+  const recentChanges = recentChangeLeads({ memory, captures, agentEvents });
   const openQuestions = (memory?.openQuestions ?? []).map(normalize).filter(Boolean).slice(0, 5);
 
   return textResult(
@@ -244,11 +303,20 @@ function currentStateTool(args: JsonObject, context: HypherMcpContext): HypherMc
 }
 
 function nextMoveTool(args: JsonObject, context: HypherMcpContext): HypherMcpToolResult {
-  const { project, memory, actions } = requireProjectContext(args, context);
-  const action = selectProjectActionQueue(actions).find((item) => item.status === "accepted" || item.status === "suggested");
+  const { project, memory, actions, captures, agentEvents } = requireProjectContext(args, context);
+  const compiled = selectCompiledNextAction({
+    memory,
+    actions,
+    captures,
+    agentEvents,
+  });
   const memoryAction = selectPrimaryNextAction(memory?.nextActions ?? []);
-  const nextMove = normalize(action?.title) || normalize(memoryAction?.title) || "No next move captured yet.";
-  const source = action ? "action_queue" : memoryAction ? "project_memory" : "empty";
+  const nextMove = normalize(compiled?.title) || "No next move captured yet.";
+  const source = compiled?.id && compiled.id === memoryAction?.id
+    ? "project_memory"
+    : compiled
+      ? "compiled_brief"
+      : "empty";
 
   return textResult(
     {
@@ -256,7 +324,7 @@ function nextMoveTool(args: JsonObject, context: HypherMcpContext): HypherMcpToo
       projectName: project.name,
       nextMove,
       source,
-      rationale: action?.rationale ?? memoryAction?.rationale,
+      rationale: compiled?.rationale ?? memoryAction?.rationale,
     },
     nextMove
   );

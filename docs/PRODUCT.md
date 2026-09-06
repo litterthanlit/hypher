@@ -81,7 +81,7 @@ Demo this, sell this, dogfood this: a new chat that already knows the decisions 
 
 ## What is built vs what is still a hole
 
-The loop exists in code. Holes 1 and 3 are closed: dump and matched receipts compile identity without a Generate button or Accept click. Session start/end still needs the agent to remember the tools (hole 2). GitHub stays a signal (hole 4).
+The loop exists in code. Holes 1 and 3 are closed: dump and matched receipts compile identity without a Generate button or Accept click. Local Cursor plugin hooks exist (hole 2, IDE path). Cloud agents and other sessions that never run those hooks still start cold unless they call MCP. GitHub stays a signal (hole 4).
 
 ### 1. Notes become a coherent identity after dump or writeback
 
@@ -89,11 +89,15 @@ The brief compiler includes raw captures and recent agent events. Durable identi
 
 After a dump is assigned to a project, and after a matched `handoff` / `build_log`, Hypher compiles that identity using the same guts as `/api/project-memory/generate`. There is no Generate button. GitHub CI / stale-PR `build_log`s stay signals.
 
-### 2. Hypher does not hear a session unless the agent remembers to call it
+### 2. IDE hooks exist. Cloud agents still start cold.
 
-Session start/end is a skill plus an always-on rule. There are **no `sessionStart` / `sessionEnd` hooks**. If the agent does not call the tools, Hypher hears nothing and session 2 is cold again.
+The Cursor plugin ships `sessionStart` / `sessionEnd` hooks. In a local IDE session with the plugin on and a linked repo, the hook can inject the Builder Brief once. Automatic inject and hook writeback still need a Hypher token in the hook process. Cursor does not give shell hooks the MCP OAuth token.
 
-**Build:** when the Cursor plugin is connected and the repo is linked, load the brief once at session start. Post one `handoff` at session end. Default to one event, not a firehose. Commands `/hypher-brief` and `/hypher-handoff` stay as manual overrides.
+Cursor cloud agents and other agents that never run those hooks do not get the brief unless they call MCP (`resolve_project_for_repo`, then `get_project_context` once). `AGENTS.md` is the door that already always applies in this repo. If they skip it, session 2 is cold again.
+
+A brief that only restates `docs/PRODUCT.md` is skippable. The packet has to carry last-session writeback, the current next move, and constraints that are not already in the files.
+
+**Build:** keep IDE hooks. Make every agent that has Hypher MCP load the brief once without a slash command, including cloud agents. Post one `handoff` at session end. Commands `/hypher-brief` and `/hypher-handoff` stay as manual overrides.
 
 ### 3. Receipts thicken memory; Accept is for judgment
 
@@ -164,9 +168,9 @@ Prove the loop. Then film it. Then maybe remind. Then maybe lay it out in space.
 The sequence lives in [`PLAN.md`](./PLAN.md). Short version:
 
 1. Dogfood Hypher on Hypher (link this repo, dump once, brief + handoff every session).
-2. Remove ceremony (silent synthesis, receipt memory, session hooks).
+2. Remove ceremony (silent synthesis and receipt memory shipped, IDE session hooks shipped, cloud load still open).
 3. Empty state without ingesting GitHub.
-4. With/without benchmark — that recording is the launch.
+4. With/without benchmark. That recording is the launch.
 5. Only then: reminders, native capture, later a spatial view. Chat last, if ever.
 
 ---
@@ -218,7 +222,7 @@ Stakes, when needed: **Stop re-explaining the project every session.**
 | Memory | `hypher-web/convex/projectMemories.ts`, `hypher-web/src/app/api/project-memory/generate/route.ts` |
 | Writeback | `hypher-web/convex/agentEvents.ts`, `hypher-web/src/app/api/agent/events/route.ts` |
 | MCP | `hypher-web/src/lib/mcpTools.ts`, `hypher-web/src/app/api/mcp/route.ts` |
-| Cursor plugin | `extensions/cursor/` (skills today; hooks are the next slice) |
+| Cursor plugin | `extensions/cursor/` (skills, rules, IDE session hooks; cloud agents still use MCP) |
 | Handoff CLI | `hypher-web/tools/hypher-handoff.mjs` |
 
 Plugin how-to: `extensions/cursor/README.md`. Event payload shape: `hypher-web/docs/agent-handoff.md`. UI tokens: `hypher-web/STYLING.md`.

@@ -1,5 +1,5 @@
 /**
- * Right-hand product card: dump at top, the note, what they wrote back.
+ * Right-hand product card: context in, the note, writeback.
  */
 
 function GridBackdrop() {
@@ -28,14 +28,14 @@ export function MarketingProductVisual() {
   return (
     <div
       className="marketing-product-visual tw-relative tw-overflow-hidden tw-rounded-[var(--radius-md)] tw-border tw-bg-[var(--bg-primary)]"
-      aria-label="dump at top. the note. what they wrote back."
+      aria-label="Context in. The note. Writeback."
     >
       <GridBackdrop />
 
       <div className="tw-relative tw-z-[1] tw-flex tw-flex-col tw-gap-3 tw-p-4 sm:tw-p-6">
         <div className="tw-rounded-[var(--radius-sm)] tw-border tw-border-[var(--capture-blue-border)] tw-bg-gradient-to-b tw-from-white tw-to-[var(--capture-blue-soft)] tw-px-3 tw-py-3 tw-shadow-[var(--shadow-marketing-inset)] sm:tw-px-4 sm:tw-py-4">
           <p className="tw-font-mono tw-text-[10px] tw-tracking-wider tw-text-[var(--text-tertiary)]">
-            dump
+            context in
           </p>
           <p className="tw-mt-2 tw-text-left tw-text-[13px] tw-leading-relaxed tw-text-[var(--text-primary)] sm:tw-text-sm">
             shipped the gate. empty state still broken. don&apos;t widen oauth. cursor has the brief.
@@ -53,7 +53,7 @@ export function MarketingProductVisual() {
 
         <div className="marketing-inset-panel tw-rounded-[var(--radius-sm)] tw-px-3 tw-py-3 sm:tw-px-4 sm:tw-py-4">
           <p className="tw-font-mono tw-text-[10px] tw-tracking-wider tw-text-[var(--text-tertiary)]">
-            what they wrote back
+            writeback
           </p>
           <p className="tw-mt-2 tw-text-left tw-text-[13px] tw-leading-relaxed tw-text-[var(--text-secondary)] sm:tw-text-sm">
             gate is in. tokens hashed. events scoped.

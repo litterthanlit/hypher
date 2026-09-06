@@ -28,7 +28,7 @@ export default function AppHome() {
 
   if (appAccessState === "loading") {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[var(--bg-root)] text-[var(--text-secondary)]">
+      <div className="marketing-root auth-screen">
         <p className="text-sm tracking-wide">Loading workspace...</p>
       </div>
     );

@@ -1,8 +1,15 @@
 import { query } from "./_generated/server";
 import { v } from "convex/values";
 import { hasBetaAccess } from "./lib/auth";
-import { buildMcpContextForUser } from "./lib/mcpContext";
+import {
+  buildMcpContextForUser,
+  selectActivityForOAuthContext,
+} from "./lib/mcpContext";
 import { oauthResourcesEquivalent } from "../shared/oauthResources";
+
+// Re-exported so the OAuth context activity behaviour stays covered by
+// oauthContext.test.ts. Canonical implementation lives in lib/mcpContext.
+export { selectActivityForOAuthContext };
 
 async function validateToken(ctx: any, args: { tokenHash: string; resource: string; scope: string; now: number }) {
   const token = await ctx.db

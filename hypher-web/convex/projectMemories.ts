@@ -4,6 +4,7 @@ import type { Id } from "./_generated/dataModel";
 import { v } from "convex/values";
 import { requireBetaAccess } from "./lib/auth";
 import { applyReceiptForEvent, persistSilentMemory, snapshotFromDoc } from "./lib/projectMemoryWrite";
+import { PACKET_AGENT_EVENT_FETCH_LIMIT, prioritizeAgentEventsForPacket } from "../shared/projectMemoryGenerate";
 
 const nextActionValidator = v.object({
   id: v.string(),
@@ -328,10 +329,7 @@ export const generationInputForUser = internalQuery({
       .query("agentEvents")
       .withIndex("by_user_project", (q) => q.eq("userId", userId).eq("projectId", projectId))
       .collect();
-    const events = eventRows
-      .filter((event) => event.status !== "dismissed")
-      .sort((a, b) => b.createdAt - a.createdAt)
-      .slice(0, 8)
+    const events = prioritizeAgentEventsForPacket(eventRows, PACKET_AGENT_EVENT_FETCH_LIMIT)
       .map((event) => ({
         id: String(event._id),
         kind: event.kind,

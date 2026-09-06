@@ -27,9 +27,9 @@ function PrimaryNavLinks() {
   return (
     <>
       <a href="/#the-loop" className={navLinkClass}>
-        How it works
+        The loop
       </a>
-      <a href="/#agents" className={navLinkClass}>
+      <a href="/#stack" className={navLinkClass}>
         For agents
       </a>
       <Link href="/pricing" className={navLinkClass}>
@@ -62,7 +62,7 @@ export function MarketingHeader({
             Log in
           </Link>
           <MarketingCta href="/app" className="marketing-cta--header">
-            dump yours
+            Open Hypher
           </MarketingCta>
         </div>
       </div>
@@ -75,7 +75,7 @@ export function MarketingFooter() {
     <footer className="marketing-footer">
       <div className="marketing-wrap marketing-footer__row">
         <MarketingBrand size="sm" />
-        <p className="marketing-footer__note">dump your project. they read one note. they write back.</p>
+        <p className="marketing-footer__note">The context they never find in git.</p>
       </div>
     </footer>
   );
