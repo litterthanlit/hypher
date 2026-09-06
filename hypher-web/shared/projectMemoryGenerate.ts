@@ -309,7 +309,10 @@ export function looksLikeQuestion(item: string): boolean {
 
 export function looksLikeDecision(item: string): boolean {
   const text = normalize(item);
-  if (/\b(decision|decided|we will|we chose|choose|chosen|lock|locked)\b/i.test(text)) return true;
+  if (/\b(decision|decided|we will|we chose|choose|chosen)\b/i.test(text)) return true;
+  // Changelog titles like "Merge lock beats Merge PR" or "when merge is locked"
+  // are not product decisions. Keep explicit product locks.
+  if (/\bwe locked\b/i.test(text) || /\blocked in\b/i.test(text)) return true;
   if (/\bis the door\b/i.test(text)) return true;
   if (/\bproduct\.md\b/i.test(text) && /\bwin/i.test(text)) return true;
   return false;

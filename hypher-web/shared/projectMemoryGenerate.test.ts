@@ -17,6 +17,7 @@ import {
   summarizeEvent,
   actionBlockedByConstraints,
   honorConstraintBlockedNext,
+  looksLikeProductDecision,
 } from "./projectMemoryGenerate";
 import { compileBuilderBrief } from "../src/lib/projectContext";
 import type { Project, ProjectMemory } from "../src/types";
@@ -208,6 +209,18 @@ describe("actionBlockedByConstraints", () => {
       ["Merge PR 62 and deploy Convex"],
       ["Do not rebuild the canvas."],
     )).toBeUndefined();
+  });
+});
+
+describe("looksLikeProductDecision", () => {
+  it("keeps product locks and ignores merge-lock changelog titles", () => {
+    expect(looksLikeProductDecision("Pulse stays three panels.")).toBe(true);
+    expect(looksLikeProductDecision("Cursor is the door.")).toBe(true);
+    expect(looksLikeProductDecision("GitHub is a signal, not the agent door.")).toBe(true);
+    expect(looksLikeProductDecision("We locked Pulse at three panels.")).toBe(true);
+    expect(looksLikeProductDecision("Wait-for-review next when merge is locked.")).toBe(false);
+    expect(looksLikeProductDecision("Merge lock beats Merge PR next move.")).toBe(false);
+    expect(looksLikeProductDecision("Do not merge until reviewed.")).toBe(false);
   });
 });
 

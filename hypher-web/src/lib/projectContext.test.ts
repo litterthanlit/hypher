@@ -1030,6 +1030,9 @@ describe("compileBuilderBrief", () => {
         currentGoal: "",
         currentDirection: "",
         importantDecisions: [],
+        openQuestions: [],
+        blockers: [],
+        staleAssumptions: [],
         recentChanges: [
           `${latestTitle}. Do not widen OAuth. Pulse stays three panels. Do not rebuild the canvas.`,
           mashedSticky,
@@ -1101,6 +1104,28 @@ describe("compileBuilderBrief", () => {
           createdAt: 900,
         },
         {
+          id: "wait-lock",
+          userId: "u1",
+          projectId: "p1",
+          source: "cursor",
+          kind: "handoff",
+          title: "Wait-for-review next when merge is locked",
+          body: latestBody,
+          status: "reviewed",
+          createdAt: 870,
+        },
+        {
+          id: "merge-lock",
+          userId: "u1",
+          projectId: "p1",
+          source: "cursor",
+          kind: "handoff",
+          title: "Merge lock beats Merge PR next move",
+          body: latestBody,
+          status: "reviewed",
+          createdAt: 860,
+        },
+        {
           id: "bare-pr",
           userId: "u1",
           projectId: "p1",
@@ -1137,6 +1162,10 @@ describe("compileBuilderBrief", () => {
     expect(decisionSection).not.toMatch(/No accepted decisions captured yet/);
     expect(decisionSection).toMatch(/Pulse stays three panels/);
     expect(decisionSection).toMatch(/Cursor is the door/);
+    expect(decisionSection).not.toMatch(/Wait-for-review next when merge is locked/);
+    expect(decisionSection).not.toMatch(/Merge lock beats Merge PR/);
+    expect(packet).not.toMatch(/Should Do Not Do become/);
+    expect(packet).not.toMatch(/Need compiler tests before implementation/);
     const constraintSection = packet.split("### Important constraints")[1]?.split("##")[0] ?? "";
     expect(constraintSection).toMatch(/Do not widen OAuth/);
     expect(constraintSection).toMatch(/Pulse stays three panels/);
