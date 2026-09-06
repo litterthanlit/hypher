@@ -41,13 +41,19 @@ When the plugin is enabled and this repo is linked, start and end are automatic:
 
 Hooks live at `hooks/hooks.json` and run `scripts/session-start.mjs` / `scripts/session-end.mjs` via `${CURSOR_PLUGIN_ROOT}`. Default is once in, one handoff out.
 
+### Cloud / background agents (no hooks)
+
+Cursor cloud agents, background agents, and other MCP clients do **not** fire `sessionStart` / `sessionEnd` hooks. There the loop is driven by the always-applied rule (`rules/use-hypher-context.mdc`) plus the `start-session` / `end-session` skills: the agent loads the Builder Brief through MCP at the first action and posts one `handoff` before it finishes. Same context loop, same "once in, one out" — no hooks and no copy-paste from the app required.
+
+For these environments, connect with a Hypher **API key** (see Auth) so the agent can both read the brief and post the handoff with a single credential and no browser OAuth step.
+
 If the repo is not linked, Hypher will not invent status. Connect `owner/repo` on the Integrations page, then start a new chat or run `/hypher-brief`.
 
 ## Auth
 
 Preferred: OAuth. The plugin uses public client `hypher-cursor` and the same Hypher MCP scope as ChatGPT (`hypher.projects.read`). That token can read briefs and write session events.
 
-Fallback: a Hypher API key from Settings → API keys, added as a Bearer header on the Hypher MCP server in Cursor. Do not configure two credentials unless OAuth is blocked.
+Headless / cloud: a Hypher API key from Settings → API keys, sent as a Bearer credential on the Hypher MCP server. The MCP endpoint accepts `hyp_…` API keys for both reading briefs (`get_project_context`, `resolve_project_for_repo`, `get_current_state`, `get_next_move`, `prepare_handoff`) and writing events (`post_agent_event`) — the same access as the OAuth token, without the browser step. In the Cursor IDE, prefer OAuth; do not configure two credentials unless OAuth is blocked.
 
 The `sessionEnd` hook process cannot see Cursor's stored MCP OAuth token. Automatic writeback from the hook itself needs `HYPHER_API_KEY` or `HYPHER_ACCESS_TOKEN` in the environment; otherwise the agent still posts one `handoff` through MCP (`post_agent_event`), and `/hypher-handoff` remains the override.
 
