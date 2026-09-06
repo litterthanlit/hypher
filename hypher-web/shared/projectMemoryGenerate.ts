@@ -157,6 +157,26 @@ export function uniqueConstraintLines(items: string[], limit = CONSTRAINT_ARRAY_
   return uniqueLines(items, limit, { maxChars: null, ellipsis: false });
 }
 
+export function uniqueByWordStem(items: string[], wordCount = 5, limit = ARRAY_LIMIT): string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const item of items) {
+    const normalized = normalize(item);
+    const stem = normalized
+      .toLowerCase()
+      .replace(/[.!?]+$/, "")
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, wordCount)
+      .join(" ");
+    if (!normalized || !stem || seen.has(stem)) continue;
+    seen.add(stem);
+    result.push(normalized);
+    if (result.length >= limit) break;
+  }
+  return result;
+}
+
 export function isSkeletonSummary(value: string | undefined | null): boolean {
   const text = normalize(value);
   if (!text) return true;
@@ -288,7 +308,52 @@ export function looksLikeQuestion(item: string): boolean {
 }
 
 export function looksLikeDecision(item: string): boolean {
-  return /\b(decision|decided|we will|we chose|choose|chosen|lock|locked)\b/i.test(normalize(item));
+  const text = normalize(item);
+  if (/\b(decision|decided|we will|we chose|choose|chosen|lock|locked)\b/i.test(text)) return true;
+  if (/\bis the door\b/i.test(text)) return true;
+  if (/\bproduct\.md\b/i.test(text) && /\bwin/i.test(text)) return true;
+  return false;
+}
+
+export function looksLikeProductDecision(item: string): boolean {
+  if (looksLikeDoNotDo(item)) return false;
+  if (looksLikeDecision(item)) return true;
+  const text = normalize(item);
+  if (/\bstays\b/i.test(text) && text.length <= 120) return true;
+  if (/\bis a signal\b/i.test(text)) return true;
+  return false;
+}
+
+export function isNextActionClone(value: string | undefined | null, nextTitles: string[]): boolean {
+  const key = normalize(value).replace(/[.!?]+$/, "").toLowerCase();
+  if (!key) return false;
+  return nextTitles.some((title) => normalize(title).replace(/[.!?]+$/, "").toLowerCase() === key);
+}
+
+export function extractProductAim(
+  sentences: string[],
+  options: { echoCorpus?: string[]; nextTitles?: string[]; summary?: string } = {}
+): string | undefined {
+  const echoCorpus = options.echoCorpus ?? [];
+  const next = new Set(
+    (options.nextTitles ?? [])
+      .map((title) => normalize(title).replace(/[.!?]+$/, "").toLowerCase())
+      .filter(Boolean)
+  );
+  const summary = normalize(options.summary).replace(/[.!?]+$/, "").toLowerCase();
+  for (const line of sentences) {
+    const text = normalize(line);
+    if (!text || text.length > 160) continue;
+    if (looksLikeConstraint(text) || looksLikeDoNotDo(text)) continue;
+    if (extractCurrentTask([text])) continue;
+    if (extractDirectionLine([text])) continue;
+    if (isUnusableCompiledIdentity(text, echoCorpus)) continue;
+    const key = text.replace(/[.!?]+$/, "").toLowerCase();
+    if (summary && key === summary) continue;
+    if (next.has(key)) continue;
+    return text.replace(/[.]+$/, "");
+  }
+  return undefined;
 }
 
 export function isWorkReceipt(kind: string, source: string): boolean {
@@ -388,8 +453,8 @@ export function compileHeuristicMemory(input: {
     ...expandConstraintLines(existingLines(existing, "constraints")),
   ]);
   const decisions = uniqueLines([
+    ...[...eventConstraintSentences, ...sentences].filter(looksLikeProductDecision),
     ...existingLines(existing, "importantDecisions"),
-    ...sentences.filter((line) => looksLikeDecision(line) && !looksLikeConstraint(line)),
   ]);
   const questions = uniqueLines([
     ...existingLines(existing, "openQuestions"),
@@ -410,10 +475,28 @@ export function compileHeuristicMemory(input: {
     .flatMap((event) => event.suggestedActions ?? [])
     .map(normalize)
     .filter((title) => Boolean(title) && !isContinueDumpEcho(title, dumpTexts) && !isDumpPrefixEcho(title, echoCorpus));
-  const currentGoal = !isUnusableCompiledIdentity(existingGoal, echoCorpus)
+  const dumpGoal = extractCurrentTask(sentences) ?? "";
+  const eventGoal = extractCurrentTask(eventConstraintSentences) ?? nextFromEvents[0] ?? "";
+  const dumpSummary = itemTexts[0] ? dumpHeadline(itemTexts[0]) : "";
+  const storedSummaryOk = !isUnusableCompiledIdentity(existingSummary, dumpTexts);
+  const summary = eventReceipts[0]
+    || (storedSummaryOk ? existingSummary : "")
+    || dumpSummary
+    || `${input.projectName} is in progress.`;
+  const nextTitlesForClone = [...nextFromEvents, eventGoal, dumpGoal].filter(Boolean);
+  const existingGoalOk = !isUnusableCompiledIdentity(existingGoal, echoCorpus)
+    && !(productEvents.length > 0 && isNextActionClone(existingGoal, nextTitlesForClone));
+  const aim = extractProductAim([...sentences, ...eventConstraintSentences], {
+    echoCorpus,
+    nextTitles: nextTitlesForClone,
+    summary,
+  });
+  const currentGoal = existingGoalOk
     ? existingGoal
-    : (extractCurrentTask(eventConstraintSentences) ?? nextFromEvents[0] ?? extractCurrentTask(sentences) ?? "");
-  const currentTask = currentGoal;
+    : productEvents.length > 0
+      ? (aim || eventGoal || dumpGoal)
+      : (eventGoal || dumpGoal || aim || "");
+  const currentTask = eventGoal || dumpGoal || currentGoal;
   const directionParts = [...sentences, ...eventConstraintSentences].filter((line) => (
     !looksLikeConstraint(line)
     && !looksLikeQuestion(line)
@@ -422,12 +505,6 @@ export function compileHeuristicMemory(input: {
     && !isDumpPrefixEcho(line, echoCorpus)
     && !/^(shipped|landed|fixed|merged|closed|added|implemented|wrote|updated|finished|dumped)\b/i.test(line)
   ));
-  const dumpSummary = itemTexts[0] ? dumpHeadline(itemTexts[0]) : "";
-  const storedSummaryOk = !isUnusableCompiledIdentity(existingSummary, dumpTexts);
-  const summary = eventReceipts[0]
-    || (storedSummaryOk ? existingSummary : "")
-    || dumpSummary
-    || `${input.projectName} is in progress.`;
   const existingDirection = normalize(existing?.currentDirection);
   const labeledDirection = extractDirectionLine(sentences) ?? extractDirectionLine(eventConstraintSentences);
   const currentDirection = labeledDirection
@@ -438,7 +515,7 @@ export function compileHeuristicMemory(input: {
     /\b(next step|next move|todo|need to|verify|follow up)\b/i.test(line)
     && !looksLikeConstraint(line)
   );
-  const nextTitles = uniqueLines([
+  const nextTitles = uniqueByWordStem([
     ...nextFromEvents,
     ...(currentTask ? [currentTask] : []),
     ...taskLines,
@@ -446,7 +523,7 @@ export function compileHeuristicMemory(input: {
       .filter((action) => action.status !== "dismissed")
       .map((action) => action.title)
       .filter((title) => !isContinueDumpEcho(title, dumpTexts) && !isDumpPrefixEcho(title, dumpTexts)),
-  ], NEXT_ACTION_LIMIT).filter((title) => !isContinueDumpEcho(title, dumpTexts));
+  ], 5, NEXT_ACTION_LIMIT).filter((title) => !isContinueDumpEcho(title, dumpTexts));
   const nextActions: SilentMemoryAction[] = nextTitles.map((title) => ({
     title: truncate(title, 100),
     rationale: "Compiled from the latest dump or writeback.",
@@ -472,7 +549,7 @@ export function compileHeuristicMemory(input: {
     importantDecisions: decisions,
     constraints,
     openQuestions: questions,
-    activeTasks: uniqueLines([
+    activeTasks: uniqueByWordStem([
       ...nextTitles,
       ...existingLines(existing, "activeTasks").filter((title) => (
         !isContinueDumpEcho(title, dumpTexts) && !isDumpPrefixEcho(title, dumpTexts)

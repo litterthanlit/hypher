@@ -1,5 +1,5 @@
 import type { ActivityEntry, AgentEvent, AnyObject, Handoff, Project, ProjectAction, ProjectMemory } from "@/types";
-import { compileBuilderBrief, selectCompiledConstraints, selectCompiledIdentity, selectCompiledNextAction } from "./projectContext";
+import { compileBuilderBrief, selectCompiledConstraints, selectCompiledDecisions, selectCompiledIdentity, selectCompiledNextAction } from "./projectContext";
 import {
   agentEventNeedsHumanAccept,
   isSkeletonSummary,
@@ -35,7 +35,11 @@ export function builderBriefFields(
     empty: isEmptyBuilderBrief(memory),
     summary: identity.summary || memory?.summary || "",
     direction: identity.currentDirection,
-    decisions: memory?.importantDecisions ?? [],
+    decisions: selectCompiledDecisions({
+      memory: memory ?? null,
+      captures: extras.captures ?? [],
+      agentEvents: extras.agentEvents ?? [],
+    }),
     constraints: selectCompiledConstraints({
       memory: memory ?? null,
       captures: extras.captures ?? [],

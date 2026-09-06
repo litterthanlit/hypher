@@ -875,7 +875,8 @@ describe("compileBuilderBrief", () => {
     expect(packet).not.toContain("- Target tool: GitHub");
     expect(packet).toMatch(/- Short summary: Bare PR no longer reroutes the Hypher brief to GitHub/);
     expect(packet).not.toMatch(/- Short summary: Dogfood dump/);
-    expect(packet).toMatch(/Trying to become: .*merge PR 62 and deploy Vercel plus Convex so production get_project_context drops the dump echo/i);
+    expect(packet).toMatch(/Trying to become: Session 2 should start warm/);
+    expect(packet).not.toMatch(/Trying to become: .*Merge PR 62/i);
     expect(packet).toMatch(/Product: dump → one note agents read → writeback/);
     expect(packet).toContain(`- Next action: [next:suggested] ${nextMove}`);
     expect(packet).toContain("- Compact mode: off");
@@ -906,5 +907,136 @@ describe("compileBuilderBrief", () => {
     expect(notes).not.toMatch(/reprin\.\.\./);
     expect(notes).not.toMatch(/no toke\.\.\./);
     expect(notes).not.toMatch(/now\.\.\.\./);
+  });
+
+  it("compiles today's live production shape: last-handoff identity, product aim, compiled decisions, one Merge PR stem", () => {
+    const dump =
+      "Dogfood dump on the real hypher project. Product: dump → one note agents read → writeback. Session 2 should start warm. Do not: invent dumps, gate bind on a github token, or treat try hypher as the home. Next: confirm silent synthesis thickened this note without a generate button.";
+    const latestTitle = "Last-handoff identity always wins at packet compile";
+    const nextMove = "Merge PR 62 and deploy Vercel plus Convex so production get_project_context drops the dump echo";
+    const mashedSticky =
+      "Sticky dump identity dies after the dump capture rolls off. PR 62 commit f065324 on litterthanlit/hypher, branch cursor/agent-context-packet-d1ed. Sticky dump summary stayed usabl...";
+    const mashedBare =
+      "Bare PR no longer reroutes the Hypher brief to GitHub. PR 62 commit ea30126 on litterthanlit/hypher, branch cursor/agent-context-packet-d1ed. Live get_project_context labeled Merg...";
+    const mashedReceipt =
+      "Receipt memory stores writeback titles instead of 180-char mush. PR 62 commit 511462e on litterthanlit/hypher, branch cursor/agent-context-packet-d1ed. Durable receipt memory now....";
+    const packet = compileBuilderBrief({
+      project: { ...project, name: "hypher", description: "" },
+      memory: {
+        ...memory,
+        summary: dump,
+        currentGoal: "",
+        currentDirection: "",
+        importantDecisions: [],
+        recentChanges: [
+          `${latestTitle}. Do not widen OAuth. Pulse stays three panels. Do not rebuild the canvas.`,
+          mashedSticky,
+          mashedBare,
+          mashedReceipt,
+        ],
+        constraints: [
+          "Do not invent dumps",
+          "Do not gate bind on a github token",
+          "Do not treat try hypher as the home",
+        ],
+        handoffNotes: [
+          `${latestTitle}. Do not widen OAuth. Pulse stays three panels. Do not rebuild the canvas.`,
+          mashedSticky,
+          mashedBare,
+        ],
+        activeTasks: [
+          nextMove,
+          "Merge PR 62 and deploy Convex so production memory and packet compile drop the dump echo",
+        ],
+        nextActions: [
+          {
+            id: "na1",
+            title: nextMove,
+            rationale: "Compiled from the latest dump or writeback.",
+            status: "suggested",
+            createdAt: 900,
+            updatedAt: 900,
+          },
+          {
+            id: "na2",
+            title: "Merge PR 62 and deploy Convex so production memory and packet compile drop the dump echo",
+            rationale: "Compiled from the latest dump or writeback.",
+            status: "suggested",
+            createdAt: 800,
+            updatedAt: 800,
+          },
+          {
+            id: "na3",
+            title: "Merge PR 62 and deploy Convex so production memory drops the dogfood dump echo",
+            rationale: "Compiled from the latest dump or writeback.",
+            status: "suggested",
+            createdAt: 700,
+            updatedAt: 700,
+          },
+        ],
+      },
+      captures: [{
+        id: "n-dump",
+        kind: "note",
+        content: dump,
+        maturity: "fleeting",
+        projectId: "p1",
+        createdAt: 40,
+        modifiedAt: 60,
+      }],
+      actions: [],
+      agentEvents: [
+        {
+          id: "latest",
+          userId: "u1",
+          projectId: "p1",
+          source: "cursor",
+          kind: "handoff",
+          title: latestTitle,
+          body: "Do not widen OAuth. Pulse stays three panels. Do not rebuild the canvas.",
+          suggestedActions: [nextMove],
+          status: "reviewed",
+          createdAt: 900,
+        },
+        {
+          id: "bare-pr",
+          userId: "u1",
+          projectId: "p1",
+          source: "cursor",
+          kind: "handoff",
+          title: "Bare PR no longer reroutes the Hypher brief to GitHub",
+          body: "GitHub is a signal, not the agent door. Cursor is the door. Do not widen OAuth. Pulse stays three panels. Do not rebuild the canvas.",
+          suggestedActions: ["Merge PR 62 and deploy Convex so production memory and packet compile drop the dump echo"],
+          status: "reviewed",
+          createdAt: 800,
+        },
+      ],
+      generatedAt: 900,
+    });
+
+    expect(packet).toMatch(/- Short summary: Last-handoff identity always wins at packet compile/);
+    expect(packet).not.toMatch(/- Short summary: Dogfood dump/);
+    expect(packet).toMatch(/Trying to become: Session 2 should start warm/);
+    expect(packet).not.toMatch(/Trying to become: .*Merge PR 62/i);
+    expect(packet).toMatch(/Product: dump → one note agents read → writeback/);
+    expect(packet).toContain(`- Next action: [next:suggested] ${nextMove}`);
+    expect(packet).toContain("- Target tool: Cursor");
+    expect(packet).not.toContain("- Target tool: GitHub");
+    expect(packet).toContain("- Compact mode: off");
+    const decisionSection = packet.split("### Accepted memory")[1]?.split("###")[0] ?? "";
+    expect(decisionSection).not.toMatch(/No accepted decisions captured yet/);
+    expect(decisionSection).toMatch(/Pulse stays three panels/);
+    expect(decisionSection).toMatch(/Cursor is the door/);
+    const constraintSection = packet.split("### Important constraints")[1]?.split("##")[0] ?? "";
+    expect(constraintSection).toMatch(/Do not widen OAuth/);
+    expect(constraintSection).toMatch(/Pulse stays three panels/);
+    expect(constraintSection).toMatch(/Do not rebuild the canvas/);
+    expect(constraintSection).toMatch(/Do not invent dumps/);
+    expect(constraintSection.match(/Do not invent dumps/g)?.length).toBe(1);
+    const taskSection = packet.split("### Active tasks")[1]?.split("##")[0] ?? "";
+    expect(taskSection.match(/Merge PR 62/g)?.length).toBe(1);
+    expect(packet).not.toMatch(/usabl\.\.\./);
+    expect(packet).not.toMatch(/Merg\.\.\./);
+    expect(packet).not.toMatch(/now\.\.\.\./);
   });
 });

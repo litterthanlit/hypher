@@ -309,7 +309,9 @@ describe("builderBriefFields", () => {
     expect(pulse.constraints.some((line) => /oauth/i.test(line))).toBe(true);
     expect(pulse.constraints.some((line) => /three panels/i.test(line))).toBe(true);
     expect(pulse.constraints.some((line) => /canvas/i.test(line))).toBe(true);
+    expect(pulse.decisions.some((line) => /three panels/i.test(line))).toBe(true);
     expect(packet).toMatch(/- Short summary: Session 2 writeback/);
+    expect(packet).toMatch(/Trying to become: Session 2 should start warm/);
     expect(packet).toContain("Keep the packet warmer than PRODUCT.md");
     expect(packet).not.toMatch(/Continue: Dogfood dump/);
     expect(pulse.nextMove).toBe(packet.match(/^- Next action: (.+)$/m)?.[1]?.replace(/^\[[^\]]+\]\s*/, ""));

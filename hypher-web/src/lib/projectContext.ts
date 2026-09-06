@@ -19,12 +19,15 @@ import {
   expandConstraintLines,
   extractCurrentTask,
   extractDirectionLine,
+  extractProductAim,
   isContinueDumpEcho,
   isDumpPrefixEcho,
+  isNextActionClone,
   isProductWorkReceipt,
   isUnusableCompiledIdentity,
   looksLikeConstraint,
   looksLikeDoNotDo,
+  looksLikeProductDecision,
   splitSentences,
   summarizeEvent,
   uniqueConstraintLines,
@@ -168,6 +171,28 @@ function uniqueByUnlabeledLead(items: string[]): string[] {
   const result: string[] = [];
   for (const item of items) {
     const key = unlabeledLead(item);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    result.push(item);
+  }
+  return result;
+}
+
+function taskStem(line: string): string {
+  return unlabeledPacketLine(line)
+    .toLowerCase()
+    .replace(/[.!?]+$/, "")
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 5)
+    .join(" ");
+}
+
+function uniqueByTaskStem(items: string[]): string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const item of items) {
+    const key = taskStem(item);
     if (!key || seen.has(key)) continue;
     seen.add(key);
     result.push(item);
@@ -389,9 +414,25 @@ export function selectCompiledIdentity(params: {
   const storedGoal = normalizeText(params.memory?.currentGoal);
   const eventGoal = extractCurrentTask(eventSentences)
     || normalizeText(latestEvent?.suggestedActions?.[0]);
-  const currentGoal = !isUnusableCompiledIdentity(storedGoal, echoCorpus)
+  const dumpGoal = extractCurrentTask(dumpSentences) || "";
+  const nextTitles = [
+    ...(latestEvent?.suggestedActions ?? []).map((title) => normalizeText(title)),
+    eventGoal,
+    dumpGoal,
+  ].filter(Boolean);
+  const storedGoalOk = !isUnusableCompiledIdentity(storedGoal, echoCorpus)
+    && !looksLikeIdentityDump(storedGoal)
+    && !(latestReceipt && isNextActionClone(storedGoal, nextTitles));
+  const aim = extractProductAim([...dumpSentences, ...eventSentences], {
+    echoCorpus,
+    nextTitles,
+    summary,
+  });
+  const currentGoal = storedGoalOk
     ? storedGoal
-    : (eventGoal || extractCurrentTask(dumpSentences) || "");
+    : latestReceipt
+      ? (aim || eventGoal || dumpGoal)
+      : (dumpGoal || eventGoal || aim || "");
 
   const storedDirection = normalizeText(params.memory?.currentDirection);
   const currentDirection = extractDirectionLine(dumpSentences)
@@ -427,6 +468,28 @@ export function selectCompiledConstraints(params: {
     ...eventConstraints,
     ...captureConstraints,
     ...expandConstraintLines(params.memory?.constraints ?? []),
+  ]);
+}
+
+export function selectCompiledDecisions(params: {
+  memory?: ProjectMemory | null;
+  captures?: AnyObject[];
+  agentEvents?: AgentEvent[];
+}): string[] {
+  const captureDecisions = (params.captures ?? []).flatMap((item) => {
+    const content = item.kind === "note" ? normalizeText(item.content) : "";
+    if (!content) return [];
+    return splitSentences(content).filter(looksLikeProductDecision);
+  });
+  const eventDecisions = (params.agentEvents ?? [])
+    .filter((event) => isProductWorkReceipt(event))
+    .slice()
+    .sort((a, b) => b.createdAt - a.createdAt)
+    .flatMap((event) => splitSentences(`${event.title}. ${event.body}`).filter(looksLikeProductDecision));
+  return uniqueConstraintLines([
+    ...eventDecisions,
+    ...captureDecisions,
+    ...(params.memory?.importantDecisions ?? []),
   ]);
 }
 
@@ -612,7 +675,7 @@ export function compileProjectContextWithMeta(params: CompileProjectContextParam
   const activeAcceptedActionLines = activeAcceptedSuggestions(memory)
     .filter((item) => item.kind === "current_task" || item.kind === "open_action")
     .map((item) => labeledLine(acceptedMemorySourceLabel(item), item.text, PACKET_LINE_LIMIT));
-  const activeTaskLines = uniqueLines([
+  const activeTaskLines = uniqueByTaskStem([
     ...activeActions.map((action) => labeledLine(`action:${action.status}`, action.title, PACKET_LINE_LIMIT)),
     ...activeMemoryActions,
     ...activeAcceptedActionLines,
@@ -620,10 +683,13 @@ export function compileProjectContextWithMeta(params: CompileProjectContextParam
       .filter((item) => !isMilestoneLine(item) && !isContinueDumpEcho(item, dumpTexts) && !isDumpPrefixEcho(item, dumpTexts))
       .map((item) => labeledLine("memory:task", item, PACKET_LINE_LIMIT)),
   ]).slice(0, limits.actions);
-  const rawDecisionTexts = withoutInactiveAcceptedMemory(memory, ["decision"], uniqueLines([
-    ...(memory?.importantDecisions ?? []),
-  ]));
-  const decisionLines = uniqueLines([
+  const compiledDecisions = selectCompiledDecisions({
+    memory,
+    captures: liveCaptures,
+    agentEvents: params.agentEvents,
+  });
+  const rawDecisionTexts = withoutInactiveAcceptedMemory(memory, ["decision"], uniqueLines(compiledDecisions));
+  const decisionLines = uniqueByUnlabeled([
     ...rawDecisionTexts.map((item) => labeledLine("memory:decision", item, PACKET_LINE_LIMIT)),
     ...activeAcceptedMemoryItems(memory, ["decision"]).map((item) => labeledLine(acceptedMemorySourceLabel(item), item.text, PACKET_LINE_LIMIT)),
     ...pinnedDecisionLines,

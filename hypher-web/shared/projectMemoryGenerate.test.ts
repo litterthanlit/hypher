@@ -394,8 +394,13 @@ describe("Unit 3 compile identity, do not echo the dump", () => {
     });
     expect(compiled.summary.toLowerCase()).not.toContain("dogfood dump");
     expect(compiled.summary.toLowerCase()).toContain("session 2 writeback");
-    expect(compiled.currentGoal?.toLowerCase()).toMatch(/warmer than product\.md|silent synthesis/i);
+    expect(compiled.currentGoal?.toLowerCase()).toContain("session 2 should start warm");
+    expect(compiled.currentGoal?.toLowerCase()).not.toContain("dogfood dump");
+    expect(compiled.currentGoal?.toLowerCase()).not.toContain("warmer than product.md");
     expect(compiled.currentDirection.toLowerCase()).toContain("product:");
+    expect(compiled.importantDecisions.some((line) => /three panels/i.test(line))).toBe(true);
+    expect(compiled.nextActions[0]?.title.toLowerCase()).toContain("warmer than product.md");
+    expect(compiled.nextActions.filter((action) => /merge pr 62/i.test(action.title)).length).toBeLessThanOrEqual(1);
     expect(compiled.constraints.some((line) => /oauth/i.test(line))).toBe(true);
     expect(compiled.constraints.some((line) => /three panels/i.test(line))).toBe(true);
     expect(compiled.constraints.some((line) => /canvas/i.test(line))).toBe(true);
@@ -448,12 +453,16 @@ describe("Unit 3 compile identity, do not echo the dump", () => {
     });
     expect(brief).toMatch(/- Short summary: Session 2 writeback/i);
     expect(brief).not.toMatch(/- Short summary: Dogfood dump/i);
-    expect(tryingToBecome(brief).toLowerCase()).toMatch(/warmer than product\.md|silent synthesis/i);
+    expect(tryingToBecome(brief).toLowerCase()).toContain("session 2 should start warm");
+    expect(tryingToBecome(brief).toLowerCase()).not.toContain("dogfood dump");
+    expect(tryingToBecome(brief).toLowerCase()).not.toContain("warmer than product.md");
     expect(brief).toMatch(/Product: dump/i);
     expect(brief.toLowerCase()).toMatch(/widen oauth/);
     expect(brief.toLowerCase()).toMatch(/three panels/);
     expect(brief.toLowerCase()).toMatch(/rebuild the canvas/);
     expect(nextActionLine(brief).toLowerCase()).toContain("warmer than product.md");
+    const decisionSection = brief.split("### Accepted memory")[1]?.split("###")[0] ?? "";
+    expect(decisionSection.toLowerCase()).toMatch(/three panels/);
     expect(brief).not.toMatch(/Continue: Dogfood dump/i);
     expect(brief).not.toMatch(/\bno toke\.\.\./i);
     const recentSection = brief.split("## Recent changes")[1]?.split("##")[0] ?? "";
@@ -477,6 +486,37 @@ describe("Unit 3 compile identity, do not echo the dump", () => {
     });
     expect(compiled.constraints.some((line) => /oauth/i.test(line))).toBe(true);
     expect(compiled.constraints[0]?.toLowerCase()).toMatch(/oauth/);
+  });
+
+  it("keeps one Merge PR next-action stem and compiles Pulse stays as a decision", () => {
+    const compiled = compileHeuristicMemory({
+      projectName: "Hypher",
+      items: [{ content: LIVE_DUMP_2026_09_06 }],
+      events: [{
+        kind: "handoff",
+        source: "cursor",
+        title: "Last-handoff identity always wins at packet compile",
+        body: "Do not widen OAuth. Pulse stays three panels. Do not rebuild the canvas. GitHub is a signal, not the agent door. Cursor is the door.",
+        suggestedActions: ["Merge PR 62 and deploy Vercel plus Convex so production get_project_context drops the dump echo"],
+        createdAt: NOW,
+      }],
+      existing: {
+        nextActions: [
+          { title: "Merge PR 62 and deploy Convex so production memory and packet compile drop the dump echo", rationale: "x", status: "suggested", createdAt: NOW, updatedAt: NOW },
+          { title: "Merge PR 62 and deploy Convex so production memory drops the dogfood dump echo", rationale: "x", status: "suggested", createdAt: NOW, updatedAt: NOW },
+        ],
+        activeTasks: [
+          "Merge PR 62 and deploy Vercel plus Convex so production get_project_context drops the dump echo",
+          "Merge PR 62 and deploy Convex so production memory and packet compile drop the dump echo",
+        ],
+      },
+      now: NOW,
+    });
+    expect(compiled.nextActions.filter((action) => /merge pr 62/i.test(action.title))).toHaveLength(1);
+    expect(compiled.activeTasks.filter((task) => /merge pr 62/i.test(task))).toHaveLength(1);
+    expect(compiled.importantDecisions.some((line) => /three panels/i.test(line))).toBe(true);
+    expect(compiled.importantDecisions.some((line) => /cursor is the door/i.test(line))).toBe(true);
+    expect(compiled.currentGoal?.toLowerCase()).toContain("session 2 should start warm");
   });
 });
 
@@ -708,7 +748,8 @@ describe("Unit 3 AI synthesis must not restore dump echo", () => {
 
     expect(merged.summary.toLowerCase()).toContain("session 2 writeback");
     expect(merged.summary.toLowerCase()).not.toContain("dogfood dump");
-    expect(merged.currentGoal?.toLowerCase()).toMatch(/warmer than product\.md|keep the packet/i);
+    expect(merged.currentGoal?.toLowerCase()).toContain("session 2 should start warm");
+    expect(merged.currentGoal?.toLowerCase()).not.toContain("dogfood dump");
     expect(merged.currentDirection.toLowerCase()).toContain("product:");
     expect(merged.nextActions[0]?.title.toLowerCase()).toContain("warmer than product.md");
     expect(merged.nextActions.some((action) => /^continue:/i.test(action.title))).toBe(false);
