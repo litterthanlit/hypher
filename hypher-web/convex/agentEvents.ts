@@ -8,7 +8,7 @@ import { apiKeyProbeRateLimitKey } from "./apiKeys";
 import type { Id } from "./_generated/dataModel";
 import { GITHUB_LOOP_SOURCE, planGithubLoopWrites } from "./lib/githubAgentEvents";
 import { normalizeGitHubRepo } from "../shared/githubRepo";
-import { isProductWorkReceipt, summarizeEvent } from "../shared/projectMemoryGenerate";
+import { isProductWorkReceipt, prioritizeAgentEventsForPacket, summarizeEvent } from "../shared/projectMemoryGenerate";
 import { applyReceiptForEvent } from "./lib/projectMemoryWrite";
 
 const eventKind = v.union(
@@ -181,26 +181,18 @@ function matchProject(
   return contains ? { id: contains.id, name: contains.name ?? "Project" } : null;
 }
 
-function prioritizeForPulse<T extends { status: string; kind: string; createdAt: number }>(
+function prioritizeForPulse<T extends {
+  status: string;
+  kind: string;
+  createdAt: number;
+  title?: string;
+  body?: string;
+  source?: string;
+}>(
   events: T[],
   limit: number
 ): T[] {
-  const rank = (event: T): number => {
-    if (event.status === "new" && event.kind === "question") return 0;
-    if (event.status === "new" && event.kind === "next_action") return 1;
-    if (event.status === "new") return 2;
-    if (event.kind === "question") return 3;
-    return 4;
-  };
-  return events
-    .filter((event) => event.status !== "dismissed")
-    .slice()
-    .sort((a, b) => {
-      const delta = rank(a) - rank(b);
-      if (delta !== 0) return delta;
-      return b.createdAt - a.createdAt;
-    })
-    .slice(0, limit);
+  return prioritizeAgentEventsForPacket(events, limit);
 }
 
 function toClientEvent(event: any) {

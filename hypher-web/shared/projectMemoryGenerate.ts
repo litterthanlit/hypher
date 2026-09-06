@@ -352,6 +352,45 @@ export function dropBriefSelfTalkWhenProductStateExists<T>(
   return product.length > 0 ? product : items;
 }
 
+/** Fetch windows (Pulse 8, MCP/OAuth 12) must keep product-state handoffs, not only newest changelog. */
+export function prioritizeAgentEventsForPacket<T extends {
+  status: string;
+  kind: string;
+  createdAt: number;
+  title?: string;
+  body?: string;
+  source?: string;
+}>(events: T[], limit: number): T[] {
+  const live = events.filter((event) => event.status !== "dismissed");
+  const recency = (left: T, right: T) => right.createdAt - left.createdAt;
+  const needsReview = live
+    .filter((event) => event.status === "new" && agentEventNeedsHumanAccept(event.kind, event.source ?? ""))
+    .slice()
+    .sort(recency);
+  const productState = live
+    .filter((event) => (
+      isProductWorkReceipt({
+        kind: event.kind,
+        source: event.source ?? "",
+        title: event.title,
+        body: event.body,
+      })
+      && !looksLikeBriefSelfTalk(event.title)
+    ))
+    .slice()
+    .sort(recency);
+  const rest = live.slice().sort(recency);
+  const seen = new Set<T>();
+  const result: T[] = [];
+  for (const event of [...needsReview, ...productState, ...rest]) {
+    if (seen.has(event)) continue;
+    seen.add(event);
+    result.push(event);
+    if (result.length >= limit) break;
+  }
+  return result;
+}
+
 export function looksLikeProductDecision(item: string): boolean {
   if (looksLikeDoNotDo(item)) return false;
   if (looksLikeDecision(item)) return true;

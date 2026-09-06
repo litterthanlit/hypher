@@ -21,6 +21,7 @@ import {
   looksLikeProductDecision,
   preferProductStateTitles,
   dropBriefSelfTalkWhenProductStateExists,
+  prioritizeAgentEventsForPacket,
 } from "./projectMemoryGenerate";
 import { compileBuilderBrief } from "../src/lib/projectContext";
 import type { Project, ProjectMemory } from "../src/types";
@@ -270,6 +271,40 @@ describe("looksLikeBriefSelfTalk", () => {
       "Changelog titles are not session identity",
       "Packet current state leads Recent changes",
     ]);
+  });
+
+  it("keeps product-state handoffs in a Pulse/MCP-sized fetch window", () => {
+    const changelog = Array.from({ length: 12 }, (_, index) => ({
+      status: "reviewed",
+      kind: "handoff",
+      source: "cursor",
+      title: `Changelog titles leave Recent changes ${index}`,
+      createdAt: 2000 + index,
+    }));
+    const wait = {
+      status: "reviewed",
+      kind: "handoff",
+      source: "cursor",
+      title: "Wait-for-review next when merge is locked",
+      createdAt: 100,
+    };
+    const question = {
+      status: "new",
+      kind: "question",
+      source: "cursor",
+      title: "Should the brief load without a slash command?",
+      createdAt: 50,
+    };
+    const recencyOnly = [...changelog, wait, question]
+      .filter((event) => event.status !== "dismissed")
+      .sort((a, b) => b.createdAt - a.createdAt)
+      .slice(0, 8);
+    expect(recencyOnly.some((event) => event.title === wait.title)).toBe(false);
+    const selected = prioritizeAgentEventsForPacket([...changelog, wait, question], 8);
+    expect(selected.some((event) => event.title === wait.title)).toBe(true);
+    expect(selected.some((event) => event.title === question.title)).toBe(true);
+    expect(selected[0]?.title).toBe(question.title);
+    expect(selected).toHaveLength(8);
   });
 });
 

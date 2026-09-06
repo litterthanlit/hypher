@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { AgentEvent, AnyObject, Handoff, Project, ProjectAction, ProjectMemory } from "@/types";
 import { compileBuilderBrief, compileProjectContext, compileProjectContextWithMeta } from "./projectContext";
+import { prioritizeAgentEventsForPacket } from "../../shared/projectMemoryGenerate";
 
 const project: Project = {
   id: "p1",
@@ -1247,6 +1248,105 @@ describe("compileBuilderBrief", () => {
     expect(packet).not.toMatch(/now\.\.\.\./);
     expect(packet).not.toMatch(/Compiled from the latest dump/);
     expect(packet).toMatch(/Suggested next move: Start with Wait for review before merging PR 62/);
+  });
+
+  it("keeps Wait-for-review identity when the fetch window is full of compiler changelog", () => {
+    const dump =
+      "Dogfood dump on the real hypher project. Product: dump → one note agents read → writeback. Session 2 should start warm. Do not: invent dumps, gate bind on a github token, or treat try hypher as the home. Next: confirm silent synthesis thickened this note without a generate button.";
+    const latestBody = "Do not widen OAuth. Pulse stays three panels. Do not rebuild the canvas. Do not merge until reviewed.";
+    const changelogTitles = [
+      "Changelog titles leave Recent changes",
+      "Packet current state leads Recent changes",
+      "Changelog titles are not session identity",
+      "Changelog titles do not fill Accepted memory",
+      "Suggested next move is Start with, not dump compile",
+      "Packet current state is last-handoff",
+      "Dump-only constraints keep packet slots",
+      "Merge lock beats Merge PR next move",
+    ];
+    const changelogEvents: AgentEvent[] = changelogTitles.map((title, index) => ({
+      id: `cl-${index}`,
+      userId: "u1",
+      projectId: "p1",
+      source: "cursor",
+      kind: "handoff",
+      title,
+      body: latestBody,
+      status: "reviewed",
+      createdAt: 2000 - index,
+    }));
+    const waitEvent: AgentEvent = {
+      id: "wait-lock",
+      userId: "u1",
+      projectId: "p1",
+      source: "cursor",
+      kind: "handoff",
+      title: "Wait-for-review next when merge is locked",
+      body: latestBody,
+      suggestedActions: ["Merge PR 62 and deploy Vercel plus Convex so production get_project_context drops the dump echo"],
+      status: "reviewed",
+      createdAt: 100,
+    };
+    const recencyWindow = [...changelogEvents, waitEvent]
+      .sort((a, b) => b.createdAt - a.createdAt)
+      .slice(0, 8);
+    const recencyPacket = compileBuilderBrief({
+      project: { ...project, name: "hypher", description: "" },
+      memory: {
+        ...memory,
+        summary: dump,
+        currentGoal: "",
+        currentDirection: "",
+        importantDecisions: [],
+        openQuestions: [],
+        blockers: [],
+        staleAssumptions: [],
+      },
+      captures: [{
+        id: "n-dump",
+        kind: "note",
+        content: dump,
+        maturity: "fleeting",
+        projectId: "p1",
+        createdAt: 40,
+        modifiedAt: 60,
+      }],
+      actions: [],
+      agentEvents: recencyWindow,
+      generatedAt: 2000,
+    });
+    expect(recencyPacket).not.toMatch(/- Short summary: Wait-for-review next when merge is locked/);
+
+    const packet = compileBuilderBrief({
+      project: { ...project, name: "hypher", description: "" },
+      memory: {
+        ...memory,
+        summary: dump,
+        currentGoal: "",
+        currentDirection: "",
+        importantDecisions: [],
+        openQuestions: [],
+        blockers: [],
+        staleAssumptions: [],
+      },
+      captures: [{
+        id: "n-dump",
+        kind: "note",
+        content: dump,
+        maturity: "fleeting",
+        projectId: "p1",
+        createdAt: 40,
+        modifiedAt: 60,
+      }],
+      actions: [],
+      agentEvents: prioritizeAgentEventsForPacket([...changelogEvents, waitEvent], 8),
+      generatedAt: 2000,
+    });
+    expect(packet).toMatch(/- Short summary: Wait-for-review next when merge is locked/);
+    expect(packet).toMatch(/- Current state: Wait-for-review next when merge is locked/);
+    const recentSection = packet.split("## Recent changes")[1]?.split("##")[0] ?? "";
+    expect(recentSection).toMatch(/Wait-for-review next when merge is locked/);
+    expect(recentSection).not.toMatch(/Changelog titles leave Recent changes/);
   });
 
   it("does not drop dump-only do-nots behind a full writeback constraint list", () => {
