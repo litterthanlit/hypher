@@ -1,6 +1,6 @@
 export const LANDING_HERO = {
-  headline: "The context they never find in git.",
-  lede: "Cursor already has the code. Hypher holds the decisions, the don'ts, and the next move — so session two starts warm.",
+  headline: "You don't explain the project again.",
+  lede: "Capture your project. They read one note. They write back.",
   hint: "Private beta. Invite-gated while the loop gets quieter.",
   primaryCta: "Request beta",
   secondaryCta: "Open Hypher",
@@ -9,8 +9,8 @@ export const LANDING_HERO = {
 
 export const LANDING_LOOP = {
   eyebrow: "How it works",
-  heading: "Capture. One note. Writeback.",
-  lede: "Stop re-explaining the project every session. Hypher sits under your agents — not another place to write code.",
+  heading: "Capture, the note, writeback.",
+  lede: "Hypher sits under your agents — not another place to write code.",
   beats: [
     {
       step: "01",
@@ -61,6 +61,6 @@ export const LANDING_FAQ = {
 
 export const LANDING_CTA = {
   eyebrow: "Private beta",
-  heading: "Stop re-explaining the project every session.",
+  heading: "You don't explain the project again.",
   lede: "Built for people drowning in agent sessions. Invite-gated while the loop gets quieter.",
 } as const;

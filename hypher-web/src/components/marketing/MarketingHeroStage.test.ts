@@ -73,4 +73,13 @@ describe("public landing copy", () => {
     expect(LANDING_HERO.primaryCta).toBe("Request beta");
     expect(LANDING_HERO.hint.toLowerCase()).toContain("private beta");
   });
+
+  it("locks the public hero and card copy", () => {
+    expect(LANDING_HERO.headline).toBe("You don't explain the project again.");
+    expect(LANDING_HERO.lede).toBe(
+      "Capture your project. They read one note. They write back.",
+    );
+    expect(PUBLIC_CAPTURE_LABEL).toBe("Capture");
+    expect([...DEMO_BEATS]).toEqual(["Capture", "The note", "Writeback"]);
+  });
 });

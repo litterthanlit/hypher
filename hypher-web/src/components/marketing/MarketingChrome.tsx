@@ -75,7 +75,7 @@ export function MarketingFooter() {
     <footer className="marketing-footer">
       <div className="marketing-wrap marketing-footer__row">
         <MarketingBrand size="sm" />
-        <p className="marketing-footer__note">The context they never find in git.</p>
+        <p className="marketing-footer__note">You don't explain the project again.</p>
       </div>
     </footer>
   );

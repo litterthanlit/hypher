@@ -6671,7 +6671,7 @@ button.marketing-cta {
 
 .marketing-hero h1 {
   font-size: clamp(2.8rem, 7vw, 5rem);
-  max-width: 13ch;
+  max-width: 18ch;
 }
 
 .marketing-page-title {
