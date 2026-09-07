@@ -27,10 +27,10 @@ function PrimaryNavLinks() {
   return (
     <>
       <a href="/#the-loop" className={navLinkClass}>
-        The loop
+        How it works
       </a>
-      <a href="/#stack" className={navLinkClass}>
-        For agents
+      <a href="/#cursor" className={navLinkClass}>
+        Cursor
       </a>
       <Link href="/pricing" className={navLinkClass}>
         Pricing
@@ -61,8 +61,8 @@ export function MarketingHeader({
           <Link href="/sign-in" className={navLinkClass}>
             Log in
           </Link>
-          <MarketingCta href="/app" className="marketing-cta--header">
-            Open Hypher
+          <MarketingCta href="/beta/request" className="marketing-cta--header">
+            Request beta
           </MarketingCta>
         </div>
       </div>
