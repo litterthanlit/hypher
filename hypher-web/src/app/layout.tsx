@@ -36,11 +36,11 @@ const hypherDisplay = Archivo_Narrow({
 
 export const metadata: Metadata = {
   title: {
-    default: "Hypher — The context they never find in git",
+    default: "Hypher — You don't explain the project again.",
     template: "%s — Hypher",
   },
   description:
-    "Cursor already has the code. Hypher holds the decisions that never made it in, so the next agent session starts warm.",
+    "Capture your project. They read one note. They write back.",
   icons: {
     icon: "/hypher-logo.svg",
   },
