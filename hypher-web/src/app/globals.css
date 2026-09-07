@@ -6724,9 +6724,12 @@ button.marketing-cta {
 .marketing-hero__actions {
   display: flex;
   flex-wrap: wrap;
-  justify-content: center;
   gap: 10px;
   margin-top: 28px;
+}
+
+.marketing-hero__copy .marketing-hero__actions {
+  justify-content: center;
 }
 
 .marketing-frame {

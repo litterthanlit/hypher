@@ -135,7 +135,7 @@ export function MarketingHeroStage() {
         </article>
 
         <article
-          className={`marketing-proto__beat${compiling || phase === "brief" || showNote ? " is-active" : ""}${!showNote && !compiling ? " is-waiting" : ""}`}
+          className={`marketing-proto__beat${compiling || phase === "brief" ? " is-active" : ""}${!showNote && !compiling ? " is-waiting" : ""}`}
           aria-current={phase === "brief" || compiling ? "step" : undefined}
         >
           <h3 className="marketing-proto__beat-label">{DEMO_BEATS[1]}</h3>
