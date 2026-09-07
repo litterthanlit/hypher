@@ -6480,11 +6480,12 @@ body:has(.capture-root) {
 .marketing-brand {
   display: inline-flex;
   align-items: center;
-  gap: 0.45em;
+  gap: 0.4em;
   color: var(--m-ink);
   line-height: 1;
   text-decoration: none;
   transition: opacity 150ms ease;
+  flex-shrink: 0;
 }
 
 .marketing-brand:hover {
@@ -6494,9 +6495,9 @@ body:has(.capture-root) {
 
 .marketing-brand__word {
   font-family: var(--font-sans);
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 500;
-  letter-spacing: -0.045em;
+  letter-spacing: -0.04em;
   text-transform: lowercase;
   color: var(--m-ink);
 }
@@ -6545,26 +6546,28 @@ body:has(.capture-root) {
 .marketing-header__row {
   display: flex;
   align-items: center;
-  gap: 20px;
-  min-height: 68px;
-  padding-block: 10px;
-  position: relative;
+  gap: 24px;
+  min-height: 64px;
+  padding-block: 14px;
+}
+
+.marketing-header__right {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  margin-left: auto;
 }
 
 .marketing-header__nav {
   display: none;
-  position: absolute;
-  left: 50%;
   align-items: center;
   gap: 28px;
-  transform: translateX(-50%);
 }
 
 .marketing-header__actions {
   display: flex;
   align-items: center;
   gap: 16px;
-  margin-left: auto;
 }
 
 .marketing-nav-link {
