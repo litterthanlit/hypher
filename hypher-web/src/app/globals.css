@@ -6480,7 +6480,7 @@ body:has(.capture-root) {
 .marketing-brand {
   display: inline-flex;
   align-items: center;
-  gap: 0.7em;
+  gap: 0.45em;
   color: var(--m-ink);
   line-height: 1;
   text-decoration: none;
@@ -6510,8 +6510,22 @@ body:has(.capture-root) {
   display: block;
   flex-shrink: 0;
   width: auto;
-  height: 15px;
+  height: 16px;
   color: var(--m-mark);
+}
+
+@keyframes hypher-mark-breathe {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.78;
+  }
+}
+
+.marketing-header .hypher-signal-mark--marketing {
+  animation: hypher-mark-breathe 5.2s ease-in-out infinite;
 }
 
 .marketing-brand--sm .hypher-signal-mark--marketing-sm {
@@ -7180,6 +7194,10 @@ button.marketing-cta {
   .marketing-proto__beat,
   .marketing-proto__save {
     transition: none;
+  }
+
+  .marketing-header .hypher-signal-mark--marketing {
+    animation: none;
   }
 }
 
