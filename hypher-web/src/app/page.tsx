@@ -7,7 +7,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "Hypher — You don't explain the project again.",
     description: "Capture your project. They read one note. They write back.",
-    images: [{ url: "/hypher-logo.svg", width: 596, height: 151, alt: "hypher" }],
+    images: [{ url: "/hypher-logo.svg", width: 397, height: 84, alt: "hypher" }],
   },
 };
 

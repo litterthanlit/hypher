@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   LANDING_CTA,
@@ -81,5 +83,31 @@ describe("public landing copy", () => {
     );
     expect(PUBLIC_CAPTURE_LABEL).toBe("Capture");
     expect([...DEMO_BEATS]).toEqual(["Capture", "The note", "Writeback"]);
+  });
+
+  it("keeps the room lock: Nick mark + word left, no Introducing chrome", () => {
+    const header = readFileSync(
+      path.resolve(__dirname, "./MarketingChrome.tsx"),
+      "utf8",
+    );
+    const brand = readFileSync(
+      path.resolve(__dirname, "./MarketingBrand.tsx"),
+      "utf8",
+    );
+    const css = readFileSync(
+      path.resolve(__dirname, "../../app/globals.css"),
+      "utf8",
+    );
+
+    expect(header).toContain("<MarketingBrand />");
+    expect(header).toContain("marketing-header__right");
+    expect(brand).toContain("<HypherMark");
+    expect(brand).toContain("hypher");
+    expect(publicBlob).not.toMatch(/Introducing/i);
+    expect(publicBlob).not.toMatch(/Speech Engine/i);
+    expect(css).toContain("@keyframes hypher-mark-breathe");
+    expect(css).toMatch(
+      /\.marketing-header \.hypher-signal-mark--marketing \{\s*animation: hypher-mark-breathe/,
+    );
   });
 });

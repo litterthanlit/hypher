@@ -45,7 +45,7 @@ export const metadata: Metadata = {
     icon: "/hypher-logo.svg",
   },
   openGraph: {
-    images: [{ url: "/hypher-logo.svg", width: 596, height: 151, alt: "hypher" }],
+    images: [{ url: "/hypher-logo.svg", width: 397, height: 84, alt: "hypher" }],
   },
 };
 

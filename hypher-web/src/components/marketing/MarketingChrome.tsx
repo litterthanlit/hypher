@@ -48,22 +48,24 @@ export function MarketingHeader({
     <header className="marketing-header">
       <div className="marketing-wrap marketing-header__row">
         <MarketingBrand />
-        <nav className="marketing-header__nav" aria-label="Primary">
-          {active === "pricing" ? (
-            <Link href="/" className={navLinkClass}>
-              Home
+        <div className="marketing-header__right">
+          <nav className="marketing-header__nav" aria-label="Primary">
+            {active === "pricing" ? (
+              <Link href="/" className={navLinkClass}>
+                Home
+              </Link>
+            ) : (
+              <PrimaryNavLinks />
+            )}
+          </nav>
+          <div className="marketing-header__actions">
+            <Link href="/sign-in" className={navLinkClass}>
+              Log in
             </Link>
-          ) : (
-            <PrimaryNavLinks />
-          )}
-        </nav>
-        <div className="marketing-header__actions">
-          <Link href="/sign-in" className={navLinkClass}>
-            Log in
-          </Link>
-          <MarketingCta href="/beta/request" className="marketing-cta--header">
-            Request beta
-          </MarketingCta>
+            <MarketingCta href="/beta/request" className="marketing-cta--header">
+              Request beta
+            </MarketingCta>
+          </div>
         </div>
       </div>
     </header>
