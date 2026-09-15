@@ -67,6 +67,10 @@ test("unmatched instruction points at Integrations and does not invent status", 
   assert.match(text, /acme\/unknown/);
   assert.match(text, new RegExp(INTEGRATIONS_URL.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   assert.match(text, /Do not invent project status/);
+  assert.match(text, /will not invent a project/);
+  assert.match(text, /create one in the Hypher app first/);
+  assert.match(text, /will not auto-mint/);
+  assert.match(text, /\/hypher-brief/);
   assert.doesNotMatch(text, /current direction/i);
 });
 
@@ -194,6 +198,9 @@ test("sessionStart unmatched MCP result points at Integrations", async () => {
     fetchImpl,
   });
   assert.match(out.additional_context, /No Hypher project is linked/);
+  assert.match(out.additional_context, /acme\/unknown/);
+  assert.match(out.additional_context, /create one in the Hypher app first/);
+  assert.match(out.additional_context, /will not auto-mint/);
   assert.equal(out.env.HYPHER_HOOK_MATCHED, "0");
 });
 
