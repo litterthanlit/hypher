@@ -63,7 +63,7 @@ The `sessionEnd` hook process cannot see Cursor's stored MCP OAuth token. Automa
 
 - **Tools do not appear.** Confirm the plugin is enabled and MCP logs show `https://www.hypher.app/api/mcp`.
 - **OAuth fails on redirect_uri.** Hypher allowlists `http://localhost:8787/callback`, `cursor://anysphere.cursor-mcp/oauth/callback`, and `https://www.cursor.com/agents/mcp/oauth/callback`.
-- **`resolve_project_for_repo` is unmatched.** Link the GitHub repo on [Integrations](https://hypher.app/app/settings/integrations).
+- **`resolve_project_for_repo` is unmatched.** Create a project in Hypher if needed, then bind `owner/repo` on [Integrations](https://hypher.app/app/settings/integrations). The plugin will not auto-mint.
 - **Handoff did not show up.** Check Agent Inbox, then Project Pulse for the matched project. Unmatched events stay in Inbox for review. The `sessionEnd` hook can post only when a Hypher API key or OAuth access token is in the hook environment (`HYPHER_API_KEY` / `HYPHER_ACCESS_TOKEN`). Cursor's MCP OAuth token is not exposed to shell hooks — without a token, the agent still writes one `handoff` via `post_agent_event` (rule + `/hypher-handoff`). `sessionEnd` may also fire late on window close.
 - **Brief did not load at session start.** Confirm the plugin is enabled and check the Hooks output channel. Then run `/hypher-brief`. Hooks do not run on Cursor cloud agents (`sessionStart` / `sessionEnd` are IDE session boundaries).
 - **Brief did not improve next time.** Make sure one `handoff` landed, then start the next session so `sessionStart` can load the updated brief. Do not paste context by hand.

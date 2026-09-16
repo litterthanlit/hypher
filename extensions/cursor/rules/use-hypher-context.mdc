@@ -16,7 +16,7 @@ Hypher is the project memory / control plane for this workspace. Cursor is the e
 1. **At the start of the session (first action), load memory once:**
    - Call `resolve_project_for_repo` with the workspace git remote (`git remote get-url origin`), plus branch if available.
    - If `matched` is true: call `get_project_context` once with the returned `projectId` and treat that Builder Brief as working context for the rest of the session. Do not reload it every turn.
-   - If `matched` is false: tell the builder to link `owner/repo` at https://hypher.app/app/settings/integrations and do not invent project status from the repo alone.
+   - If `matched` is false: name the exact `owner/repo`. Bind is required so writebacks land on the right note — Hypher will not invent a project from this repo. If no project exists yet, the builder creates one in the Hypher app first (Capture / new project), then binds `owner/repo` at https://hypher.app/app/settings/integrations. Follow `link-project`. Do not invent project status.
 2. **While working:** use `get_current_state` or `get_next_move` when you need direction. Do not reload the full brief each turn.
 3. **At the end of the session (before you finish), write back once:**
    - Call `post_agent_event` with `kind: handoff`, `source: cursor`, a short `title`, a bounded `body` (what changed, decisions, open questions, best next move), and `repo` / `branch` / `commitSha` when available.

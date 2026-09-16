@@ -27,10 +27,11 @@ Load project memory once, then work in Cursor.
    - Treat that Builder Brief as working context for the rest of the session.
    - Optionally call `get_next_move` if the user has not already named a task.
    - If the brief is still a skeleton or heuristic dump echo, follow the `thicken-note` skill (thin note → compile on your model → write back once).
-4. If `matched` is false:
-   - Tell the user no Hypher project is linked to this repo.
-   - Offer the `link-project` skill and open https://hypher.app/app/settings/integrations.
-   - Do not invent project status.
+4. If `matched` is false, say this (then follow `link-project`; do not invent status):
+   - Name the exact `owner/repo`.
+   - One sentence: bind is required so writebacks land on the right note — Hypher will not invent a project from this repo.
+   - Point at https://hypher.app/app/settings/integrations. If no project exists yet, the user creates one in the Hypher app first (Capture / new project), then binds `owner/repo`. The agent does not mint.
+   - Follow the `link-project` skill. After they confirm the link, retry `resolve_project_for_repo`.
 
 ## Constraints
 

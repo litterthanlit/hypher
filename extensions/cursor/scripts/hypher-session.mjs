@@ -204,9 +204,11 @@ export function buildUnmatchedInstruction(git) {
     "Hypher session start (automatic via Cursor plugin hook).",
     "",
     `No Hypher project is linked to ${repo}.`,
-    `Link owner/repo at ${INTEGRATIONS_URL}. A GitHub token is not required.`,
+    "Hypher will not invent a project from this repo. Bind is required so writebacks land on the right note.",
+    `If no Hypher project exists yet for this work, create one in the Hypher app first (Capture / new project), then bind ${repo} at ${INTEGRATIONS_URL}.`,
+    "The plugin will not auto-mint a project. A GitHub token is not required.",
+    "After the repo is linked, say so or run /hypher-brief.",
     "Do not invent project status from the repository. Cursor already has the code; Hypher has the decisions that never made it into the code.",
-    "/hypher-brief is the manual retry after the repo is linked.",
   ].join("\n");
 }
 
