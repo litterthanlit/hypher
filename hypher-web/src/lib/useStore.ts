@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useMemo, useRef, useEffect } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { useAuth } from "@clerk/nextjs";
 import { useQuery, useMutation, useAction, useConvex, useConvexAuth } from "convex/react";
 import { asQueryList, shouldSkipAuthedConvexQuery } from "./activation";
@@ -134,7 +134,7 @@ export function useStore(options: UseStoreOptions = {}) {
     (): AnyObject[] => asQueryList(rawProjectObjects).map(mapObject),
     [rawProjectObjects]
   );
-  const rawMappedObjects = useMemo(
+  const objects = useMemo(
     (): AnyObject[] => {
       if (Array.isArray(rawAllObjects)) return rawAllObjects.map(mapObject);
       return mergeObjects(projectObjects, inboxObjects, recentObjects, selectedProjectObjects);
@@ -168,41 +168,6 @@ export function useStore(options: UseStoreOptions = {}) {
   const putActivityMut = useMutation(api.activity.put);
   const touchLastActivityMut = useMutation(api.objects.touchLastActivity);
   const generateTagsAction = useAction(api.ai.generateTags);
-
-  /* ── Position overrides for smooth drag ───────────────────────── */
-  const [positionOverrides, setPositionOverrides] = useState<
-    Record<string, { x: number; y: number }>
-  >({});
-
-  // Merge Convex data with local position overrides
-  const objects = useMemo(() => {
-    if (Object.keys(positionOverrides).length === 0) return rawMappedObjects;
-    return rawMappedObjects.map((obj) => {
-      const override = positionOverrides[obj.id];
-      return override ? ({ ...obj, canvasPosition: override } as AnyObject) : obj;
-    });
-  }, [rawMappedObjects, positionOverrides]);
-
-  // Clear overrides when Convex data updates
-  useEffect(() => {
-    setPositionOverrides({});
-  }, [rawAllObjects, rawProjectObjects]);
-
-  // Ref for latest objects (used in debounced writes)
-  const objectsRef = useRef(rawMappedObjects);
-  useEffect(() => {
-    objectsRef.current = rawMappedObjects;
-  }, [rawMappedObjects]);
-
-  // Position write debounce timers
-  const positionTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
-  useEffect(() => {
-    return () => {
-      for (const timer of Object.values(positionTimers.current)) {
-        clearTimeout(timer);
-      }
-    };
-  }, []);
 
   /* ── Local UI state ───────────────────────────────────────────── */
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -668,20 +633,6 @@ export function useStore(options: UseStoreOptions = {}) {
     await removeConnectionMut({ id: connId as Id<"connections"> });
   };
 
-  const updatePosition = (id: string, x: number, y: number) => {
-    // Immediate local update for smooth drag
-    setPositionOverrides((prev) => ({ ...prev, [id]: { x, y } }));
-
-    // Debounce the Convex write (at most every 200ms per object)
-    clearTimeout(positionTimers.current[id]);
-    positionTimers.current[id] = setTimeout(() => {
-      delete positionTimers.current[id];
-      const obj = objectsRef.current.find((o) => o.id === id);
-      if (!obj) return;
-      putObjectMut(convexUpdateArgs({ ...obj, canvasPosition: { x, y } }));
-    }, 200);
-  };
-
   const refreshSuggestions = async () => {
     setIsProcessing(true);
     try {
@@ -692,42 +643,6 @@ export function useStore(options: UseStoreOptions = {}) {
   };
 
   const resolveObject = (id: string) => objects.find((o) => o.id === id);
-
-  const duplicateObjects = async (ids: string[]): Promise<string[]> => {
-    const idMap = new Map<string, string>();
-    for (const oldId of ids) {
-      const obj = objects.find((o) => o.id === oldId);
-      if (!obj) continue;
-      const pos = obj.canvasPosition ?? { x: 0, y: 0 };
-      const newObj = {
-        ...obj,
-        id: crypto.randomUUID(),
-        canvasPosition: { x: pos.x + 20, y: pos.y + 20 },
-        createdAt: Date.now(),
-        modifiedAt: Date.now(),
-      };
-      const newId = await addObject(newObj);
-      idMap.set(oldId, newId);
-    }
-
-    // Duplicate connections between the duplicated items
-    const duplicatedSet = new Set(ids);
-    const internalConns = connections.filter(
-      (c) =>
-        (c.type === "manual" || c.type === "ai_confirmed") &&
-        duplicatedSet.has(c.sourceId) &&
-        duplicatedSet.has(c.targetId)
-    );
-    for (const conn of internalConns) {
-      const newSource = idMap.get(conn.sourceId);
-      const newTarget = idMap.get(conn.targetId);
-      if (newSource && newTarget) {
-        await createManualConnection(newSource, newTarget);
-      }
-    }
-
-    return Array.from(idMap.values());
-  };
 
   /* ── Clipboard capture ────────────────────────────────────────── */
   const captureFromClipboard = async (): Promise<boolean> => {
@@ -861,14 +776,12 @@ export function useStore(options: UseStoreOptions = {}) {
     refreshSuggestions,
     createManualConnection,
     removeConnection,
-    updatePosition,
     resolveObject,
     isProcessing,
     modelLoading,
     addToast,
     captureFromClipboard,
     search,
-    duplicateObjects,
     restoreObjects,
     restoreConnections,
     logProjectView,
