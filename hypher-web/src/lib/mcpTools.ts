@@ -1,7 +1,7 @@
 import type { ActivityEntry, AgentEvent, AnyObject, Handoff, Project, ProjectAction, ProjectMemory } from "@/types";
 import { buildAgentContextApiResponse } from "./agentContextApi";
 import { selectPrimaryNextAction } from "./projectMemory";
-import { selectCompiledIdentity, selectCompiledNextAction, captureDumpTexts, hydratePacketAgentEvents } from "./projectContext";
+import { selectCompiledIdentity, selectCompiledNextAction, captureDumpTexts, hydratePacketAgentEvents, newerLegacyWriteback } from "./projectContext";
 import {
   buildSynthesisInput,
   dropBriefSelfTalkWhenProductStateExists,
@@ -147,14 +147,14 @@ export function getHypherMcpToolDescriptors(): HypherMcpToolDescriptor[] {
       name: "prepare_handoff",
       title: "Prepare or resume a handoff",
       description:
-        "With only projectId, prepare concise handoff notes. With destination and currentRepo, load the latest structured handoff, compare the working tree, and record a delivery receipt. Memory does not checkout or sync files.",
+        "With only projectId, prepare concise handoff notes. With destination and currentRepo, load the latest structured handoff and record a prepared receipt. Acknowledgment is separate. Memory does not checkout or sync files.",
       inputSchema: {
         type: "object",
         properties: {
           projectId: { type: "string", description: "Hypher project id." },
           destination: {
             type: "string",
-            description: "Destination agent, such as claude-code or codex. When set, Hypher records a delivery receipt.",
+            description: "Destination agent, such as claude-code or codex. When set, Hypher records a prepared receipt.",
           },
           destinationProjectId: {
             type: "string",
@@ -162,8 +162,8 @@ export function getHypherMcpToolDescriptors(): HypherMcpToolDescriptor[] {
           },
           deliveryResult: {
             type: "string",
-            enum: ["delivered", "failed"],
-            description: "Defaults to delivered. Failed preserves the last valid handoff and records the failure.",
+            enum: ["prepared", "failed", "delivered"],
+            description: "Defaults to prepared. The old delivered value is treated as prepared. Failed preserves the last valid handoff.",
           },
           reason: { type: "string", description: "Why delivery failed, when deliveryResult is failed." },
           currentRepo: {
@@ -171,14 +171,34 @@ export function getHypherMcpToolDescriptors(): HypherMcpToolDescriptor[] {
             additionalProperties: false,
             required: ["branch", "commit", "dirty"],
             properties: {
+              repository: { type: "string" },
               branch: { type: "string" },
               commit: { type: "string" },
               dirty: { type: "boolean" },
+              worktreePath: { type: "string" },
+              dirtyFingerprint: { type: "string" },
             },
             description: "Working-tree metadata to compare. Hypher does not checkout or copy files.",
           },
         },
         required: ["projectId"],
+        additionalProperties: false,
+      },
+      annotations: WRITE,
+    },
+    {
+      name: "acknowledge_handoff",
+      title: "Acknowledge loaded handoff",
+      description: "After the destination has read a prepared handoff, acknowledge that exact receipt and revision. This records reported consumption, not correct use of the context.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          projectId: { type: "string" },
+          receiptId: { type: "string" },
+          revision: { type: "integer", minimum: 1 },
+          destination: { type: "string" },
+        },
+        required: ["projectId", "receiptId", "revision", "destination"],
         additionalProperties: false,
       },
       annotations: WRITE,
@@ -267,7 +287,7 @@ export function getHypherMcpToolDescriptors(): HypherMcpToolDescriptor[] {
           },
           idempotencyKey: {
             type: "string",
-            description: "Stable key for this write. A repeat with the same key is rejected.",
+            description: "Stable key for this write. An identical retry returns the original revision; different content with the same key is rejected.",
           },
           resume: {
             type: "object",
@@ -281,12 +301,15 @@ export function getHypherMcpToolDescriptors(): HypherMcpToolDescriptor[] {
                 additionalProperties: false,
                 required: ["branch", "commit", "dirty"],
                 properties: {
+                  repository: { type: "string" },
                   branch: { type: "string" },
                   commit: { type: "string" },
                   dirty: { type: "boolean" },
+                  worktreePath: { type: "string" },
+                  dirtyFingerprint: { type: "string" },
                 },
               },
-              result: { type: "string", enum: ["delivered", "failed"] },
+              result: { type: "string", enum: ["prepared", "failed", "delivered"] },
               reason: { type: "string" },
             },
             description: "Record a delivery receipt instead of saving a new proposal. Prefer prepare_handoff for resume.",
@@ -396,7 +419,15 @@ function recentChangeLeads(params: {
 }
 
 function currentStateTool(args: JsonObject, context: HypherMcpContext): HypherMcpToolResult {
-  const { project, memory, captures, agentEvents } = requireProjectContext(args, context);
+  const { project, memory, captures, agentEvents, handoffs } = requireProjectContext(args, context);
+  const structured = latestStructuredHandoff(handoffs);
+  if (structured?.proposal) {
+    const newerWriteback = newerLegacyWriteback(structured, agentEvents);
+    const warning = newerWriteback ? `Newer legacy agent writeback (${newerWriteback.title}) needs reconciliation into a structured revision.` : undefined;
+    return textResult({ projectId: project.id, projectName: project.name, currentState: structured.proposal.goal,
+      recentChanges: [], openQuestions: [], revision: structured.revision, needsReconciliation: Boolean(newerWriteback), warning },
+    `${structured.proposal.goal}${warning ? `\n${warning}` : ""}`);
+  }
   const identity = selectCompiledIdentity({
     memory,
     captures,
@@ -420,7 +451,15 @@ function currentStateTool(args: JsonObject, context: HypherMcpContext): HypherMc
 }
 
 function nextMoveTool(args: JsonObject, context: HypherMcpContext): HypherMcpToolResult {
-  const { project, memory, actions, captures, agentEvents } = requireProjectContext(args, context);
+  const { project, memory, actions, captures, agentEvents, handoffs } = requireProjectContext(args, context);
+  const structured = latestStructuredHandoff(handoffs);
+  if (structured?.proposal) {
+    const newerWriteback = newerLegacyWriteback(structured, agentEvents);
+    const warning = newerWriteback ? `Newer legacy agent writeback (${newerWriteback.title}) needs reconciliation into a structured revision.` : undefined;
+    return textResult({ projectId: project.id, projectName: project.name, nextMove: structured.proposal.nextAction,
+      source: "structured_handoff", revision: structured.revision, needsReconciliation: Boolean(newerWriteback), warning },
+    `${structured.proposal.nextAction}${warning ? `\n${warning}` : ""}`);
+  }
   const compiled = selectCompiledNextAction({
     memory,
     actions,
@@ -550,6 +589,17 @@ export function parseHandoffResumeArgs(args: JsonObject) {
   return parsed.value;
 }
 
+export function parseHandoffAcknowledgeArgs(args: JsonObject) {
+  const projectId = getProjectId(args);
+  const receiptId = typeof args.receiptId === "string" ? args.receiptId.trim() : "";
+  const destination = typeof args.destination === "string" ? args.destination.trim() : "";
+  const revision = args.revision;
+  if (!receiptId || !destination || !Number.isInteger(revision) || (revision as number) < 1) {
+    throw new Error("receiptId, destination, and positive revision are required");
+  }
+  return { projectId, receiptId, destination, revision: revision as number };
+}
+
 export function formatAgentEventWriteResult(result: {
   ok: boolean;
   error?: string;
@@ -644,10 +694,26 @@ export function formatHandoffResumeResult(result: {
       `${result.error ?? "Could not load the handoff."}${preserved} Memory did not transfer code.`
     );
   }
-  const warning = result.warning ? ` ${result.warning}` : " Working tree matches the handoff snapshot.";
+  const warning = result.warning ? ` ${result.warning}` : " Inspect the local working tree before continuing.";
   return textResult(
     structured,
-    `Loaded handoff revision ${result.revision ?? "unknown"} for ${result.destination ?? "the destination"}.${warning} Do not checkout or sync files from this note.`
+    `Prepared handoff revision ${result.revision ?? "unknown"} for ${result.destination ?? "the destination"}. Receipt ${result.receiptId ?? "unknown"}.${warning} Acknowledge only after reading it. Do not checkout or sync files from this note.`
+  );
+}
+
+export function formatHandoffAcknowledgeResult(result: {
+  ok: boolean;
+  code?: string;
+  error?: string;
+  revision?: number;
+  receiptId?: string;
+  destination?: string;
+}): HypherMcpToolResult {
+  return textResult(
+    { ...result, consumption: result.ok ? "agent-acknowledged" : undefined, correctUseVerified: false },
+    result.ok
+      ? `Acknowledged handoff revision ${result.revision} for ${result.destination}. This confirms the agent reported reading it; correct continuation still needs observation.`
+      : result.error ?? "Could not acknowledge the handoff."
   );
 }
 
@@ -779,6 +845,23 @@ function latestStructuredHandoff(handoffs: Handoff[] | undefined): Handoff | nul
 
 function handoffTool(args: JsonObject, context: HypherMcpContext): HypherMcpToolResult {
   const projectContext = requireProjectContext(args, context);
+  const structured = latestStructuredHandoff(projectContext.handoffs);
+  if (structured?.proposal) {
+    const response = buildAgentContextApiResponse(projectContext);
+    let repoMatch: boolean | undefined;
+    let warning: string | undefined;
+    if (args.currentRepo !== undefined) {
+      const currentRepo = parseRepoSnapshot(args.currentRepo);
+      if (!currentRepo.ok) throw new Error(currentRepo.error);
+      const comparison = compareRepoSnapshot(structured.proposal.repo, currentRepo.value);
+      repoMatch = comparison.match;
+      warning = comparison.warning;
+    }
+    return textResult({ projectId: projectContext.project.id, projectName: projectContext.project.name,
+      handoff: response.context, revision: structured.revision, proposal: structured.proposal,
+      repoSnapshot: structured.proposal.repo, repoMatch, warning, transfersCode: false, checksOut: false },
+    `${response.context}${warning ? `\n${warning}` : ""}`);
+  }
   const current = currentStateTool(args, context).structuredContent;
   const next = nextMoveTool(args, context).structuredContent;
   const lines = [
@@ -787,7 +870,6 @@ function handoffTool(args: JsonObject, context: HypherMcpContext): HypherMcpTool
     `Next move: ${next.nextMove || "No next move captured yet."}`,
     "Account linking wording: Connect your Hypher account to Cursor.",
   ];
-  const structured = latestStructuredHandoff(projectContext.handoffs);
   let repoMatch: boolean | undefined;
   let warning: string | undefined;
   if (structured?.proposal) {
@@ -799,7 +881,7 @@ function handoffTool(args: JsonObject, context: HypherMcpContext): HypherMcpTool
       repoMatch = comparison.match;
       warning = comparison.warning;
       if (warning) lines.push("", warning);
-      else lines.push("", "Working tree matches the handoff snapshot.");
+      else lines.push("", "Supplied repository metadata matches. Inspect the local working tree before continuing.");
       lines.push("Memory does not transfer code or uncommitted files.");
     }
   }

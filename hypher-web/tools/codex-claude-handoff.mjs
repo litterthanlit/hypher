@@ -21,14 +21,19 @@ function git(args) {
 }
 
 export function repoMetadata() {
+  const remote = git(["config", "--get", "remote.origin.url"]);
+  const repository = remote?.match(/(?:github\.com[:/])([^/]+\/[^/]+?)(?:\.git)?$/)?.[1] ?? null;
+  const worktreePath = git(["rev-parse", "--show-toplevel"]);
   const branch = git(["rev-parse", "--abbrev-ref", "HEAD"]);
   const commit = git(["rev-parse", "HEAD"]);
   const status = git(["status", "--porcelain"]);
   if (!branch || !commit) return null;
   return {
+    ...(repository ? { repository } : {}),
     branch,
     commit,
     dirty: Boolean(status),
+    ...(worktreePath ? { worktreePath } : {}),
   };
 }
 
@@ -51,7 +56,8 @@ export function promptText(report = statusReport()) {
     `Repo metadata: ${repo}`,
     "Save: post_agent_event kind handoff with proposal schemaVersion 1, expectedBaseRevision, and a new idempotencyKey.",
     "Resume: prepare_handoff with destination (claude-code or codex) and currentRepo from this metadata.",
-    "Compare the working tree. Do not checkout or sync files from the handoff.",
+    "Read the prepared revision, inspect the working tree, then acknowledge_handoff with receiptId, revision, destination, and projectId.",
+    "Matching metadata does not prove identical dirty files. Do not checkout or sync files from the handoff.",
     "ranAgents: false",
   ].join("\n");
 }

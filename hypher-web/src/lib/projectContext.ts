@@ -13,6 +13,7 @@ import type {
 } from "@/types";
 import { selectProjectActionQueue } from "./actions";
 import { summarizeHandoffResult } from "./handoffResults";
+import { renderHandoffPacket } from "../../shared/structuredHandoff";
 import { selectPrimaryNextAction } from "./projectMemory";
 import {
   actionBlockedByConstraints,
@@ -80,6 +81,14 @@ export interface CompiledProjectContext {
   targetTool: TargetTool;
   generatedAt: number;
   freshness: string;
+}
+
+export function newerLegacyWriteback(handoff: Handoff, events: AgentEvent[]): AgentEvent | null {
+  return events
+    .filter((event) => event.status !== "dismissed"
+      && (event.kind === "handoff" || event.kind === "build_log")
+      && event.createdAt > handoff.generatedAt)
+    .sort((a, b) => b.createdAt - a.createdAt)[0] ?? null;
 }
 
 export const BUILDER_BRIEF_DEFAULT_LIMITS = {
@@ -693,6 +702,34 @@ export function compileProjectContextWithMeta(incoming: CompileProjectContextPar
     ...incoming,
     agentEvents: hydratePacketAgentEvents(incoming.agentEvents, incoming.memory, incoming.captures),
   };
+  const structured = (params.handoffs ?? [])
+    .filter((handoff) => handoff.proposal && typeof handoff.revision === "number")
+    .sort((a, b) => (b.revision ?? 0) - (a.revision ?? 0))[0];
+  if (structured?.proposal) {
+    const newerWriteback = newerLegacyWriteback(structured, params.agentEvents);
+    const reconciliationWarning = newerWriteback
+      ? `Newer legacy agent writeback (${newerWriteback.title}) needs reconciliation into a structured revision. The snapshot below may be stale.`
+      : null;
+    const packet = [
+      `# Builder Brief: ${normalizeText(params.project.name) || "Project"}`,
+      `Current structured handoff revision: ${structured.revision}`,
+      "This is the current snapshot. Earlier handoffs and legacy note entries remain in history; they are not additional active decisions.",
+      ...(reconciliationWarning ? [reconciliationWarning] : []),
+      "",
+      renderHandoffPacket(structured.proposal),
+      "",
+      "A source labeled agent-reported is a claim, not independent approval or a captured test result.",
+    ].join("\n");
+    return {
+      packet: `${packet}\n`,
+      sourceCaptureIds: structured.proposal.sources.filter((source) => source.kind === "capture" && source.sourceId).map((source) => source.sourceId!),
+      excludedSourceCaptureIds: [],
+      requestedTask: structured.proposal.nextAction,
+      targetTool: params.targetTool ?? "MCP tool",
+      generatedAt: params.generatedAt ?? structured.generatedAt,
+      freshness: `Structured handoff revision ${structured.revision}; repository state needs local inspection${newerWriteback ? "; newer legacy writeback needs reconciliation" : ""}`,
+    };
+  }
   const limits = { ...DEFAULT_LIMITS, ...params.limits };
   const memory = params.memory ?? null;
   const generatedAt = params.generatedAt ?? sourceUpdatedAt(params);

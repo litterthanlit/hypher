@@ -28,19 +28,27 @@ const PROPOSAL_KEYS = new Set([
 ]);
 
 export type RepoSnapshot = {
+  repository?: string;
   branch: string;
   commit: string;
   dirty: boolean;
+  worktreePath?: string;
+  dirtyFingerprint?: string;
 };
 
 export type HandoffDecision = {
   decision: string;
   reason: string;
+  status?: "reported" | "approved";
+  sourceRefs?: string[];
+  supersedes?: string;
 };
 
 export type HandoffSource = {
   ref: string;
   label?: string;
+  kind?: "agent_report" | "capture" | "agent_event";
+  sourceId?: string;
 };
 
 export type HandoffProposalV1 = {
@@ -69,7 +77,7 @@ export type HandoffDeliveryReceipt = {
   projectId: string;
   revision: number;
   destination: string;
-  result: "delivered" | "failed";
+  result: "prepared" | "failed";
   reason?: string;
   repoWarning?: string;
   createdAt: number;
@@ -110,6 +118,9 @@ export const HANDOFF_PROPOSAL_JSON_SCHEMA = {
         properties: {
           decision: { type: "string" },
           reason: { type: "string" },
+          status: { type: "string", enum: ["reported", "approved"] },
+          sourceRefs: { type: "array", items: { type: "string" } },
+          supersedes: { type: "string" },
         },
       },
     },
@@ -126,6 +137,8 @@ export const HANDOFF_PROPOSAL_JSON_SCHEMA = {
         properties: {
           ref: { type: "string" },
           label: { type: "string" },
+          kind: { type: "string", enum: ["agent_report", "capture", "agent_event"] },
+          sourceId: { type: "string" },
         },
       },
     },
@@ -134,9 +147,12 @@ export const HANDOFF_PROPOSAL_JSON_SCHEMA = {
       additionalProperties: false,
       required: ["branch", "commit", "dirty"],
       properties: {
+        repository: { type: "string" },
         branch: { type: "string" },
         commit: { type: "string" },
         dirty: { type: "boolean" },
+        worktreePath: { type: "string" },
+        dirtyFingerprint: { type: "string" },
       },
       description: "Working-tree metadata. This snapshot does not include file contents.",
     },
@@ -187,14 +203,21 @@ export function parseRepoSnapshot(
   value: unknown
 ): { ok: true; value: RepoSnapshot } | { ok: false; error: string } {
   if (!isObject(value)) return { ok: false, error: "repo must be an object" };
-  const extra = unknownKey(value, new Set(["branch", "commit", "dirty"]));
+  const extra = unknownKey(value, new Set(["repository", "branch", "commit", "dirty", "worktreePath", "dirtyFingerprint"]));
   if (extra) return { ok: false, error: `repo.${extra} is not allowed` };
   const branch = shortText(value.branch, "repo.branch", MAX_BRANCH);
   if (!branch.ok) return branch;
   const commit = shortText(value.commit, "repo.commit", MAX_COMMIT);
   if (!commit.ok) return commit;
   if (typeof value.dirty !== "boolean") return { ok: false, error: "repo.dirty must be a boolean" };
-  return { ok: true, value: { branch: branch.value, commit: commit.value, dirty: value.dirty } };
+  const result: RepoSnapshot = { branch: branch.value, commit: commit.value, dirty: value.dirty };
+  for (const field of ["repository", "worktreePath", "dirtyFingerprint"] as const) {
+    if (value[field] === undefined) continue;
+    const parsed = shortText(value[field], `repo.${field}`, field === "worktreePath" ? 1_000 : MAX_SHORT);
+    if (!parsed.ok) return parsed;
+    result[field] = parsed.value;
+  }
+  return { ok: true, value: result };
 }
 
 export function parseHandoffProposal(
@@ -224,13 +247,31 @@ export function parseHandoffProposal(
   const decisions: HandoffDecision[] = [];
   for (const item of value.decisions) {
     if (!isObject(item)) return { ok: false, error: "decisions must be objects" };
-    const decisionExtra = unknownKey(item, new Set(["decision", "reason"]));
+    const decisionExtra = unknownKey(item, new Set(["decision", "reason", "status", "sourceRefs", "supersedes"]));
     if (decisionExtra) return { ok: false, error: `decisions.${decisionExtra} is not allowed` };
     const decision = shortText(item.decision, "decisions.decision", MAX_SHORT);
     if (!decision.ok) return decision;
     const reason = shortText(item.reason, "decisions.reason", MAX_SHORT);
     if (!reason.ok) return reason;
-    decisions.push({ decision: decision.value, reason: reason.value });
+    const entry: HandoffDecision = { decision: decision.value, reason: reason.value };
+    if (item.status !== undefined) {
+      if (item.status !== "reported" && item.status !== "approved") return { ok: false, error: "decisions.status is invalid" };
+      entry.status = item.status;
+    }
+    if (item.sourceRefs !== undefined) {
+      const sourceRefs = stringList(item.sourceRefs, "decisions.sourceRefs", 1);
+      if (!sourceRefs.ok) return sourceRefs;
+      entry.sourceRefs = sourceRefs.value;
+    }
+    if (item.supersedes !== undefined) {
+      const supersedes = shortText(item.supersedes, "decisions.supersedes", MAX_SHORT);
+      if (!supersedes.ok) return supersedes;
+      entry.supersedes = supersedes.value;
+    }
+    decisions.push(entry);
+  }
+  if (new Set(decisions.map((item) => item.decision.toLowerCase())).size !== decisions.length) {
+    return { ok: false, error: "decisions.decision must be unique" };
   }
   if (!Array.isArray(value.sources)) return { ok: false, error: "sources must be an array" };
   if (value.sources.length === 0) return { ok: false, error: "sources is required" };
@@ -238,7 +279,7 @@ export function parseHandoffProposal(
   const sources: HandoffSource[] = [];
   for (const item of value.sources) {
     if (!isObject(item)) return { ok: false, error: "sources must be objects" };
-    const sourceExtra = unknownKey(item, new Set(["ref", "label"]));
+    const sourceExtra = unknownKey(item, new Set(["ref", "label", "kind", "sourceId"]));
     if (sourceExtra) return { ok: false, error: `sources.${sourceExtra} is not allowed` };
     const ref = shortText(item.ref, "sources.ref", MAX_SHORT);
     if (!ref.ok) return ref;
@@ -248,7 +289,28 @@ export function parseHandoffProposal(
       if (!label.ok) return label;
       source.label = label.value;
     }
+    if (item.kind !== undefined) {
+      if (item.kind !== "agent_report" && item.kind !== "capture" && item.kind !== "agent_event") {
+        return { ok: false, error: "sources.kind is invalid" };
+      }
+      source.kind = item.kind;
+    }
+    if (item.sourceId !== undefined) {
+      const sourceId = shortText(item.sourceId, "sources.sourceId", MAX_SHORT);
+      if (!sourceId.ok) return sourceId;
+      source.sourceId = sourceId.value;
+    }
+    if ((source.kind === "capture" || source.kind === "agent_event") !== Boolean(source.sourceId)) {
+      return { ok: false, error: "Stored sources require a sourceId; agent reports cannot have one" };
+    }
     sources.push(source);
+  }
+  const refs = new Set(sources.map((source) => source.ref));
+  if (refs.size !== sources.length) return { ok: false, error: "sources.ref must be unique" };
+  for (const decision of decisions) {
+    if (decision.sourceRefs?.some((ref) => !refs.has(ref))) {
+      return { ok: false, error: "decisions.sourceRefs must refer to proposal sources" };
+    }
   }
   const repo = parseRepoSnapshot(value.repo);
   if (!repo.ok) return repo;
@@ -274,14 +336,14 @@ export function renderHandoffPacket(proposal: HandoffProposalV1): string {
     `Goal: ${proposal.goal}`,
     proposal.constraints.length ? `Constraints: ${proposal.constraints.join("; ")}` : "Constraints: none",
     "Decisions:",
-    ...proposal.decisions.map((item) => `- ${item.decision} — ${item.reason}`),
-    proposal.completed.length ? `Completed: ${proposal.completed.join("; ")}` : "Completed: none",
+    ...proposal.decisions.map((item) => `- ${item.status === "approved" ? "Approved" : "Agent-reported"}: ${item.decision} — ${item.reason}${item.sourceRefs?.length ? ` [${item.sourceRefs.join(", ")}]` : ""}${item.supersedes ? ` (supersedes: ${item.supersedes})` : ""}`),
+    proposal.completed.length ? `Agent-reported completed work: ${proposal.completed.join("; ")}` : "Agent-reported completed work: none",
     proposal.unverified.length ? `Unverified: ${proposal.unverified.join("; ")}` : "Unverified: none",
     proposal.blockers.length ? `Blockers: ${proposal.blockers.join("; ")}` : "Blockers: none",
     `Next action: ${proposal.nextAction}`,
     "Sources:",
-    ...proposal.sources.map((item) => `- ${item.label ? `${item.label}: ` : ""}${item.ref}`),
-    `Repo: branch ${proposal.repo.branch}, commit ${proposal.repo.commit}, dirty ${proposal.repo.dirty}`,
+    ...proposal.sources.map((item) => `- ${item.kind === "capture" ? "Project capture" : item.kind === "agent_event" ? "Stored agent report" : "Agent-reported"}: ${item.label ? `${item.label}: ` : ""}${item.ref}`),
+    `Repo: ${proposal.repo.repository ?? "identity unavailable"}, branch ${proposal.repo.branch}, commit ${proposal.repo.commit}, dirty ${proposal.repo.dirty}`,
     "Memory does not transfer code or uncommitted files.",
   ];
   return lines.join("\n");
@@ -292,6 +354,9 @@ export function compareRepoSnapshot(
   current: RepoSnapshot
 ): { match: boolean; warning?: string } {
   const parts: string[] = [];
+  if (!saved.repository || !current.repository || saved.repository !== current.repository) {
+    parts.push(`repository is ${current.repository ?? "unknown"}; handoff recorded ${saved.repository ?? "unknown"}`);
+  }
   if (saved.branch !== current.branch) {
     parts.push(`branch is ${current.branch}; handoff recorded ${saved.branch}`);
   }
@@ -301,10 +366,16 @@ export function compareRepoSnapshot(
   if (saved.dirty !== current.dirty) {
     parts.push(`dirty is ${String(current.dirty)}; handoff recorded ${String(saved.dirty)}`);
   }
-  if (parts.length === 0) return { match: true };
+  if (saved.worktreePath && current.worktreePath && saved.worktreePath !== current.worktreePath) {
+    parts.push("local worktree path differs");
+  }
+  if (saved.dirty && (!saved.dirtyFingerprint || !current.dirtyFingerprint || saved.dirtyFingerprint !== current.dirtyFingerprint)) {
+    parts.push("dirty file contents were not verified as the same");
+  }
+  if (parts.length === 0) return { match: true, warning: "Supplied repository metadata matches. Inspect the local working tree before continuing; Hypher did not verify file contents." };
   return {
     match: false,
-    warning: `Working tree does not match the handoff snapshot (${parts.join("; ")}). Memory did not transfer code or uncommitted files. Compare the tree yourself before continuing.`,
+    warning: `Supplied repository metadata does not establish the same working tree (${parts.join("; ")}). Memory did not transfer code or uncommitted files. Compare the tree yourself before continuing.`,
   };
 }
 
@@ -370,20 +441,57 @@ export function commitStructuredHandoff(input: {
   };
 }
 
+/** A revision is a full current snapshot; prior decisions need an explicit sourced retirement. */
+export function validateDecisionTransition(
+  previous: HandoffProposalV1 | null,
+  next: HandoffProposalV1,
+  approvedSourceRefs: ReadonlySet<string>
+): string | null {
+  const prior = new Map((previous?.decisions ?? []).map((item) => [item.decision.toLowerCase(), item]));
+  const current = new Set(next.decisions.map((item) => item.decision.toLowerCase()));
+  const superseded = new Set<string>();
+  for (const item of next.decisions) {
+    const oldDecision = prior.get(item.decision.toLowerCase());
+    if (oldDecision?.status === "approved" && item.status !== "approved") {
+      return `Approved decision cannot be downgraded: ${item.decision}`;
+    }
+    const linkedApproval = item.sourceRefs?.some((ref) => approvedSourceRefs.has(ref)) ?? false;
+    if (item.status === "approved" && !linkedApproval) {
+      return `Approved decision requires a linked, project-owned pinned decision capture: ${item.decision}`;
+    }
+    if (!item.supersedes) continue;
+    const old = item.supersedes.toLowerCase();
+    if (!prior.has(old) || current.has(old) || superseded.has(old)) {
+      return `Invalid decision supersession: ${item.supersedes}`;
+    }
+    if (item.status !== "approved" || !linkedApproval) {
+      return `Supersession requires an approved, sourced decision: ${item.decision}`;
+    }
+    superseded.add(old);
+  }
+  for (const item of previous?.decisions ?? []) {
+    const key = item.decision.toLowerCase();
+    if (!current.has(key) && !superseded.has(key)) {
+      return `Decision cannot disappear without sourced supersession: ${item.decision}`;
+    }
+  }
+  return null;
+}
+
 export function planHandoffDelivery(input: {
   handoffProjectId: string;
   head: StructuredHandoffHead | null;
   destinationProjectId: string;
   destination: string;
   currentRepo: RepoSnapshot;
-  result: "delivered" | "failed";
+  result: "prepared" | "failed";
   reason?: string;
   createdAt: number;
 }):
   | {
       ok: true;
       status: 200;
-      code: "delivered";
+      code: "prepared";
       revision: number;
       proposal: HandoffProposalV1;
       repoSnapshot: RepoSnapshot;
@@ -457,7 +565,7 @@ export function planHandoffDelivery(input: {
   return {
     ok: true,
     status: 200,
-    code: "delivered",
+    code: "prepared",
     revision: input.head.revision,
     proposal: input.head.proposal,
     repoSnapshot: input.head.proposal.repo,
@@ -484,8 +592,15 @@ export type StructuredHandoffCommand =
       destination: string;
       destinationProjectId?: string;
       currentRepo: RepoSnapshot;
-      result: "delivered" | "failed";
+      result: "prepared" | "failed";
       reason?: string;
+    }
+  | {
+      type: "acknowledge";
+      projectId?: string;
+      receiptId: string;
+      revision: number;
+      destination: string;
     };
 
 export function readHandoffCommand(
@@ -494,13 +609,27 @@ export function readHandoffCommand(
   if (!isObject(value)) return { ok: true, command: null };
   const hasSave = "proposal" in value || "expectedBaseRevision" in value || "idempotencyKey" in value;
   const hasResume = "resume" in value && value.resume !== undefined;
-  if (hasSave && hasResume) {
-    return { ok: false, error: "Send a handoff save or a resume, not both." };
+  const hasAcknowledge = "acknowledge" in value && value.acknowledge !== undefined;
+  if (Number(hasSave) + Number(hasResume) + Number(hasAcknowledge) > 1) {
+    return { ok: false, error: "Send one handoff save, resume, or acknowledgment." };
   }
-  if (!hasSave && !hasResume) return { ok: true, command: null };
+  if (!hasSave && !hasResume && !hasAcknowledge) return { ok: true, command: null };
   const projectId = typeof value.projectId === "string" && value.projectId.trim()
     ? value.projectId.trim()
     : undefined;
+  if (hasAcknowledge) {
+    if (!isObject(value.acknowledge)) return { ok: false, error: "acknowledge must be an object" };
+    const extra = unknownKey(value.acknowledge, new Set(["receiptId", "revision", "destination"]));
+    if (extra) return { ok: false, error: `acknowledge.${extra} is not allowed` };
+    const receiptId = shortText(value.acknowledge.receiptId, "acknowledge.receiptId", MAX_KEY);
+    if (!receiptId.ok) return receiptId;
+    const destination = shortText(value.acknowledge.destination, "acknowledge.destination", MAX_DESTINATION);
+    if (!destination.ok) return destination;
+    const revision = integerRevision(value.acknowledge.revision);
+    if (!revision.ok || revision.value < 1) return { ok: false, error: "acknowledge.revision must be positive" };
+    return { ok: true, command: { type: "acknowledge", projectId, receiptId: receiptId.value,
+      revision: revision.value, destination: destination.value } };
+  }
   if (hasResume) {
     if (!isObject(value.resume)) return { ok: false, error: "resume must be an object" };
     const extra = unknownKey(
@@ -512,12 +641,12 @@ export function readHandoffCommand(
     if (!destination.ok) return destination;
     const currentRepo = parseRepoSnapshot(value.resume.currentRepo);
     if (!currentRepo.ok) return currentRepo;
-    let result: "delivered" | "failed" = "delivered";
+    let result: "prepared" | "failed" = "prepared";
     if (value.resume.result !== undefined) {
-      if (value.resume.result !== "delivered" && value.resume.result !== "failed") {
-        return { ok: false, error: "resume.result must be delivered or failed" };
+      if (value.resume.result !== "delivered" && value.resume.result !== "prepared" && value.resume.result !== "failed") {
+        return { ok: false, error: "resume.result must be prepared or failed" };
       }
-      result = value.resume.result;
+      result = value.resume.result === "delivered" ? "prepared" : value.resume.result;
     }
     let reason: string | undefined;
     if (value.resume.reason !== undefined) {
@@ -592,7 +721,7 @@ export function parseResumeCall(args: {
         destinationProjectId: string;
         destination: string;
         currentRepo: RepoSnapshot;
-        result: "delivered" | "failed";
+        result: "prepared" | "failed";
         reason?: string;
       };
     }
@@ -601,12 +730,12 @@ export function parseResumeCall(args: {
   if (!destination.ok) return destination;
   const currentRepo = parseRepoSnapshot(args.currentRepo);
   if (!currentRepo.ok) return currentRepo;
-  let result: "delivered" | "failed" = "delivered";
+  let result: "prepared" | "failed" = "prepared";
   if (args.deliveryResult !== undefined) {
-    if (args.deliveryResult !== "delivered" && args.deliveryResult !== "failed") {
-      return { ok: false, error: "deliveryResult must be delivered or failed" };
+    if (args.deliveryResult !== "delivered" && args.deliveryResult !== "prepared" && args.deliveryResult !== "failed") {
+      return { ok: false, error: "deliveryResult must be prepared or failed" };
     }
-    result = args.deliveryResult;
+    result = args.deliveryResult === "delivered" ? "prepared" : args.deliveryResult;
   }
   let reason: string | undefined;
   if (args.reason !== undefined) {

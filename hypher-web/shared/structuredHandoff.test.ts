@@ -5,11 +5,13 @@ import {
   parseHandoffProposal,
   planHandoffDelivery,
   readHandoffCommand,
+  renderHandoffPacket,
+  validateDecisionTransition,
   type HandoffProposalV1,
   type StructuredHandoffHead,
 } from "./structuredHandoff";
 
-const repo = { branch: "main", commit: "aaa111", dirty: true };
+const repo = { repository: "litterthanlit/hypher", branch: "main", commit: "aaa111", dirty: true };
 
 function proposal(overrides: Partial<HandoffProposalV1> = {}): HandoffProposalV1 {
   return {
@@ -61,7 +63,7 @@ function save(ledger: Ledger, key: string, base: number, next: HandoffProposalV1
 function deliver(
   ledger: Ledger,
   destinationProjectId: string,
-  result: "delivered" | "failed",
+  result: "prepared" | "failed",
   currentRepo = repo,
   destination = "claude-code"
 ) {
@@ -150,7 +152,7 @@ describe("structured handoff delivery", () => {
   it("rejects a delivery aimed at a different project and writes no receipt", () => {
     const ledger = emptyLedger();
     save(ledger, "codex-1", 0, proposal());
-    const result = deliver(ledger, "other-project", "delivered");
+    const result = deliver(ledger, "other-project", "prepared");
 
     expect(result).toMatchObject({
       ok: false,
@@ -191,8 +193,8 @@ describe("structured handoff delivery", () => {
     const claudeResume = deliver(
       ledger,
       ledger.projectId,
-      "delivered",
-      { branch: "main", commit: "aaa111", dirty: false },
+      "prepared",
+      { repository: "litterthanlit/hypher", branch: "main", commit: "aaa111", dirty: false },
       "claude-code"
     );
     expect(claudeResume.ok).toBe(true);
@@ -212,22 +214,22 @@ describe("structured handoff delivery", () => {
       }],
       completed: ["Proposal schema", "Claude loaded revision 1"],
       nextAction: "Return the changed decision to Codex",
-      repo: { branch: "main", commit: "bbb222", dirty: false },
+      repo: { repository: "litterthanlit/hypher", branch: "main", commit: "bbb222", dirty: false },
     });
     expect(save(ledger, "claude-save", 1, changed, 40).ok).toBe(true);
 
     const codexResume = deliver(
       ledger,
       ledger.projectId,
-      "delivered",
-      { branch: "main", commit: "bbb222", dirty: false },
+      "prepared",
+      { repository: "litterthanlit/hypher", branch: "main", commit: "bbb222", dirty: false },
       "codex"
     );
     expect(codexResume.ok).toBe(true);
     if (!codexResume.ok) return;
     expect(codexResume.revision).toBe(2);
     expect(codexResume.repoMatch).toBe(true);
-    expect(codexResume.warning).toBeUndefined();
+    expect(codexResume.warning).toMatch(/did not verify file contents/);
     expect(codexResume.proposal.decisions[0]?.decision).toBe("Resume stays explicit");
     expect(codexResume.proposal.sources[0]?.ref).toBe("docs/PRODUCT.md");
     expect(ledger.receipts.map((item) => item.destination)).toEqual(["claude-code", "codex"]);
@@ -235,6 +237,51 @@ describe("structured handoff delivery", () => {
 });
 
 describe("handoff proposal validation", () => {
+  it("labels unverified agent claims and refuses invented source links", () => {
+    const reported = proposal({
+      decisions: [{ decision: "Ship now", reason: "Agent says approval happened" }],
+      sources: [{ ref: "made-up-source" }],
+    });
+    expect(renderHandoffPacket(reported)).toContain("Agent-reported: Ship now");
+    expect(renderHandoffPacket(reported)).toContain("Agent-reported: made-up-source");
+    expect(parseHandoffProposal(proposal({
+      decisions: [{ decision: "Ship now", reason: "Approved", sourceRefs: ["missing"] }],
+    })).ok).toBe(false);
+  });
+
+  it("requires sourced approval to supersede an approved decision", () => {
+    const previous = proposal({ decisions: [{ decision: "Keep guest checkout", reason: "User chose it", status: "approved", sourceRefs: ["capture-1"] }] });
+    const unsourced = proposal({ decisions: [{ decision: "Require accounts", reason: "Agent suggestion" }] });
+    expect(validateDecisionTransition(previous, unsourced, new Set())).toMatch(/cannot disappear/);
+    const changed = proposal({ decisions: [{ decision: "Require accounts", reason: "User changed it", status: "approved", sourceRefs: ["capture-2"], supersedes: "Keep guest checkout" }] });
+    expect(validateDecisionTransition(previous, changed, new Set(["capture-2"]))).toBeNull();
+    expect(validateDecisionTransition(previous, changed, new Set())).toMatch(/requires a linked/);
+  });
+
+  it("keeps an earlier agent-reported decision visible until sourced supersession", () => {
+    const previous = proposal({ decisions: [{ decision: "Use a queue", reason: "Agent report" }] });
+    const replacement = proposal({ decisions: [{ decision: "Use direct calls", reason: "Agent report" }] });
+    expect(validateDecisionTransition(previous, replacement, new Set())).toMatch(/cannot disappear/);
+    expect(validateDecisionTransition(previous, proposal({ decisions: [...previous.decisions, ...replacement.decisions] }), new Set())).toBeNull();
+  });
+
+  it("rejects duplicate decisions and downgrading an approved decision", () => {
+    expect(parseHandoffProposal(proposal({ decisions: [
+      { decision: "Keep guest checkout", reason: "First" },
+      { decision: "keep guest checkout", reason: "Second" },
+    ] }))).toMatchObject({ ok: false, error: "decisions.decision must be unique" });
+    const previous = proposal({ decisions: [{ decision: "Keep guest checkout", reason: "User choice", status: "approved", sourceRefs: ["capture-1"] }] });
+    expect(validateDecisionTransition(previous, proposal({ decisions: [{ decision: "Keep guest checkout", reason: "Agent report" }] }), new Set()))
+      .toMatch(/cannot be downgraded/);
+  });
+
+  it("does not call two dirty trees equal without a content fingerprint", () => {
+    const result = compareRepoSnapshot(repo, { ...repo });
+    expect(result.match).toBe(false);
+    expect(result.warning).toMatch(/dirty file contents/);
+    expect(compareRepoSnapshot({ ...repo, dirtyFingerprint: "x" }, { ...repo, dirtyFingerprint: "y" }).match).toBe(false);
+  });
+
   it("rejects an unknown schema version and a proposal that tries to carry files", () => {
     expect(parseHandoffProposal({ ...proposal(), schemaVersion: 2 }).ok).toBe(false);
     expect(parseHandoffProposal({ ...proposal(), files: ["src/app.ts"] })).toMatchObject({
@@ -244,9 +291,9 @@ describe("handoff proposal validation", () => {
   });
 
   it("warns on a working-tree mismatch without telling the agent to sync code", () => {
-    const warning = compareRepoSnapshot(repo, { branch: "feature", commit: "ccc333", dirty: false });
+    const warning = compareRepoSnapshot(repo, { repository: "litterthanlit/hypher", branch: "feature", commit: "ccc333", dirty: false });
     expect(warning.match).toBe(false);
-    expect(warning.warning).toMatch(/does not match/);
+    expect(warning.warning).toMatch(/does not establish/);
     expect(warning.warning).not.toMatch(/checkout/);
   });
 
@@ -271,5 +318,13 @@ describe("handoff proposal validation", () => {
       idempotencyKey: "codex-1",
       resume: { destination: "claude-code", currentRepo: repo },
     }).ok).toBe(false);
+  });
+
+  it("parses a separate HTTP acknowledgment and rejects mixed commands", () => {
+    expect(readHandoffCommand({ projectId: "p1", acknowledge: { receiptId: "r1", revision: 2, destination: "claude-code" } }))
+      .toMatchObject({ ok: true, command: { type: "acknowledge", receiptId: "r1", revision: 2 } });
+    expect(readHandoffCommand({ projectId: "p1", acknowledge: { receiptId: "r1", revision: 0, destination: "claude-code" } }).ok).toBe(false);
+    expect(readHandoffCommand({ projectId: "p1", acknowledge: { receiptId: "r1", revision: 2, destination: "claude-code" },
+      resume: { destination: "codex", currentRepo: repo } }).ok).toBe(false);
   });
 });
