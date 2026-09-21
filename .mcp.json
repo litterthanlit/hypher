@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "hypher": {
+      "type": "http",
+      "url": "https://www.hypher.app/api/mcp",
+      "headers": {
+        "Authorization": "Bearer ${HYPHER_API_KEY}"
+      }
+    }
+  }
+}

@@ -101,4 +101,4 @@ Not this milestone:
 | [`planning/Astra-Plan.md`](./planning/Astra-Plan.md) | Strategy history |
 | [`bots/hypher-ceo.md`](./bots/hypher-ceo.md) | Ship-or-cut judgment after this file |
 
-Next: run the live Codex CLI → Claude Code → Codex recording on a Mac. The in-repo slice is explicit save and resume on existing Convex and MCP storage. Do not treat that slice as the recording.
+Next: on a Mac, follow [`hypher-web/docs/codex-claude-handoff.md`](../hypher-web/docs/codex-claude-handoff.md). The repo has MCP config samples and slash/skill instructions for an explicit Codex → Claude Code → Codex save and resume. That kit is not the live recording. Do not deploy from a cloud agent.
