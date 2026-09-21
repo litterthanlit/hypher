@@ -3,8 +3,10 @@ import type { AgentEvent, AnyObject, Handoff, Project, ProjectAction, ProjectMem
 import {
   buildMcpToolResult,
   formatAgentEventWriteResult,
+  formatHandoffResumeResult,
   formatWriteProjectMemoryResult,
   getHypherMcpToolDescriptors,
+  parseHandoffResumeArgs,
   parsePostAgentEventArgs,
   parseWriteProjectMemoryArgs,
   type HypherMcpContext,
@@ -129,6 +131,7 @@ describe("Hypher MCP tool descriptors", () => {
       "get_current_state",
       "get_next_move",
       "prepare_handoff",
+      "acknowledge_handoff",
       "resolve_project_for_repo",
       "get_synthesis_input",
       "write_project_memory",
@@ -136,15 +139,37 @@ describe("Hypher MCP tool descriptors", () => {
     ]);
     expect(
       getHypherMcpToolDescriptors()
-        .filter((tool) => tool.name !== "post_agent_event" && tool.name !== "write_project_memory")
+        .filter((tool) => tool.name !== "post_agent_event" && tool.name !== "write_project_memory" && tool.name !== "prepare_handoff" && tool.name !== "acknowledge_handoff")
         .every((tool) => tool.annotations.readOnlyHint)
     ).toBe(true);
+    expect(getHypherMcpToolDescriptors().find((tool) => tool.name === "prepare_handoff")?.annotations.readOnlyHint).toBe(false);
+    expect(getHypherMcpToolDescriptors().find((tool) => tool.name === "acknowledge_handoff")?.annotations.readOnlyHint).toBe(false);
     expect(getHypherMcpToolDescriptors().find((tool) => tool.name === "post_agent_event")?.annotations.readOnlyHint).toBe(false);
     expect(getHypherMcpToolDescriptors().find((tool) => tool.name === "write_project_memory")?.annotations.readOnlyHint).toBe(false);
   });
 });
 
 describe("buildMcpToolResult", () => {
+  it("uses the latest structured revision as the Builder Brief instead of conflicting legacy decisions", () => {
+    const structured: Handoff = {
+      ...handoffs[0]!, id: "h-latest", revision: 2, generatedAt: 200,
+      proposal: {
+        schemaVersion: 1, goal: "Finish checkout", constraints: ["Keep guest checkout"],
+        decisions: [{ decision: "Use the existing payment route", reason: "User chose it" }],
+        completed: [], unverified: ["Payment tests not run"], blockers: [], nextAction: "Run payment tests",
+        sources: [{ ref: "agent session" }],
+        repo: { repository: "litterthanlit/hypher", branch: "main", commit: "abc123", dirty: false },
+      },
+    };
+    const projectContext = { ...context.projectContexts.p1!, memory: { ...memory, importantDecisions: ["Replace the payment route"] },
+      handoffs: [structured, ...handoffs] };
+    const changedContext: HypherMcpContext = { ...context, projectContexts: { p1: projectContext } };
+    const brief = buildMcpToolResult("get_project_context", { projectId: "p1" }, changedContext);
+    expect(brief.content[0]?.text).toContain("Use the existing payment route");
+    expect(brief.content[0]?.text).not.toContain("Replace the payment route");
+    expect(buildMcpToolResult("get_next_move", { projectId: "p1" }, changedContext).structuredContent.nextMove).toBe("Run payment tests");
+  });
+
   it("lists projects without leaking full context", () => {
     const result = buildMcpToolResult("list_projects", {}, context);
 
@@ -569,6 +594,135 @@ describe("buildMcpToolResult", () => {
         needsReview: false,
       }).content[0]?.text
     ).toContain("Logged to Hypher → Project Pulse (Hypher) / Agent Inbox.");
+  });
+
+  it("attaches a versioned proposal to a handoff save and rejects a stale-shaped payload in the result", () => {
+    const parsed = parsePostAgentEventArgs({
+      kind: "handoff",
+      projectId: "p1",
+      source: "codex",
+      proposal: {
+        schemaVersion: 1,
+        goal: "Resume in Claude Code",
+        constraints: ["Do not transfer code"],
+        decisions: [{ decision: "Use Convex", reason: "The pilot stays on the existing app" }],
+        completed: ["Schema"],
+        unverified: ["Live CLI switch"],
+        blockers: [],
+        nextAction: "Load the handoff",
+        sources: [{ ref: "docs/PRODUCT.md", label: "product" }],
+        repo: { branch: "main", commit: "abc123", dirty: true },
+      },
+      expectedBaseRevision: 0,
+      idempotencyKey: "codex-1",
+    });
+    expect(parsed.payload).toMatchObject({
+      kind: "handoff",
+      source: "codex",
+      projectId: "p1",
+      expectedBaseRevision: 0,
+      idempotencyKey: "codex-1",
+    });
+    expect(parsed.payload.proposal).toMatchObject({ goal: "Resume in Claude Code" });
+
+    const stale = formatAgentEventWriteResult({
+      ok: false,
+      code: "stale-revision",
+      error: "Stale handoff revision. Expected base 0, current revision is 2.",
+      headRevision: 2,
+    });
+    expect(stale.structuredContent).toMatchObject({
+      ok: false,
+      code: "stale-revision",
+      headRevision: 2,
+      transfersCode: false,
+      checksOut: false,
+    });
+  });
+
+  it("previews a stored handoff and warns when the working tree differs", () => {
+    const stored = {
+      ...handoffs[0]!,
+      id: "h-structured",
+      revision: 3,
+      schemaVersion: 1 as const,
+      proposal: {
+        schemaVersion: 1 as const,
+        goal: "Resume in Claude Code",
+        constraints: ["Do not transfer code"],
+        decisions: [{ decision: "Use Convex", reason: "Existing storage" }],
+        completed: ["Schema"],
+        unverified: ["Live switch"],
+        blockers: [],
+        nextAction: "Compare the tree",
+        sources: [{ ref: "docs/PRODUCT.md" }],
+        repo: { branch: "main", commit: "abc123", dirty: true },
+      },
+    };
+    const preview = buildMcpToolResult("prepare_handoff", {
+      projectId: "p1",
+      currentRepo: { branch: "main", commit: "abc123", dirty: false },
+    }, {
+      ...context,
+      projectContexts: {
+        p1: { ...context.projectContexts.p1!, handoffs: [stored] },
+      },
+    });
+    expect(preview.structuredContent.revision).toBe(3);
+    expect(preview.structuredContent.repoMatch).toBe(false);
+    expect(String(preview.structuredContent.warning)).toMatch(/dirty is false/);
+    expect(String(preview.content[0]?.text)).not.toMatch(/checkout/);
+    expect(preview.structuredContent.transfersCode).toBe(false);
+  });
+
+  it("flags a newer legacy writeback without merging it into the structured decision", () => {
+    const stored: Handoff = {
+      ...handoffs[0]!, id: "h-structured", generatedAt: 100, revision: 1, schemaVersion: 1,
+      proposal: {
+        schemaVersion: 1, goal: "Continue the pilot", constraints: [],
+        decisions: [{ decision: "Keep the pilot small", reason: "Current snapshot" }],
+        completed: [], unverified: [], blockers: [], nextAction: "Run the CLI round trip",
+        sources: [{ ref: "agent report" }],
+        repo: { repository: "litterthanlit/hypher", branch: "main", commit: "abc123", dirty: false },
+      },
+    };
+    const newerEvent: AgentEvent = { ...agentEvents[0]!, id: "e-new", title: "Changed pilot scope", body: "Expand the pilot", createdAt: 101 };
+    const mixed: HypherMcpContext = { ...context, projectContexts: { p1: {
+      ...context.projectContexts.p1!, handoffs: [stored], agentEvents: [newerEvent],
+    } } };
+    const brief = buildMcpToolResult("get_project_context", { projectId: "p1" }, mixed);
+    const state = buildMcpToolResult("get_current_state", { projectId: "p1" }, mixed);
+    const move = buildMcpToolResult("get_next_move", { projectId: "p1" }, mixed);
+    expect(String(brief.content[0]?.text)).toContain("needs reconciliation");
+    expect(String(brief.content[0]?.text)).toContain("Keep the pilot small");
+    expect(String(brief.content[0]?.text)).not.toContain("Expand the pilot");
+    expect(state.structuredContent.needsReconciliation).toBe(true);
+    expect(move.structuredContent.needsReconciliation).toBe(true);
+  });
+
+  it("parses a resume call without asking Hypher to sync files", () => {
+    expect(parseHandoffResumeArgs({
+      projectId: "p1",
+      destination: "claude-code",
+      currentRepo: { branch: "main", commit: "abc123", dirty: true },
+      deliveryResult: "failed",
+      reason: "quota",
+    })).toMatchObject({
+      projectId: "p1",
+      destinationProjectId: "p1",
+      destination: "claude-code",
+      result: "failed",
+    });
+    expect(formatHandoffResumeResult({
+      ok: false,
+      code: "wrong-project",
+      error: "Destination project does not match the handoff project.",
+    }).structuredContent).toMatchObject({
+      ok: false,
+      code: "wrong-project",
+      transfersCode: false,
+      checksOut: false,
+    });
   });
 });
 

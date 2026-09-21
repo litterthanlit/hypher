@@ -108,7 +108,17 @@ export async function buildMcpContextForUser(
   const handoffs = await ctx.db
     .query("handoffs")
     .withIndex("by_user_project", (q) => q.eq("userId", userId).eq("projectId", project._id))
-    .collect();
+    .order("desc")
+    .take(6);
+  const selectedHandoffs = handoffs.sort((a, b) => b.generatedAt - a.generatedAt);
+  const latestStructured = await ctx.db
+    .query("handoffs")
+    .withIndex("by_user_project_revision", (q) => q.eq("userId", userId).eq("projectId", project._id))
+    .order("desc")
+    .first();
+  if (latestStructured && !selectedHandoffs.some((row) => row._id === latestStructured._id)) {
+    selectedHandoffs.push(latestStructured);
+  }
 
   const activities = await ctx.db
     .query("activity")
@@ -130,10 +140,7 @@ export async function buildMcpContextForUser(
       activity: selectActivityForOAuthContext(activities, userId, 24),
       actions: actions.sort((a, b) => b.updatedAt - a.updatedAt).map(mapAction),
       agentEvents: prioritizeAgentEventsForPacket(agentEvents, PACKET_AGENT_EVENT_FETCH_LIMIT).map(mapEvent),
-      handoffs: handoffs
-        .sort((a, b) => b.generatedAt - a.generatedAt)
-        .slice(0, 6)
-        .map(mapHandoff),
+      handoffs: selectedHandoffs.map(mapHandoff),
       subscription: subscription
         ? { status: subscription.status, plan: subscription.plan }
         : null,

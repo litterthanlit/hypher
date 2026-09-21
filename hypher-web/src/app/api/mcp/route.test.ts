@@ -27,6 +27,14 @@ vi.mock("../../../../convex/_generated/api", () => ({
       createFromOAuthRequest: "agentEvents.createFromOAuthRequest",
       createFromSession: "agentEvents.createFromSession",
     },
+    structuredHandoffs: {
+      resumeFromApiRequest: "structuredHandoffs.resumeFromApiRequest",
+      resumeFromOAuthRequest: "structuredHandoffs.resumeFromOAuthRequest",
+      resumeFromSession: "structuredHandoffs.resumeFromSession",
+      acknowledgeFromApiRequest: "structuredHandoffs.acknowledgeFromApiRequest",
+      acknowledgeFromOAuthRequest: "structuredHandoffs.acknowledgeFromOAuthRequest",
+      acknowledgeFromSession: "structuredHandoffs.acknowledgeFromSession",
+    },
   },
 }));
 
@@ -260,5 +268,89 @@ describe("MCP agent-side synthesis", () => {
     expect(body.result?.structuredContent?.needsSynthesis).toBe(true);
     expect(body.result?.structuredContent?.prompt).toContain("PROJECT_MEMORY_INPUT_JSON");
     expect(body.result?.structuredContent?.prompt).toContain("Don't widen OAuth");
+  });
+
+  it("records a structured resume through prepare_handoff and does not claim files were synced", async () => {
+    const { fetchAction, fetchQuery } = await import("convex/nextjs");
+    vi.mocked(fetchQuery).mockResolvedValue({
+      projects: [{ id: "p1", name: "Hypher", kind: "project" }],
+      projectContext: {
+        project: { id: "p1", kind: "project", name: "Hypher", status: "active", createdAt: 1, modifiedAt: 1 },
+        captures: [],
+        actions: [],
+        agentEvents: [],
+        handoffs: [],
+      },
+    });
+    vi.mocked(fetchAction).mockResolvedValue({
+      ok: true,
+      status: 200,
+      code: "prepared",
+      revision: 2,
+      repoMatch: false,
+      warning: "Working tree does not match the handoff snapshot (dirty is false; handoff recorded true).",
+      repoSnapshot: { branch: "main", commit: "abc123", dirty: true },
+      destination: "claude-code",
+      transfersCode: false,
+      checksOut: false,
+    });
+
+    const { POST } = await import("./route");
+    const response = await POST(new NextRequest("https://www.hypher.app/api/mcp", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: "Bearer hyp_testkey",
+      },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 4,
+        method: "tools/call",
+        params: {
+          name: "prepare_handoff",
+          arguments: {
+            projectId: "p1",
+            destination: "claude-code",
+            currentRepo: { branch: "main", commit: "abc123", dirty: false },
+          },
+        },
+      }),
+    }));
+
+    expect(response.status).toBe(200);
+    expect(vi.mocked(fetchAction).mock.calls[0]?.[0]).toBe("structuredHandoffs.resumeFromApiRequest");
+    const actionArgs = vi.mocked(fetchAction).mock.calls[0]?.[1] as {
+      destination?: string;
+      result?: string;
+      currentRepo?: { dirty: boolean };
+    };
+    expect(actionArgs.destination).toBe("claude-code");
+    expect(actionArgs.result).toBe("prepared");
+    expect(actionArgs.currentRepo?.dirty).toBe(false);
+    const body = await response.json() as {
+      result?: { structuredContent?: { checksOut?: boolean; transfersCode?: boolean }; content?: Array<{ text?: string }> };
+    };
+    expect(body.result?.structuredContent?.checksOut).toBe(false);
+    expect(body.result?.structuredContent?.transfersCode).toBe(false);
+    expect(body.result?.content?.[0]?.text).toMatch(/Do not checkout or sync files/);
+    expect(body.result?.content?.[0]?.text).not.toMatch(/git checkout/);
+  });
+
+  it("acknowledges only after a separate destination call", async () => {
+    const { fetchAction, fetchQuery } = await import("convex/nextjs");
+    vi.mocked(fetchQuery).mockResolvedValue({ projects: [{ id: "p1", name: "Hypher", kind: "project" }], projectContext: null });
+    vi.mocked(fetchAction).mockResolvedValue({ ok: true, status: 200, code: "acknowledged", revision: 2,
+      receiptId: "r1", destination: "claude-code" });
+    const { POST } = await import("./route");
+    const response = await POST(new NextRequest("https://www.hypher.app/api/mcp", {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: "Bearer hyp_testkey" },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 5, method: "tools/call", params: {
+        name: "acknowledge_handoff", arguments: { projectId: "p1", receiptId: "r1", revision: 2, destination: "claude-code" },
+      } }),
+    }));
+    expect(vi.mocked(fetchAction).mock.calls[0]?.[0]).toBe("structuredHandoffs.acknowledgeFromApiRequest");
+    const body = await response.json() as { result?: { structuredContent?: { code?: string; correctUseVerified?: boolean } } };
+    expect(body.result?.structuredContent).toMatchObject({ code: "acknowledged", correctUseVerified: false });
   });
 });
