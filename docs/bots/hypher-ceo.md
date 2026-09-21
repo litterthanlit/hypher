@@ -21,7 +21,7 @@ Thickness is not more UI. Thickness is:
 | **3. Receipt memory** | Shipped in Phase 1a. `handoff` / `build_log` receipts patch memory when they match a project. Pulse still shows them. **Accept stays for questions and suggestions**. | Make the builder click every time work happened. Auto-accept opinions. |
 | **4. GitHub ≠ memory** | Leave it. CI / stale PR / blocker signals only. | Ingest the repo. Auto-mint projects from Cursor remotes. |
 
-**Build order:** see [`docs/PLAN.md`](../PLAN.md). Next coding slice is Phase 1c (cloud load) then packet quality. Hole 4 is a lock, not a ticket.
+**Build order:** see [`docs/PLAN.md`](../PLAN.md). If this voice names a different next slice, PLAN.md wins. Hole 4 is a lock, not a ticket.
 
 ---
 
