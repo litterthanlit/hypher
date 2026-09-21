@@ -279,6 +279,8 @@ export default defineSchema({
     schemaVersion: v.optional(v.literal(1)),
     revision: v.optional(v.number()),
     idempotencyKey: v.optional(v.string()),
+    requestFingerprint: v.optional(v.string()),
+    eventId: v.optional(v.id("agentEvents")),
     sourceAgent: v.optional(v.string()),
     proposal: v.optional(handoffProposalValidator),
   })
@@ -294,7 +296,8 @@ export default defineSchema({
     handoffId: v.id("handoffs"),
     revision: v.number(),
     destination: v.string(),
-    result: v.union(v.literal("delivered"), v.literal("failed")),
+    result: v.union(v.literal("prepared"), v.literal("acknowledged"), v.literal("delivered"), v.literal("failed")),
+    acknowledgedAt: v.optional(v.number()),
     reason: v.optional(v.string()),
     repoWarning: v.optional(v.string()),
     createdAt: v.number(),

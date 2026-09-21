@@ -17,9 +17,11 @@ const webRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
 const repoRoot = path.resolve(webRoot, "..");
 
 const sampleRepo = {
+  repository: "litterthanlit/hypher",
   branch: "cursor/codex-claude-adapter-spike-d851",
   commit: "abc123def456",
   dirty: true,
+  worktreePath: "/tmp/hypher",
 };
 
 function fillValue(value) {
@@ -75,6 +77,21 @@ describe("codex-claude handoff helper", () => {
     const filled = fillValue(call.arguments.proposal);
     expect(parseHandoffProposal(filled).ok).toBe(true);
     expect(parseHandoffProposal({ ...filled, files: "secret" }).ok).toBe(false);
+    expect(call.arguments.repo).toBe(sampleRepo.repository);
+    expect(() => saveCall({ source: "codex", expectedBaseRevision: 0,
+      repo: { ...sampleRepo, repository: "other/project" } })).toThrow(/linked Hypher repository/);
+  });
+
+  it("prints a sourced reported change and an optional approved change", () => {
+    const reported = saveCall({ source: "claude-code", expectedBaseRevision: 1,
+      repo: sampleRepo, supersedes: "Use the queue" });
+    expect(reported.arguments.proposal.decisions[0]).toMatchObject({ status: "reported",
+      supersedes: "Use the queue", sourceRefs: ["decision-source"] });
+    expect(parseHandoffProposal(fillValue(reported.arguments.proposal)).ok).toBe(true);
+    const approved = saveCall({ source: "claude-code", expectedBaseRevision: 1,
+      repo: sampleRepo, supersedes: "Use the queue", decisionCaptureId: "capture-1" });
+    expect(approved.arguments.proposal.decisions[0]).toMatchObject({ status: "approved", supersedes: "Use the queue" });
+    expect(approved.arguments.proposal.sources[0]).toMatchObject({ kind: "capture", sourceId: "capture-1" });
   });
 
   it("resume carries destination repo metadata and warns when dirty state differs", () => {
@@ -84,6 +101,7 @@ describe("codex-claude handoff helper", () => {
     expect(call.arguments.currentRepo).toEqual(sampleRepo);
     expect(call.arguments.projectId).toBe(call.arguments.destinationProjectId);
     expect(call.checksOut).toBe(false);
+    expect(call.afterResult).toMatch(/stop and reconcile/);
     const comparison = compareRepoSnapshot(sampleRepo, { ...sampleRepo, dirty: false });
     expect(comparison.match).toBe(false);
     expect(comparison.warning).toMatch(/dirty/);
@@ -106,6 +124,7 @@ describe("codex-claude handoff helper", () => {
     expect(trip.steps[2].call.arguments.expectedBaseRevision).toMatch(/FILL:/);
     expect(trip.steps[2].call.arguments.idempotencyKey).not.toBe(trip.steps[0].call.arguments.idempotencyKey);
     expect(trip.steps[2].note).toMatch(/changed decision/);
+    expect(trip.steps[2].call.arguments.proposal.decisions[0].supersedes).toMatch(/FILL:/);
     expect(trip.steps[2].note).toMatch(/unverified/);
     expect(JSON.stringify(trip)).not.toMatch(/git checkout/);
 

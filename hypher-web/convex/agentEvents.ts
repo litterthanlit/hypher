@@ -309,6 +309,20 @@ async function persistIncomingAgentEvent(
   if (!command.ok) {
     return { ok: false, status: 400, code: "invalid", error: command.error };
   }
+  if (command.command?.type === "acknowledge") {
+    const project = command.command.projectId || projectId;
+    if (!project) return { ok: false, status: 400, code: "invalid", error: "projectId is required to acknowledge a handoff" };
+    try {
+      return await ctx.runMutation(_internal.structuredHandoffs.acknowledgeForUser, {
+        userId, projectId: project, receiptId: command.command.receiptId,
+        revision: command.command.revision, destination: command.command.destination, now: Date.now(),
+      });
+    } catch (error) {
+      const invalid = invalidStructuredId(error);
+      if (invalid) return invalid;
+      throw error;
+    }
+  }
   if (command.command?.type === "resume") {
     const project = command.command.projectId || projectId;
     if (!project) {

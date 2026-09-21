@@ -47,11 +47,18 @@ export const listForProject = query({
     const rows = await ctx.db
       .query("handoffs")
       .withIndex("by_user_project", (q) => q.eq("userId", userId).eq("projectId", projectId))
-      .collect();
-    return rows
-      .sort((a, b) => b.generatedAt - a.generatedAt)
-      .slice(0, limit ?? 10)
-      .map(toClientHandoff);
+      .order("desc")
+      .take(Math.min(Math.max(limit ?? 10, 1), 50));
+    const selected = rows.sort((a, b) => b.generatedAt - a.generatedAt);
+    const latestStructured = await ctx.db
+      .query("handoffs")
+      .withIndex("by_user_project_revision", (q) => q.eq("userId", userId).eq("projectId", projectId))
+      .order("desc")
+      .first();
+    if (latestStructured && !selected.some((row) => row._id === latestStructured._id)) {
+      selected.push(latestStructured);
+    }
+    return selected.map(toClientHandoff);
   },
 });
 

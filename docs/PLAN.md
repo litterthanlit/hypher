@@ -54,12 +54,12 @@ Active agent → structured proposal → Hypher validation and revision → dura
 - The active agent proposes the handoff. It already has the conversation. No compulsory second model call on every switch.
 - Every write has an idempotency key and an expected base revision. A stale write reconciles against the current revision.
 - The proposal matches the handoff in [`PRODUCT.md`](./PRODUCT.md): goal, constraints, decisions and reasons, completed versus unverified work, blockers, next action, sources, repository / branch / commit, dirty state as metadata.
-- The receipt records destination, delivered revision, result, and time.
+- Preparation records the destination and revision. A separate destination acknowledgment records that the agent reports reading the handoff; useful continuation still needs a real observed run.
 - Reuse current MCP endpoints. Do not invent a second protocol beside them.
 
 Tests that belong on this ticket: duplicate submission, stale revision, changed decision, wrong project, failed delivery.
 
-The revisioned save and resume path lives on the existing Convex `handoffs` table and the current MCP tools (`post_agent_event` to save, `prepare_handoff` to resume). A simulated round trip covers those failure cases. That is not the live proof.
+The revisioned save and resume path lives on the existing Convex `handoffs` table and MCP (`post_agent_event` to save, `prepare_handoff` to prepare, `acknowledge_handoff` after the destination reads it). The latest structured snapshot is the Builder Brief; old note entries remain history. A simulated round trip covers failure cases. That is not the live proof.
 
 Done when: Codex → Claude Code → Codex on one repo leaves a stored handoff with sources and a receipt, and the return trip carries the changed decision, without a manually written recap. The live recording still needs a Mac with both CLIs. See [`hypher-web/docs/codex-claude-handoff.md`](../hypher-web/docs/codex-claude-handoff.md).
 

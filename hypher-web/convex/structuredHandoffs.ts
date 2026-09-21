@@ -2,6 +2,7 @@ import { action, internalMutation, type MutationCtx } from "./_generated/server"
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
+import { normalizeGitHubRepo } from "../shared/githubRepo";
 import { requireActionBetaAccess } from "./lib/actionAuth";
 import { ratelimitConvex } from "./lib/rateLimit";
 import { apiKeyProbeRateLimitKey } from "./apiKeys";
@@ -15,6 +16,7 @@ import {
   parseHandoffProposal,
   planHandoffDelivery,
   renderHandoffPacket,
+  validateDecisionTransition,
   type HandoffProposalV1,
   type StructuredHandoffHead,
 } from "../shared/structuredHandoff";
@@ -26,7 +28,7 @@ const resumeArgs = {
   destinationProjectId: v.id("objects"),
   destination: v.string(),
   currentRepo: repoSnapshotValidator,
-  result: v.union(v.literal("delivered"), v.literal("failed")),
+  result: v.union(v.literal("prepared"), v.literal("failed")),
   reason: v.optional(v.string()),
 };
 
@@ -65,6 +67,51 @@ function targetToolForSource(source: string) {
   return "MCP tool" as const;
 }
 
+function sameLinkedRepo(linked: string | undefined, supplied: string | undefined): boolean {
+  const expected = linked && normalizeGitHubRepo(linked);
+  const actual = supplied && normalizeGitHubRepo(supplied);
+  return Boolean(expected && actual && expected.toLowerCase() === actual.toLowerCase());
+}
+
+function requestFingerprint(args: {
+  proposal: HandoffProposalV1;
+  source: string;
+  title: string;
+  body: string;
+  repo?: string;
+  expectedBaseRevision: number;
+}): string {
+  return JSON.stringify(args);
+}
+
+async function validateProposalSources(
+  ctx: MutationCtx,
+  userId: string,
+  projectId: Id<"objects">,
+  proposal: HandoffProposalV1
+): Promise<{ error?: string; approvedSourceRefs: Set<string> }> {
+  const approvedSourceRefs = new Set<string>();
+  for (const source of proposal.sources) {
+    if (source.kind === "capture") {
+      let capture;
+      try { capture = await ctx.db.get(source.sourceId as Id<"objects">); } catch { capture = null; }
+      if (!capture || capture.userId !== userId || capture.kind === "project"
+        || (capture.projectId !== String(projectId) && capture.confirmedProjectId !== String(projectId))
+        || capture.captureStatus === "archived" || capture.stale || capture.excludeFromPackets) {
+        return { error: `Capture source is unavailable in this project: ${source.ref}`, approvedSourceRefs };
+      }
+      if (capture.pinnedAsDecision) approvedSourceRefs.add(source.ref);
+    } else if (source.kind === "agent_event") {
+      let event;
+      try { event = await ctx.db.get(source.sourceId as Id<"agentEvents">); } catch { event = null; }
+      if (!event || event.userId !== userId || event.projectId !== projectId || event.status === "dismissed") {
+        return { error: `Agent event source is unavailable in this project: ${source.ref}`, approvedSourceRefs };
+      }
+    }
+  }
+  return { approvedSourceRefs };
+}
+
 function invalidId(error: unknown): Wire | null {
   const message = error instanceof Error ? error.message : String(error);
   if (
@@ -82,16 +129,11 @@ async function loadHead(
   userId: string,
   projectId: Id<"objects">
 ): Promise<{ handoffId: Id<"handoffs">; head: StructuredHandoffHead } | null> {
-  const rows = await ctx.db
+  const row = await ctx.db
     .query("handoffs")
     .withIndex("by_user_project_revision", (q) => q.eq("userId", userId).eq("projectId", projectId))
     .order("desc")
-    .take(50);
-  const row = rows.reduce<(typeof rows)[number] | null>((best, item) => {
-    if (typeof item.revision !== "number") return best;
-    if (!best || (best.revision ?? -1) < item.revision) return item;
-    return best;
-  }, null);
+    .first();
   if (!row?.proposal || typeof row.revision !== "number" || !row.idempotencyKey || !row.sourceAgent) {
     return null;
   }
@@ -133,14 +175,39 @@ export const commitForUser = internalMutation({
     if (!parsed.ok) {
       return { ok: false, status: 400, code: "invalid", error: parsed.error };
     }
+    if (!sameLinkedRepo(project.githubRepo, parsed.value.repo.repository)
+      || (args.repo && !sameLinkedRepo(project.githubRepo, args.repo))) {
+      return { ok: false, status: 400, code: "wrong-project", error: "Handoff repository does not match the linked project." };
+    }
     const loaded = await loadHead(ctx, args.userId, args.projectId);
     const idempotencyKey = args.idempotencyKey.trim();
+    const fingerprint = requestFingerprint({
+      proposal: parsed.value,
+      source: args.source,
+      title: args.title,
+      body: args.body,
+      repo: args.repo,
+      expectedBaseRevision: args.expectedBaseRevision,
+    });
     const existing = await ctx.db
       .query("handoffs")
       .withIndex("by_user_project_idempotency", (q) =>
         q.eq("userId", args.userId).eq("projectId", args.projectId).eq("idempotencyKey", idempotencyKey)
       )
       .first();
+    if (existing?.requestFingerprint === fingerprint && typeof existing.revision === "number") {
+      return withoutEmpty({
+        ok: true, status: 200, code: "already-saved",
+        handoffId: String(existing._id), eventId: existing.eventId ? String(existing.eventId) : undefined,
+        revision: existing.revision, headRevision: loaded?.head.revision ?? existing.revision,
+        matchedProjectId: String(args.projectId), matchedProjectName: project.name ?? "Project",
+        needsReview: false, transfersCode: false, checksOut: false,
+      });
+    }
+    const sources = await validateProposalSources(ctx, args.userId, args.projectId, parsed.value);
+    if (sources.error) return { ok: false, status: 400, code: "invalid", error: sources.error };
+    const transitionError = validateDecisionTransition(loaded?.head.proposal ?? null, parsed.value, sources.approvedSourceRefs);
+    if (transitionError) return { ok: false, status: 400, code: "invalid", error: transitionError };
     const planned = commitStructuredHandoff({
       projectId: String(args.projectId),
       headRevision: loaded?.head.revision ?? 0,
@@ -176,6 +243,7 @@ export const commitForUser = internalMutation({
       schemaVersion: 1,
       revision: planned.head.revision,
       idempotencyKey: planned.head.idempotencyKey,
+      requestFingerprint: fingerprint,
       sourceAgent: args.source,
       proposal: parsed.value,
     });
@@ -194,6 +262,7 @@ export const commitForUser = internalMutation({
       reviewedAt: args.now,
       ...(args.repo ? { repo: args.repo } : {}),
     });
+    await ctx.db.patch(handoffId, { eventId });
     return {
       ok: true,
       status: 200,
@@ -231,6 +300,9 @@ export const deliverForUser = internalMutation({
         code: "wrong-project",
         error: "Destination project does not match the handoff project.",
       };
+    }
+    if (!sameLinkedRepo(project.githubRepo, args.currentRepo.repository)) {
+      return { ok: false, status: 400, code: "wrong-project", error: "Destination repository does not match the linked project." };
     }
     const loaded = await loadHead(ctx, args.userId, args.projectId);
     const planned = planHandoffDelivery({
@@ -284,6 +356,94 @@ export const deliverForUser = internalMutation({
   },
 });
 
+export const acknowledgeForUser = internalMutation({
+  args: {
+    userId: v.string(),
+    projectId: v.id("objects"),
+    receiptId: v.id("handoffDeliveries"),
+    revision: v.number(),
+    destination: v.string(),
+    now: v.number(),
+  },
+  returns: structuredHandoffWireValidator,
+  handler: async (ctx, args): Promise<Wire> => {
+    const project = await ctx.db.get(args.projectId);
+    if (!project || project.userId !== args.userId || project.kind !== "project") {
+      return { ok: false, status: 400, code: "wrong-project", error: "project-not-found" };
+    }
+    const receipt = await ctx.db.get(args.receiptId);
+    if (!receipt || receipt.userId !== args.userId || receipt.projectId !== args.projectId
+      || receipt.revision !== args.revision || receipt.destination !== args.destination) {
+      return { ok: false, status: 400, code: "invalid", error: "Receipt does not match this handoff." };
+    }
+    if (receipt.result === "acknowledged") {
+      return { ok: true, status: 200, code: "already-acknowledged", revision: receipt.revision,
+        receiptId: String(receipt._id), destination: receipt.destination, matchedProjectId: String(args.projectId) };
+    }
+    if (receipt.result !== "prepared") {
+      return { ok: false, status: 409, code: "invalid", error: "Only a prepared handoff can be acknowledged." };
+    }
+    await ctx.db.patch(args.receiptId, { result: "acknowledged", acknowledgedAt: args.now });
+    return { ok: true, status: 200, code: "acknowledged", revision: receipt.revision,
+      receiptId: String(receipt._id), destination: receipt.destination, matchedProjectId: String(args.projectId) };
+  },
+});
+
+async function acknowledgeForAuthenticatedUser(
+  ctx: { runMutation: (...args: any[]) => Promise<Wire> },
+  userId: string,
+  args: { projectId: string; receiptId: string; revision: number; destination: string }
+): Promise<Wire> {
+  try {
+    return await ctx.runMutation(_internal.structuredHandoffs.acknowledgeForUser, { ...args, userId, now: Date.now() });
+  } catch (error) {
+    const invalid = invalidId(error);
+    if (invalid) return invalid;
+    throw error;
+  }
+}
+
+export const acknowledgeFromApiRequest = action({
+  args: { apiKey: v.string(), projectId: v.string(), receiptId: v.string(), revision: v.number(), destination: v.string() },
+  returns: structuredHandoffWireValidator,
+  handler: async (ctx, args): Promise<Wire> => {
+    const probeAllowed = await ratelimitConvex(apiKeyProbeRateLimitKey(args.apiKey), "api-key-validation", { requests: 30, window: "1m" });
+    if (!probeAllowed) return { ok: false, status: 429, error: "Rate limited" };
+    const key = await ctx.runQuery(_internal.apiKeys.validate, { key: args.apiKey }) as { userId: string; keyId: string; rateLimitKey: string } | null;
+    if (!key) return { ok: false, status: 401, error: "Unauthorized" };
+    const allowed = await ratelimitConvex(key.rateLimitKey, "structured-handoff", { requests: 60, window: "1h" });
+    if (!allowed) return { ok: false, status: 429, error: "Rate limited" };
+    const result = await acknowledgeForAuthenticatedUser(ctx, key.userId, args);
+    if (result.ok) await ctx.runMutation(_internal.apiKeys.touch, { keyId: key.keyId });
+    return result;
+  },
+});
+
+export const acknowledgeFromOAuthRequest = action({
+  args: { tokenHash: v.string(), resource: v.string(), scope: v.string(), now: v.number(), projectId: v.string(), receiptId: v.string(), revision: v.number(), destination: v.string() },
+  returns: structuredHandoffWireValidator,
+  handler: async (ctx, args): Promise<Wire> => {
+    const allowed = await ratelimitConvex(args.tokenHash, "structured-handoff-oauth", { requests: 60, window: "1h" });
+    if (!allowed) return { ok: false, status: 429, error: "Rate limited" };
+    const token = await ctx.runQuery(_internal.oauth.userIdForAccessToken, {
+      tokenHash: args.tokenHash, resource: args.resource, scope: args.scope, now: args.now,
+    }) as { userId: string } | null;
+    if (!token) return { ok: false, status: 401, error: "Unauthorized" };
+    return await acknowledgeForAuthenticatedUser(ctx, token.userId, args);
+  },
+});
+
+export const acknowledgeFromSession = action({
+  args: { projectId: v.string(), receiptId: v.string(), revision: v.number(), destination: v.string() },
+  returns: structuredHandoffWireValidator,
+  handler: async (ctx, args): Promise<Wire> => {
+    const userId = await requireActionBetaAccess(ctx);
+    const allowed = await ratelimitConvex(userId, "structured-handoff", { requests: 60, window: "1h" });
+    if (!allowed) return { ok: false, status: 429, error: "Rate limited" };
+    return await acknowledgeForAuthenticatedUser(ctx, userId, args);
+  },
+});
+
 async function resumeForUser(
   ctx: { runMutation: (...args: any[]) => Promise<Wire> },
   userId: string,
@@ -292,7 +452,7 @@ async function resumeForUser(
     destinationProjectId: string;
     destination: string;
     currentRepo: { branch: string; commit: string; dirty: boolean };
-    result: "delivered" | "failed";
+    result: "prepared" | "failed";
     reason?: string;
   }
 ): Promise<Wire> {
@@ -321,7 +481,7 @@ export const resumeFromApiRequest = action({
     destinationProjectId: v.string(),
     destination: v.string(),
     currentRepo: repoSnapshotValidator,
-    result: v.union(v.literal("delivered"), v.literal("failed")),
+    result: v.union(v.literal("prepared"), v.literal("failed")),
     reason: v.optional(v.string()),
   },
   returns: structuredHandoffWireValidator,
@@ -361,7 +521,7 @@ export const resumeFromOAuthRequest = action({
     destinationProjectId: v.string(),
     destination: v.string(),
     currentRepo: repoSnapshotValidator,
-    result: v.union(v.literal("delivered"), v.literal("failed")),
+    result: v.union(v.literal("prepared"), v.literal("failed")),
     reason: v.optional(v.string()),
   },
   returns: structuredHandoffWireValidator,
@@ -388,7 +548,7 @@ export const resumeFromSession = action({
     destinationProjectId: v.string(),
     destination: v.string(),
     currentRepo: repoSnapshotValidator,
-    result: v.union(v.literal("delivered"), v.literal("failed")),
+    result: v.union(v.literal("prepared"), v.literal("failed")),
     reason: v.optional(v.string()),
   },
   returns: structuredHandoffWireValidator,

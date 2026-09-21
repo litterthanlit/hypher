@@ -12,6 +12,7 @@ import { pathToFileURL } from "node:url";
 export const HANDOFF_AGENTS = ["codex", "claude-code"];
 export const PROJECT_ID_FILL = "FILL: project id from resolve_project_for_repo for litterthanlit/hypher";
 export const RESUME_REVISION_FILL = "FILL: revision number returned by prepare_handoff";
+export const SUPERSEDED_DECISION_FILL = "FILL: exact prior decision being replaced";
 
 const FILL = {
   title: "FILL: one line naming the changed decision",
@@ -41,14 +42,19 @@ function git(args) {
 }
 
 export function repoMetadata() {
+  const remote = git(["config", "--get", "remote.origin.url"]);
+  const repository = remote?.match(/(?:github\.com[:/])([^/]+\/[^/]+?)(?:\.git)?$/)?.[1] ?? null;
+  const worktreePath = git(["rev-parse", "--show-toplevel"]);
   const branch = git(["rev-parse", "--abbrev-ref", "HEAD"]);
   const commit = git(["rev-parse", "HEAD"]);
   const status = git(["status", "--porcelain"]);
   if (!branch || !commit) return null;
   return {
+    ...(repository ? { repository } : {}),
     branch,
     commit,
     dirty: Boolean(status),
+    ...(worktreePath ? { worktreePath } : {}),
   };
 }
 
@@ -82,8 +88,10 @@ export function promptText(report = statusReport()) {
     `Repo metadata: ${repo}`,
     "Save: post_agent_event kind handoff with proposal schemaVersion 1, expectedBaseRevision, and a new idempotencyKey.",
     "Resume: prepare_handoff with destination (claude-code or codex) and currentRepo from this metadata.",
-    "Compare branch, commit, and dirty. Do not checkout or sync files from the handoff.",
-    "Print the four MCP calls with: node tools/codex-claude-handoff.mjs round-trip",
+    "Read the prepared revision, inspect the working tree, then acknowledge_handoff with receiptId, revision, destination, and projectId.",
+    "If repository metadata differs, stop and reconcile the local tree before continuing. Matching metadata does not prove identical dirty files.",
+    "Print the four MCP call templates with: node tools/codex-claude-handoff.mjs round-trip",
+    "Do not checkout or sync files from the handoff.",
     "ranAgents: false",
   ].join("\n");
 }
@@ -96,13 +104,17 @@ function requireAgent(value, flag) {
 }
 
 function requireRepo(repo) {
-  if (!repo?.branch || !repo?.commit || typeof repo.dirty !== "boolean") {
-    throw new Error("repo metadata is required (branch, commit, dirty)");
+  if (repo?.repository?.toLowerCase() !== "litterthanlit/hypher"
+    || !repo.branch || !repo.commit || typeof repo.dirty !== "boolean") {
+    throw new Error("linked Hypher repository metadata is required (repository, branch, commit, dirty)");
   }
   return {
+    repository: repo.repository,
     branch: repo.branch,
     commit: repo.commit,
     dirty: repo.dirty,
+    ...(repo.worktreePath ? { worktreePath: repo.worktreePath } : {}),
+    ...(repo.dirtyFingerprint ? { dirtyFingerprint: repo.dirtyFingerprint } : {}),
   };
 }
 
@@ -114,10 +126,13 @@ function requireRevision(value) {
   return value;
 }
 
-export function saveCall({ source, expectedBaseRevision, repo, idempotencyKey }) {
+export function saveCall({ source, expectedBaseRevision, repo, idempotencyKey, supersedes, decisionCaptureId }) {
   const agent = requireAgent(source, "source");
   const snapshot = requireRepo(repo);
   const revision = requireRevision(expectedBaseRevision);
+  if (decisionCaptureId && !supersedes) {
+    throw new Error("decisionCaptureId requires supersedes");
+  }
   const key = typeof idempotencyKey === "string" && idempotencyKey.trim()
     ? idempotencyKey.trim()
     : `${agent}-${randomUUID()}`;
@@ -129,6 +144,7 @@ export function saveCall({ source, expectedBaseRevision, repo, idempotencyKey })
     replaceBeforeSend: [
       "Every FILL value",
       revision === RESUME_REVISION_FILL ? "expectedBaseRevision, using the revision prepare_handoff returned" : null,
+      !supersedes && revision !== 0 ? "Keep every prior decision in the full snapshot, or explicitly supersede one with a linked source" : null,
     ].filter(Boolean),
     arguments: {
       kind: "handoff",
@@ -136,7 +152,7 @@ export function saveCall({ source, expectedBaseRevision, repo, idempotencyKey })
       title: FILL.title,
       body: FILL.body,
       projectId: PROJECT_ID_FILL,
-      repo: "litterthanlit/hypher",
+      repo: snapshot.repository,
       branch: snapshot.branch,
       commitSha: snapshot.commit,
       expectedBaseRevision: revision,
@@ -145,12 +161,17 @@ export function saveCall({ source, expectedBaseRevision, repo, idempotencyKey })
         schemaVersion: 1,
         goal: FILL.goal,
         constraints: [FILL.constraint],
-        decisions: [{ decision: FILL.decision, reason: FILL.reason }],
+        decisions: [{ decision: FILL.decision, reason: FILL.reason,
+          ...(supersedes ? { status: decisionCaptureId ? "approved" : "reported", sourceRefs: ["decision-source"], supersedes } : { status: "reported" }) }],
         completed: [FILL.completed],
         unverified: [FILL.unverified],
         blockers: [],
         nextAction: FILL.nextAction,
-        sources: [{ ref: FILL.sourceRef, label: FILL.sourceLabel }],
+        sources: supersedes
+          ? [{ ref: "decision-source", label: FILL.sourceLabel,
+            kind: decisionCaptureId ? "capture" : "agent_report",
+            ...(decisionCaptureId ? { sourceId: decisionCaptureId } : {}) }]
+          : [{ ref: FILL.sourceRef, label: FILL.sourceLabel, kind: "agent_report" }],
         repo: snapshot,
       },
     },
@@ -165,7 +186,7 @@ export function resumeCall({ destination, repo }) {
     ranAgents: false,
     transfersCode: false,
     checksOut: false,
-    afterResult: "If repoMatch is false, say which of branch, commit, and dirty differ. Continue from the proposal. Do not checkout or copy files.",
+    afterResult: "If repoMatch is false, stop and reconcile the local tree before continuing. If metadata matches, inspect dirty files yourself. Read the proposal, then acknowledge this receipt with acknowledge_handoff. Do not checkout or copy files.",
     arguments: {
       projectId: PROJECT_ID_FILL,
       destination: agent,
@@ -187,7 +208,8 @@ export function roundTrip(repo = repoMetadata(), ids = {}) {
     transfersCode: false,
     checksOut: false,
     repo: snapshot,
-    beforeContinuing: "Compare branch, commit, and dirty with the handoff snapshot. Memory does not transfer code or uncommitted files.",
+    templateOnly: true,
+    beforeContinuing: "Compare repository, branch, commit, dirty state, and local files with the handoff snapshot. Stop on a mismatch. Memory does not transfer code or uncommitted files.",
     steps: [
       {
         step: 1,
@@ -213,12 +235,13 @@ export function roundTrip(repo = repoMetadata(), ids = {}) {
         agent: "claude-code",
         action: "save",
         command: "/hypher-save",
-        note: "Include the changed decision and leave unfinished work in unverified. expectedBaseRevision is the revision from step 2, not 0.",
+        note: "Name the prior decision in supersedes. This records the changed decision as agent-reported. To mark it approved, also provide a project-owned pinned decision capture ID. Keep unfinished work in unverified. expectedBaseRevision is the revision from step 2, not 0.",
         call: saveCall({
           source: "claude-code",
           expectedBaseRevision: RESUME_REVISION_FILL,
           repo: snapshot,
           idempotencyKey: claudeSaveKey,
+          supersedes: SUPERSEDED_DECISION_FILL,
         }),
       },
       {
@@ -239,6 +262,8 @@ function parseFlags(argv) {
     if (arg === "--source") flags.source = argv[++i];
     else if (arg === "--destination") flags.destination = argv[++i];
     else if (arg === "--base-revision") flags.baseRevision = argv[++i];
+    else if (arg === "--supersedes") flags.supersedes = argv[++i];
+    else if (arg === "--decision-capture-id") flags.decisionCaptureId = argv[++i];
     else throw new Error(`Unknown argument: ${arg}`);
     if (argv[i] === undefined) throw new Error(`Missing value for ${arg}`);
   }
@@ -281,6 +306,8 @@ function main() {
         source: flags.source,
         expectedBaseRevision,
         repo,
+        supersedes: flags.supersedes,
+        decisionCaptureId: flags.decisionCaptureId,
       }));
       return;
     }
@@ -297,7 +324,7 @@ function main() {
     process.exitCode = 1;
     return;
   }
-  console.error("Usage: node tools/codex-claude-handoff.mjs [status|prompt|save|resume|round-trip]");
+  console.error("Usage: node tools/codex-claude-handoff.mjs [status|prompt|save|resume|round-trip]; save accepts --source, --base-revision, --supersedes, and --decision-capture-id");
   process.exitCode = 1;
 }
 

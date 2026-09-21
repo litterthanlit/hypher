@@ -131,6 +131,7 @@ describe("Hypher MCP tool descriptors", () => {
       "get_current_state",
       "get_next_move",
       "prepare_handoff",
+      "acknowledge_handoff",
       "resolve_project_for_repo",
       "get_synthesis_input",
       "write_project_memory",
@@ -138,16 +139,37 @@ describe("Hypher MCP tool descriptors", () => {
     ]);
     expect(
       getHypherMcpToolDescriptors()
-        .filter((tool) => tool.name !== "post_agent_event" && tool.name !== "write_project_memory" && tool.name !== "prepare_handoff")
+        .filter((tool) => tool.name !== "post_agent_event" && tool.name !== "write_project_memory" && tool.name !== "prepare_handoff" && tool.name !== "acknowledge_handoff")
         .every((tool) => tool.annotations.readOnlyHint)
     ).toBe(true);
     expect(getHypherMcpToolDescriptors().find((tool) => tool.name === "prepare_handoff")?.annotations.readOnlyHint).toBe(false);
+    expect(getHypherMcpToolDescriptors().find((tool) => tool.name === "acknowledge_handoff")?.annotations.readOnlyHint).toBe(false);
     expect(getHypherMcpToolDescriptors().find((tool) => tool.name === "post_agent_event")?.annotations.readOnlyHint).toBe(false);
     expect(getHypherMcpToolDescriptors().find((tool) => tool.name === "write_project_memory")?.annotations.readOnlyHint).toBe(false);
   });
 });
 
 describe("buildMcpToolResult", () => {
+  it("uses the latest structured revision as the Builder Brief instead of conflicting legacy decisions", () => {
+    const structured: Handoff = {
+      ...handoffs[0]!, id: "h-latest", revision: 2, generatedAt: 200,
+      proposal: {
+        schemaVersion: 1, goal: "Finish checkout", constraints: ["Keep guest checkout"],
+        decisions: [{ decision: "Use the existing payment route", reason: "User chose it" }],
+        completed: [], unverified: ["Payment tests not run"], blockers: [], nextAction: "Run payment tests",
+        sources: [{ ref: "agent session" }],
+        repo: { repository: "litterthanlit/hypher", branch: "main", commit: "abc123", dirty: false },
+      },
+    };
+    const projectContext = { ...context.projectContexts.p1!, memory: { ...memory, importantDecisions: ["Replace the payment route"] },
+      handoffs: [structured, ...handoffs] };
+    const changedContext: HypherMcpContext = { ...context, projectContexts: { p1: projectContext } };
+    const brief = buildMcpToolResult("get_project_context", { projectId: "p1" }, changedContext);
+    expect(brief.content[0]?.text).toContain("Use the existing payment route");
+    expect(brief.content[0]?.text).not.toContain("Replace the payment route");
+    expect(buildMcpToolResult("get_next_move", { projectId: "p1" }, changedContext).structuredContent.nextMove).toBe("Run payment tests");
+  });
+
   it("lists projects without leaking full context", () => {
     const result = buildMcpToolResult("list_projects", {}, context);
 
@@ -651,6 +673,31 @@ describe("buildMcpToolResult", () => {
     expect(String(preview.structuredContent.warning)).toMatch(/dirty is false/);
     expect(String(preview.content[0]?.text)).not.toMatch(/checkout/);
     expect(preview.structuredContent.transfersCode).toBe(false);
+  });
+
+  it("flags a newer legacy writeback without merging it into the structured decision", () => {
+    const stored: Handoff = {
+      ...handoffs[0]!, id: "h-structured", generatedAt: 100, revision: 1, schemaVersion: 1,
+      proposal: {
+        schemaVersion: 1, goal: "Continue the pilot", constraints: [],
+        decisions: [{ decision: "Keep the pilot small", reason: "Current snapshot" }],
+        completed: [], unverified: [], blockers: [], nextAction: "Run the CLI round trip",
+        sources: [{ ref: "agent report" }],
+        repo: { repository: "litterthanlit/hypher", branch: "main", commit: "abc123", dirty: false },
+      },
+    };
+    const newerEvent: AgentEvent = { ...agentEvents[0]!, id: "e-new", title: "Changed pilot scope", body: "Expand the pilot", createdAt: 101 };
+    const mixed: HypherMcpContext = { ...context, projectContexts: { p1: {
+      ...context.projectContexts.p1!, handoffs: [stored], agentEvents: [newerEvent],
+    } } };
+    const brief = buildMcpToolResult("get_project_context", { projectId: "p1" }, mixed);
+    const state = buildMcpToolResult("get_current_state", { projectId: "p1" }, mixed);
+    const move = buildMcpToolResult("get_next_move", { projectId: "p1" }, mixed);
+    expect(String(brief.content[0]?.text)).toContain("needs reconciliation");
+    expect(String(brief.content[0]?.text)).toContain("Keep the pilot small");
+    expect(String(brief.content[0]?.text)).not.toContain("Expand the pilot");
+    expect(state.structuredContent.needsReconciliation).toBe(true);
+    expect(move.structuredContent.needsReconciliation).toBe(true);
   });
 
   it("parses a resume call without asking Hypher to sync files", () => {
