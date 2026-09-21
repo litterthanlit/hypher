@@ -18,4 +18,4 @@ Business and implementation proposals for reliable agent-to-agent handoffs:
 - [Business plan](./planning/Hypher-Business-Plan.md) — positioning, pricing, costs, and pilot targets
 - [Implementation plan](./planning/Hypher-Implementation-Plan.md) — architecture, models, evaluation, and milestones
 
-These are planning proposals, not shipped capabilities. Reconcile accepted changes into PRODUCT.md and PLAN.md before implementation; those remain the repository’s canonical product direction and build order.
+Direction is locked in [PRODUCT.md](./PRODUCT.md) and [PLAN.md](./PLAN.md). These files stay the detailed proposal. They are not shipped adapters and not a second product document.

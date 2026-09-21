@@ -1,157 +1,90 @@
-# Future plan
+# Build order
 
 [`PRODUCT.md`](./PRODUCT.md) is what Hypher is. This file is **order**.
 
-Build the proof. Not more product.
+Working promise: **Switch agents without starting over.**
 
-> Dump once. Then Hypher keeps the project warm without anyone thinking about Hypher.
+This milestone is reliable continuation between two agents on the same local working tree. First pair: Codex CLI and Claude Code. Explicit handoff and resume are enough. The loop stays dump / capture → one note → writeback. A warmer session 2 and a switch to another agent are the same job.
 
-Until the loop runs without ceremony, Hypher is a very good paste buffer with an API. Do not launch that. Do not dress it up with panels.
-
-Start at the first phase that is not done. Do not skip ahead to launch, reminders, or a spatial board.
+`docs/planning/` is the detail behind this sequence. If it disagrees with [`PRODUCT.md`](./PRODUCT.md) or this file about what to build next, those two win.
 
 ---
 
-## The proof
+## Already in the product
 
-A new agent continues this project without Nick re-explaining it.
+Do not rebuild these to start the spike.
 
-Not: more surfaces, a seeded demo canvas, Chrome store, Raycast, digest email.
+- **Phase 1a — done.** After a dump is assigned, and after a matched `handoff` / `build_log`, Hypher updates the note: summary, direction, decisions, constraints, next action. Same guts as `/api/project-memory/generate`. No Generate button. Receipts thicken the note without Accept. Accept stays for `question` and `suggestion`. GitHub `build_log`s stay signals.
+- **Phase 1b — in the Cursor plugin.** `extensions/cursor/hooks/hooks.json` runs `session-start.mjs` and `session-end.mjs`. Automatic inject and hook writeback need `HYPHER_ACCESS_TOKEN` or `HYPHER_API_KEY` in the hook process. Hooks do not run on Cursor cloud agents. `/hypher-brief` and `/hypher-handoff` stay manual overrides.
+- **MCP load — keep using it.** Cloud agents and any session the hooks miss call `resolve_project_for_repo`, then `get_project_context` once, and post one `handoff` at the end. [`AGENTS.md`](../AGENTS.md) carries that. Skipping it makes the next session cold.
+- GitHub stays a signal. Unmatched repos do not mint projects. Pulse stays three things: latest captures, the note, writebacks.
 
-The launch *is* a 90-second with/without. One tweet. One landing. Controlled beta with people who already drown in agent sessions.
-
----
-
-## Now
-
-`litterthanlit/hypher` resolves to the real **hypher** project. A dump exists. The live brief is still a truncated echo of that dump, and Cursor cloud agents still start without it. Do not treat that as dogfood done.
-
-Do this in parallel with Phase 1c:
-
-1. Keep the GitHub bind on the **hypher** project. Do not write back to **Try Hypher**.
-2. Dump the actual constraints if they are still missing from the brief. Include: Pulse stays three panels. Do not widen OAuth. Do not rebuild the canvas. GitHub is a signal, not memory. `docs/PRODUCT.md` wins.
-3. Every real coding session: load the brief at start (plugin hook locally, MCP once on cloud), one `handoff` at end, Accept only questions and suggestions.
-4. Session 2 should be obviously better than session 1. If it is not, fix the packet before adding product.
-
-Done when: a new Cursor cloud agent on this repo loads a brief that is not a dump echo, and Pulse shows that session’s handoff.
-
-Diagnosis and remaining sequence: [`.audit/fix-agent-context/PLAYBOOK.md`](../.audit/fix-agent-context/PLAYBOOK.md).
+Packet quality still matters. It is not the next coding slice.
 
 ---
 
-## Phase 1 — Loop without ceremony
+## This milestone
 
-This is the “runs in the background” slice. **1a shipped.** **1b is in the plugin tree** with token and cloud caveats below. Do **1c** next. Then fix the packet before Phase 2.
+### P0. Doc lock
 
-### 1a. Silent synthesis + receipt memory — done
+This change. [`PRODUCT.md`](./PRODUCT.md), this file, and [`AGENTS.md`](../AGENTS.md) name the promise, the handoff contents, the first proof, what already works, and what is parked.
 
-After a dump is assigned to a project, and after a matched `handoff` / `build_log`, Hypher updates summary, direction, decisions, constraints, next move, handoff notes.
+Done when: those three files tell one story, and they do not describe Codex or Claude adapters as shipped.
 
-- Same guts as `/api/project-memory/generate`. No Generate button. No new panel.
-- Receipts thicken identity without Accept. Pulse still lists the event.
-- Accept stays for `question` and `suggestion`.
-- GitHub `build_log`s are signals, not receipts.
+### Next. Integration spike
 
-Done when: dump “don’t widen OAuth” → brief contains it as a constraint without a click. Post a handoff → next brief includes what changed and the next move without Accept.
+Codex CLI and Claude Code on one workspace. Same local working tree.
 
-### 1b. Session hooks — in the IDE plugin tree
+On each side, show three things: a useful checkpoint, storage, and delivery into a new session. Explicit save and resume are the path. Add automatic checkpoints only where lifecycle support is verified on the recorded version. Use supported tools. Do not build on private transcript formats.
 
-Code for `sessionStart` / `sessionEnd` shipped in `#58`. `extensions/cursor/hooks/hooks.json` runs `session-start.mjs` and `session-end.mjs`. The original done-when (brief loads without a slash command, one event Hypher can see) is still token-gated. Do not treat “hooks.json exists” as the loop running.
+Record the exact client versions.
 
-Caveats:
+Acceptance: one real switch in each direction, including a changed decision and unfinished work, with source references and the correct destination project. The destination verifies branch, commit, and dirty state. Memory does not move code.
 
-- Automatic inject and hook writeback need `HYPHER_ACCESS_TOKEN` or `HYPHER_API_KEY` in the hook process. Cursor does not expose MCP OAuth to shell hooks.
-- Hooks do not run on Cursor cloud agents.
+If a surface cannot do this, narrow the support list immediately. Do not wrap an unproven integration in UI.
 
-`/hypher-brief` and `/hypher-handoff` stay as manual overrides. Unmatched repo: do not invent status.
+Not done. Do not claim it.
 
-### 1c. Agents that never get IDE hooks
+### Then. Smallest round trip
 
-Cloud agents, background agents, and any session where the plugin hooks do not fire still have Hypher MCP. They must load the brief once (`resolve_project_for_repo`, then `get_project_context`) and post one `handoff` at the end.
+Reuse the existing Convex app and MCP tools. Do not add a second database for this proof.
 
-`AGENTS.md` carries that instruction because it already always applies in this repo. `docs/PRODUCT.md` still wins if the brief disagrees.
+Active agent → structured proposal → Hypher validation and revision → durable memory → destination note → delivery receipt.
 
-Done when: a new Cursor cloud agent on this repo calls `get_project_context` once without the user asking, and a handoff lands in Pulse.
+- The active agent proposes the handoff. It already has the conversation. No compulsory second model call on every switch.
+- Every write has an idempotency key and an expected base revision. A stale write reconciles against the current revision.
+- The proposal matches the handoff in [`PRODUCT.md`](./PRODUCT.md): goal, constraints, decisions and reasons, completed versus unverified work, blockers, next action, sources, repository / branch / commit, dirty state as metadata.
+- The receipt records destination, delivered revision, result, and time.
+- Reuse current MCP endpoints. Do not invent a second protocol beside them.
 
-Until 1c is true, dogfood with MCP load plus `/hypher-handoff`. Do not wait to dump. Do not skip to Phase 2 while cloud sessions start cold.
+Tests that belong on this ticket: duplicate submission, stale revision, changed decision, wrong project, failed delivery.
 
----
+Done when: Codex → Claude Code → Codex on one repo leaves a stored handoff with sources and a receipt, and the return trip carries the changed decision, without a manually written recap.
 
-## Phase 2 — Empty without becoming GitHub
+### After the round trip. Evaluation
 
-Cold start is honest emptiness, then fill. Not a fake canvas.
+With/without stays secondary until that proof exists.
 
-On first link:
-
-> Dump the current goal, or start a session and we’ll capture the first handoff.
-
-Show a skeleton brief that is embarrassing on purpose. Then show it fill. That is the aha.
-
-- One dump, or the first handoff is the seed.
-- Four questions once if they dump nothing: goal, current task, do-not-do, done. Then stop asking.
-- Never ingest the repo as product memory. Cursor already has the code.
-- Never auto-mint a project from an unmatched remote.
-
-Done when: a new linked repo with no notes still has a path to a real brief by the end of session 1, and session 2 is warm.
+Compare native context, a maintained handoff file, and Hypher. Hold the task, the starting tree, the destination settings, and the tools fixed inside each comparison. Report the sample size and the failures. A schema-valid note can still be wrong. Do not treat an unrun benchmark as a launch.
 
 ---
 
-## Phase 3 — Benchmark is the launch
+## Out of scope
 
-Do not start this until Phase 1 is true on Hypher itself and dogfood is happening on this repo.
+Not this milestone:
 
-Pick a task where **product context**, not missing files, is why the agent fails. Example: continue a half-finished feature with “don’t widen OAuth” and “Pulse stays three panels.” The repo will not contain those.
-
-- Same repo, same model, same prompt.
-- Without Hypher: score violations (reopened decisions, rebuilt cut surfaces).
-- With Hypher: one dump, a prior handoff, then the brief. Same rubric.
-- Run more than once. If with-Hypher does not win, do not launch. Fix the packet.
-
-Film 90 seconds: dump → brief in Cursor → agent respects a do-not-do → one writeback → new chat is warmer.
-
-Launch that video. One tweet. Landing stays:
-
-> dump your project. they read one note. they write back.
-
-Stakes: **Stop re-explaining the project every session.**
-
-Controlled beta: builders who already drown in agent sessions. Ignore Chrome store, Raycast, canvas screenshots, digest email. Those sell a different app.
-
-Done when: the recording exists, the landing matches it, and a handful of real users run the same loop on their own repos.
-
----
-
-## Phase 4 — Only after the loop is trusted
-
-Do not start this phase because it is interesting. Start it because session 2 is already obviously better.
-
-**Assistant (attn-shaped, project-scoped):**
-
-- This project went stale.
-- The agent left a question.
-- Native capture companions: Mac hotkey, iOS share sheet.
-
-**Then visual:** a spatial board of the **same** objects. Freeform / Obsidian feeling as a view of trusted memory. Not a new product.
-
-**Last, if ever:** generic chat.
-
----
-
-## Never
-
-- More Pulse panels
-- Notion import
-- Health rings
-- Agent orchestration inside Hypher (Hypher does not run the agents)
-- Native workspace rewrite
-- Marketplace MCP catalog
-- Canvas, list tab, public/demo canvases
-- Daily digest / email digest / ambient ask
-- Generate-memory buttons
-- Auto-creating projects from unmatched repos
-- Competing with attn by piping Slack and mail into Hypher
-
-GitHub stays a signal (CI, stale PRs, labeled blockers). That is a lock, not a later phase.
+- Canvas, moodboard, list tab, public or demo canvases
+- Daily digest, email digest, health rings, ambient ask, extra Pulse panels
+- Notion import, Generate-memory buttons, activation checklists
+- Auto-minting projects from unmatched repos
+- Pricing changes and new checkout offers
+- Local SQLite Core, `packages/memory-core`, or a second full storage stack
+- Broad plugin matrix beyond Cursor (already supported) and the Codex / Claude spike
+- Replacement coding harness or a host UI for two agents
+- Agent orchestration inside Hypher
+- An always-on reasoning service
+- Native Mac or iOS rewrite
+- Slack or mail ingestion
 
 ---
 
@@ -161,8 +94,9 @@ GitHub stays a signal (CI, stale PRs, labeled blockers). That is a lock, not a l
 |---|---|
 | [`PRODUCT.md`](./PRODUCT.md) | What Hypher is |
 | This file | What to build next |
-| [`bots/hypher-ceo.md`](./bots/hypher-ceo.md) | Ship-or-cut judgment |
-| [`product/cursor-plugin-v1-spec.md`](./product/cursor-plugin-v1-spec.md) | Plugin contract for IDE hooks |
-| [`.audit/fix-agent-context/PLAYBOOK.md`](../.audit/fix-agent-context/PLAYBOOK.md) | Why cloud sessions stay cold, and the packet-quality sequence |
+| [`planning/Hypher-Implementation-Plan.md`](./planning/Hypher-Implementation-Plan.md) | Spike, storage, and evaluation detail |
+| [`planning/Hypher-Business-Plan.md`](./planning/Hypher-Business-Plan.md) | Who it is for, and pricing hypotheses to leave alone |
+| [`planning/Astra-Plan.md`](./planning/Astra-Plan.md) | Strategy history |
+| [`bots/hypher-ceo.md`](./bots/hypher-ceo.md) | Ship-or-cut judgment after this file |
 
-Next coding session: **Phase 1c**. Cloud and other non-hook agents load the brief once. Then fix the packet so it beats `docs/PRODUCT.md` instead of echoing a dump.
+Next coding session after the doc lock: Codex CLI and Claude Code, explicit save and resume, on the existing Convex and MCP storage.
