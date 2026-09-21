@@ -34,3 +34,5 @@ Environment variables:
 - `HYPHER_ENDPOINT`: Optional endpoint override. Defaults to `https://hypher.app/api/agent/events`.
 
 Do not send secrets, env values, tokens, private keys, or full logs.
+
+Structured save and resume for a Codex CLI ↔ Claude Code switch is a separate payload on the same event path: `proposal`, `expectedBaseRevision`, and `idempotencyKey` on a `handoff`, or a `resume` object. See [`codex-claude-handoff.md`](./codex-claude-handoff.md). That note does not mean the live CLI round trip has been recorded.

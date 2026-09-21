@@ -10,6 +10,8 @@ import { GITHUB_LOOP_SOURCE, planGithubLoopWrites } from "./lib/githubAgentEvent
 import { normalizeGitHubRepo } from "../shared/githubRepo";
 import { isProductWorkReceipt, PACKET_AGENT_EVENT_FETCH_LIMIT, prioritizeAgentEventsForPacket, summarizeEvent } from "../shared/projectMemoryGenerate";
 import { applyReceiptForEvent } from "./lib/projectMemoryWrite";
+import { handoffProposalValidator, handoffResumeValidator } from "./lib/structuredHandoffValidators";
+import { readHandoffCommand } from "../shared/structuredHandoff";
 
 const eventKind = v.union(
   v.literal("handoff"),
@@ -210,26 +212,67 @@ const writeResultValidator = v.object({
   ok: v.boolean(),
   status: v.optional(v.number()),
   error: v.optional(v.string()),
+  code: v.optional(v.string()),
   eventId: v.optional(v.string()),
+  handoffId: v.optional(v.string()),
   matchedProjectId: v.optional(v.union(v.string(), v.null())),
   matchedProjectName: v.optional(v.string()),
   needsReview: v.optional(v.boolean()),
+  revision: v.optional(v.number()),
+  headRevision: v.optional(v.number()),
+  preservedRevision: v.optional(v.number()),
+  repoMatch: v.optional(v.boolean()),
+  warning: v.optional(v.string()),
+  transfersCode: v.optional(v.boolean()),
+  checksOut: v.optional(v.boolean()),
+  proposal: v.optional(handoffProposalValidator),
+  repoSnapshot: v.optional(v.object({
+    branch: v.string(),
+    commit: v.string(),
+    dirty: v.boolean(),
+  })),
+  destination: v.optional(v.string()),
+  receiptId: v.optional(v.string()),
 });
 
-type WriteResult =
-  | {
-      ok: true;
-      status: number;
-      eventId: string;
-      matchedProjectId: string | null;
-      matchedProjectName?: string;
-      needsReview: boolean;
-    }
-  | { ok: false; status: number; error: string };
+type WriteResult = {
+  ok: boolean;
+  status: number;
+  error?: string;
+  code?: string;
+  eventId?: string;
+  handoffId?: string;
+  matchedProjectId?: string | null;
+  matchedProjectName?: string;
+  needsReview?: boolean;
+  revision?: number;
+  headRevision?: number;
+  preservedRevision?: number;
+  repoMatch?: boolean;
+  warning?: string;
+  transfersCode?: boolean;
+  checksOut?: boolean;
+  proposal?: {
+    schemaVersion: 1;
+    goal: string;
+    constraints: string[];
+    decisions: Array<{ decision: string; reason: string }>;
+    completed: string[];
+    unverified: string[];
+    blockers: string[];
+    nextAction: string;
+    sources: Array<{ ref: string; label?: string }>;
+    repo: { branch: string; commit: string; dirty: boolean };
+  };
+  repoSnapshot?: { branch: string; commit: string; dirty: boolean };
+  destination?: string;
+  receiptId?: string;
+};
 
 const mcpEventPayloadValidator = v.object({
   source: v.string(),
   project: v.optional(v.string()),
+  projectId: v.optional(v.string()),
   kind: eventKind,
   title: v.string(),
   body: v.string(),
@@ -238,7 +281,103 @@ const mcpEventPayloadValidator = v.object({
   branch: v.optional(v.string()),
   commitSha: v.optional(v.string()),
   artifactUrl: v.optional(v.string()),
+  proposal: v.optional(handoffProposalValidator),
+  expectedBaseRevision: v.optional(v.number()),
+  idempotencyKey: v.optional(v.string()),
+  resume: v.optional(handoffResumeValidator),
 });
+
+function invalidStructuredId(error: unknown): WriteResult | null {
+  const message = error instanceof Error ? error.message : String(error);
+  if (
+    message.includes("Expected ID")
+    || message.includes("ArgumentValidationError")
+    || message.includes("does not match validator")
+  ) {
+    return { ok: false, status: 400, code: "invalid", error: "Invalid project id" };
+  }
+  return null;
+}
+
+async function persistIncomingAgentEvent(
+  ctx: { runMutation: (...args: any[]) => Promise<WriteResult>; runQuery: (...args: any[]) => Promise<unknown> },
+  userId: string,
+  payload: unknown,
+  projectId?: string
+): Promise<WriteResult> {
+  const command = readHandoffCommand(payload);
+  if (!command.ok) {
+    return { ok: false, status: 400, code: "invalid", error: command.error };
+  }
+  if (command.command?.type === "resume") {
+    const project = command.command.projectId || projectId;
+    if (!project) {
+      return { ok: false, status: 400, code: "invalid", error: "projectId is required to resume a handoff" };
+    }
+    try {
+      return await ctx.runMutation(_internal.structuredHandoffs.deliverForUser, {
+        userId,
+        projectId: project,
+        destinationProjectId: command.command.destinationProjectId || project,
+        destination: command.command.destination,
+        currentRepo: command.command.currentRepo,
+        result: command.command.result,
+        reason: command.command.reason,
+        now: Date.now(),
+      });
+    } catch (error) {
+      const invalid = invalidStructuredId(error);
+      if (invalid) return invalid;
+      throw error;
+    }
+  }
+
+  const eventInput = payload && typeof payload === "object" && !Array.isArray(payload)
+    ? { ...(payload as Record<string, unknown>) }
+    : {};
+  if (command.command?.type === "save") {
+    eventInput.title = typeof eventInput.title === "string" && eventInput.title.trim()
+      ? eventInput.title
+      : command.command.eventDefaults.title;
+    eventInput.body = typeof eventInput.body === "string" && eventInput.body.trim()
+      ? eventInput.body
+      : command.command.eventDefaults.body;
+    eventInput.kind = eventInput.kind ?? "handoff";
+    if (typeof eventInput.source !== "string" || !eventInput.source.trim()) {
+      eventInput.source = "cursor";
+    }
+  }
+
+  const parsed = validateAgentEventPayload(command.command ? eventInput : payload);
+  if (!parsed.ok) {
+    return { ok: false, status: 400, code: "invalid", error: parsed.error };
+  }
+  if (command.command?.type === "save") {
+    const project = command.command.projectId || projectId;
+    if (!project) {
+      return { ok: false, status: 400, code: "invalid", error: "projectId is required to save a structured handoff" };
+    }
+    try {
+      return await ctx.runMutation(_internal.structuredHandoffs.commitForUser, {
+        userId,
+        projectId: project,
+        expectedBaseRevision: command.command.expectedBaseRevision,
+        idempotencyKey: command.command.idempotencyKey,
+        proposal: command.command.proposal,
+        source: parsed.value.source,
+        title: parsed.value.title,
+        body: parsed.value.body,
+        repo: parsed.value.repo,
+        now: Date.now(),
+      });
+    } catch (error) {
+      const invalid = invalidStructuredId(error);
+      if (invalid) return invalid;
+      throw error;
+    }
+  }
+  return await persistAgentEventForUser(ctx, userId, parsed.value, projectId);
+}
 
 async function persistAgentEventForUser(
   ctx: any,
@@ -318,7 +457,8 @@ export const createForApiUser = internalMutation({
 
 export const createFromApiRequest = action({
   args: { apiKey: v.string(), payload: v.any() },
-  handler: async (ctx, { apiKey, payload }) => {
+  returns: writeResultValidator,
+  handler: async (ctx, { apiKey, payload }): Promise<WriteResult> => {
     const probeAllowed = await ratelimitConvex(
       apiKeyProbeRateLimitKey(apiKey),
       "api-key-validation",
@@ -340,16 +480,10 @@ export const createFromApiRequest = action({
       return { ok: false, status: 429, error: "Rate limited" };
     }
 
-    const parsed = validateAgentEventPayload(payload);
-    if (!parsed.ok) {
-      return { ok: false, status: 400, error: parsed.error };
+    const persisted = await persistIncomingAgentEvent(ctx, validatedKey.userId, payload);
+    if (persisted.ok || persisted.code === "failed-delivery") {
+      await ctx.runMutation(_internal.apiKeys.touch, { keyId: validatedKey.keyId });
     }
-
-    const persisted = await persistAgentEventForUser(ctx, validatedKey.userId, parsed.value);
-    if (!persisted.ok) return persisted;
-
-    await ctx.runMutation(_internal.apiKeys.touch, { keyId: validatedKey.keyId });
-
     return persisted;
   },
 });
@@ -383,7 +517,7 @@ export const createFromOAuthRequest = action({
       return { ok: false, status: 401, error: "Unauthorized" };
     }
 
-    return await persistAgentEventForUser(ctx, validated.userId, args.payload, args.projectId);
+    return await persistIncomingAgentEvent(ctx, validated.userId, args.payload, args.projectId);
   },
 });
 
@@ -402,7 +536,7 @@ export const createFromSession = action({
     if (!allowed) {
       return { ok: false, status: 429, error: "Rate limited" };
     }
-    return await persistAgentEventForUser(ctx, userId, args.payload, args.projectId);
+    return await persistIncomingAgentEvent(ctx, userId, args.payload, args.projectId);
   },
 });
 

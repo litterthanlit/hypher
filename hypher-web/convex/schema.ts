@@ -1,5 +1,6 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
+import { handoffProposalValidator } from "./lib/structuredHandoffValidators";
 
 export default defineSchema({
   userMeta: defineTable({
@@ -274,10 +275,32 @@ export default defineSchema({
     ),
     userNotes: v.optional(v.string()),
     returnedAgentOutput: v.optional(v.string()),
+    /** Structured agent-switch snapshot. Absent on older packet handoffs. */
+    schemaVersion: v.optional(v.literal(1)),
+    revision: v.optional(v.number()),
+    idempotencyKey: v.optional(v.string()),
+    sourceAgent: v.optional(v.string()),
+    proposal: v.optional(handoffProposalValidator),
   })
     .index("by_user", ["userId"])
     .index("by_user_project", ["userId", "projectId"])
-    .index("by_user_status", ["userId", "status"]),
+    .index("by_user_status", ["userId", "status"])
+    .index("by_user_project_revision", ["userId", "projectId", "revision"])
+    .index("by_user_project_idempotency", ["userId", "projectId", "idempotencyKey"]),
+
+  handoffDeliveries: defineTable({
+    userId: v.string(),
+    projectId: v.id("objects"),
+    handoffId: v.id("handoffs"),
+    revision: v.number(),
+    destination: v.string(),
+    result: v.union(v.literal("delivered"), v.literal("failed")),
+    reason: v.optional(v.string()),
+    repoWarning: v.optional(v.string()),
+    createdAt: v.number(),
+  })
+    .index("by_user_project", ["userId", "projectId"])
+    .index("by_handoff", ["handoffId"]),
 
   agentEvents: defineTable({
     userId: v.string(),
