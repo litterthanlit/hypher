@@ -59,7 +59,9 @@ Active agent → structured proposal → Hypher validation and revision → dura
 
 Tests that belong on this ticket: duplicate submission, stale revision, changed decision, wrong project, failed delivery.
 
-Done when: Codex → Claude Code → Codex on one repo leaves a stored handoff with sources and a receipt, and the return trip carries the changed decision, without a manually written recap.
+The revisioned save and resume path lives on the existing Convex `handoffs` table and the current MCP tools (`post_agent_event` to save, `prepare_handoff` to resume). A simulated round trip covers those failure cases. That is not the live proof.
+
+Done when: Codex → Claude Code → Codex on one repo leaves a stored handoff with sources and a receipt, and the return trip carries the changed decision, without a manually written recap. The live recording still needs a Mac with both CLIs. See [`hypher-web/docs/codex-claude-handoff.md`](../hypher-web/docs/codex-claude-handoff.md).
 
 ### After the round trip. Evaluation
 
@@ -99,4 +101,4 @@ Not this milestone:
 | [`planning/Astra-Plan.md`](./planning/Astra-Plan.md) | Strategy history |
 | [`bots/hypher-ceo.md`](./bots/hypher-ceo.md) | Ship-or-cut judgment after this file |
 
-Next coding session after the doc lock: Codex CLI and Claude Code, explicit save and resume, on the existing Convex and MCP storage.
+Next: run the live Codex CLI → Claude Code → Codex recording on a Mac. The in-repo slice is explicit save and resume on existing Convex and MCP storage. Do not treat that slice as the recording.
