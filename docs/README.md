@@ -9,3 +9,13 @@ Everything else here is how, not what:
 - [bots/hypher-ceo.md](./bots/hypher-ceo.md) — Grok CEO persona (judgment, not a second product)
 - [product/cursor-plugin-v1-spec.md](./product/cursor-plugin-v1-spec.md) — Cursor plugin contract
 - [design-tokens.md](./design-tokens.md) — UI tokens
+
+## September 2026 planning proposals
+
+Business and implementation proposals for reliable agent-to-agent handoffs:
+
+- [Astra Plan](./planning/Astra-Plan.md) — strategy and decision history
+- [Business plan](./planning/Hypher-Business-Plan.md) — positioning, pricing, costs, and pilot targets
+- [Implementation plan](./planning/Hypher-Implementation-Plan.md) — architecture, models, evaluation, and milestones
+
+These are planning proposals, not shipped capabilities. Reconcile accepted changes into PRODUCT.md and PLAN.md before implementation; those remain the repository’s canonical product direction and build order.
