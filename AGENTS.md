@@ -8,14 +8,15 @@ Build order: [docs/PLAN.md](docs/PLAN.md). This milestone is the doc lock, then 
 
 If Hypher MCP tools are connected, resolve this git remote with `resolve_project_for_repo`, then load `get_project_context` once at session start. Do not reload the full note every turn. Use the note for the last handoff, the current next move, and constraints that are not already in `docs/PRODUCT.md`. If that note is still a skeleton or heuristic dump echo, call `get_synthesis_input` once, compile identity JSON on your model from the returned prompt, then `write_project_memory` once. Skip when `needsSynthesis` is false. Hypher stores the note; it does not host the model and does not use MCP sampling. At session end, post one `handoff` with `post_agent_event`. If the repo is unmatched, point at Settings → Integrations. Do not invent status. Do not auto-mint a project.
 
-When preparing a cross-agent handoff, structure it: current goal, constraints, decisions and reasons, completed work versus unverified work, blockers, next action, source references, and repository / branch / commit identity with dirty state as metadata. The destination must verify the working tree. Do not claim code or uncommitted files were synced.
+When preparing a cross-agent handoff, structure it: current goal, constraints, decisions and reasons, completed work versus unverified work, blockers, next action, source references, and repository / branch / commit identity with dirty state as metadata. Save that proposal with `post_agent_event` (`proposal`, `expectedBaseRevision`, `idempotencyKey`). Resume with `prepare_handoff` (`destination`, `currentRepo`). The destination must verify the working tree. Do not claim code or uncommitted files were synced. A stale revision or duplicate idempotency key is a rejection, not a second copy.
 
-Codex CLI and Claude Code adapters are the next integration spike. Do not claim they already work. Do not claim a benchmark result.
+Codex CLI and Claude Code adapters are not proven. Do not claim they already work. Do not claim a benchmark result. The live switch is a Mac recording; unit tests are not that recording.
 
 How, not what:
 
 - Grok CEO bot: `docs/bots/hypher-ceo.md`
 - Cursor plugin: `extensions/cursor/README.md`
 - Handoff CLI: `hypher-web/docs/agent-handoff.md`
+- Codex ↔ Claude explicit handoff: `hypher-web/docs/codex-claude-handoff.md`
 - UI styling: `hypher-web/STYLING.md`
 - Planning detail: `docs/planning/`

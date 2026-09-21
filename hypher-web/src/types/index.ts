@@ -1,3 +1,5 @@
+import type { HandoffProposalV1 } from "../../shared/structuredHandoff";
+
 export type ProjectStatus = "active" | "paused" | "shipped" | "archived";
 export type NoteMaturity = "fleeting" | "developing" | "structured" | "reference";
 export type ArtifactType = "image" | "video" | "code" | "document" | "font" | "audio" | "other";
@@ -192,6 +194,11 @@ export interface Handoff {
   status: HandoffStatus;
   userNotes?: string;
   returnedAgentOutput?: string;
+  schemaVersion?: 1;
+  revision?: number;
+  idempotencyKey?: string;
+  sourceAgent?: string;
+  proposal?: HandoffProposalV1;
 }
 
 export interface AgentEvent {

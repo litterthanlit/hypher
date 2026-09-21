@@ -17,10 +17,13 @@ import { isRequestBodyTooLarge, readJsonWithLimit } from "@/lib/requestBody";
 import {
   buildMcpToolResult,
   formatAgentEventWriteResult,
+  formatHandoffResumeResult,
   formatWriteProjectMemoryResult,
   getHypherMcpToolDescriptors,
   isMcpWriteTool,
+  isStructuredHandoffResume,
   mcpToolNeedsProjectContext,
+  parseHandoffResumeArgs,
   parsePostAgentEventArgs,
   parseWriteProjectMemoryArgs,
   type HypherMcpContext,
@@ -339,6 +342,66 @@ export async function POST(req: NextRequest) {
       return jsonRpcError(body.id, -32001, "unauth", 401, {
         "WWW-Authenticate": authChallenge(req),
       });
+    }
+
+    if (toolName === "prepare_handoff" && isStructuredHandoffResume(args)) {
+      const parsed = parseHandoffResumeArgs(args);
+      const resumeArgs = {
+        projectId: parsed.projectId,
+        destinationProjectId: parsed.destinationProjectId,
+        destination: parsed.destination,
+        currentRepo: parsed.currentRepo,
+        result: parsed.result,
+        ...(parsed.reason ? { reason: parsed.reason } : {}),
+      };
+      let resumeResult: {
+        ok: boolean;
+        status?: number;
+        error?: string;
+        code?: string;
+        revision?: number;
+        preservedRevision?: number;
+        proposal?: unknown;
+        repoSnapshot?: unknown;
+        repoMatch?: boolean;
+        warning?: string;
+        destination?: string;
+        receiptId?: string;
+        handoffId?: string;
+      };
+      if (usingApiKey && accessToken) {
+        resumeResult = await fetchAction((api as any).structuredHandoffs.resumeFromApiRequest, {
+          apiKey: accessToken,
+          ...resumeArgs,
+        }) as typeof resumeResult;
+      } else if (accessToken) {
+        resumeResult = await fetchAction((api as any).structuredHandoffs.resumeFromOAuthRequest, {
+          tokenHash: sha256Base64url(accessToken),
+          resource: mcpRequestResource(req),
+          scope: HYPHER_MCP_SCOPE,
+          now: Date.now(),
+          ...resumeArgs,
+        }) as typeof resumeResult;
+      } else {
+        const { getToken } = await auth();
+        const convexToken = await getToken({ template: "convex" });
+        if (!convexToken) {
+          return jsonRpcError(body.id, -32001, "unauth", 401, {
+            "WWW-Authenticate": authChallenge(req),
+          });
+        }
+        resumeResult = await fetchAction(
+          (api as any).structuredHandoffs.resumeFromSession,
+          resumeArgs,
+          { token: convexToken }
+        ) as typeof resumeResult;
+      }
+      if (resumeResult.status === 401) {
+        return jsonRpcError(body.id, -32001, "unauth", 401, {
+          "WWW-Authenticate": authChallenge(req),
+        });
+      }
+      return jsonRpc(body.id, formatHandoffResumeResult(resumeResult));
     }
 
     if (isMcpWriteTool(toolName)) {
