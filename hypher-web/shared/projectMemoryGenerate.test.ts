@@ -15,6 +15,7 @@ import {
   isWorkReceipt,
   looksLikeDoNotDo,
   mergeAiShapeIntoSnapshot,
+  hostedSynthesisCountsAsUnderstanding,
   projectMemoryIdentityKind,
   projectMemoryNeedsAgentSynthesis,
   snapshotFromCompiledJson,
@@ -990,6 +991,14 @@ describe("agent-side synthesis helpers", () => {
     })).toBe("compiled");
     expect(projectMemoryIdentityKind({
       summary: "Shipped the gate.",
+      model: "heuristic:dump",
+    })).toBe("heuristic");
+    expect(projectMemoryIdentityKind({
+      summary: "Shipped the gate.",
+      model: "hosted:claude-sonnet-4-20250514:project-memory-v1:dump",
+    })).toBe("compiled");
+    expect(projectMemoryIdentityKind({
+      summary: "Shipped the gate.",
       model: "agent-synthesis:cursor",
     })).toBe("compiled");
     expect(projectMemoryNeedsAgentSynthesis({ summary: "Shipped the gate.", model: "generate+dump" })).toBe(true);
@@ -1035,5 +1044,22 @@ describe("agent-side synthesis helpers", () => {
     expect(compiled.snapshot.summary).toBe("Hypher keeps project identity across agent sessions.");
     expect(compiled.snapshot.constraints.some((line) => /oauth/i.test(line))).toBe(true);
     expect(compiled.snapshot.nextActions[0]?.title).toBe("Call write_project_memory once");
+  });
+
+  it("does not treat a hosted echo of the heuristic summary as full understanding", () => {
+    const heuristic = compileHeuristicMemory({
+      projectName: "Hypher",
+      items: [{ content: "Shipped the gate. Don't widen OAuth." }],
+      now: NOW,
+    });
+    expect(hostedSynthesisCountsAsUnderstanding(heuristic, heuristic)).toBe(false);
+    expect(hostedSynthesisCountsAsUnderstanding(heuristic, {
+      ...heuristic,
+      summary: "No summary captured yet.",
+    })).toBe(false);
+    expect(hostedSynthesisCountsAsUnderstanding(heuristic, {
+      ...heuristic,
+      summary: "The gate is shipped and the empty state is still open.",
+    })).toBe(true);
   });
 });
