@@ -263,6 +263,12 @@ describe("handoff proposal validation", () => {
     const replacement = proposal({ decisions: [{ decision: "Use direct calls", reason: "Agent report" }] });
     expect(validateDecisionTransition(previous, replacement, new Set())).toMatch(/cannot disappear/);
     expect(validateDecisionTransition(previous, proposal({ decisions: [...previous.decisions, ...replacement.decisions] }), new Set())).toBeNull();
+    const reportedChange = proposal({ decisions: [{ decision: "Use direct calls", reason: "New agent report", status: "reported", sourceRefs: ["session"], supersedes: "Use a queue" }],
+      sources: [{ ref: "session", kind: "agent_report" }] });
+    expect(validateDecisionTransition(previous, reportedChange, new Set())).toBeNull();
+    expect(renderHandoffPacket(reportedChange)).toContain("Agent-reported: Use direct calls");
+    expect(validateDecisionTransition(previous, proposal({ ...reportedChange, decisions: [{ ...reportedChange.decisions[0]!, sourceRefs: [] }] }), new Set()))
+      .toMatch(/requires a linked source/);
   });
 
   it("rejects duplicate decisions and downgrading an approved decision", () => {

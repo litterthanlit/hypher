@@ -116,4 +116,23 @@ describe("Convex structured handoff mutation handlers", () => {
       .toMatchObject({ ok: true, code: "acknowledged" });
     expect(db.rows.get(prepared.receiptId!)).toMatchObject({ result: "acknowledged", acknowledgedAt: 102 });
   });
+
+  it("carries an explicitly superseded reported decision to the return agent", async () => {
+    const db = fakeDb();
+    expect(await commit({ db } as any, saveArgs() as any)).toMatchObject({ ok: true, revision: 1 });
+    const changed = proposal({
+      decisions: [{ decision: "Require accounts", reason: "Claude changed the plan", status: "reported",
+        sourceRefs: ["claude-session"], supersedes: "Keep guest checkout" }],
+      sources: [{ ref: "claude-session", kind: "agent_report" }],
+      unverified: ["Account flow remains unimplemented"],
+    });
+    expect(await commit({ db } as any, { ...saveArgs(changed), expectedBaseRevision: 1,
+      idempotencyKey: "session-2", source: "claude-code", now: 102 } as any))
+      .toMatchObject({ ok: true, revision: 2 });
+    const resumed = await deliver({ db } as any, { userId: "u1", projectId: "p1",
+      destinationProjectId: "p1", destination: "codex", currentRepo: repo, result: "prepared", now: 103 } as any);
+    expect(resumed).toMatchObject({ ok: true, revision: 2,
+      proposal: { decisions: [{ decision: "Require accounts", status: "reported", supersedes: "Keep guest checkout" }],
+        unverified: ["Account flow remains unimplemented"] } });
+  });
 });

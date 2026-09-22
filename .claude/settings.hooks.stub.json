@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/hypher-web/tools/codex-claude-handoff.mjs\" prompt",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}

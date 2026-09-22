@@ -1,0 +1,15 @@
+# Project MCP for the Codex CLI side of the explicit handoff spike.
+# Codex loads this only after the repo is trusted.
+# Export HYPHER_API_KEY (hyp_… from Settings → API keys) in the shell. Do not put the key in this file.
+# Hooks are not enabled here. Save and resume stay explicit ($hypher-save / $hypher-resume).
+
+[mcp_servers.hypher]
+url = "https://www.hypher.app/api/mcp"
+bearer_token_env_var = "HYPHER_API_KEY"
+startup_timeout_sec = 20
+
+[mcp_servers.hypher.tools.post_agent_event]
+approval_mode = "prompt"
+
+[mcp_servers.hypher.tools.prepare_handoff]
+approval_mode = "prompt"

@@ -26,7 +26,13 @@ pnpm-debug.log*
 
 # Local caches
 .cache/
-.claude/
+# Local Claude Code and Codex state. Spike commands, the hook stub, and MCP config stay tracked.
+.claude/*
+!.claude/commands/
+!.claude/commands/**
+!.claude/settings.hooks.stub.json
+.codex/*
+!.codex/config.toml
 .context/
 .turbo/
 .vite/

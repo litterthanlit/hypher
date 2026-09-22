@@ -461,11 +461,15 @@ export function validateDecisionTransition(
     }
     if (!item.supersedes) continue;
     const old = item.supersedes.toLowerCase();
-    if (!prior.has(old) || current.has(old) || superseded.has(old)) {
+    const retired = prior.get(old);
+    if (!retired || current.has(old) || superseded.has(old)) {
       return `Invalid decision supersession: ${item.supersedes}`;
     }
-    if (item.status !== "approved" || !linkedApproval) {
-      return `Supersession requires an approved, sourced decision: ${item.decision}`;
+    if (retired.status === "approved" && (item.status !== "approved" || !linkedApproval)) {
+      return `Approved decision supersession requires an approved, sourced decision: ${item.decision}`;
+    }
+    if (!item.sourceRefs?.length) {
+      return `Decision supersession requires a linked source: ${item.decision}`;
     }
     superseded.add(old);
   }
