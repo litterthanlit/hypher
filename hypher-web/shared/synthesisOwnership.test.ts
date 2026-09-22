@@ -4,6 +4,7 @@ import {
   DEFAULT_HOSTED_SYNTHESIS_MODEL,
   SYNTHESIS_PROMPT_VERSION,
   heuristicMemoryModel,
+  hostedInferenceEligible,
   hostedMemoryModel,
   planHostedSynthesis,
   synthesisConfigFromEnv,
@@ -27,6 +28,7 @@ describe("synthesis ownership", () => {
       rateLimitAllowed: true,
     });
     expect(plan).toEqual({ call: false, because: "owner-is-agent" });
+    expect(hostedInferenceEligible(config, "sk-ant-real-key")).toBe(false);
   });
 
   it("treats unknown owner values as agent so hosted inference stays opt-in", () => {
@@ -69,6 +71,8 @@ describe("synthesis ownership", () => {
       apiKey: "sk-ant-real-key",
       rateLimitAllowed: false,
     })).toEqual({ call: false, because: "rate-limited" });
+    expect(hostedInferenceEligible(config, "sk-ant-real-key")).toBe(true);
+    expect(hostedInferenceEligible(config, undefined)).toBe(false);
   });
 
   it("stores heuristic fallback without the hosted model id", () => {

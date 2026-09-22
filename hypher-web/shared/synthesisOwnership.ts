@@ -69,6 +69,10 @@ export function hasUsableAnthropicKey(apiKey: string | undefined): apiKey is str
   return Boolean(apiKey?.startsWith("sk-ant-") && !apiKey.includes("..."));
 }
 
+export function hostedInferenceEligible(config: SynthesisConfig, apiKey: string | undefined): boolean {
+  return config.owner === "hosted" && hasUsableAnthropicKey(apiKey);
+}
+
 export function planHostedSynthesis(input: {
   config: SynthesisConfig;
   apiKey: string | undefined;

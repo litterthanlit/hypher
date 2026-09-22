@@ -1672,6 +1672,7 @@ describe("brief standing and structured revision", () => {
         sources: [
           { ref: "live-note", kind: "capture", sourceId: "n1" },
           { ref: "stale-note", kind: "capture", sourceId: "n-stale" },
+          { ref: "older-live-note", kind: "capture", sourceId: "n-older-live" },
           { ref: "agent session", kind: "agent_report" },
         ],
       },
@@ -1698,7 +1699,8 @@ describe("brief standing and structured revision", () => {
     expect(packet).toContain("Agent-reported: Keep Convex");
     expect(packet).toContain("Unverified: CLI switch not run");
     expect(packet).toContain("- Active sourced record: capture n1");
-    expect(packet).toContain("- Unverified source: stale-note is not an active capture");
+    expect(packet).toContain("- Unverified source: stale-note is inactive");
+    expect(packet).toContain("- Source not included in supplied records: older-live-note");
     expect(packet).toContain("- Agent-reported source: agent session was not checked against an active record");
     expect(packet).not.toContain("Ship the old canvas");
     expect(packet).not.toContain("Replace the payment route");

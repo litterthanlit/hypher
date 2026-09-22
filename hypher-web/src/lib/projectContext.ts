@@ -49,6 +49,7 @@ export interface CompileBuilderBriefParams {
   project: Project;
   memory?: ProjectMemory | null;
   captures: AnyObject[];
+  sourceAuditCaptures?: AnyObject[];
   actions: ProjectAction[];
   agentEvents: AgentEvent[];
   handoffs?: Handoff[];
@@ -740,20 +741,37 @@ function briefVersionLines(memory: ProjectMemory | null): string[] {
   ];
 }
 
-function activeRecordIds(params: CompileProjectContextParams): { captures: Set<string>; events: Set<string> } {
+function activeRecordIds(params: CompileProjectContextParams): {
+  captures: Set<string>;
+  inactiveCaptures: Set<string>;
+  events: Set<string>;
+  inactiveEvents: Set<string>;
+} {
+  const captureRows = params.captures
+    .concat(params.sourceAuditCaptures ?? [])
+    .filter((item) => item.kind !== "project")
+    .filter((item): item is typeof item & { id: string } => Boolean(item.id));
   const captures = new Set(
-    params.captures
-      .filter((item) => item.kind !== "project")
+    captureRows
       .filter((item) => item.captureStatus !== "archived" && !item.stale && !item.excludeFromPackets)
       .map((item) => item.id)
-      .filter((id): id is string => Boolean(id))
+  );
+  const inactiveCaptures = new Set(
+    captureRows
+      .filter((item) => item.captureStatus === "archived" || item.stale || item.excludeFromPackets)
+      .map((item) => item.id)
   );
   const events = new Set(
     params.agentEvents
       .filter((event) => event.status !== "dismissed")
       .map((event) => event.id)
   );
-  return { captures, events };
+  const inactiveEvents = new Set(
+    params.agentEvents
+      .filter((event) => event.status === "dismissed")
+      .map((event) => event.id)
+  );
+  return { captures, inactiveCaptures, events, inactiveEvents };
 }
 
 function auditStructuredSources(proposal: HandoffProposalV1, params: CompileProjectContextParams): string[] {
@@ -763,13 +781,17 @@ function auditStructuredSources(proposal: HandoffProposalV1, params: CompileProj
     if (source.kind === "capture" && source.sourceId) {
       lines.push(active.captures.has(source.sourceId)
         ? `Active sourced record: capture ${source.sourceId}`
-        : `Unverified source: ${source.ref} is not an active capture`);
+        : active.inactiveCaptures.has(source.sourceId)
+          ? `Unverified source: ${source.ref} is inactive`
+          : `Source not included in supplied records: ${source.ref}`);
       continue;
     }
     if (source.kind === "agent_event" && source.sourceId) {
       lines.push(active.events.has(source.sourceId)
         ? `Active sourced record: agent_event ${source.sourceId}`
-        : `Unverified source: ${source.ref} is not an active agent event`);
+        : active.inactiveEvents.has(source.sourceId)
+          ? `Unverified source: ${source.ref} is dismissed`
+          : `Source not included in supplied records: ${source.ref}`);
       continue;
     }
     lines.push(`Agent-reported source: ${source.ref} was not checked against an active record`);
@@ -815,7 +837,7 @@ export function compileProjectContextWithMeta(incoming: CompileProjectContextPar
     return {
       packet: `${packet}\n`,
       sourceCaptureIds: citedCaptureIds.filter((id) => active.captures.has(id)),
-      excludedSourceCaptureIds: citedCaptureIds.filter((id) => !active.captures.has(id)),
+      excludedSourceCaptureIds: citedCaptureIds.filter((id) => active.inactiveCaptures.has(id)),
       requestedTask: structured.proposal.nextAction,
       targetTool: params.targetTool ?? "MCP tool",
       generatedAt: params.generatedAt ?? structured.generatedAt,

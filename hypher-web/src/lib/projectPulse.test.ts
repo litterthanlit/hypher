@@ -131,6 +131,36 @@ describe("buildProjectPulseModel", () => {
 });
 
 describe("buildProjectContextInput", () => {
+  it("passes all project captures to source auditing while keeping the UI list capped", () => {
+    const older = Array.from({ length: 6 }, (_, index) => ({
+      id: `n-${index}`,
+      kind: "note" as const,
+      content: `Note ${index}`,
+      maturity: "fleeting" as const,
+      projectId: "p1",
+      createdAt: index,
+      modifiedAt: index,
+    }));
+    const model = buildProjectPulseModel({
+      project,
+      allObjects: [project, ...older],
+      activity: [],
+      memories: [memory],
+    });
+    const input = buildProjectContextInput({
+      project,
+      model,
+      actionQueue: [],
+      agentEvents: [],
+    });
+
+    expect(model.latestCaptures).toHaveLength(5);
+    expect(input.captures).toHaveLength(5);
+    expect(input.captures.map((item) => item.id)).not.toContain("n-0");
+    expect(input.sourceAuditCaptures).toHaveLength(6);
+    expect(input.sourceAuditCaptures?.map((item) => item.id)).toContain("n-0");
+  });
+
   it("maps Project Pulse data into compiler input without browser state", () => {
     const actions: ProjectAction[] = [
       {
@@ -169,6 +199,7 @@ describe("buildProjectContextInput", () => {
       project,
       memory,
       captures: [objects[2], objects[1]],
+      sourceAuditCaptures: [objects[2], objects[1]],
       activity: [activity[0]],
       actions,
       agentEvents,

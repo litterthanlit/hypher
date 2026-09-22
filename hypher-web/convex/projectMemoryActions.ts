@@ -17,6 +17,7 @@ import {
   type SilentMemorySnapshot,
 } from "../shared/projectMemoryGenerate";
 import {
+  hostedInferenceEligible,
   planHostedSynthesis,
   synthesisConfigFromEnv,
   synthesisStoredModel,
@@ -107,13 +108,18 @@ async function synthesizeForUser(
   });
 
   const config = synthesisConfigFromEnv(process.env);
-  const allowed = await ratelimitConvex(args.userId, "project-memory-generate", {
-    requests: 40,
-    window: "1h",
-  }).catch(() => true);
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  // Agent-owned and keyless heuristic generations do not consume hosted quota.
+  // If the limiter is unavailable, fail closed so an outage cannot trigger paid inference.
+  const allowed = hostedInferenceEligible(config, apiKey)
+    ? await ratelimitConvex(args.userId, "project-memory-generate", {
+        requests: 40,
+        window: "1h",
+      }).catch(() => false)
+    : false;
   const plan = planHostedSynthesis({
     config,
-    apiKey: process.env.ANTHROPIC_API_KEY,
+    apiKey,
     rateLimitAllowed: allowed,
   });
 
@@ -121,7 +127,7 @@ async function synthesizeForUser(
   let understanding: SynthesisUnderstanding = "heuristic";
   if (plan.call) {
     try {
-      const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+      const anthropic = new Anthropic({ apiKey });
       const response = await anthropic.messages.create({
         model: plan.config.modelId,
         max_tokens: plan.config.maxTokens,
