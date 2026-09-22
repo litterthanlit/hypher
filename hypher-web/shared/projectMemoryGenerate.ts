@@ -1029,11 +1029,45 @@ export function projectMemoryIdentityKind(
   if (!model) return "heuristic";
   if (model === "manual" || model.endsWith("+manual")) return "compiled";
   if (model.startsWith(AGENT_SYNTHESIS_MODEL_PREFIX)) return "compiled";
+  if (model.startsWith("heuristic:") || model.startsWith("heuristic+")) return "heuristic";
+  if (model.startsWith("hosted:")) return "compiled";
   if (model.includes("generate-fallback") || model.startsWith("generate+")) return "heuristic";
   if (model.includes("claude") || model.includes("anthropic") || model.includes("sonnet")) {
     return "compiled";
   }
   return "heuristic";
+}
+
+/** How an unsourced memory line should be labeled in a brief. Null means leave the existing label. */
+export type UnsourcedStanding = "inferred" | "unverified" | "agent-reported";
+
+export function unsourcedStatementStanding(
+  memory?: { summary?: string; model?: string } | null
+): UnsourcedStanding | null {
+  if (!memory) return null;
+  const kind = projectMemoryIdentityKind(memory);
+  if (kind === "empty") return null;
+  if (kind === "skeleton" || kind === "heuristic") return "inferred";
+  const model = normalize(memory.model).toLowerCase();
+  if (model.startsWith("hosted:")) return "unverified";
+  if (model.startsWith(AGENT_SYNTHESIS_MODEL_PREFIX)) return "agent-reported";
+  if (model === "manual" || model.endsWith("+manual")) return null;
+  if (model.includes("claude") || model.includes("anthropic") || model.includes("sonnet")) return "unverified";
+  return "inferred";
+}
+
+/**
+ * A hosted model call counts as understanding only when it replaces the heuristic summary
+ * with identity that is not a dump echo or skeleton. Otherwise the stored note stays heuristic.
+ */
+export function hostedSynthesisCountsAsUnderstanding(
+  heuristic: SilentMemorySnapshot,
+  merged: SilentMemorySnapshot
+): boolean {
+  const summary = normalize(merged.summary);
+  if (!summary || summary === normalize(heuristic.summary)) return false;
+  if (isSkeletonSummary(summary) || isUnusableCompiledIdentity(summary)) return false;
+  return true;
 }
 
 export function projectMemoryNeedsAgentSynthesis(

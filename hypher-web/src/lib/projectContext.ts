@@ -13,7 +13,12 @@ import type {
 } from "@/types";
 import { selectProjectActionQueue } from "./actions";
 import { summarizeHandoffResult } from "./handoffResults";
-import { renderHandoffPacket } from "../../shared/structuredHandoff";
+import { renderHandoffPacket, type HandoffProposalV1 } from "../../shared/structuredHandoff";
+import {
+  projectMemoryIdentityKind,
+  unsourcedStatementStanding,
+  type UnsourcedStanding,
+} from "../../shared/projectMemoryGenerate";
 import { selectPrimaryNextAction } from "./projectMemory";
 import {
   actionBlockedByConstraints,
@@ -44,6 +49,7 @@ export interface CompileBuilderBriefParams {
   project: Project;
   memory?: ProjectMemory | null;
   captures: AnyObject[];
+  sourceAuditCaptures?: AnyObject[];
   actions: ProjectAction[];
   agentEvents: AgentEvent[];
   handoffs?: Handoff[];
@@ -90,6 +96,8 @@ export function newerLegacyWriteback(handoff: Handoff, events: AgentEvent[]): Ag
       && event.createdAt > handoff.generatedAt)
     .sort((a, b) => b.createdAt - a.createdAt)[0] ?? null;
 }
+
+export const BUILDER_BRIEF_COMPILER_VERSION = "project-context-v3";
 
 export const BUILDER_BRIEF_DEFAULT_LIMITS = {
   captures: 5,
@@ -697,6 +705,100 @@ function freshnessLabel(params: CompileProjectContextParams): string {
   return `Fresh: memory reflects sources through ${new Date(params.memory.sourceUpdatedAt || params.memory.generatedAt).toISOString()}`;
 }
 
+function memoryFieldLabel(base: string, standing: UnsourcedStanding | null): string {
+  return standing ? `${base}/${standing}` : base;
+}
+
+function withoutActiveAcceptedText(
+  memory: ProjectMemory | null,
+  kinds: AcceptedMemoryKind[],
+  items: string[]
+): string[] {
+  const active = new Set(
+    activeAcceptedMemoryTexts(memory, kinds).map((item) => normalizeText(item).toLowerCase())
+  );
+  if (!active.size) return items;
+  return items.filter((item) => !active.has(normalizeText(item).toLowerCase()));
+}
+
+function briefVersionLines(memory: ProjectMemory | null): string[] {
+  const standing = unsourcedStatementStanding(memory);
+  const kind = projectMemoryIdentityKind(memory);
+  return [
+    `- Brief compiler: ${BUILDER_BRIEF_COMPILER_VERSION}`,
+    `- Memory model: ${normalizeText(memory?.model) || "none"}`,
+    `- Memory understanding: ${kind}`,
+    `- Unsourced statement standing: ${standing ?? "none"}`,
+    ...(standing === "inferred"
+      ? ["- Heuristic extraction is not full project understanding."]
+      : []),
+    ...(standing === "unverified"
+      ? ["- Hosted model output is unverified. It is not user approval or a captured test result."]
+      : []),
+    ...(standing === "agent-reported"
+      ? ["- Agent-compiled lines without an accepted source are agent-reported."]
+      : []),
+  ];
+}
+
+function activeRecordIds(params: CompileProjectContextParams): {
+  captures: Set<string>;
+  inactiveCaptures: Set<string>;
+  events: Set<string>;
+  inactiveEvents: Set<string>;
+} {
+  const captureRows = params.captures
+    .concat(params.sourceAuditCaptures ?? [])
+    .filter((item) => item.kind !== "project")
+    .filter((item): item is typeof item & { id: string } => Boolean(item.id));
+  const captures = new Set(
+    captureRows
+      .filter((item) => item.captureStatus !== "archived" && !item.stale && !item.excludeFromPackets)
+      .map((item) => item.id)
+  );
+  const inactiveCaptures = new Set(
+    captureRows
+      .filter((item) => item.captureStatus === "archived" || item.stale || item.excludeFromPackets)
+      .map((item) => item.id)
+  );
+  const events = new Set(
+    params.agentEvents
+      .filter((event) => event.status !== "dismissed")
+      .map((event) => event.id)
+  );
+  const inactiveEvents = new Set(
+    params.agentEvents
+      .filter((event) => event.status === "dismissed")
+      .map((event) => event.id)
+  );
+  return { captures, inactiveCaptures, events, inactiveEvents };
+}
+
+function auditStructuredSources(proposal: HandoffProposalV1, params: CompileProjectContextParams): string[] {
+  const active = activeRecordIds(params);
+  const lines: string[] = [];
+  for (const source of proposal.sources) {
+    if (source.kind === "capture" && source.sourceId) {
+      lines.push(active.captures.has(source.sourceId)
+        ? `Active sourced record: capture ${source.sourceId}`
+        : active.inactiveCaptures.has(source.sourceId)
+          ? `Unverified source: ${source.ref} is inactive`
+          : `Source not included in supplied records: ${source.ref}`);
+      continue;
+    }
+    if (source.kind === "agent_event" && source.sourceId) {
+      lines.push(active.events.has(source.sourceId)
+        ? `Active sourced record: agent_event ${source.sourceId}`
+        : active.inactiveEvents.has(source.sourceId)
+          ? `Unverified source: ${source.ref} is dismissed`
+          : `Source not included in supplied records: ${source.ref}`);
+      continue;
+    }
+    lines.push(`Agent-reported source: ${source.ref} was not checked against an active record`);
+  }
+  return lines.slice(0, 8);
+}
+
 export function compileProjectContextWithMeta(incoming: CompileProjectContextParams): CompiledProjectContext {
   const params: CompileProjectContextParams = {
     ...incoming,
@@ -710,20 +812,32 @@ export function compileProjectContextWithMeta(incoming: CompileProjectContextPar
     const reconciliationWarning = newerWriteback
       ? `Newer legacy agent writeback (${newerWriteback.title}) needs reconciliation into a structured revision. The snapshot below may be stale.`
       : null;
+    const sourceAudit = auditStructuredSources(structured.proposal, params);
+    const active = activeRecordIds(params);
+    const citedCaptureIds = structured.proposal.sources
+      .filter((source) => source.kind === "capture" && source.sourceId)
+      .map((source) => source.sourceId as string);
     const packet = [
       `# Builder Brief: ${normalizeText(params.project.name) || "Project"}`,
+      `Brief compiler: ${BUILDER_BRIEF_COMPILER_VERSION}`,
+      `Handoff schema: ${structured.proposal.schemaVersion}`,
+      `Authoritative record: structured handoff revision ${structured.revision}`,
       `Current structured handoff revision: ${structured.revision}`,
       "This is the current snapshot. Earlier handoffs and legacy note entries remain in history; they are not additional active decisions.",
       ...(reconciliationWarning ? [reconciliationWarning] : []),
       "",
       renderHandoffPacket(structured.proposal),
       "",
+      "Active source check:",
+      ...(sourceAudit.length ? sourceAudit.map((line) => `- ${line}`) : ["- No source references on this revision."]),
+      "",
       "A source labeled agent-reported is a claim, not independent approval or a captured test result.",
+      "Unverified lines are claims, not captured test results.",
     ].join("\n");
     return {
       packet: `${packet}\n`,
-      sourceCaptureIds: structured.proposal.sources.filter((source) => source.kind === "capture" && source.sourceId).map((source) => source.sourceId!),
-      excludedSourceCaptureIds: [],
+      sourceCaptureIds: citedCaptureIds.filter((id) => active.captures.has(id)),
+      excludedSourceCaptureIds: citedCaptureIds.filter((id) => active.inactiveCaptures.has(id)),
       requestedTask: structured.proposal.nextAction,
       targetTool: params.targetTool ?? "MCP tool",
       generatedAt: params.generatedAt ?? structured.generatedAt,
@@ -732,6 +846,7 @@ export function compileProjectContextWithMeta(incoming: CompileProjectContextPar
   }
   const limits = { ...DEFAULT_LIMITS, ...params.limits };
   const memory = params.memory ?? null;
+  const unsourcedStanding = unsourcedStatementStanding(memory);
   const generatedAt = params.generatedAt ?? sourceUpdatedAt(params);
 
   const captureCandidates = params.captures.filter((item) => item.kind !== "project");
@@ -855,7 +970,7 @@ export function compileProjectContextWithMeta(incoming: CompileProjectContextPar
     ...activeAcceptedActionLines,
     ...(memory?.activeTasks ?? [])
       .filter((item) => !isMilestoneLine(item) && usableNextTitle(item))
-      .map((item) => labeledLine("memory:task", item, PACKET_LINE_LIMIT)),
+      .map((item) => labeledLine(memoryFieldLabel("memory:task", unsourcedStanding), item, PACKET_LINE_LIMIT)),
     ...(primaryAction
       ? [labeledLine(`next:${primaryAction.status}`, primaryAction.title, PACKET_LINE_LIMIT)]
       : []),
@@ -865,15 +980,46 @@ export function compileProjectContextWithMeta(incoming: CompileProjectContextPar
     captures: liveCaptures,
     agentEvents: params.agentEvents,
   });
-  const rawDecisionTexts = withoutInactiveAcceptedMemory(memory, ["decision"], uniqueLines(compiledDecisions));
+  const sourcedDecisionKeys = new Set(
+    [
+      ...liveCaptures.flatMap((item) => {
+        const content = item.kind === "note" ? normalizeText(item.content) : "";
+        if (!content) return [];
+        return splitSentences(content).filter(looksLikeProductDecision);
+      }),
+      ...params.agentEvents
+        .filter((event) => isProductWorkReceipt(event))
+        .flatMap((event) => splitSentences(`${event.title}. ${event.body}`).filter(looksLikeProductDecision)),
+    ].map((item) => normalizeText(item).toLowerCase())
+  );
+  const memoryDecisionKeys = new Set(
+    (memory?.importantDecisions ?? []).map((item) => normalizeText(item).toLowerCase())
+  );
+  const rawDecisionTexts = withoutActiveAcceptedText(
+    memory,
+    ["decision"],
+    withoutInactiveAcceptedMemory(memory, ["decision"], uniqueLines(compiledDecisions))
+  );
   const decisionLines = uniqueByUnlabeled([
-    ...rawDecisionTexts.map((item) => labeledLine("memory:decision", item, PACKET_LINE_LIMIT)),
     ...activeAcceptedMemoryItems(memory, ["decision"]).map((item) => labeledLine(acceptedMemorySourceLabel(item), item.text, PACKET_LINE_LIMIT)),
     ...pinnedDecisionLines,
+    ...rawDecisionTexts.map((item) => {
+      const key = normalizeText(item).toLowerCase();
+      const memoryOnly = memoryDecisionKeys.has(key) && !sourcedDecisionKeys.has(key);
+      return labeledLine(
+        memoryOnly ? memoryFieldLabel("memory:decision", unsourcedStanding) : "memory:decision",
+        item,
+        PACKET_LINE_LIMIT
+      );
+    }),
   ]).slice(0, limits.decisions);
-  const rawConstraintTexts = withoutInactiveAcceptedMemory(memory, ["constraint", "do_not_do"], uniqueLines(
-    expandConstraintLines(memory?.constraints ?? [])
-  ));
+  const rawConstraintTexts = withoutActiveAcceptedText(
+    memory,
+    ["constraint", "do_not_do"],
+    withoutInactiveAcceptedMemory(memory, ["constraint", "do_not_do"], uniqueLines(
+      expandConstraintLines(memory?.constraints ?? [])
+    ))
+  );
   const captureConstraintLines = liveCaptures.flatMap((item) => {
     const content = item.kind === "note" ? normalizeText(item.content) : captureLine(item);
     return expandConstraintLines(splitSentences(content).filter((line) => looksLikeDoNotDo(line) || looksLikeConstraint(line)))
@@ -889,13 +1035,13 @@ export function compileProjectContextWithMeta(incoming: CompileProjectContextPar
   const constraintLines = uniqueByUnlabeled([
     ...captureConstraintLines,
     ...eventConstraintLines,
-    ...rawConstraintTexts.map((item) => constraintLabeledLine("memory:constraint", item)),
+    ...rawConstraintTexts.map((item) => constraintLabeledLine(memoryFieldLabel("memory:constraint", unsourcedStanding), item)),
     ...activeAcceptedMemoryItems(memory, ["constraint", "do_not_do"]).map((item) => constraintLabeledLine(acceptedMemorySourceLabel(item), item.text)),
   ]).slice(0, limits.constraints);
   const doNotDoLines = uniqueByUnlabeled([
     ...captureConstraintLines,
     ...eventConstraintLines,
-    ...rawConstraintTexts.filter(looksLikeDoNotDo).map((item) => constraintLabeledLine("memory:constraint", item)),
+    ...rawConstraintTexts.filter(looksLikeDoNotDo).map((item) => constraintLabeledLine(memoryFieldLabel("memory:constraint", unsourcedStanding), item)),
     ...activeAcceptedMemoryItems(memory, ["do_not_do"]).map((item) => constraintLabeledLine(acceptedMemorySourceLabel(item), item.text)),
   ]).slice(0, limits.doNotDo);
   const identityDumpTexts = captureDumpTexts(liveCaptures);
@@ -908,7 +1054,7 @@ export function compileProjectContextWithMeta(incoming: CompileProjectContextPar
   const dumpReprintCorpus = hasProductHandoffs ? identityDumpTexts : [];
   const recentProgressLines = withoutDumpEchoLines(
     uniqueLines((memory?.recentChanges ?? []).map(leadSentence))
-      .map((item) => labeledLine("memory:recent_change", item, PACKET_LINE_LIMIT, false)),
+      .map((item) => labeledLine(memoryFieldLabel("memory:recent_change", unsourcedStanding), item, PACKET_LINE_LIMIT, false)),
     dumpReprintCorpus,
   ).slice(0, limits.recentProgress);
   const recentActivityLines = (params.activity ?? [])
@@ -957,11 +1103,11 @@ export function compileProjectContextWithMeta(incoming: CompileProjectContextPar
       PACKET_LINE_LIMIT
     ));
   const openQuestionLines = uniqueLines([
-    ...(memory?.openQuestions ?? []).map((item) => labeledLine("memory:question", item, PACKET_LINE_LIMIT)),
+    ...(memory?.openQuestions ?? []).map((item) => labeledLine(memoryFieldLabel("memory:question", unsourcedStanding), item, PACKET_LINE_LIMIT)),
     ...agentQuestionLines,
   ]).slice(0, limits.openQuestions);
   const blockerLines = uniqueLines([
-    ...(memory?.blockers ?? []).map((item) => labeledLine("memory:blocker", item, PACKET_LINE_LIMIT)),
+    ...(memory?.blockers ?? []).map((item) => labeledLine(memoryFieldLabel("memory:blocker", unsourcedStanding), item, PACKET_LINE_LIMIT)),
     ...splitLines(params.project.blockers).map((item) => labeledLine("project:blocker", item, PACKET_LINE_LIMIT)),
   ]).slice(0, limits.openQuestions);
   const needsReviewLines = params.agentEvents
@@ -977,13 +1123,17 @@ export function compileProjectContextWithMeta(incoming: CompileProjectContextPar
       PACKET_LINE_LIMIT
     ));
   const ambiguityLines = uniqueLines([
-    ...(memory?.staleAssumptions ?? []).map((item) => labeledLine("memory:stale_assumption", `Do not assume: ${item}`, PACKET_LINE_LIMIT)),
+    ...(memory?.staleAssumptions ?? []).map((item) => labeledLine(memoryFieldLabel("memory:stale_assumption", unsourcedStanding), `Do not assume: ${item}`, PACKET_LINE_LIMIT)),
   ]).slice(0, limits.agentWarnings);
   const warningLines = uniqueLines([
-    ...withoutInactiveAcceptedMemory(memory, ["agent_warning"], uniqueLines([
-      ...(memory?.agentWarnings ?? []),
-    ])).map((item) => labeledLine("memory:agent_warning", item, PACKET_LINE_LIMIT)),
     ...activeAcceptedMemoryItems(memory, ["agent_warning"]).map((item) => labeledLine(acceptedMemorySourceLabel(item), item.text, PACKET_LINE_LIMIT)),
+    ...withoutActiveAcceptedText(
+      memory,
+      ["agent_warning"],
+      withoutInactiveAcceptedMemory(memory, ["agent_warning"], uniqueLines([
+        ...(memory?.agentWarnings ?? []),
+      ]))
+    ).map((item) => labeledLine(memoryFieldLabel("memory:agent_warning", unsourcedStanding), item, PACKET_LINE_LIMIT)),
   ]).slice(0, limits.agentWarnings);
   const defaultAcceptanceLines = task === "No current task captured yet."
     ? []
@@ -993,21 +1143,29 @@ export function compileProjectContextWithMeta(incoming: CompileProjectContextPar
         "Relevant tests or checks are run and reported.",
         "Handoff Notes include changes, blockers, and the next move.",
       ];
-  const rawAcceptanceTexts = withoutInactiveAcceptedMemory(memory, ["acceptance_criterion"], uniqueLines([
-    ...(memory?.acceptanceCriteria ?? []),
-  ]));
+  const rawAcceptanceTexts = withoutActiveAcceptedText(
+    memory,
+    ["acceptance_criterion"],
+    withoutInactiveAcceptedMemory(memory, ["acceptance_criterion"], uniqueLines([
+      ...(memory?.acceptanceCriteria ?? []),
+    ]))
+  );
   const acceptanceLines = uniqueLines([
-    ...rawAcceptanceTexts.map((item) => labeledLine("memory:acceptance_criterion", item, PACKET_LINE_LIMIT)),
     ...activeAcceptedMemoryItems(memory, ["acceptance_criterion"]).map((item) => labeledLine(acceptedMemorySourceLabel(item), item.text, PACKET_LINE_LIMIT)),
+    ...rawAcceptanceTexts.map((item) => labeledLine(memoryFieldLabel("memory:acceptance_criterion", unsourcedStanding), item, PACKET_LINE_LIMIT)),
     ...defaultAcceptanceLines.map((item) => labeledLine("criteria", item, PACKET_LINE_LIMIT)),
   ]).slice(0, limits.acceptanceCriteria);
   const handoffLines = dropBriefSelfTalkWhenProductStateExists(
     uniqueByUnlabeledLead([
       ...agentHandoffLines,
       ...recentHandoffLines,
-      ...withoutInactiveAcceptedMemory(memory, ["handoff_note"], uniqueLines(
-        memory?.handoffNotes ?? []
-      )).map((item) => labeledLine("memory:handoff_note", leadSentence(item), PACKET_LINE_LIMIT, false)),
+      ...withoutActiveAcceptedText(
+        memory,
+        ["handoff_note"],
+        withoutInactiveAcceptedMemory(memory, ["handoff_note"], uniqueLines(
+          memory?.handoffNotes ?? []
+        ))
+      ).map((item) => labeledLine(memoryFieldLabel("memory:handoff_note", unsourcedStanding), leadSentence(item), PACKET_LINE_LIMIT, false)),
       ...activeAcceptedMemoryItems(memory, ["handoff_note"]).map((item) => labeledLine(acceptedMemorySourceLabel(item), leadSentence(item.text), PACKET_LINE_LIMIT, false)),
     ]),
     unlabeledPacketLine,
@@ -1087,13 +1245,14 @@ export function compileProjectContextWithMeta(incoming: CompileProjectContextPar
     "- Blockers or next action",
   ]);
   pushSection(lines, "Source/context hygiene", [
+    ...briefVersionLines(memory),
     `- Freshness timestamp: ${new Date(generatedAt).toISOString()}`,
     `- Memory freshness: ${freshness}`,
     `- Compact mode: ${compactMode}`,
     `- Target tool: ${targetTool}`,
     `- Included source captures: ${sourceCaptureIds.length}`,
     `- Excluded stale/archived/packet-excluded captures: ${excludedSourceCaptureIds.length}`,
-    "- Source labels: [memory:*], [accepted memory:*], [capture:*], [activity:*], [agent:*], [handoff:*], [action:*], [next:*].",
+    "- Source labels: [memory:*], [memory:*/inferred], [memory:*/unverified], [memory:*/agent-reported], [accepted memory:*], [capture:*], [activity:*], [agent:*], [handoff:*], [action:*], [next:*].",
     "",
     "### Handoff notes",
     ...bulletList(handoffLines, "No handoff notes recorded yet."),

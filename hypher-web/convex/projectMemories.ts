@@ -112,15 +112,30 @@ export const generationInput = query({
     const userId = await requireBetaAccess(ctx);
     const project = await requireProject(ctx, userId, projectId);
 
+    const latestStructured = await ctx.db
+      .query("handoffs")
+      .withIndex("by_user_project_revision", (q) => q.eq("userId", userId).eq("projectId", projectId))
+      .order("desc")
+      .first();
+    const citedCaptureIds = new Set(
+      (latestStructured?.proposal?.sources ?? [])
+        .filter((source) => source.kind === "capture")
+        .map((source) => source.sourceId)
+        .filter((sourceId): sourceId is string => Boolean(sourceId))
+        .slice(0, 8)
+    );
+
     const objects = await ctx.db
       .query("objects")
       .withIndex("by_user", (q) => q.eq("userId", userId))
       .collect();
 
-    const items = objects
+    const projectObjects = objects
       .filter((obj) => obj.projectId === projectId && obj.kind !== "project")
-      .sort((a, b) => (b.modifiedAt ?? 0) - (a.modifiedAt ?? 0))
-      .slice(0, 24)
+      .sort((a, b) => (b.modifiedAt ?? 0) - (a.modifiedAt ?? 0));
+    const usualItems = projectObjects.slice(0, 24);
+    const citedItems = projectObjects.filter((obj) => citedCaptureIds.has(String(obj._id)));
+    const items = [...usualItems, ...citedItems.filter((obj) => !usualItems.some((item) => item._id === obj._id))]
       .map((obj) => {
         const { _id, _creationTime, userId: _userId, ...rest } = obj;
         return { ...rest, id: _id };

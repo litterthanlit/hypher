@@ -50,7 +50,15 @@ export async function POST(req: NextRequest) {
       (api as any).projectMemoryActions.synthesizeForCurrentUser,
       { projectId: body.projectId as Id<"objects"> },
       { token }
-    ) as { ok: boolean; fallback?: boolean; error?: string };
+    ) as {
+      ok: boolean;
+      fallback?: boolean;
+      error?: string;
+      owner?: "agent" | "hosted";
+      understanding?: "heuristic" | "hosted";
+      model?: string;
+      promptVersion?: string;
+    };
 
     if (!result.ok) {
       const status = result.error === "project-not-found" ? 404 : 500;
@@ -58,7 +66,14 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json(
-      { ok: true, fallback: result.fallback === true },
+      {
+        ok: true,
+        fallback: result.fallback === true,
+        owner: result.owner,
+        understanding: result.understanding,
+        model: result.model,
+        promptVersion: result.promptVersion,
+      },
       { headers: { "Cache-Control": "no-store" } }
     );
   } catch (err) {

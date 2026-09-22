@@ -76,9 +76,11 @@ export function buildProjectPulseModel(params: {
   actions?: ProjectAction[];
   agentEvents?: AgentEvent[];
 }) {
-  const latestCaptures = params.allObjects
-    .filter((obj) => obj.kind !== "project" && obj.projectId === params.project.id && obj.captureStatus !== "archived")
-    .sort((a, b) => (b.modifiedAt ?? 0) - (a.modifiedAt ?? 0))
+  const projectCaptures = params.allObjects
+    .filter((obj) => obj.kind !== "project" && obj.projectId === params.project.id)
+    .sort((a, b) => (b.modifiedAt ?? 0) - (a.modifiedAt ?? 0));
+  const latestCaptures = projectCaptures
+    .filter((obj) => obj.captureStatus !== "archived")
     .slice(0, 5);
 
   const recentActivity = params.activity
@@ -89,6 +91,7 @@ export function buildProjectPulseModel(params: {
   const memory = params.memories?.find((item) => item.projectId === params.project.id) ?? null;
 
   return {
+    projectCaptures,
     latestCaptures,
     recentActivity,
     memory,
@@ -111,6 +114,7 @@ export function buildProjectContextInput(params: {
     project: params.project,
     memory: params.model.memory,
     captures: params.model.latestCaptures,
+    sourceAuditCaptures: params.model.projectCaptures,
     activity: params.model.recentActivity,
     actions: params.actionQueue,
     agentEvents: params.agentEvents,

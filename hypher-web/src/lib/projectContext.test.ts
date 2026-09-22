@@ -230,14 +230,14 @@ describe("compileBuilderBrief", () => {
     expect(packet).toContain("Ship the first Builder Brief workflow inside Project Pulse.");
     expect(packet).toContain("Implement Copy Builder Brief in Project Pulse");
     expect(packet).toContain("- Next action: [next:accepted] Implement Copy Builder Brief in Project Pulse");
-    expect(packet).toContain("- [memory:decision] The Builder Brief is the core product primitive.");
+    expect(packet).toContain("- [memory:decision/inferred] The Builder Brief is the core product primitive.");
     expect(packet).toContain("- [capture:decision] Don't build MCP yet. Builder Brief comes before delivery integrations.");
-    expect(packet).toContain("- [memory:constraint] The compiler must remain pure and deterministic.");
-    expect(packet).toContain("- [memory:constraint] Do not build OAuth yet.");
-    expect(packet).toContain("- [memory:constraint] Do not introduce a new state manager unless necessary.");
-    expect(packet).toContain("- [memory:recent_change] Project Pulse already saves handoff packets");
+    expect(packet).toContain("- [memory:constraint/inferred] The compiler must remain pure and deterministic.");
+    expect(packet).toContain("- [memory:constraint/inferred] Do not build OAuth yet.");
+    expect(packet).toContain("- [memory:constraint/inferred] Do not introduce a new state manager unless necessary.");
+    expect(packet).toContain("- [memory:recent_change/inferred] Project Pulse already saves handoff packets");
     expect(packet).toContain("- [action:accepted] Add Builder Brief compiler tests");
-    expect(packet).toContain("- [memory:stale_assumption] Do not assume: Agent Context Packet is still the preferred product name.");
+    expect(packet).toContain("- [memory:stale_assumption/inferred] Do not assume: Agent Context Packet is still the preferred product name.");
     expect(packet).toContain("- [criteria] Current Task is completed or clearly blocked with reasons.");
     expect(packet).toContain("- [handoff:Cursor/used] Previous Cursor brief was used: Ship Copy Agent Context v1.");
     expect(packet).not.toContain("Old dismissed action");
@@ -408,7 +408,7 @@ describe("compileBuilderBrief", () => {
       generatedAt: 123,
     });
 
-    expect(packet).toContain("- [memory:decision] The Builder Brief is the core product primitive.");
+    expect(packet).toContain("- [memory:decision/inferred] The Builder Brief is the core product primitive.");
     expect(packet).toContain("- [capture:note] Raw capture 7");
     expect(packet).toContain("- [capture:note] Raw capture 6");
     expect(packet).not.toContain("Raw capture 5");
@@ -436,8 +436,8 @@ describe("compileBuilderBrief", () => {
     });
 
     expect(packet).toContain("Line one ```secret-ish block``` # pasted heading");
-    expect(packet).toContain("- [memory:decision] # Customer pasted heading ```ts const token = 'redacted'; ```");
-    expect(packet).toContain("- [memory:constraint] Keep whitespace readable.");
+    expect(packet).toContain("- [memory:decision/inferred] # Customer pasted heading ```ts const token = 'redacted'; ```");
+    expect(packet).toContain("- [memory:constraint/inferred] Keep whitespace readable.");
     expect(packet).not.toContain("internal-note-id");
     expect(packet).not.toContain("action-secret-id");
     expect(packet).not.toContain("event-secret-id");
@@ -518,10 +518,10 @@ describe("compileBuilderBrief", () => {
       generatedAt: 123,
     });
 
-    expect(packet).toContain("- [memory:constraint] Do not silently mutate durable state.");
-    expect(packet).toContain("- [memory:acceptance_criterion] Accepted suggestions appear in future Builder Briefs.");
-    expect(packet).toContain("- [memory:agent_warning] Watch for duplicate accepted suggestions.");
-    expect(packet).toContain("- [memory:handoff_note] A returned agent result was accepted into project memory.");
+    expect(packet).toContain("- [memory:constraint/inferred] Do not silently mutate durable state.");
+    expect(packet).toContain("- [memory:acceptance_criterion/inferred] Accepted suggestions appear in future Builder Briefs.");
+    expect(packet).toContain("- [memory:agent_warning/inferred] Watch for duplicate accepted suggestions.");
+    expect(packet).toContain("- [memory:handoff_note/inferred] A returned agent result was accepted into project memory.");
     expect(packet).not.toContain("Unaccepted suggestion");
   });
 
@@ -620,11 +620,11 @@ describe("compileBuilderBrief", () => {
       generatedAt: 123,
     });
 
-    expect(packet).toContain("- [memory:decision] Decision: keep active memory.");
-    expect(packet).toContain("- [memory:constraint] Keep the compiler deterministic.");
-    expect(packet).toContain("- [memory:acceptance_criterion] Active criteria stay visible.");
-    expect(packet).toContain("- [memory:agent_warning] Watch active warning.");
-    expect(packet).toContain("- [memory:handoff_note] Active handoff note.");
+    expect(packet).toContain("- [memory:decision/inferred] Decision: keep active memory.");
+    expect(packet).toContain("- [memory:constraint/inferred] Keep the compiler deterministic.");
+    expect(packet).toContain("- [memory:acceptance_criterion/inferred] Active criteria stay visible.");
+    expect(packet).toContain("- [memory:agent_warning/inferred] Watch active warning.");
+    expect(packet).toContain("- [memory:handoff_note/inferred] Active handoff note.");
     expect(packet).toContain("- [accepted memory:constraint] Accepted source metadata still renders when the string array is missing.");
     expect(packet).not.toContain("stale memory should not guide agents");
     expect(packet).not.toContain("Do not use stale delivery advice");
@@ -1557,5 +1557,155 @@ describe("compileBuilderBrief", () => {
     const doNotSection = packet.split("### What not to do")[1]?.split("###")[0] ?? "";
     expect(doNotSection).toMatch(/Do not invent dumps/);
     expect(doNotSection).toMatch(/try hypher/i);
+  });
+});
+
+describe("brief standing and structured revision", () => {
+  const proposalBase = {
+    schemaVersion: 1 as const,
+    constraints: ["Do not transfer code"],
+    decisions: [{ decision: "Keep Convex", reason: "The pilot stays on existing storage", status: "reported" as const }],
+    completed: ["Schema"],
+    unverified: ["CLI switch not run"],
+    blockers: [],
+    nextAction: "Compare the working tree",
+    repo: { repository: "litterthanlit/hypher", branch: "main", commit: "abc123", dirty: false },
+  };
+
+  it("labels heuristic memory as inferred and keeps an accepted sourced constraint", () => {
+    const packet = compileBuilderBrief({
+      project,
+      memory: {
+        ...memory,
+        model: "heuristic:dump",
+        acceptedCrystallizedSuggestions: [{
+          kind: "constraint",
+          text: "Accepted source metadata still renders when the string array is missing.",
+          sourceType: "capture",
+          sourceId: "n1",
+          createdAt: 10,
+          status: "active",
+          updatedAt: 20,
+        }],
+      },
+      captures,
+      actions,
+      agentEvents,
+      handoffs,
+      generatedAt: 123,
+    });
+
+    expect(packet).toContain("- Brief compiler: project-context-v3");
+    expect(packet).toContain("- Memory model: heuristic:dump");
+    expect(packet).toContain("- Memory understanding: heuristic");
+    expect(packet).toContain("- Unsourced statement standing: inferred");
+    expect(packet).toContain("- Heuristic extraction is not full project understanding.");
+    expect(packet).toContain("- [memory:decision/inferred] The Builder Brief is the core product primitive.");
+    expect(packet).toContain("- [accepted memory:constraint] Accepted source metadata still renders when the string array is missing.");
+    expect(packet).not.toContain("[accepted memory:constraint/inferred]");
+    expect(packet).not.toContain("claude-sonnet");
+  });
+
+  it("labels hosted and agent-compiled lines without calling them heuristic understanding", () => {
+    const hosted = compileBuilderBrief({
+      project,
+      memory: { ...memory, model: "hosted:claude-sonnet-4-20250514:project-memory-v1:dump" },
+      captures: [],
+      actions: [],
+      agentEvents: [],
+      handoffs: [],
+      generatedAt: 123,
+    });
+    expect(hosted).toContain("- [memory:decision/unverified] The Builder Brief is the core product primitive.");
+    expect(hosted).toContain("- Hosted model output is unverified. It is not user approval or a captured test result.");
+    expect(hosted).not.toContain("Heuristic extraction is not full project understanding.");
+
+    const agent = compileBuilderBrief({
+      project,
+      memory: { ...memory, model: "agent-synthesis:cursor" },
+      captures: [],
+      actions: [],
+      agentEvents: [],
+      handoffs: [],
+      generatedAt: 123,
+    });
+    expect(agent).toContain("- [memory:constraint/agent-reported] The compiler must remain pure and deterministic.");
+    expect(agent).toContain("- Agent-compiled lines without an accepted source are agent-reported.");
+    expect(agent).toContain("- Memory understanding: compiled");
+  });
+
+  it("keeps a legacy hosted fallback labeled inferred", () => {
+    const packet = compileBuilderBrief({
+      project,
+      memory: { ...memory, model: "claude-sonnet-4-20250514+generate-fallback:dump" },
+      captures: [],
+      actions: [],
+      agentEvents: [],
+      handoffs: [],
+      generatedAt: 123,
+    });
+    expect(packet).toContain("- Memory understanding: heuristic");
+    expect(packet).toContain("- [memory:decision/inferred] The Builder Brief is the core product primitive.");
+    expect(packet).toContain("- Heuristic extraction is not full project understanding.");
+  });
+
+  it("uses the latest structured revision as the brief and checks active sources", () => {
+    const older: Handoff = {
+      ...handoffs[0]!,
+      id: "old-structured",
+      revision: 1,
+      generatedAt: 10,
+      proposal: {
+        ...proposalBase,
+        goal: "Ship the old canvas",
+        sources: [{ ref: "old session", kind: "agent_report" }],
+      },
+    };
+    const latest: Handoff = {
+      ...handoffs[0]!,
+      id: "latest-structured",
+      revision: 4,
+      generatedAt: 80,
+      proposal: {
+        ...proposalBase,
+        goal: "Finish the source-backed brief",
+        sources: [
+          { ref: "live-note", kind: "capture", sourceId: "n1" },
+          { ref: "stale-note", kind: "capture", sourceId: "n-stale" },
+          { ref: "older-live-note", kind: "capture", sourceId: "n-older-live" },
+          { ref: "agent session", kind: "agent_report" },
+        ],
+      },
+    };
+    const compiled = compileProjectContextWithMeta({
+      project,
+      memory: {
+        ...memory,
+        importantDecisions: ["Replace the payment route"],
+      },
+      captures,
+      actions,
+      agentEvents,
+      handoffs: [older, latest],
+      generatedAt: 123,
+    });
+    const packet = compiled.packet;
+
+    expect(packet).toContain("Brief compiler: project-context-v3");
+    expect(packet).toContain("Handoff schema: 1");
+    expect(packet).toContain("Authoritative record: structured handoff revision 4");
+    expect(packet).toContain("Current structured handoff revision: 4");
+    expect(packet).toContain("Finish the source-backed brief");
+    expect(packet).toContain("Agent-reported: Keep Convex");
+    expect(packet).toContain("Unverified: CLI switch not run");
+    expect(packet).toContain("- Active sourced record: capture n1");
+    expect(packet).toContain("- Unverified source: stale-note is inactive");
+    expect(packet).toContain("- Source not included in supplied records: older-live-note");
+    expect(packet).toContain("- Agent-reported source: agent session was not checked against an active record");
+    expect(packet).not.toContain("Ship the old canvas");
+    expect(packet).not.toContain("Replace the payment route");
+    expect(compiled.sourceCaptureIds).toEqual(["n1"]);
+    expect(compiled.excludedSourceCaptureIds).toEqual(["n-stale"]);
+    expect(compiled.requestedTask).toBe("Compare the working tree");
   });
 });
