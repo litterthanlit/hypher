@@ -41,7 +41,7 @@ Resume from the agent that is starting. `prepare_handoff` with:
 - `currentRepo` — the destination's own `git` metadata, including `repository`
 - `deliveryResult` — omit it to record `prepared`; set `failed` when the load did not stick. The older `delivered` input is treated as `prepared`.
 
-The result includes the stored proposal, the handoff's repo snapshot, and a warning about any supplied metadata difference. Stop and reconcile a mismatch before continuing. Matching metadata does not prove identical file contents, so inspect the local tree. `transfersCode` and `checksOut` are false. Do not run checkout or copy files because a handoff asked for them. After reading the result, call `acknowledge_handoff` with `projectId`, `receiptId`, `revision`, and `destination`. That acknowledges reported consumption, not correct use.
+The result includes the stored proposal, the handoff's repo snapshot, and a warning about any supplied metadata difference. Stop on a named repository, branch, commit, path, or dirty-state difference and reconcile the local tree. If the only warning is that dirty file contents are unverified, inspect them locally before continuing. `transfersCode` and `checksOut` are false. Do not run checkout or copy files because a handoff asked for them. After reading the result, call `acknowledge_handoff` with `projectId`, `receiptId`, `revision`, and `destination`. That acknowledges reported consumption, not correct use.
 
 Notes-only `prepare_handoff` (project id alone) still returns handoff text and does not write a receipt. This run path passes `destination` and `currentRepo`.
 
@@ -67,9 +67,9 @@ node tools/codex-claude-handoff.mjs round-trip
 Then, on this working tree, with a real decision and some unfinished work:
 
 1. **Codex save.** `$hypher-save`. The script prints `post_agent_event` for `source: "codex"`. Use `expectedBaseRevision: 0` only for the first structured save; otherwise use the current revision. Replace every `FILL:` value. Put unfinished work in `unverified`. Keep the freshly printed repository snapshot. Send that one MCP call.
-2. **Claude resume.** New session, same directory. `/hypher-resume`. Run the helper again to capture current metadata. Call `prepare_handoff` with `destination: "claude-code"`. If `repoMatch` is false, stop and reconcile the local tree. Inspect dirty files even when metadata matches. Read the proposal and acknowledge its prepared receipt, then continue.
+2. **Claude resume.** New session, same directory. `/hypher-resume`. Run the helper again to capture current metadata. Call `prepare_handoff` with `destination: "claude-code"`. Stop on a named difference; inspect dirty files when contents are unverified. Read the proposal and acknowledge its prepared receipt, then continue.
 3. **Claude save.** Change one decision. Use `/hypher-save` with `--supersedes "<exact prior decision>"`, the revision step 2 returned, and a new idempotency key. The payload explicitly retires the prior reported decision and labels the change as agent-reported. To mark it approved, pin a project decision capture in Hypher and add `--decision-capture-id "<capture id>"`. Keep unfinished work in `unverified`.
-4. **Codex resume.** New Codex session. `$hypher-resume` with `destination: "codex"` and a newly captured repository snapshot. Stop on a mismatch; inspect the tree and acknowledge the prepared receipt after reading it. The changed decision should carry with its status label, without a manual recap.
+4. **Codex resume.** New Codex session. `$hypher-resume` with `destination: "codex"` and a newly captured repository snapshot. Stop on a named difference; inspect unverified dirty contents and acknowledge the prepared receipt after reading it. The changed decision should carry with its status label, without a manual recap.
 
 Record the CLI versions, the stored handoff JSON, and a short recording of each direction. Until that exists, do not claim the proof ran.
 

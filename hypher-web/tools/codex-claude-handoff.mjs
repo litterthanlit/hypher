@@ -89,7 +89,7 @@ export function promptText(report = statusReport()) {
     "Save: post_agent_event kind handoff with proposal schemaVersion 1, expectedBaseRevision, and a new idempotencyKey.",
     "Resume: prepare_handoff with destination (claude-code or codex) and currentRepo from this metadata.",
     "Read the prepared revision, inspect the working tree, then acknowledge_handoff with receiptId, revision, destination, and projectId.",
-    "If repository metadata differs, stop and reconcile the local tree before continuing. Matching metadata does not prove identical dirty files.",
+    "Stop on a named repository, branch, commit, path, or dirty-state difference. If only dirty file contents are unverified, inspect them locally before continuing.",
     "Print the four MCP call templates with: node tools/codex-claude-handoff.mjs round-trip",
     "Do not checkout or sync files from the handoff.",
     "ranAgents: false",
@@ -186,7 +186,7 @@ export function resumeCall({ destination, repo }) {
     ranAgents: false,
     transfersCode: false,
     checksOut: false,
-    afterResult: "If repoMatch is false, stop and reconcile the local tree before continuing. If metadata matches, inspect dirty files yourself. Read the proposal, then acknowledge this receipt with acknowledge_handoff. Do not checkout or copy files.",
+    afterResult: "Read the warning. Stop on a named repository, branch, commit, path, or dirty-state difference. If only dirty file contents are unverified, inspect them locally before continuing. Read the proposal, then acknowledge this receipt with acknowledge_handoff. Do not checkout or copy files.",
     arguments: {
       projectId: PROJECT_ID_FILL,
       destination: agent,
@@ -209,7 +209,7 @@ export function roundTrip(repo = repoMetadata(), ids = {}) {
     checksOut: false,
     repo: snapshot,
     templateOnly: true,
-    beforeContinuing: "Compare repository, branch, commit, dirty state, and local files with the handoff snapshot. Stop on a mismatch. Memory does not transfer code or uncommitted files.",
+    beforeContinuing: "Compare repository, branch, commit, dirty state, and local files with the handoff snapshot. Stop on a named difference; inspect any unverified dirty contents. Memory does not transfer code or uncommitted files.",
     steps: [
       {
         step: 1,

@@ -101,7 +101,7 @@ describe("codex-claude handoff helper", () => {
     expect(call.arguments.currentRepo).toEqual(sampleRepo);
     expect(call.arguments.projectId).toBe(call.arguments.destinationProjectId);
     expect(call.checksOut).toBe(false);
-    expect(call.afterResult).toMatch(/stop and reconcile/);
+    expect(call.afterResult).toMatch(/Stop on a named repository/);
     const comparison = compareRepoSnapshot(sampleRepo, { ...sampleRepo, dirty: false });
     expect(comparison.match).toBe(false);
     expect(comparison.warning).toMatch(/dirty/);
