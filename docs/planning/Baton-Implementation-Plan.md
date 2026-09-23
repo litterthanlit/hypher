@@ -34,6 +34,21 @@ Every competitor's answer to switching is some version of "write a summary and p
 
 Record it for real, on the tested versions, and show one failure honestly.
 
+### Same-tool switches
+
+Most switches happen inside one tool. The mechanism is identical; only the source and destination names match. Native resume replays one transcript on one machine; Baton carries the distilled, verified state across sessions, machines, compactions, and cloud versus local.
+
+| Case | What Baton does |
+|---|---|
+| New session after `/clear`, a quit, or the next day | Session-start injection, verified against the tree |
+| Compaction inside one session | Checkpoint on `PreCompact`, re-inject on `SessionStart` with `compact`, so the agent keeps its own constraints |
+| Usage limit, same tool on another account or API key | The Baton proof with one tool |
+| Parallel sessions of one tool in separate worktrees | One workstream per branch, a shared ledger, merged operations, disputes for real conflicts |
+| Subagents in one session | Subagents read the note and record operations through MCP; the parent's task prompt stays the primary handoff; Hypher never directs them |
+| Cloud sessions (Claude Code on the web, Codex cloud) | Repository hooks load the note where hooks run; if egress blocks Hypher, the agent is told instead of starting cold. Document adding hypher.app to the environment's allowed hosts |
+
+`PLAN.md` lists these as recorded checks under the milestones that make them pass.
+
 ## What we build
 
 ### 1. Flight recorder: continuous capture without model calls

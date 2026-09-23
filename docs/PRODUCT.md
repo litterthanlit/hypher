@@ -88,6 +88,8 @@ After the first proof, the proof that matters:
 
 > Claude Code is mid-change. Kill it — no save command. Edit a file by hand. Open Codex and type “continue.” Codex names the workstream, the changed decision and who approved it, the failing test captured at the handoff tree, and your hand edit. It finishes the work. Reverse the direction.
 
+The same proof must hold inside one tool: Claude Code → Claude Code after a quit or `/clear`, Codex → Codex, a session across its own compaction, and two parallel sessions of one tool that do not overwrite each other. `docs/PLAN.md` lists the checks.
+
 Not run. Do not claim it until it is recorded on named versions, with one honest failure shown.
 
 ---
