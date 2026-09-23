@@ -1,11 +1,15 @@
 import { action, internalMutation, type MutationCtx } from "./_generated/server";
 import { v } from "convex/values";
-import { internal } from "./_generated/api";
+import { internal } from "./lib/generatedApiGap";
 import type { Id } from "./_generated/dataModel";
 import { normalizeGitHubRepo } from "../shared/githubRepo";
-import { requireActionBetaAccess } from "./lib/actionAuth";
-import { ratelimitConvex } from "./lib/rateLimit";
-import { apiKeyProbeRateLimitKey } from "./apiKeys";
+import {
+  runAsApiKeyUser,
+  runAsOAuthUser,
+  runAsSessionUser,
+  touchOnOk,
+  touchOnOkOrFailedDelivery,
+} from "./lib/authenticatedAction";
 import {
   handoffProposalValidator,
   repoSnapshotValidator,
@@ -21,7 +25,6 @@ import {
   type StructuredHandoffHead,
 } from "../shared/structuredHandoff";
 
-const _internal = internal as any;
 
 const resumeArgs = {
   projectId: v.id("objects"),
@@ -395,7 +398,7 @@ async function acknowledgeForAuthenticatedUser(
   args: { projectId: string; receiptId: string; revision: number; destination: string }
 ): Promise<Wire> {
   try {
-    return await ctx.runMutation(_internal.structuredHandoffs.acknowledgeForUser, { ...args, userId, now: Date.now() });
+    return await ctx.runMutation(internal.structuredHandoffs.acknowledgeForUser, { ...args, userId, now: Date.now() });
   } catch (error) {
     const invalid = invalidId(error);
     if (invalid) return invalid;
@@ -403,45 +406,37 @@ async function acknowledgeForAuthenticatedUser(
   }
 }
 
+const STRUCTURED_HANDOFF_LIMIT = { bucket: "structured-handoff", requests: 60, window: "1h" };
+const STRUCTURED_HANDOFF_OAUTH_LIMIT = { bucket: "structured-handoff-oauth", requests: 60, window: "1h" };
+
 export const acknowledgeFromApiRequest = action({
   args: { apiKey: v.string(), projectId: v.string(), receiptId: v.string(), revision: v.number(), destination: v.string() },
   returns: structuredHandoffWireValidator,
-  handler: async (ctx, args): Promise<Wire> => {
-    const probeAllowed = await ratelimitConvex(apiKeyProbeRateLimitKey(args.apiKey), "api-key-validation", { requests: 30, window: "1m" });
-    if (!probeAllowed) return { ok: false, status: 429, error: "Rate limited" };
-    const key = await ctx.runQuery(_internal.apiKeys.validate, { key: args.apiKey }) as { userId: string; keyId: string; rateLimitKey: string } | null;
-    if (!key) return { ok: false, status: 401, error: "Unauthorized" };
-    const allowed = await ratelimitConvex(key.rateLimitKey, "structured-handoff", { requests: 60, window: "1h" });
-    if (!allowed) return { ok: false, status: 429, error: "Rate limited" };
-    const result = await acknowledgeForAuthenticatedUser(ctx, key.userId, args);
-    if (result.ok) await ctx.runMutation(_internal.apiKeys.touch, { keyId: key.keyId });
-    return result;
-  },
+  handler: async (ctx, args): Promise<Wire> => await runAsApiKeyUser(
+    ctx,
+    { apiKey: args.apiKey, rateLimit: STRUCTURED_HANDOFF_LIMIT, touchWhen: touchOnOk },
+    (userId) => acknowledgeForAuthenticatedUser(ctx, userId, args)
+  ),
 });
 
 export const acknowledgeFromOAuthRequest = action({
   args: { tokenHash: v.string(), resource: v.string(), scope: v.string(), now: v.number(), projectId: v.string(), receiptId: v.string(), revision: v.number(), destination: v.string() },
   returns: structuredHandoffWireValidator,
-  handler: async (ctx, args): Promise<Wire> => {
-    const allowed = await ratelimitConvex(args.tokenHash, "structured-handoff-oauth", { requests: 60, window: "1h" });
-    if (!allowed) return { ok: false, status: 429, error: "Rate limited" };
-    const token = await ctx.runQuery(_internal.oauth.userIdForAccessToken, {
-      tokenHash: args.tokenHash, resource: args.resource, scope: args.scope, now: args.now,
-    }) as { userId: string } | null;
-    if (!token) return { ok: false, status: 401, error: "Unauthorized" };
-    return await acknowledgeForAuthenticatedUser(ctx, token.userId, args);
-  },
+  handler: async (ctx, args): Promise<Wire> => await runAsOAuthUser(
+    ctx,
+    { ...args, rateLimit: STRUCTURED_HANDOFF_OAUTH_LIMIT },
+    (userId) => acknowledgeForAuthenticatedUser(ctx, userId, args)
+  ),
 });
 
 export const acknowledgeFromSession = action({
   args: { projectId: v.string(), receiptId: v.string(), revision: v.number(), destination: v.string() },
   returns: structuredHandoffWireValidator,
-  handler: async (ctx, args): Promise<Wire> => {
-    const userId = await requireActionBetaAccess(ctx);
-    const allowed = await ratelimitConvex(userId, "structured-handoff", { requests: 60, window: "1h" });
-    if (!allowed) return { ok: false, status: 429, error: "Rate limited" };
-    return await acknowledgeForAuthenticatedUser(ctx, userId, args);
-  },
+  handler: async (ctx, args): Promise<Wire> => await runAsSessionUser(
+    ctx,
+    { rateLimit: STRUCTURED_HANDOFF_LIMIT },
+    (userId) => acknowledgeForAuthenticatedUser(ctx, userId, args)
+  ),
 });
 
 async function resumeForUser(
@@ -457,7 +452,7 @@ async function resumeForUser(
   }
 ): Promise<Wire> {
   try {
-    return await ctx.runMutation(_internal.structuredHandoffs.deliverForUser, {
+    return await ctx.runMutation(internal.structuredHandoffs.deliverForUser, {
       userId,
       projectId: args.projectId,
       destinationProjectId: args.destinationProjectId,
@@ -485,30 +480,11 @@ export const resumeFromApiRequest = action({
     reason: v.optional(v.string()),
   },
   returns: structuredHandoffWireValidator,
-  handler: async (ctx, args): Promise<Wire> => {
-    const probeAllowed = await ratelimitConvex(
-      apiKeyProbeRateLimitKey(args.apiKey),
-      "api-key-validation",
-      { requests: 30, window: "1m" }
-    );
-    if (!probeAllowed) return { ok: false, status: 429, error: "Rate limited" };
-    const validatedKey = await ctx.runQuery(_internal.apiKeys.validate, { key: args.apiKey }) as {
-      userId: string;
-      keyId: string;
-      rateLimitKey: string;
-    } | null;
-    if (!validatedKey) return { ok: false, status: 401, error: "Unauthorized" };
-    const allowed = await ratelimitConvex(validatedKey.rateLimitKey, "structured-handoff", {
-      requests: 60,
-      window: "1h",
-    });
-    if (!allowed) return { ok: false, status: 429, error: "Rate limited" };
-    const result = await resumeForUser(ctx, validatedKey.userId, args);
-    if (result.ok || result.code === "failed-delivery") {
-      await ctx.runMutation(_internal.apiKeys.touch, { keyId: validatedKey.keyId });
-    }
-    return result;
-  },
+  handler: async (ctx, args): Promise<Wire> => await runAsApiKeyUser(
+    ctx,
+    { apiKey: args.apiKey, rateLimit: STRUCTURED_HANDOFF_LIMIT, touchWhen: touchOnOkOrFailedDelivery },
+    (userId) => resumeForUser(ctx, userId, args)
+  ),
 });
 
 export const resumeFromOAuthRequest = action({
@@ -525,21 +501,11 @@ export const resumeFromOAuthRequest = action({
     reason: v.optional(v.string()),
   },
   returns: structuredHandoffWireValidator,
-  handler: async (ctx, args): Promise<Wire> => {
-    const allowed = await ratelimitConvex(args.tokenHash, "structured-handoff-oauth", {
-      requests: 60,
-      window: "1h",
-    });
-    if (!allowed) return { ok: false, status: 429, error: "Rate limited" };
-    const validated = await ctx.runQuery(_internal.oauth.userIdForAccessToken, {
-      tokenHash: args.tokenHash,
-      resource: args.resource,
-      scope: args.scope,
-      now: args.now,
-    }) as { userId: string } | null;
-    if (!validated) return { ok: false, status: 401, error: "Unauthorized" };
-    return await resumeForUser(ctx, validated.userId, args);
-  },
+  handler: async (ctx, args): Promise<Wire> => await runAsOAuthUser(
+    ctx,
+    { ...args, rateLimit: STRUCTURED_HANDOFF_OAUTH_LIMIT },
+    (userId) => resumeForUser(ctx, userId, args)
+  ),
 });
 
 export const resumeFromSession = action({
@@ -552,13 +518,9 @@ export const resumeFromSession = action({
     reason: v.optional(v.string()),
   },
   returns: structuredHandoffWireValidator,
-  handler: async (ctx, args): Promise<Wire> => {
-    const userId = await requireActionBetaAccess(ctx);
-    const allowed = await ratelimitConvex(userId, "structured-handoff", {
-      requests: 60,
-      window: "1h",
-    });
-    if (!allowed) return { ok: false, status: 429, error: "Rate limited" };
-    return await resumeForUser(ctx, userId, args);
-  },
+  handler: async (ctx, args): Promise<Wire> => await runAsSessionUser(
+    ctx,
+    { rateLimit: STRUCTURED_HANDOFF_LIMIT },
+    (userId) => resumeForUser(ctx, userId, args)
+  ),
 });
