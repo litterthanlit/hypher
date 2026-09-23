@@ -213,6 +213,21 @@ describe("write actions keep their buckets, limits, and touch rules", () => {
     expect(ackOk.mutations.map((m) => m.name)).toEqual(["structuredHandoffs:acknowledgeForUser", "apiKeys:touch"]);
   });
 
+  it("acknowledge passes only handoff fields to the mutation, never credentials", async () => {
+    for (const [fn, args] of [
+      [acknowledgeFromApiRequest, { apiKey: KEY, ...ack }],
+      [acknowledgeFromOAuthRequest, { ...oauthArgs, ...ack }],
+      [acknowledgeFromSession, ack],
+    ] as const) {
+      const { ctx, mutations } = fakeCtx({ identity: "u1" });
+      await handlerOf(fn)(ctx, args);
+      const call = mutations.find((m) => m.name === "structuredHandoffs:acknowledgeForUser");
+      expect(Object.keys(call?.args ?? {}).sort()).toEqual(
+        ["destination", "now", "projectId", "receiptId", "revision", "userId"]
+      );
+    }
+  });
+
   it("OAuth and session variants never touch an API key", async () => {
     for (const [fn, args] of [[resumeFromOAuthRequest, { ...oauthArgs, ...resume }], [resumeFromSession, resume]] as const) {
       const { ctx, mutations } = fakeCtx({ identity: "u1" });

@@ -398,7 +398,15 @@ async function acknowledgeForAuthenticatedUser(
   args: { projectId: string; receiptId: string; revision: number; destination: string }
 ): Promise<Wire> {
   try {
-    return await ctx.runMutation(internal.structuredHandoffs.acknowledgeForUser, { ...args, userId, now: Date.now() });
+    // Pick fields: callers pass credentials (apiKey, tokenHash, …) the mutation's validator rejects.
+    return await ctx.runMutation(internal.structuredHandoffs.acknowledgeForUser, {
+      projectId: args.projectId,
+      receiptId: args.receiptId,
+      revision: args.revision,
+      destination: args.destination,
+      userId,
+      now: Date.now(),
+    });
   } catch (error) {
     const invalid = invalidId(error);
     if (invalid) return invalid;
