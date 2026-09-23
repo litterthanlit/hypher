@@ -79,6 +79,19 @@ Done when: Codex → Claude Code → Codex on one repo leaves a stored handoff w
 
 `hypher switch <agent>` comes after M5. It seals and starts the other CLI with a resume prompt. Nothing more.
 
+#### Same-tool switches
+
+A switch inside one tool is the same product and the most frequent case. Each check belongs to the milestone that makes it pass; that milestone is not done until its check is recorded too.
+
+| Check | Setup | Pass | Milestone |
+|---|---|---|---|
+| New session, same tool | Claude Code works, saves, `/clear` or quit; a new Claude Code session starts. Repeat with Codex → Codex | The new session names the last decision, unverified work, and next action without a recap | M0 explicit, M3 automatic |
+| Compaction round trip | A long Claude Code session sets a constraint early, then compacts | After compaction the session still honors the constraint; the checkpoint predates the compaction | M3 |
+| Parallel sessions | Two sessions of the same tool on two branches or worktrees, saving within a minute of each other | Neither overwrites the other's next action; shared decisions merge; a real conflict shows as disputed | M2 |
+| Limit hit, same tool | A Claude Code session is killed; a Claude Code session on another account or API key continues | Same as the Baton proof, one tool | M3 |
+| Cloud session | A Claude Code web or Codex cloud session on the same repository | Loads the note at start, or says plainly that Hypher is unreachable | M3 |
+| Subagent | A main session delegates a task to a subagent | The subagent's decisions and evidence land in the ledger; Hypher never directs the subagent | M3 |
+
 ### After the round trip. Evaluation
 
 With/without stays secondary until that proof exists. M6 is where it runs.
