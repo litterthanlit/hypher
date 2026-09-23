@@ -35,10 +35,10 @@ check_absent "docs/PLAN.md" 'Next coding session: \*\*Phase 1b\*\*' \
 	"still sends the next session to rebuild hooks"
 check_present "AGENTS.md" 'get_project_context' \
 	"does not tell agents to load the Builder Brief once"
-check_present "AGENTS.md" 'If a Hypher Builder Brief disagrees' \
+check_present "AGENTS.md" 'If a Hypher note \(the Builder Brief\) disagrees' \
 	"must say PRODUCT.md wins when the brief disagrees"
-check_present "docs/PLAN.md" 'Phase 1c' \
-	"missing Phase 1c for agents that never get IDE hooks"
+check_present "docs/PLAN.md" 'MCP load' \
+	"missing the MCP load path for agents that never get IDE hooks"
 
 if [ "$fail" -ne 0 ]; then
 	exit 1
