@@ -333,4 +333,25 @@ describe("handoff proposal validation", () => {
     expect(readHandoffCommand({ projectId: "p1", acknowledge: { receiptId: "r1", revision: 2, destination: "claude-code" },
       resume: { destination: "codex", currentRepo: repo } }).ok).toBe(false);
   });
+
+  it("rejects template FILL: placeholders in every text field", () => {
+    const cases: Array<[Partial<HandoffProposalV1>, string]> = [
+      [{ goal: "FILL: current goal" }, "goal still contains a FILL: placeholder"],
+      [{ constraints: ["Keep it small", "  FILL: constraint"] }, "constraints still contains a FILL: placeholder"],
+      [{ decisions: [{ decision: "FILL: decision", reason: "Because" }] }, "decisions.decision still contains a FILL: placeholder"],
+      [{ decisions: [{ decision: "Ship it", reason: "FILL: reason" }] }, "decisions.reason still contains a FILL: placeholder"],
+      [{ completed: ["FILL: done"] }, "completed still contains a FILL: placeholder"],
+      [{ unverified: ["FILL: unverified"] }, "unverified still contains a FILL: placeholder"],
+      [{ blockers: ["FILL: blocker"] }, "blockers still contains a FILL: placeholder"],
+      [{ nextAction: "FILL: next action" }, "nextAction still contains a FILL: placeholder"],
+      [{ sources: [{ ref: "FILL: source" }] }, "sources.ref still contains a FILL: placeholder"],
+      [{ sources: [{ ref: "docs/PRODUCT.md", label: "FILL: label" }] }, "sources.label still contains a FILL: placeholder"],
+      [{ repo: { ...repo, repository: "FILL: owner/repo" } }, "repo.repository still contains a FILL: placeholder"],
+    ];
+    for (const [overrides, error] of cases) {
+      expect(parseHandoffProposal(proposal(overrides))).toEqual({ ok: false, error });
+    }
+    expect(parseHandoffProposal(proposal({ goal: "Replace FILL: markers in the template" })).ok).toBe(true);
+    expect(parseHandoffProposal(proposal({ goal: "FILL: stored before the guard" }), { allowPlaceholders: true }).ok).toBe(true);
+  });
 });

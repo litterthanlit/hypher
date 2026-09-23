@@ -92,7 +92,7 @@ export interface CompiledProjectContext {
 export function newerLegacyWriteback(handoff: Handoff, events: AgentEvent[]): AgentEvent | null {
   return events
     .filter((event) => event.status !== "dismissed"
-      && (event.kind === "handoff" || event.kind === "build_log")
+      && isProductWorkReceipt(event)
       && event.createdAt > handoff.generatedAt)
     .sort((a, b) => b.createdAt - a.createdAt)[0] ?? null;
 }
@@ -799,15 +799,59 @@ function auditStructuredSources(proposal: HandoffProposalV1, params: CompileProj
   return lines.slice(0, 8);
 }
 
+const REVISION_DIFF_MAX_LINES = 8;
+
+/**
+ * Interim continuity check: what the latest structured revision dropped or added
+ * relative to the previous one, so a silently removed constraint stays visible.
+ */
+export function structuredRevisionDiff(previous: HandoffProposalV1, current: HandoffProposalV1): string[] {
+  const key = (text: string) => normalizeText(text).toLowerCase();
+  const lines: string[] = [];
+  const prevConstraints = new Set(previous.constraints.map(key));
+  const nextConstraints = new Set(current.constraints.map(key));
+  for (const item of previous.constraints) {
+    if (!nextConstraints.has(key(item))) lines.push(`- Removed constraint: ${item}`);
+  }
+  for (const item of current.constraints) {
+    if (!prevConstraints.has(key(item))) lines.push(`- Added constraint: ${item}`);
+  }
+  const prevDecisions = new Set(previous.decisions.map((item) => key(item.decision)));
+  const nextDecisions = new Set(current.decisions.map((item) => key(item.decision)));
+  const superseded = new Set<string>();
+  for (const item of current.decisions) {
+    if (item.supersedes && prevDecisions.has(key(item.supersedes)) && !nextDecisions.has(key(item.supersedes))) {
+      superseded.add(key(item.supersedes));
+      if (!prevDecisions.has(key(item.decision))) lines.push(`- Superseded decision: ${item.supersedes} → ${item.decision}`);
+    }
+  }
+  for (const item of previous.decisions) {
+    if (!nextDecisions.has(key(item.decision)) && !superseded.has(key(item.decision))) {
+      lines.push(`- Removed decision: ${item.decision}`);
+    }
+  }
+  for (const item of current.decisions) {
+    if (prevDecisions.has(key(item.decision))) continue;
+    if (item.supersedes && superseded.has(key(item.supersedes))) continue;
+    lines.push(`- Added decision: ${item.decision}`);
+  }
+  if (lines.length <= REVISION_DIFF_MAX_LINES) return lines;
+  const kept = lines.slice(0, REVISION_DIFF_MAX_LINES - 1);
+  return [...kept, `- … ${lines.length - kept.length} more changes`];
+}
+
 export function compileProjectContextWithMeta(incoming: CompileProjectContextParams): CompiledProjectContext {
   const params: CompileProjectContextParams = {
     ...incoming,
     agentEvents: hydratePacketAgentEvents(incoming.agentEvents, incoming.memory, incoming.captures),
   };
-  const structured = (params.handoffs ?? [])
+  const structuredRevisions = (params.handoffs ?? [])
     .filter((handoff) => handoff.proposal && typeof handoff.revision === "number")
-    .sort((a, b) => (b.revision ?? 0) - (a.revision ?? 0))[0];
+    .sort((a, b) => (b.revision ?? 0) - (a.revision ?? 0));
+  const structured = structuredRevisions[0];
   if (structured?.proposal) {
+    const previous = structuredRevisions.find((handoff) => (handoff.revision ?? 0) < (structured.revision ?? 0));
+    const revisionDiff = previous?.proposal ? structuredRevisionDiff(previous.proposal, structured.proposal) : [];
     const newerWriteback = newerLegacyWriteback(structured, params.agentEvents);
     const reconciliationWarning = newerWriteback
       ? `Newer legacy agent writeback (${newerWriteback.title}) needs reconciliation into a structured revision. The snapshot below may be stale.`
@@ -828,6 +872,7 @@ export function compileProjectContextWithMeta(incoming: CompileProjectContextPar
       "",
       renderHandoffPacket(structured.proposal),
       "",
+      ...(revisionDiff.length ? [`Changed since revision ${previous?.revision}:`, ...revisionDiff, ""] : []),
       "Active source check:",
       ...(sourceAudit.length ? sourceAudit.map((line) => `- ${line}`) : ["- No source references on this revision."]),
       "",

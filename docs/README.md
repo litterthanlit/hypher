@@ -17,5 +17,7 @@ Business and implementation proposals for reliable agent-to-agent handoffs:
 - [Astra Plan](./planning/Astra-Plan.md) — strategy and decision history
 - [Business plan](./planning/Hypher-Business-Plan.md) — positioning, pricing, costs, and pilot targets
 - [Implementation plan](./planning/Hypher-Implementation-Plan.md) — architecture, models, evaluation, and milestones
+- [Handoff gap analysis](./planning/Handoff-Gap-Analysis.md) — gaps between these plans, the code, and a zero-recap switch
+- [Baton implementation plan](./planning/Baton-Implementation-Plan.md) — the zero-recap switch: flight recorder, decision ledger, auto-resume, git truth check
 
 Direction is locked in [PRODUCT.md](./PRODUCT.md) and [PLAN.md](./PLAN.md). These files stay the detailed proposal. They are not shipped adapters and not a second product document.

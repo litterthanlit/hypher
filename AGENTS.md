@@ -4,7 +4,7 @@ Read [docs/PRODUCT.md](docs/PRODUCT.md) first. It is the only product source of 
 
 Working promise: **Switch agents without starting over.** Hypher is project memory under coding agents: dump / capture → one note → writeback. A warmer next session and a switch to another agent are the same loop. Cursor already has the code. Memory does not transfer code or uncommitted files.
 
-Build order: [docs/PLAN.md](docs/PLAN.md). Doc lock and revisioned save/resume are in the tree. The open slice is the Codex CLI ↔ Claude Code explicit handoff on one local working tree: project MCP config, then a live Mac recording. Do not claim that recording. Do not implement canvas, pricing changes, local SQLite Core, a broad plugin matrix, or a replacement coding harness. Do not rebuild Phase 1a or Phase 1b. Do not rebuild the canvas, daily digest, health rings, ambient ask, Notion import, or extra Pulse panels.
+Build order: [docs/PLAN.md](docs/PLAN.md). Doc lock and revisioned save/resume are in the tree. The open slice is **Baton M0**: make the explicit Codex CLI ↔ Claude Code handoff honest (handoff text in tool results, tree-hash fingerprint, any repository), then a live Mac recording. Baton M1–M6 follow in order; do not start a step before the previous proof exists. Do not claim that recording or any Baton proof. Do not implement canvas, pricing changes, local SQLite Core, plugins beyond Claude Code / Codex / Cursor, agent orchestration, or a replacement coding harness. Never upload code, diffs, or transcripts. Do not rebuild Phase 1a or Phase 1b. Do not rebuild the canvas, daily digest, health rings, ambient ask, Notion import, or extra Pulse panels.
 
 If Hypher MCP tools are connected, resolve this git remote with `resolve_project_for_repo`, then load `get_project_context` once at session start. Do not reload the full note every turn. Use the note for the last handoff, the current next move, and constraints that are not already in `docs/PRODUCT.md`. If that note is still a skeleton or heuristic dump echo, call `get_synthesis_input` once, compile identity JSON on your model from the returned prompt, then `write_project_memory` once. Skip when `needsSynthesis` is false. Hypher stores the note; it does not host the model and does not use MCP sampling. At session end, post one `handoff` with `post_agent_event`. If the repo is unmatched, point at Settings → Integrations. Do not invent status. Do not auto-mint a project.
 
@@ -18,5 +18,6 @@ How, not what:
 - Cursor plugin: `extensions/cursor/README.md`
 - Handoff CLI: `hypher-web/docs/agent-handoff.md`
 - Codex ↔ Claude explicit handoff: `hypher-web/docs/codex-claude-handoff.md`
+- Baton design and milestones: `docs/planning/Baton-Implementation-Plan.md`
 - UI styling: `hypher-web/STYLING.md`
 - Planning detail: `docs/planning/`

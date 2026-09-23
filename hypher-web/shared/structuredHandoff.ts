@@ -220,8 +220,43 @@ export function parseRepoSnapshot(
   return { ok: true, value: result };
 }
 
+const PLACEHOLDER_PREFIX = "FILL:";
+
+function isPlaceholder(value: string | undefined): boolean {
+  return typeof value === "string" && value.trim().startsWith(PLACEHOLDER_PREFIX);
+}
+
+/** First field of a parsed proposal that still holds a template `FILL:` placeholder. */
+export function findHandoffPlaceholder(proposal: HandoffProposalV1): string | null {
+  if (isPlaceholder(proposal.goal)) return "goal";
+  for (const field of ["constraints", "completed", "unverified", "blockers"] as const) {
+    if (proposal[field].some(isPlaceholder)) return field;
+  }
+  for (const item of proposal.decisions) {
+    if (isPlaceholder(item.decision)) return "decisions.decision";
+    if (isPlaceholder(item.reason)) return "decisions.reason";
+    if (isPlaceholder(item.supersedes)) return "decisions.supersedes";
+    if (item.sourceRefs?.some(isPlaceholder)) return "decisions.sourceRefs";
+  }
+  if (isPlaceholder(proposal.nextAction)) return "nextAction";
+  for (const item of proposal.sources) {
+    if (isPlaceholder(item.ref)) return "sources.ref";
+    if (isPlaceholder(item.label)) return "sources.label";
+    if (isPlaceholder(item.sourceId)) return "sources.sourceId";
+  }
+  for (const field of ["repository", "branch", "commit", "worktreePath", "dirtyFingerprint"] as const) {
+    if (isPlaceholder(proposal.repo[field])) return `repo.${field}`;
+  }
+  return null;
+}
+
+/**
+ * Validate a proposal. New writes reject template `FILL:` placeholders; pass
+ * `allowPlaceholders` only to re-read rows stored before that guard existed.
+ */
 export function parseHandoffProposal(
-  value: unknown
+  value: unknown,
+  options: { allowPlaceholders?: boolean } = {}
 ): { ok: true; value: HandoffProposalV1 } | { ok: false; error: string } {
   if (!isObject(value)) return { ok: false, error: "proposal must be an object" };
   const extra = unknownKey(value, PROPOSAL_KEYS);
@@ -314,21 +349,23 @@ export function parseHandoffProposal(
   }
   const repo = parseRepoSnapshot(value.repo);
   if (!repo.ok) return repo;
-  return {
-    ok: true,
-    value: {
-      schemaVersion: 1,
-      goal: goal.value,
-      constraints: constraints.value,
-      decisions,
-      completed: completed.value,
-      unverified: unverified.value,
-      blockers: blockers.value,
-      nextAction: nextAction.value,
-      sources,
-      repo: repo.value,
-    },
+  const proposal: HandoffProposalV1 = {
+    schemaVersion: 1,
+    goal: goal.value,
+    constraints: constraints.value,
+    decisions,
+    completed: completed.value,
+    unverified: unverified.value,
+    blockers: blockers.value,
+    nextAction: nextAction.value,
+    sources,
+    repo: repo.value,
   };
+  if (!options.allowPlaceholders) {
+    const placeholder = findHandoffPlaceholder(proposal);
+    if (placeholder) return { ok: false, error: `${placeholder} still contains a FILL: placeholder` };
+  }
+  return { ok: true, value: proposal };
 }
 
 export function renderHandoffPacket(proposal: HandoffProposalV1): string {

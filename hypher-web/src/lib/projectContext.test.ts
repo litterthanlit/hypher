@@ -1708,4 +1708,106 @@ describe("brief standing and structured revision", () => {
     expect(compiled.excludedSourceCaptureIds).toEqual(["n-stale"]);
     expect(compiled.requestedTask).toBe("Compare the working tree");
   });
+
+  const structuredAt = (id: string, revision: number, generatedAt: number, overrides: Partial<Handoff["proposal"] & object> = {}): Handoff => ({
+    ...handoffs[0]!,
+    id,
+    revision,
+    generatedAt,
+    proposal: {
+      ...proposalBase,
+      goal: "Finish the explicit handoff",
+      sources: [{ ref: "agent session", kind: "agent_report" }],
+      ...overrides,
+    },
+  });
+
+  it("does not mark a structured brief stale for a newer Cursor session-end receipt", () => {
+    const structured = structuredAt("s1", 2, 50);
+    const cursorReceipt: AgentEvent = {
+      id: "cursor-end",
+      userId: "u1",
+      projectId: "p1",
+      source: "cursor",
+      kind: "handoff",
+      title: "Cursor session ended (litterthanlit/hypher)",
+      body: [
+        "Cursor session-end receipt. One handoff event. Not a compiled Builder Brief. No product status inferred.",
+        "",
+        "Repo: litterthanlit/hypher",
+        "Branch: main",
+        "Ended: completed",
+        "",
+        "Local git status (files only):",
+        "- M hypher-web/src/lib/projectContext.ts",
+      ].join("\n"),
+      status: "new",
+      createdAt: 90,
+    };
+    const quiet = compileProjectContextWithMeta({
+      project, memory, captures: [], actions: [], agentEvents: [cursorReceipt], handoffs: [structured], generatedAt: 123,
+    });
+    expect(quiet.packet).not.toContain("needs reconciliation");
+    expect(quiet.freshness).not.toContain("needs reconciliation");
+
+    const productHandoff: AgentEvent = {
+      ...cursorReceipt,
+      id: "codex-end",
+      source: "codex",
+      title: "Moved resume text into the tool result",
+      body: "Resume now renders the handoff packet in content. Next: record the live switch.",
+    };
+    const stale = compileProjectContextWithMeta({
+      project, memory, captures: [], actions: [], agentEvents: [cursorReceipt, productHandoff], handoffs: [structured], generatedAt: 123,
+    });
+    expect(stale.packet).toContain("Newer legacy agent writeback (Moved resume text into the tool result) needs reconciliation");
+  });
+
+  it("shows what changed since the previous structured revision, including a dropped constraint", () => {
+    const previous = structuredAt("s2", 2, 40, {
+      constraints: ["Do not transfer code", "Pulse stays three panels"],
+      decisions: [
+        { decision: "Keep Convex", reason: "Existing storage", status: "reported" },
+        { decision: "Use the queue", reason: "Retries", status: "reported" },
+        { decision: "Ship on Friday", reason: "Pilot date", status: "reported" },
+      ],
+    });
+    const latest = structuredAt("s3", 3, 60, {
+      constraints: ["do not transfer code", "No new panels"],
+      decisions: [
+        { decision: "keep convex", reason: "Existing storage", status: "reported" },
+        { decision: "Use direct writes", reason: "Simpler", status: "reported", supersedes: "Use the queue" },
+        { decision: "Record the Mac switch", reason: "Proof", status: "reported" },
+      ],
+    });
+    const packet = compileProjectContextWithMeta({
+      project, memory, captures: [], actions: [], agentEvents: [], handoffs: [previous, latest], generatedAt: 123,
+    }).packet;
+    const section = packet.split("Changed since revision 2:\n")[1]?.split("\n\n")[0] ?? "";
+    expect(section.split("\n")).toEqual([
+      "- Removed constraint: Pulse stays three panels",
+      "- Added constraint: No new panels",
+      "- Superseded decision: Use the queue → Use direct writes",
+      "- Removed decision: Ship on Friday",
+      "- Added decision: Record the Mac switch",
+    ]);
+
+    const unchanged = compileProjectContextWithMeta({
+      project, memory, captures: [], actions: [], agentEvents: [], handoffs: [previous, { ...previous, id: "s4", revision: 3 }], generatedAt: 123,
+    }).packet;
+    expect(unchanged).not.toContain("Changed since revision");
+  });
+
+  it("bounds the revision diff", () => {
+    const many = Array.from({ length: 8 }, (_, index) => `Old constraint ${index}`);
+    const previous = structuredAt("s5", 1, 40, { constraints: many });
+    const latest = structuredAt("s6", 2, 60, { constraints: many.map((item) => item.replace("Old", "New")) });
+    const packet = compileProjectContextWithMeta({
+      project, memory, captures: [], actions: [], agentEvents: [], handoffs: [latest, previous], generatedAt: 123,
+    }).packet;
+    const section = packet.split("Changed since revision 1:\n")[1]?.split("\n\n")[0] ?? "";
+    expect(section.split("\n")).toHaveLength(8);
+    expect(section).toContain("- Removed constraint: Old constraint 0");
+    expect(section).toContain("- … 9 more changes");
+  });
 });

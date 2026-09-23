@@ -137,7 +137,7 @@ async function loadHead(
   if (!row?.proposal || typeof row.revision !== "number" || !row.idempotencyKey || !row.sourceAgent) {
     return null;
   }
-  const parsed = parseHandoffProposal(row.proposal);
+  const parsed = parseHandoffProposal(row.proposal, { allowPlaceholders: true });
   if (!parsed.ok) return null;
   return {
     handoffId: row._id,
