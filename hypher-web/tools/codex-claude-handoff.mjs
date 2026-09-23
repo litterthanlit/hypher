@@ -6,11 +6,13 @@
  */
 import { execFileSync, spawnSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
+import { mkdtempSync, rmSync } from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
 export const HANDOFF_AGENTS = ["codex", "claude-code"];
-export const PROJECT_ID_FILL = "FILL: project id from resolve_project_for_repo for litterthanlit/hypher";
+export const PROJECT_ID_FILL = "FILL: project id from resolve_project_for_repo for this repository";
 export const RESUME_REVISION_FILL = "FILL: revision number returned by prepare_handoff";
 export const SUPERSEDED_DECISION_FILL = "FILL: exact prior decision being replaced";
 
@@ -33,28 +35,58 @@ export function commandOnPath(bin) {
   return result.status === 0 && Boolean(result.stdout?.trim());
 }
 
-function git(args) {
+function git(args, cwd, env) {
   try {
-    return execFileSync("git", args, { encoding: "utf8" }).trim();
+    return execFileSync("git", args, {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+      ...(cwd ? { cwd } : {}),
+      ...(env ? { env: { ...process.env, ...env } } : {}),
+    }).trim();
   } catch {
     return null;
   }
 }
 
-export function repoMetadata() {
-  const remote = git(["config", "--get", "remote.origin.url"]);
-  const repository = remote?.match(/(?:github\.com[:/])([^/]+\/[^/]+?)(?:\.git)?$/)?.[1] ?? null;
-  const worktreePath = git(["rev-parse", "--show-toplevel"]);
-  const branch = git(["rev-parse", "--abbrev-ref", "HEAD"]);
-  const commit = git(["rev-parse", "HEAD"]);
-  const status = git(["status", "--porcelain"]);
+/**
+ * Tree hash of the working tree (tracked edits plus untracked, non-ignored files),
+ * built in a throwaway index so the real index is never touched. Null on failure.
+ */
+export function worktreeTreeHash(cwd) {
+  const root = git(["rev-parse", "--show-toplevel"], cwd);
+  if (!root) return null;
+  let dir;
+  try {
+    dir = mkdtempSync(path.join(os.tmpdir(), "hypher-index-"));
+    const env = { GIT_INDEX_FILE: path.join(dir, "index") };
+    if (git(["read-tree", "HEAD"], root, env) === null) return null;
+    if (git(["add", "-A"], root, env) === null) return null;
+    const tree = git(["write-tree"], root, env);
+    return tree && /^[0-9a-f]{40,64}$/.test(tree) ? tree : null;
+  } catch {
+    return null;
+  } finally {
+    if (dir) rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+export function repoMetadata(cwd) {
+  const remote = git(["config", "--get", "remote.origin.url"], cwd);
+  const repository = remote?.match(/(?:github\.com[:/])([^/]+\/[^/]+?)(?:\.git)?\/?$/)?.[1] ?? null;
+  const worktreePath = git(["rev-parse", "--show-toplevel"], cwd);
+  const branch = git(["rev-parse", "--abbrev-ref", "HEAD"], cwd);
+  const commit = git(["rev-parse", "HEAD"], cwd);
+  const status = git(["status", "--porcelain"], cwd);
   if (!branch || !commit) return null;
+  const dirty = Boolean(status);
+  const tree = dirty ? worktreeTreeHash(cwd) : null;
   return {
     ...(repository ? { repository } : {}),
     branch,
     commit,
-    dirty: Boolean(status),
+    dirty,
     ...(worktreePath ? { worktreePath } : {}),
+    ...(tree ? { dirtyFingerprint: `tree:${tree}` } : {}),
   };
 }
 
@@ -103,10 +135,12 @@ function requireAgent(value, flag) {
   return value;
 }
 
+const OWNER_REPO = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
+
 function requireRepo(repo) {
-  if (repo?.repository?.toLowerCase() !== "litterthanlit/hypher"
+  if (typeof repo?.repository !== "string" || !OWNER_REPO.test(repo.repository)
     || !repo.branch || !repo.commit || typeof repo.dirty !== "boolean") {
-    throw new Error("linked Hypher repository metadata is required (repository, branch, commit, dirty)");
+    throw new Error("repository metadata from git remote is required (owner/repo, branch, commit, dirty)");
   }
   return {
     repository: repo.repository,

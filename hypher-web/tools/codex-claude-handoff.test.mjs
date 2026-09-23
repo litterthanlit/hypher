@@ -1,12 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseHandoffProposal, compareRepoSnapshot } from "../shared/structuredHandoff.ts";
 import {
   commandOnPath,
+  PROJECT_ID_FILL,
   promptText,
+  repoMetadata,
   resumeCall,
   roundTrip,
   saveCall,
@@ -79,7 +82,19 @@ describe("codex-claude handoff helper", () => {
     expect(parseHandoffProposal({ ...filled, files: "secret" }).ok).toBe(false);
     expect(call.arguments.repo).toBe(sampleRepo.repository);
     expect(() => saveCall({ source: "codex", expectedBaseRevision: 0,
-      repo: { ...sampleRepo, repository: "other/project" } })).toThrow(/linked Hypher repository/);
+      repo: { ...sampleRepo, repository: undefined } })).toThrow(/owner\/repo/);
+    expect(() => saveCall({ source: "codex", expectedBaseRevision: 0,
+      repo: { ...sampleRepo, repository: "not a repo" } })).toThrow(/owner\/repo/);
+  });
+
+  it("works for any owner/repo from git remote, not only this repository", () => {
+    const other = { ...sampleRepo, repository: "acme/widgets", dirtyFingerprint: "tree:abc" };
+    const call = saveCall({ source: "claude-code", expectedBaseRevision: 0, repo: other, idempotencyKey: "k" });
+    expect(call.arguments.repo).toBe("acme/widgets");
+    expect(call.arguments.proposal.repo).toEqual(other);
+    expect(resumeCall({ destination: "codex", repo: other }).arguments.currentRepo).toEqual(other);
+    expect(PROJECT_ID_FILL).not.toMatch(/litterthanlit/);
+    expect(JSON.stringify(roundTrip(other))).not.toMatch(/litterthanlit/);
   });
 
   it("prints a sourced reported change and an optional approved change", () => {
@@ -146,6 +161,58 @@ describe("codex-claude handoff helper", () => {
       encoding: "utf8",
       stdio: "pipe",
     })).toThrow();
+  });
+});
+
+describe("dirty working-tree fingerprint", () => {
+  function tempRepo() {
+    const dir = mkdtempSync(path.join(os.tmpdir(), "hypher-fp-test-"));
+    const run = (...args) => execFileSync("git", args, { cwd: dir, encoding: "utf8" }).trim();
+    run("init", "-q");
+    run("config", "user.email", "test@example.com");
+    run("config", "user.name", "Test");
+    run("config", "commit.gpgsign", "false");
+    run("remote", "add", "origin", "git@github.com:acme/widgets.git");
+    writeFileSync(path.join(dir, "a.txt"), "one\n");
+    writeFileSync(path.join(dir, ".gitignore"), "ignored.log\n");
+    run("add", "-A");
+    run("commit", "-q", "-m", "init");
+    return { dir, run };
+  }
+
+  it("fills a deterministic tree hash that tracks edits and untracked files but not ignored ones", () => {
+    const { dir, run } = tempRepo();
+    try {
+      const clean = repoMetadata(dir);
+      expect(clean).toMatchObject({ repository: "acme/widgets", dirty: false });
+      expect(clean).not.toHaveProperty("dirtyFingerprint");
+
+      writeFileSync(path.join(dir, "a.txt"), "two\n");
+      const first = repoMetadata(dir);
+      expect(first.dirty).toBe(true);
+      expect(first.dirtyFingerprint).toMatch(/^tree:[0-9a-f]{40,64}$/);
+      expect(repoMetadata(dir).dirtyFingerprint).toBe(first.dirtyFingerprint);
+      expect(() => run("diff", "--cached", "--quiet")).not.toThrow();
+
+      writeFileSync(path.join(dir, "ignored.log"), "noise\n");
+      expect(repoMetadata(dir).dirtyFingerprint).toBe(first.dirtyFingerprint);
+
+      writeFileSync(path.join(dir, "new.txt"), "untracked\n");
+      const withUntracked = repoMetadata(dir);
+      expect(withUntracked.dirtyFingerprint).not.toBe(first.dirtyFingerprint);
+
+      writeFileSync(path.join(dir, "a.txt"), "three\n");
+      expect(repoMetadata(dir).dirtyFingerprint).not.toBe(withUntracked.dirtyFingerprint);
+
+      expect(() => run("diff", "--cached", "--quiet")).not.toThrow();
+      expect(run("status", "--porcelain")).toContain("?? new.txt");
+      const snapshot = resumeCall({ destination: "codex", repo: repoMetadata(dir) }).arguments.currentRepo;
+      expect(snapshot.dirtyFingerprint).toMatch(/^tree:/);
+      expect(parseHandoffProposal(fillValue(saveCall({ source: "codex", expectedBaseRevision: 0,
+        repo: repoMetadata(dir), idempotencyKey: "k" }).arguments.proposal)).ok).toBe(true);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
 

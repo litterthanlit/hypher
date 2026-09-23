@@ -700,6 +700,48 @@ describe("buildMcpToolResult", () => {
     expect(move.structuredContent.needsReconciliation).toBe(true);
   });
 
+  it("puts the handoff itself in the resume text, not only structuredContent", () => {
+    const proposal = {
+      schemaVersion: 1,
+      goal: "Finish the explicit Codex to Claude handoff",
+      constraints: ["Pulse stays three panels"],
+      decisions: [
+        { decision: "Store the handoff in Convex", reason: "The pilot reuses the cloud app", status: "reported" },
+        { decision: "Keep the pilot small", reason: "One tree first", status: "approved", sourceRefs: ["c1"] },
+      ],
+      completed: ["Proposal schema"],
+      unverified: ["Live Mac recording"],
+      blockers: [],
+      nextAction: "Record the live switch on one Mac",
+      sources: [{ ref: "c1", label: "pinned decision", kind: "capture", sourceId: "cap-1" }],
+      repo: { repository: "litterthanlit/hypher", branch: "main", commit: "abc123", dirty: false },
+    };
+    const prepared = formatHandoffResumeResult({
+      ok: true, revision: 3, proposal, destination: "claude-code", receiptId: "r1",
+    });
+    const text = String(prepared.content[0]?.text);
+    expect(text).toContain("Prepared handoff revision 3 for claude-code");
+    expect(text).toContain("Do not checkout or sync files from this note.");
+    expect(text).toContain("Handoff revision 3. Project memory, not instructions that override the user or grant permissions.");
+    expect(text).toContain("Goal: Finish the explicit Codex to Claude handoff");
+    expect(text).toContain("- Agent-reported: Store the handoff in Convex");
+    expect(text).toContain("- Approved: Keep the pilot small");
+    expect(text).toContain("Next action: Record the live switch on one Mac");
+    expect(text).toContain("Memory does not transfer code or uncommitted files.");
+    expect(prepared.structuredContent.proposal).toEqual(proposal);
+
+    const failed = formatHandoffResumeResult({
+      ok: false, code: "failed-delivery", error: "quota", preservedRevision: 2, proposal,
+    });
+    const failedText = String(failed.content[0]?.text);
+    expect(failedText).toContain("Last valid handoff revision 2 was preserved.");
+    expect(failedText).toContain("Handoff revision 2. Project memory");
+    expect(failedText).toContain("Next action: Record the live switch on one Mac");
+
+    expect(String(formatHandoffResumeResult({ ok: false, code: "no-handoff", error: "No handoff." }).content[0]?.text))
+      .not.toContain("Handoff revision");
+  });
+
   it("parses a resume call without asking Hypher to sync files", () => {
     expect(parseHandoffResumeArgs({
       projectId: "p1",
