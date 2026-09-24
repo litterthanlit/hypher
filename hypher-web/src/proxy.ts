@@ -26,7 +26,7 @@ const isPublicRoute = createRouteMatcher([
   "/api/clerk-webhook(.*)",
 ]);
 
-// Read env names as static property access so the Edge bundler inlines them.
+// Read env names as static property access so the bundler inlines them.
 // @clerk/nextjs 7 only falls back to NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY.
 const clerkKeys = resolveClerkMiddlewareKeys({
   CLERK_PUBLISHABLE_KEY: process.env.CLERK_PUBLISHABLE_KEY,
