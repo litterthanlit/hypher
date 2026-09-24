@@ -61,7 +61,7 @@ export default async function OAuthConsentPage({
         <h1>Authorize {pendingConsent.clientName}</h1>
         <p>
           {pendingConsent.clientName} wants access to your Hypher project context.
-          This includes reading Builder Briefs and writing session handoffs to Agent Inbox.
+          This includes reading your project notes and writing session handoffs back to Hypher. It never reads your code.
         </p>
         <a href={approveHref} className="settings-github-connect">
           Authorize

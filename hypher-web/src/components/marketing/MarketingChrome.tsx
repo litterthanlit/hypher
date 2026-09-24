@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { MarketingBrand } from "./MarketingBrand";
+import { LANDING_FOOTER_NOTE } from "./landingCopy";
 
 export function MarketingCta({
   href,
@@ -29,8 +30,11 @@ function PrimaryNavLinks() {
       <a href="/#the-loop" className={navLinkClass}>
         How it works
       </a>
-      <a href="/#cursor" className={navLinkClass}>
-        Cursor
+      <a href="/#handoff" className={navLinkClass}>
+        The handoff
+      </a>
+      <a href="/#trust" className={navLinkClass}>
+        Trust
       </a>
       <Link href="/pricing" className={navLinkClass}>
         Pricing
@@ -63,7 +67,7 @@ export function MarketingHeader({
               Log in
             </Link>
             <MarketingCta href="/beta/request" className="marketing-cta--header">
-              Request beta
+              Join the pilot
             </MarketingCta>
           </div>
         </div>
@@ -77,7 +81,7 @@ export function MarketingFooter() {
     <footer className="marketing-footer">
       <div className="marketing-wrap marketing-footer__row">
         <MarketingBrand size="sm" />
-        <p className="marketing-footer__note">You don't explain the project again.</p>
+        <p className="marketing-footer__note">{LANDING_FOOTER_NOTE}</p>
       </div>
     </footer>
   );

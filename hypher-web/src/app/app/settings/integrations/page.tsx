@@ -11,6 +11,7 @@ import {
   cursorConnectionStatus,
 } from "@/lib/cursorPlugin";
 import { getSettingsAccessState } from "@/lib/settingsAccess";
+import { AgentCliSetupSection } from "@/components/AgentCliSetupSection";
 
 export default function IntegrationsPage() {
   const { isLoading, isAuthenticated } = useConvexAuth();
@@ -101,7 +102,8 @@ export default function IntegrationsPage() {
               </p>
               <p className="api-keys-desc">
                 Install the Hypher plugin in Cursor, then authorize with your Hypher account. Opening a bound repo
-                loads the Builder Brief; `/hypher-handoff` writes back to Agent Inbox.
+                loads the project note; <code>/hypher-handoff</code> writes back when you stop. Hooks do not run on
+                Cursor cloud agents — those load the note through MCP.
               </p>
               <div className="integrations-pat-form">
                 <a href={cursorDeeplink} className="settings-github-connect">
@@ -118,11 +120,14 @@ export default function IntegrationsPage() {
               </div>
             </section>
 
+            <AgentCliSetupSection />
+
             <section className="integrations-section">
               <h4 className="integrations-section-title">Bind repositories</h4>
               <p className="api-keys-desc">
                 A project is a name and a GitHub repo, bound by a human. Paste{" "}
-                <code>owner/name</code> or a GitHub URL and Bind. That is enough for writebacks to match.
+                <code>owner/name</code> or a GitHub URL and Bind. That is enough for handoffs and writebacks to match.
+                Unbound repositories never create a project.
               </p>
               <div className="integrations-project-list">
                 {projectList.length === 0 && (

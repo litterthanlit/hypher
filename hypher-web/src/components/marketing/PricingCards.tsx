@@ -71,7 +71,7 @@ export function PricingCards({ variant }: { variant: Variant }) {
               href="/beta/request"
               className="marketing-cta marketing-cta--block"
             >
-              Request beta access
+              Join the pilot
             </Link>
           ) : (
             <SignUpButton mode="modal">
@@ -104,9 +104,9 @@ export function PricingCards({ variant }: { variant: Variant }) {
           {BETA_INVITE_ONLY ? (
             <>
               <button type="button" disabled className={lockedBtn}>
-                Opens after beta
+                Opens after the pilot
               </button>
-              <p className="tw-text-center tw-text-xs tw-text-[var(--text-tertiary)]">Free while in private beta</p>
+              <p className="tw-text-center tw-text-xs tw-text-[var(--text-tertiary)]">Free during the pilot</p>
             </>
           ) : (
             <>
@@ -142,7 +142,7 @@ export function PricingCards({ variant }: { variant: Variant }) {
           {BETA_INVITE_ONLY ? (
             <>
               <button type="button" disabled className={lockedBtn}>
-                Opens after beta
+                Opens after the pilot
               </button>
               <p className="tw-text-center tw-text-xs tw-text-[var(--text-tertiary)]">Early supporter pricing at launch</p>
             </>

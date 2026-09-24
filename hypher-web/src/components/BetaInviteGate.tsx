@@ -59,10 +59,10 @@ export function BetaInviteGate() {
           <MarketingBrand />
           <UserButton />
         </div>
-        <p className="launch-eyebrow">Private beta</p>
+        <p className="launch-eyebrow">Pilot</p>
         <h1>Your workspace is waiting.</h1>
         <p>
-          Hypher is opening carefully while the loop gets quieter. Enter your invite code to continue.
+          Hypher is onboarding a small pilot by hand. Enter your invite code to continue.
         </p>
         <div className="beta-gate-form">
           <input

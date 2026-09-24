@@ -25,7 +25,7 @@ export function SignInRequired() {
         <p>An account is needed before Hypher can keep context, briefs, and writebacks.</p>
         <div className="auth-required-actions">
           <a className="btn-primary" href={href}>Sign in</a>
-          <a className="btn-secondary auth-required-secondary" href="/beta/request">Request beta</a>
+          <a className="btn-secondary auth-required-secondary" href="/beta/request">Join the pilot</a>
         </div>
       </div>
     </div>

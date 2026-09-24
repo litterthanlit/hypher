@@ -3,15 +3,23 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   LANDING_CTA,
-  LANDING_CURSOR,
+  LANDING_DOORS,
   LANDING_FAQ,
+  LANDING_FOOTER_NOTE,
+  LANDING_HANDOFF,
   LANDING_HERO,
   LANDING_LOOP,
+  LANDING_SUPPORT,
+  LANDING_TRUST,
 } from "./landingCopy";
 import {
+  AGENTS,
   compileDemoBrief,
+  compileDemoNote,
   DEMO_BEATS,
   DEMO_CHIPS,
+  DEMO_DIRECTIONS,
+  DEMO_SOURCE_LOG,
   DEMO_WRITEBACK,
   PUBLIC_CAPTURE_LABEL,
   PUBLIC_DROP_HINT,
@@ -19,12 +27,18 @@ import {
 
 const publicBlob = JSON.stringify({
   LANDING_HERO,
+  LANDING_SUPPORT,
   LANDING_LOOP,
-  LANDING_CURSOR,
+  LANDING_HANDOFF,
+  LANDING_TRUST,
+  LANDING_DOORS,
   LANDING_FAQ,
   LANDING_CTA,
+  LANDING_FOOTER_NOTE,
+  AGENTS,
   DEMO_BEATS,
   DEMO_CHIPS,
+  DEMO_SOURCE_LOG,
   DEMO_WRITEBACK,
   PUBLIC_CAPTURE_LABEL,
   PUBLIC_DROP_HINT,
@@ -40,6 +54,25 @@ describe("compileDemoBrief", () => {
 
   it("falls back when the note is blank", () => {
     expect(compileDemoBrief("   ").doNot).toBe("Don't widen OAuth.");
+  });
+});
+
+describe("compileDemoNote", () => {
+  it("puts the captured line first in the constraints", () => {
+    const note = compileDemoNote("Pulse stays three panels.\nmore");
+    expect(note.constraints[0]).toBe("Pulse stays three panels.");
+    expect(note.decision.replaces).toBeTruthy();
+    expect(note.unverified).toBeTruthy();
+    expect(note.next).toBeTruthy();
+  });
+
+  it("switches both ways between Claude Code and Codex", () => {
+    expect(DEMO_DIRECTIONS).toEqual([
+      { from: "claude-code", to: "codex" },
+      { from: "codex", to: "claude-code" },
+    ]);
+    expect(AGENTS["claude-code"].save).toBe("/hypher-save");
+    expect(AGENTS.codex.resume).toBe("$hypher-resume");
   });
 });
 
@@ -70,17 +103,48 @@ describe("public landing copy", () => {
     expect(publicBlob).not.toMatch(/\/api\/projects/i);
   });
 
-  it("keeps Cursor and private beta on the page", () => {
-    expect(LANDING_CURSOR.heading).toMatch(/Cursor/);
-    expect(LANDING_HERO.primaryCta).toBe("Request beta");
-    expect(LANDING_HERO.hint.toLowerCase()).toContain("private beta");
+  it("uses pilot messaging until the Baton proof is recorded", () => {
+    expect(LANDING_HERO.headline).toBe("Stop re-explaining your project to every agent.");
+    expect(LANDING_HERO.lede).toBe(
+      "Hypher carries decisions and next steps between Claude Code and Codex. Join the pilot.",
+    );
+    expect(LANDING_HERO.primaryCta).toBe("Join the pilot");
+    expect(LANDING_HERO.hint.toLowerCase()).toContain("not recorded");
+    expect(LANDING_HERO.demoCaption.toLowerCase()).toContain("not a recording");
+    expect(publicBlob).not.toMatch(/pull the plug/i);
   });
 
-  it("locks the public hero and card copy", () => {
-    expect(LANDING_HERO.headline).toBe("You don't explain the project again.");
-    expect(LANDING_HERO.lede).toBe(
-      "Capture your project. They read one note. They write back.",
-    );
+  it("never says what the recordings do not show", () => {
+    expect(publicBlob).not.toMatch(/never forgets/i);
+    expect(publicBlob).not.toMatch(/works everywhere/i);
+    expect(publicBlob).not.toMatch(/\d+\s?% better/i);
+    expect(publicBlob).not.toMatch(/AI memory for all your chats/i);
+  });
+
+  it("shows an automatic / manual table for every supported agent", () => {
+    expect([...LANDING_SUPPORT.columns]).toEqual(["Cursor", "Claude Code", "Codex CLI"]);
+    for (const row of LANDING_SUPPORT.rows) {
+      expect(row.cells).toHaveLength(LANDING_SUPPORT.columns.length);
+    }
+    const approve = LANDING_SUPPORT.rows.find((row) => /approve/i.test(row.step));
+    expect(approve?.cells.every((cell) => cell.mode === "human")).toBe(true);
+  });
+
+  it("says what leaves the machine and what never does", () => {
+    const stays = LANDING_TRUST.stays.items.join(" ").toLowerCase();
+    expect(stays).toContain("source code");
+    expect(stays).toContain("diffs");
+    expect(stays).toContain("transcripts");
+  });
+
+  it("does not mark Claude Code or Codex as supported yet", () => {
+    const byName = Object.fromEntries(LANDING_DOORS.items.map((door) => [door.name, door]));
+    expect(byName.Cursor.status).toBe("Supported");
+    expect(byName["Claude Code"].status).toBe("Pilot");
+    expect(byName["Codex CLI"].status).toBe("Pilot");
+  });
+
+  it("locks the capture verb and the three-beat loop", () => {
     expect(PUBLIC_CAPTURE_LABEL).toBe("Capture");
     expect([...DEMO_BEATS]).toEqual(["Capture", "The note", "Writeback"]);
   });

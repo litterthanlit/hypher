@@ -23,12 +23,12 @@ export default function PricingPage() {
               Fourteen days free. Then monthly, or once.
             </h1>
             <p className="marketing-section__lede tw-text-pretty">
-              Pro raises brief and agent-context limits for Cursor, Codex, and MCP-connected tools.
-              Hypher is invite-only while the loop gets quieter — pricing below is what you&apos;ll
-              pay when it opens.
+              Pro raises brief and agent-context limits for Cursor, Claude Code, Codex, and
+              MCP-connected tools. Hypher is in a hand-onboarded pilot — pricing below is what
+              you&apos;ll pay when it opens.
             </p>
             <div className="marketing-hero__actions">
-              <MarketingCta href="/beta/request">Request beta access</MarketingCta>
+              <MarketingCta href="/beta/request">Join the pilot</MarketingCta>
             </div>
           </div>
 

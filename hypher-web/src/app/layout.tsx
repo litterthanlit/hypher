@@ -36,11 +36,11 @@ const hypherDisplay = Archivo_Narrow({
 
 export const metadata: Metadata = {
   title: {
-    default: "Hypher — You don't explain the project again.",
+    default: "Hypher — Stop re-explaining your project to every agent.",
     template: "%s — Hypher",
   },
   description:
-    "Capture your project. They read one note. They write back.",
+    "Project memory under your coding agents. Capture the project, they read one note, they write back.",
   icons: {
     icon: "/hypher-logo.svg",
   },

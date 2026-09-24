@@ -98,14 +98,14 @@ export function BetaRequestForm() {
         <div className="marketing-atmosphere" aria-hidden />
         <div className="beta-request-card">
           <MarketingBrand className="beta-request-logo" />
-          <p className="launch-eyebrow">Private beta</p>
+          <p className="launch-eyebrow">Pilot</p>
           <h1>Request received.</h1>
           <p className="beta-request-lede">
-            Hypher is opening carefully with small cohorts. If it looks like a fit, you will get a personal invite code.
+            Hypher is onboarding a small pilot by hand. If it looks like a fit, you will get a personal invite code and a short setup call.
           </p>
           <div className="beta-request-confirmation">
             <span>What happens next</span>
-            <p>Requests are reviewed manually so the early room stays focused on builders who already drown in agent sessions.</p>
+            <p>Requests are reviewed manually. The pilot is for builders who switch between Claude Code and Codex on the same repository.</p>
           </div>
           <div className="beta-request-actions">
             <Link href="/" className="marketing-cta marketing-cta--ghost">Back to homepage</Link>
@@ -121,10 +121,10 @@ export function BetaRequestForm() {
       <div className="marketing-atmosphere" aria-hidden />
       <form className="beta-request-card" onSubmit={(event) => void handleSubmit(event)}>
         <MarketingBrand className="beta-request-logo" />
-        <p className="launch-eyebrow">Private beta</p>
-        <h1>Request beta access.</h1>
+        <p className="launch-eyebrow">Pilot</p>
+        <h1>Join the pilot.</h1>
         <p className="beta-request-lede">
-          A short signal check for builders drowning in agent sessions. No pitch deck required.
+          For builders who switch agents on the same repository and keep re-explaining the project. No pitch deck required.
         </p>
 
         <div className="beta-request-grid">
@@ -177,7 +177,7 @@ export function BetaRequestForm() {
         </label>
 
         <label className="beta-request-field">
-          <span>Biggest workflow pain</span>
+          <span>Which agents do you switch between, and what gets lost?</span>
           <textarea
             value={form.pain}
             onChange={(event) => setField("pain", event.target.value)}
