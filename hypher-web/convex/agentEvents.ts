@@ -1,6 +1,6 @@
 import { action, internalMutation, internalQuery, mutation, query } from "./_generated/server";
 import { v } from "convex/values";
-import { internal } from "./lib/generatedApiGap";
+import { internal } from "./_generated/api";
 import { requireBetaAccess } from "./lib/auth";
 import {
   runAsApiKeyUser,
