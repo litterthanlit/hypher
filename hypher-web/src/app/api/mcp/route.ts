@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { fetchAction, fetchMutation, fetchQuery } from "convex/nextjs";
-import { api as generatedApi } from "../../../../convex/_generated/api";
-import type { GeneratedApiGap } from "../../../../convex/lib/generatedApiGap";
+import { api } from "../../../../convex/_generated/api";
 import type { Id } from "../../../../convex/_generated/dataModel";
 import type { ActivityEntry, AgentEvent, AnyObject, Handoff, Project, ProjectAction, ProjectMemory } from "@/types";
 import {
@@ -36,9 +35,6 @@ import {
 
 export const runtime = "nodejs";
 const MAX_BODY_BYTES = 25_000;
-
-/** Generated types predate `structuredHandoffs` / `projectMemoryMcp`; see convex/lib/generatedApiGap.ts. */
-const api = generatedApi as typeof generatedApi & GeneratedApiGap<"public">;
 
 type JsonRpcRequest = {
   jsonrpc?: string;

@@ -1,6 +1,6 @@
 import { action, internalMutation, type MutationCtx } from "./_generated/server";
 import { v } from "convex/values";
-import { internal } from "./lib/generatedApiGap";
+import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { normalizeGitHubRepo } from "../shared/githubRepo";
 import {
