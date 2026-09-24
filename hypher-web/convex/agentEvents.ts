@@ -1,10 +1,13 @@
 import { action, internalMutation, internalQuery, mutation, query } from "./_generated/server";
 import { v } from "convex/values";
-import { internal } from "./_generated/api";
+import { internal } from "./lib/generatedApiGap";
 import { requireBetaAccess } from "./lib/auth";
-import { requireActionBetaAccess } from "./lib/actionAuth";
-import { ratelimitConvex } from "./lib/rateLimit";
-import { apiKeyProbeRateLimitKey } from "./apiKeys";
+import {
+  runAsApiKeyUser,
+  runAsOAuthUser,
+  runAsSessionUser,
+  touchOnOkOrFailedDelivery,
+} from "./lib/authenticatedAction";
 import type { Id } from "./_generated/dataModel";
 import { GITHUB_LOOP_SOURCE, planGithubLoopWrites } from "./lib/githubAgentEvents";
 import { normalizeGitHubRepo } from "../shared/githubRepo";
@@ -29,7 +32,6 @@ const eventStatus = v.union(
   v.literal("dismissed")
 );
 
-const _internal = internal as any;
 const eventKinds = ["handoff", "build_log", "question", "suggestion", "artifact", "next_action"] as const;
 type EventKind = (typeof eventKinds)[number];
 
@@ -313,7 +315,7 @@ async function persistIncomingAgentEvent(
     const project = command.command.projectId || projectId;
     if (!project) return { ok: false, status: 400, code: "invalid", error: "projectId is required to acknowledge a handoff" };
     try {
-      return await ctx.runMutation(_internal.structuredHandoffs.acknowledgeForUser, {
+      return await ctx.runMutation(internal.structuredHandoffs.acknowledgeForUser, {
         userId, projectId: project, receiptId: command.command.receiptId,
         revision: command.command.revision, destination: command.command.destination, now: Date.now(),
       });
@@ -329,7 +331,7 @@ async function persistIncomingAgentEvent(
       return { ok: false, status: 400, code: "invalid", error: "projectId is required to resume a handoff" };
     }
     try {
-      return await ctx.runMutation(_internal.structuredHandoffs.deliverForUser, {
+      return await ctx.runMutation(internal.structuredHandoffs.deliverForUser, {
         userId,
         projectId: project,
         destinationProjectId: command.command.destinationProjectId || project,
@@ -372,7 +374,7 @@ async function persistIncomingAgentEvent(
       return { ok: false, status: 400, code: "invalid", error: "projectId is required to save a structured handoff" };
     }
     try {
-      return await ctx.runMutation(_internal.structuredHandoffs.commitForUser, {
+      return await ctx.runMutation(internal.structuredHandoffs.commitForUser, {
         userId,
         projectId: project,
         expectedBaseRevision: command.command.expectedBaseRevision,
@@ -404,7 +406,7 @@ async function persistAgentEventForUser(
     return { ok: false, status: 400, error: parsed.error };
   }
 
-  const projects = await ctx.runQuery(_internal.agentEvents.listProjectsForApiUser, {
+  const projects = await ctx.runQuery(internal.agentEvents.listProjectsForApiUser, {
     userId,
   }) as Array<{ id: string; name?: string; githubRepo?: string }>;
 
@@ -421,7 +423,7 @@ async function persistAgentEventForUser(
 
   const now = Date.now();
   const receipt = Boolean(matched && isProductWorkReceipt(parsed.value));
-  const eventId = await ctx.runMutation(_internal.agentEvents.createForApiUser, {
+  const eventId = await ctx.runMutation(internal.agentEvents.createForApiUser, {
     userId,
     projectId: matched?.id ? (matched.id as Id<"objects">) : undefined,
     source: parsed.value.source,
@@ -439,7 +441,7 @@ async function persistAgentEventForUser(
   });
 
   if (receipt && matched) {
-    await ctx.runMutation(_internal.projectMemories.applyReceipt, {
+    await ctx.runMutation(internal.projectMemories.applyReceipt, {
       userId,
       projectId: matched.id,
       eventId: String(eventId),
@@ -469,37 +471,17 @@ export const createForApiUser = internalMutation({
   },
 });
 
+const AGENT_EVENTS_LIMIT = { bucket: "agent-events", requests: 120, window: "1h" };
+const AGENT_EVENTS_OAUTH_LIMIT = { bucket: "agent-events-oauth", requests: 120, window: "1h" };
+
 export const createFromApiRequest = action({
   args: { apiKey: v.string(), payload: v.any() },
   returns: writeResultValidator,
-  handler: async (ctx, { apiKey, payload }): Promise<WriteResult> => {
-    const probeAllowed = await ratelimitConvex(
-      apiKeyProbeRateLimitKey(apiKey),
-      "api-key-validation",
-      { requests: 30, window: "1m" }
-    );
-    if (!probeAllowed) {
-      return { ok: false, status: 429, error: "Rate limited" };
-    }
-
-    const validatedKey = await ctx.runQuery(_internal.apiKeys.validate, { key: apiKey });
-    if (!validatedKey) {
-      return { ok: false, status: 401, error: "Unauthorized" };
-    }
-    const allowed = await ratelimitConvex(validatedKey.rateLimitKey, "agent-events", {
-      requests: 120,
-      window: "1h",
-    });
-    if (!allowed) {
-      return { ok: false, status: 429, error: "Rate limited" };
-    }
-
-    const persisted = await persistIncomingAgentEvent(ctx, validatedKey.userId, payload);
-    if (persisted.ok || persisted.code === "failed-delivery") {
-      await ctx.runMutation(_internal.apiKeys.touch, { keyId: validatedKey.keyId });
-    }
-    return persisted;
-  },
+  handler: async (ctx, { apiKey, payload }): Promise<WriteResult> => await runAsApiKeyUser(
+    ctx,
+    { apiKey, rateLimit: AGENT_EVENTS_LIMIT, touchWhen: touchOnOkOrFailedDelivery },
+    (userId) => persistIncomingAgentEvent(ctx, userId, payload)
+  ),
 });
 
 export const createFromOAuthRequest = action({
@@ -512,27 +494,11 @@ export const createFromOAuthRequest = action({
     projectId: v.optional(v.string()),
   },
   returns: writeResultValidator,
-  handler: async (ctx, args): Promise<WriteResult> => {
-    const allowed = await ratelimitConvex(args.tokenHash, "agent-events-oauth", {
-      requests: 120,
-      window: "1h",
-    });
-    if (!allowed) {
-      return { ok: false, status: 429, error: "Rate limited" };
-    }
-
-    const validated = await ctx.runQuery(_internal.oauth.userIdForAccessToken, {
-      tokenHash: args.tokenHash,
-      resource: args.resource,
-      scope: args.scope,
-      now: args.now,
-    }) as { userId: string } | null;
-    if (!validated) {
-      return { ok: false, status: 401, error: "Unauthorized" };
-    }
-
-    return await persistIncomingAgentEvent(ctx, validated.userId, args.payload, args.projectId);
-  },
+  handler: async (ctx, args): Promise<WriteResult> => await runAsOAuthUser(
+    ctx,
+    { ...args, rateLimit: AGENT_EVENTS_OAUTH_LIMIT },
+    (userId) => persistIncomingAgentEvent(ctx, userId, args.payload, args.projectId)
+  ),
 });
 
 export const createFromSession = action({
@@ -541,17 +507,11 @@ export const createFromSession = action({
     projectId: v.optional(v.string()),
   },
   returns: writeResultValidator,
-  handler: async (ctx, args): Promise<WriteResult> => {
-    const userId = await requireActionBetaAccess(ctx);
-    const allowed = await ratelimitConvex(userId, "agent-events", {
-      requests: 120,
-      window: "1h",
-    });
-    if (!allowed) {
-      return { ok: false, status: 429, error: "Rate limited" };
-    }
-    return await persistIncomingAgentEvent(ctx, userId, args.payload, args.projectId);
-  },
+  handler: async (ctx, args): Promise<WriteResult> => await runAsSessionUser(
+    ctx,
+    { rateLimit: AGENT_EVENTS_LIMIT },
+    (userId) => persistIncomingAgentEvent(ctx, userId, args.payload, args.projectId)
+  ),
 });
 
 export const listProjectsForApiUser = internalQuery({

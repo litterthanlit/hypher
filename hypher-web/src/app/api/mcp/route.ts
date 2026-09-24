@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { fetchAction, fetchMutation, fetchQuery } from "convex/nextjs";
-import { api } from "../../../../convex/_generated/api";
+import { api as generatedApi } from "../../../../convex/_generated/api";
+import type { GeneratedApiGap } from "../../../../convex/lib/generatedApiGap";
 import type { Id } from "../../../../convex/_generated/dataModel";
 import type { ActivityEntry, AgentEvent, AnyObject, Handoff, Project, ProjectAction, ProjectMemory } from "@/types";
 import {
@@ -30,10 +31,14 @@ import {
   parseWriteProjectMemoryArgs,
   type HypherMcpContext,
   type HypherMcpProjectContext,
+  type HypherMcpToolResult,
 } from "@/lib/mcpTools";
 
 export const runtime = "nodejs";
 const MAX_BODY_BYTES = 25_000;
+
+/** Generated types predate `structuredHandoffs` / `projectMemoryMcp`; see convex/lib/generatedApiGap.ts. */
+const api = generatedApi as typeof generatedApi & GeneratedApiGap<"public">;
 
 type JsonRpcRequest = {
   jsonrpc?: string;
@@ -125,7 +130,7 @@ function packetAgentEvents(
 
 async function getProjectContext(projectId: string, token: string): Promise<HypherMcpProjectContext> {
   const generationInput = await fetchQuery(
-    (api as any).projectMemories.generationInput,
+    api.projectMemories.generationInput,
     { projectId: projectId as Id<"objects"> },
     { token }
   ) as {
@@ -136,11 +141,11 @@ async function getProjectContext(projectId: string, token: string): Promise<Hyph
   };
 
   const [memories, actions, agentEvents, handoffs, subscription] = await Promise.all([
-    fetchQuery((api as any).projectMemories.listForDashboard, {}, { token }) as Promise<ProjectMemory[]>,
-    fetchQuery((api as any).actions.listForProject, { projectId: projectId as Id<"objects"> }, { token }) as Promise<ProjectAction[]>,
-    fetchQuery((api as any).agentEvents.listForProject, { projectId: projectId as Id<"objects">, limit: PACKET_AGENT_EVENT_FETCH_LIMIT }, { token }) as Promise<AgentEvent[]>,
-    fetchQuery((api as any).handoffs.listForProject, { projectId: projectId as Id<"objects">, limit: 6 }, { token }) as Promise<Handoff[]>,
-    fetchQuery((api as any).subscriptions.getMine, {}, { token }) as Promise<{ status?: string; plan?: string } | null>,
+    fetchQuery(api.projectMemories.listForDashboard, {}, { token }) as Promise<ProjectMemory[]>,
+    fetchQuery(api.actions.listForProject, { projectId: projectId as Id<"objects"> }, { token }) as Promise<ProjectAction[]>,
+    fetchQuery(api.agentEvents.listForProject, { projectId: projectId as Id<"objects">, limit: PACKET_AGENT_EVENT_FETCH_LIMIT }, { token }) as Promise<AgentEvent[]>,
+    fetchQuery(api.handoffs.listForProject, { projectId: projectId as Id<"objects">, limit: 6 }, { token }) as Promise<Handoff[]>,
+    fetchQuery(api.subscriptions.getMine, {}, { token }) as Promise<{ status?: string; plan?: string } | null>,
   ]);
 
   const memory = memories.find((item) => item.projectId === projectId) ?? null;
@@ -159,7 +164,7 @@ async function getProjectContext(projectId: string, token: string): Promise<Hyph
 }
 
 async function getMcpContext(token: string, projectId?: string): Promise<HypherMcpContext> {
-  const rows = await fetchQuery(api.objects.list, {}, { token }) as any[];
+  const rows = await fetchQuery(api.objects.list, {}, { token });
   const projects = rows.map(mapProject).filter((project): project is Project => Boolean(project));
   const projectContexts: HypherMcpContext["projectContexts"] = {};
 
@@ -177,7 +182,7 @@ function isHypherApiKey(token: string | null): token is string {
 async function getMcpContextForApiKey(apiKey: string, projectId?: string): Promise<HypherMcpContext | null> {
   let data: { projects: Project[]; projectContext: HypherMcpProjectContext | null } | null;
   try {
-    data = await fetchQuery((api as any).mcpApiKey.dataForApiKey, {
+    data = await fetchQuery(api.mcpApiKey.dataForApiKey, {
       key: apiKey,
       projectId,
     }) as { projects: Project[]; projectContext: HypherMcpProjectContext | null } | null;
@@ -196,13 +201,12 @@ async function getMcpContextForApiKey(apiKey: string, projectId?: string): Promi
   };
 }
 
-async function getMcpContextForAccessToken(accessToken: string, resource: string, projectId?: string): Promise<HypherMcpContext | null> {
-  const tokenHash = sha256Base64url(accessToken);
+async function getMcpContextForTokenHash(tokenHash: string, resource: string, projectId?: string): Promise<HypherMcpContext | null> {
   const now = Date.now();
 
   let validated: unknown;
   try {
-    validated = await fetchMutation((api as any).oauth.validateAccessToken, {
+    validated = await fetchMutation(api.oauth.validateAccessToken, {
       tokenHash,
       resource,
       scope: HYPHER_MCP_SCOPE,
@@ -219,7 +223,7 @@ async function getMcpContextForAccessToken(accessToken: string, resource: string
 
   let data: { projects: Project[]; projectContext: HypherMcpProjectContext | null } | null;
   try {
-    data = await fetchQuery((api as any).oauthContext.dataForToken, {
+    data = await fetchQuery(api.oauthContext.dataForToken, {
       tokenHash,
       resource,
       scope: HYPHER_MCP_SCOPE,
@@ -251,6 +255,155 @@ async function getMcpContextForAccessToken(accessToken: string, resource: string
     projectContexts: projectId && projectContext ? { [projectId]: projectContext } : {},
   };
 }
+
+/** Who is calling `tools/call`, resolved once per request. */
+type McpCaller =
+  | { kind: "apiKey"; apiKey: string }
+  | { kind: "oauth"; tokenHash: string; resource: string }
+  | { kind: "session"; convexToken: string };
+
+async function resolveMcpCaller(req: NextRequest): Promise<McpCaller | null> {
+  const accessToken = bearerToken(req);
+  if (isHypherApiKey(accessToken)) return { kind: "apiKey", apiKey: accessToken };
+  if (accessToken) {
+    return { kind: "oauth", tokenHash: sha256Base64url(accessToken), resource: mcpRequestResource(req) };
+  }
+  const { userId, getToken } = await auth();
+  if (!userId) return null;
+  const convexToken = await getToken({ template: "convex" });
+  return convexToken ? { kind: "session", convexToken } : null;
+}
+
+async function loadMcpContext(caller: McpCaller, projectId?: string): Promise<HypherMcpContext | null> {
+  switch (caller.kind) {
+    case "apiKey":
+      return await getMcpContextForApiKey(caller.apiKey, projectId);
+    case "oauth":
+      return await getMcpContextForTokenHash(caller.tokenHash, caller.resource, projectId);
+    case "session":
+      return await getMcpContext(caller.convexToken, projectId);
+  }
+}
+
+/** A Convex write action answered 401; the route replies with the MCP auth challenge. */
+class McpUnauthorizedError extends Error {
+  constructor() {
+    super("unauth");
+  }
+}
+
+type OAuthActionAuth = { tokenHash: string; resource: string; scope: string; now: number };
+
+/**
+ * One call per caller kind. Each Convex write feature exposes `...FromApiRequest`,
+ * `...FromOAuthRequest`, and `...FromSession`; the handler says how to call each,
+ * this picks the one for the caller and maps a 401 to the auth challenge.
+ */
+async function callAuthed<Result extends { status?: number }>(
+  caller: McpCaller,
+  calls: {
+    apiKey: (auth: { apiKey: string }) => Promise<Result>;
+    oauth: (auth: OAuthActionAuth) => Promise<Result>;
+    session: (options: { token: string }) => Promise<Result>;
+  }
+): Promise<Result> {
+  let result: Result;
+  switch (caller.kind) {
+    case "apiKey":
+      result = await calls.apiKey({ apiKey: caller.apiKey });
+      break;
+    case "oauth":
+      result = await calls.oauth({
+        tokenHash: caller.tokenHash,
+        resource: caller.resource,
+        scope: HYPHER_MCP_SCOPE,
+        now: Date.now(),
+      });
+      break;
+    case "session":
+      result = await calls.session({ token: caller.convexToken });
+      break;
+  }
+  if (result.status === 401) throw new McpUnauthorizedError();
+  return result;
+}
+
+type McpToolHandler = {
+  /** When set and false, the call falls through to the read tools. */
+  when?: (args: Record<string, unknown>) => boolean;
+  handle: (args: Record<string, unknown>, caller: McpCaller, context: HypherMcpContext) => Promise<HypherMcpToolResult>;
+};
+
+/**
+ * Write and structured-handoff tools. Adding one: a descriptor in
+ * `getHypherMcpToolDescriptors`, then one entry here. Everything else goes
+ * through `buildMcpToolResult`.
+ */
+const MCP_TOOL_HANDLERS = new Map<string, McpToolHandler>([
+  ["acknowledge_handoff", {
+    handle: async (args, caller) => {
+      const ackArgs = parseHandoffAcknowledgeArgs(args);
+      const result = await callAuthed(caller, {
+        apiKey: (auth) => fetchAction(api.structuredHandoffs.acknowledgeFromApiRequest, { ...auth, ...ackArgs }),
+        oauth: (auth) => fetchAction(api.structuredHandoffs.acknowledgeFromOAuthRequest, { ...auth, ...ackArgs }),
+        session: (options) => fetchAction(api.structuredHandoffs.acknowledgeFromSession, ackArgs, options),
+      });
+      return formatHandoffAcknowledgeResult(result);
+    },
+  }],
+  ["prepare_handoff", {
+    when: isStructuredHandoffResume,
+    handle: async (args, caller) => {
+      const parsed = parseHandoffResumeArgs(args);
+      const resumeArgs = {
+        projectId: parsed.projectId,
+        destinationProjectId: parsed.destinationProjectId,
+        destination: parsed.destination,
+        currentRepo: parsed.currentRepo,
+        result: parsed.result,
+        ...(parsed.reason ? { reason: parsed.reason } : {}),
+      };
+      const result = await callAuthed(caller, {
+        apiKey: (auth) => fetchAction(api.structuredHandoffs.resumeFromApiRequest, { ...auth, ...resumeArgs }),
+        oauth: (auth) => fetchAction(api.structuredHandoffs.resumeFromOAuthRequest, { ...auth, ...resumeArgs }),
+        session: (options) => fetchAction(api.structuredHandoffs.resumeFromSession, resumeArgs, options),
+      });
+      return formatHandoffResumeResult(result);
+    },
+  }],
+  ["write_project_memory", {
+    handle: async (args, caller) => {
+      const parsed = parseWriteProjectMemoryArgs(args);
+      const writeArgs = {
+        projectId: parsed.projectId,
+        compiledJson: parsed.compiledJson,
+        source: parsed.source,
+      };
+      const result = await callAuthed(caller, {
+        apiKey: (auth) => fetchAction(api.projectMemoryMcp.writeCompiledFromApiRequest, { ...auth, ...writeArgs }),
+        oauth: (auth) => fetchAction(api.projectMemoryMcp.writeCompiledFromOAuthRequest, { ...auth, ...writeArgs }),
+        session: (options) => fetchAction(api.projectMemoryMcp.writeCompiledFromSession, writeArgs, options),
+      });
+      return formatWriteProjectMemoryResult(result);
+    },
+  }],
+  ["post_agent_event", {
+    handle: async (args, caller) => {
+      const parsed = parsePostAgentEventArgs(args);
+      const writeArgs = {
+        payload: parsed.payload,
+        projectId: parsed.projectId,
+      };
+      const result = await callAuthed(caller, {
+        // The API-key action takes the payload only; its project id rides inside the payload.
+        apiKey: (auth) => fetchAction(api.agentEvents.createFromApiRequest, { ...auth, payload: parsed.payload }),
+        oauth: (auth) => fetchAction(api.agentEvents.createFromOAuthRequest, { ...auth, ...writeArgs }),
+        session: (options) => fetchAction(api.agentEvents.createFromSession, writeArgs, options),
+      });
+      return formatAgentEventWriteResult(result);
+    },
+  }],
+]);
 
 export async function OPTIONS() {
   return new NextResponse(null, {
@@ -312,231 +465,32 @@ export async function POST(req: NextRequest) {
   const projectId = typeof args.projectId === "string" ? args.projectId : undefined;
 
   try {
-    const accessToken = bearerToken(req);
-    const usingApiKey = isHypherApiKey(accessToken);
-    let context: HypherMcpContext | null = null;
+    const caller = await resolveMcpCaller(req);
+    const context = caller
+      ? await loadMcpContext(caller, mcpToolNeedsProjectContext(toolName) ? projectId : undefined)
+      : null;
 
-    if (usingApiKey) {
-      context = await getMcpContextForApiKey(
-        accessToken,
-        mcpToolNeedsProjectContext(toolName) ? projectId : undefined
-      );
-    } else if (accessToken) {
-      context = await getMcpContextForAccessToken(
-        accessToken,
-        mcpRequestResource(req),
-        mcpToolNeedsProjectContext(toolName) ? projectId : undefined
-      );
-    } else {
-      const { userId, getToken } = await auth();
-      if (userId) {
-        const convexToken = await getToken({ template: "convex" });
-        if (convexToken) {
-          context = await getMcpContext(
-            convexToken,
-            mcpToolNeedsProjectContext(toolName) ? projectId : undefined
-          );
-        }
-      }
-    }
-
-    if (!context) {
+    if (!caller || !context) {
       return jsonRpcError(body.id, -32001, "unauth", 401, {
         "WWW-Authenticate": authChallenge(req),
       });
     }
 
-    if (toolName === "acknowledge_handoff") {
-      const ackArgs = parseHandoffAcknowledgeArgs(args);
-      let ackResult: { ok: boolean; status?: number; code?: string; error?: string; revision?: number; receiptId?: string; destination?: string };
-      if (usingApiKey && accessToken) {
-        ackResult = await fetchAction((api as any).structuredHandoffs.acknowledgeFromApiRequest, {
-          apiKey: accessToken, ...ackArgs,
-        }) as typeof ackResult;
-      } else if (accessToken) {
-        ackResult = await fetchAction((api as any).structuredHandoffs.acknowledgeFromOAuthRequest, {
-          tokenHash: sha256Base64url(accessToken), resource: mcpRequestResource(req),
-          scope: HYPHER_MCP_SCOPE, now: Date.now(), ...ackArgs,
-        }) as typeof ackResult;
-      } else {
-        const { getToken } = await auth();
-        const convexToken = await getToken({ template: "convex" });
-        if (!convexToken) {
-          return jsonRpcError(body.id, -32001, "unauth", 401, { "WWW-Authenticate": authChallenge(req) });
-        }
-        ackResult = await fetchAction((api as any).structuredHandoffs.acknowledgeFromSession, ackArgs, { token: convexToken }) as typeof ackResult;
-      }
-      if (ackResult.status === 401) {
-        return jsonRpcError(body.id, -32001, "unauth", 401, { "WWW-Authenticate": authChallenge(req) });
-      }
-      return jsonRpc(body.id, formatHandoffAcknowledgeResult(ackResult));
+    const tool = MCP_TOOL_HANDLERS.get(toolName);
+    if (tool && (!tool.when || tool.when(args))) {
+      return jsonRpc(body.id, await tool.handle(args, caller, context));
     }
-
-    if (toolName === "prepare_handoff" && isStructuredHandoffResume(args)) {
-      const parsed = parseHandoffResumeArgs(args);
-      const resumeArgs = {
-        projectId: parsed.projectId,
-        destinationProjectId: parsed.destinationProjectId,
-        destination: parsed.destination,
-        currentRepo: parsed.currentRepo,
-        result: parsed.result,
-        ...(parsed.reason ? { reason: parsed.reason } : {}),
-      };
-      let resumeResult: {
-        ok: boolean;
-        status?: number;
-        error?: string;
-        code?: string;
-        revision?: number;
-        preservedRevision?: number;
-        proposal?: unknown;
-        repoSnapshot?: unknown;
-        repoMatch?: boolean;
-        warning?: string;
-        destination?: string;
-        receiptId?: string;
-        handoffId?: string;
-      };
-      if (usingApiKey && accessToken) {
-        resumeResult = await fetchAction((api as any).structuredHandoffs.resumeFromApiRequest, {
-          apiKey: accessToken,
-          ...resumeArgs,
-        }) as typeof resumeResult;
-      } else if (accessToken) {
-        resumeResult = await fetchAction((api as any).structuredHandoffs.resumeFromOAuthRequest, {
-          tokenHash: sha256Base64url(accessToken),
-          resource: mcpRequestResource(req),
-          scope: HYPHER_MCP_SCOPE,
-          now: Date.now(),
-          ...resumeArgs,
-        }) as typeof resumeResult;
-      } else {
-        const { getToken } = await auth();
-        const convexToken = await getToken({ template: "convex" });
-        if (!convexToken) {
-          return jsonRpcError(body.id, -32001, "unauth", 401, {
-            "WWW-Authenticate": authChallenge(req),
-          });
-        }
-        resumeResult = await fetchAction(
-          (api as any).structuredHandoffs.resumeFromSession,
-          resumeArgs,
-          { token: convexToken }
-        ) as typeof resumeResult;
-      }
-      if (resumeResult.status === 401) {
-        return jsonRpcError(body.id, -32001, "unauth", 401, {
-          "WWW-Authenticate": authChallenge(req),
-        });
-      }
-      return jsonRpc(body.id, formatHandoffResumeResult(resumeResult));
-    }
-
     if (isMcpWriteTool(toolName)) {
-      if (toolName === "write_project_memory") {
-        const parsed = parseWriteProjectMemoryArgs(args);
-        const writeArgs = {
-          projectId: parsed.projectId,
-          compiledJson: parsed.compiledJson,
-          source: parsed.source,
-        };
-        let memoryResult: {
-          ok: boolean;
-          status?: number;
-          error?: string;
-          projectId?: string;
-          identityKind?: string;
-          model?: string;
-        };
-        if (usingApiKey) {
-          memoryResult = await fetchAction((api as any).projectMemoryMcp.writeCompiledFromApiRequest, {
-            apiKey: accessToken,
-            ...writeArgs,
-          }) as typeof memoryResult;
-        } else if (accessToken) {
-          memoryResult = await fetchAction((api as any).projectMemoryMcp.writeCompiledFromOAuthRequest, {
-            tokenHash: sha256Base64url(accessToken),
-            resource: mcpRequestResource(req),
-            scope: HYPHER_MCP_SCOPE,
-            now: Date.now(),
-            ...writeArgs,
-          }) as typeof memoryResult;
-        } else {
-          const { getToken } = await auth();
-          const convexToken = await getToken({ template: "convex" });
-          if (!convexToken) {
-            return jsonRpcError(body.id, -32001, "unauth", 401, {
-              "WWW-Authenticate": authChallenge(req),
-            });
-          }
-          memoryResult = await fetchAction(
-            (api as any).projectMemoryMcp.writeCompiledFromSession,
-            writeArgs,
-            { token: convexToken }
-          ) as typeof memoryResult;
-        }
-        if (memoryResult.status === 401) {
-          return jsonRpcError(body.id, -32001, "unauth", 401, {
-            "WWW-Authenticate": authChallenge(req),
-          });
-        }
-        return jsonRpc(body.id, formatWriteProjectMemoryResult(memoryResult));
-      }
-
-      if (toolName !== "post_agent_event") {
-        throw new Error("unknown-tool");
-      }
-      const parsed = parsePostAgentEventArgs(args);
-      const writeArgs = {
-        payload: parsed.payload,
-        projectId: parsed.projectId,
-      };
-      let result: {
-        ok: boolean;
-        status?: number;
-        error?: string;
-        eventId?: string;
-        matchedProjectId?: string | null;
-        matchedProjectName?: string;
-        needsReview?: boolean;
-      };
-      if (usingApiKey) {
-        result = await fetchAction((api as any).agentEvents.createFromApiRequest, {
-          apiKey: accessToken,
-          payload: parsed.payload,
-        }) as typeof result;
-      } else if (accessToken) {
-        result = await fetchAction((api as any).agentEvents.createFromOAuthRequest, {
-          tokenHash: sha256Base64url(accessToken),
-          resource: mcpRequestResource(req),
-          scope: HYPHER_MCP_SCOPE,
-          now: Date.now(),
-          ...writeArgs,
-        }) as typeof result;
-      } else {
-        const { getToken } = await auth();
-        const convexToken = await getToken({ template: "convex" });
-        if (!convexToken) {
-          return jsonRpcError(body.id, -32001, "unauth", 401, {
-            "WWW-Authenticate": authChallenge(req),
-          });
-        }
-        result = await fetchAction(
-          (api as any).agentEvents.createFromSession,
-          writeArgs,
-          { token: convexToken }
-        ) as typeof result;
-      }
-      if (result.status === 401) {
-        return jsonRpcError(body.id, -32001, "unauth", 401, {
-          "WWW-Authenticate": authChallenge(req),
-        });
-      }
-      return jsonRpc(body.id, formatAgentEventWriteResult(result));
+      throw new Error("unknown-tool");
     }
 
     return jsonRpc(body.id, buildMcpToolResult(toolName, args, context));
   } catch (err) {
+    if (err instanceof McpUnauthorizedError) {
+      return jsonRpcError(body.id, -32001, "unauth", 401, {
+        "WWW-Authenticate": authChallenge(req),
+      });
+    }
     console.error("[api/mcp]", err);
     const message = err instanceof Error ? err.message : "tool-call-failed";
     return jsonRpcError(body.id, -32000, message);

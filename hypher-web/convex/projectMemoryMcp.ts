@@ -2,9 +2,12 @@ import { action } from "./_generated/server";
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
-import { requireActionBetaAccess } from "./lib/actionAuth";
-import { ratelimitConvex } from "./lib/rateLimit";
-import { apiKeyProbeRateLimitKey } from "./apiKeys";
+import {
+  runAsApiKeyUser,
+  runAsOAuthUser,
+  runAsSessionUser,
+  touchOnOk,
+} from "./lib/authenticatedAction";
 import {
   agentSynthesisModel,
   buildSynthesisInput,
@@ -15,8 +18,6 @@ import {
   type SilentMemorySourceEvent,
   type SilentMemorySnapshot,
 } from "../shared/projectMemoryGenerate";
-
-const _internal = internal as any;
 
 const writeResultValidator = v.object({
   ok: v.boolean(),
@@ -73,7 +74,7 @@ export async function persistAgentCompiledMemoryForUser(
     return { ok: false, status: 400, error: "compiled-json-too-large" };
   }
 
-  const projects = await ctx.runQuery(_internal.agentEvents.listProjectsForApiUser, {
+  const projects = await ctx.runQuery(internal.agentEvents.listProjectsForApiUser, {
     userId: args.userId,
   }) as Array<{ id: string; name?: string }>;
   const matched = projects.find((project) => project.id === args.projectId);
@@ -83,7 +84,7 @@ export async function persistAgentCompiledMemoryForUser(
 
   let input: GenerationInput | null;
   try {
-    input = await ctx.runQuery(_internal.projectMemories.generationInputForUser, {
+    input = await ctx.runQuery(internal.projectMemories.generationInputForUser, {
       userId: args.userId,
       projectId: matched.id as Id<"objects">,
     }) as GenerationInput | null;
@@ -116,7 +117,7 @@ export async function persistAgentCompiledMemoryForUser(
   }
 
   const model = agentSynthesisModel(args.source);
-  await ctx.runMutation(_internal.projectMemories.upsertGeneratedForUser, {
+  await ctx.runMutation(internal.projectMemories.upsertGeneratedForUser, {
     userId: args.userId,
     projectId: matched.id as Id<"objects">,
     snapshot: snapshotForGeneratedUpsert(matched.id, compiled.snapshot, now),
@@ -133,6 +134,9 @@ export async function persistAgentCompiledMemoryForUser(
   };
 }
 
+const AGENT_WRITE_LIMIT = { bucket: "project-memory-agent-write", requests: 40, window: "1h" };
+const AGENT_WRITE_OAUTH_LIMIT = { bucket: "project-memory-agent-write-oauth", requests: 40, window: "1h" };
+
 export const writeCompiledFromApiRequest = action({
   args: {
     apiKey: v.string(),
@@ -141,43 +145,16 @@ export const writeCompiledFromApiRequest = action({
     source: v.optional(v.string()),
   },
   returns: writeResultValidator,
-  handler: async (ctx, args): Promise<AgentMemoryWriteResult> => {
-    const probeAllowed = await ratelimitConvex(
-      apiKeyProbeRateLimitKey(args.apiKey),
-      "api-key-validation",
-      { requests: 30, window: "1m" }
-    );
-    if (!probeAllowed) {
-      return { ok: false, status: 429, error: "Rate limited" };
-    }
-
-    const validatedKey = await ctx.runQuery(_internal.apiKeys.validate, { key: args.apiKey }) as {
-      userId: string;
-      keyId: string;
-      rateLimitKey: string;
-    } | null;
-    if (!validatedKey) {
-      return { ok: false, status: 401, error: "Unauthorized" };
-    }
-    const allowed = await ratelimitConvex(validatedKey.rateLimitKey, "project-memory-agent-write", {
-      requests: 40,
-      window: "1h",
-    });
-    if (!allowed) {
-      return { ok: false, status: 429, error: "Rate limited" };
-    }
-
-    const persisted = await persistAgentCompiledMemoryForUser(ctx, {
-      userId: validatedKey.userId,
+  handler: async (ctx, args): Promise<AgentMemoryWriteResult> => await runAsApiKeyUser(
+    ctx,
+    { apiKey: args.apiKey, rateLimit: AGENT_WRITE_LIMIT, touchWhen: touchOnOk },
+    (userId) => persistAgentCompiledMemoryForUser(ctx, {
+      userId,
       projectId: args.projectId,
       compiledJson: args.compiledJson,
       source: args.source,
-    });
-    if (!persisted.ok) return persisted;
-
-    await ctx.runMutation(_internal.apiKeys.touch, { keyId: validatedKey.keyId });
-    return persisted;
-  },
+    })
+  ),
 });
 
 export const writeCompiledFromOAuthRequest = action({
@@ -191,32 +168,16 @@ export const writeCompiledFromOAuthRequest = action({
     source: v.optional(v.string()),
   },
   returns: writeResultValidator,
-  handler: async (ctx, args): Promise<AgentMemoryWriteResult> => {
-    const allowed = await ratelimitConvex(args.tokenHash, "project-memory-agent-write-oauth", {
-      requests: 40,
-      window: "1h",
-    });
-    if (!allowed) {
-      return { ok: false, status: 429, error: "Rate limited" };
-    }
-
-    const validated = await ctx.runQuery(_internal.oauth.userIdForAccessToken, {
-      tokenHash: args.tokenHash,
-      resource: args.resource,
-      scope: args.scope,
-      now: args.now,
-    }) as { userId: string } | null;
-    if (!validated) {
-      return { ok: false, status: 401, error: "Unauthorized" };
-    }
-
-    return await persistAgentCompiledMemoryForUser(ctx, {
-      userId: validated.userId,
+  handler: async (ctx, args): Promise<AgentMemoryWriteResult> => await runAsOAuthUser(
+    ctx,
+    { ...args, rateLimit: AGENT_WRITE_OAUTH_LIMIT },
+    (userId) => persistAgentCompiledMemoryForUser(ctx, {
+      userId,
       projectId: args.projectId,
       compiledJson: args.compiledJson,
       source: args.source,
-    });
-  },
+    })
+  ),
 });
 
 export const writeCompiledFromSession = action({
@@ -226,20 +187,14 @@ export const writeCompiledFromSession = action({
     source: v.optional(v.string()),
   },
   returns: writeResultValidator,
-  handler: async (ctx, args): Promise<AgentMemoryWriteResult> => {
-    const userId = await requireActionBetaAccess(ctx);
-    const allowed = await ratelimitConvex(userId, "project-memory-agent-write", {
-      requests: 40,
-      window: "1h",
-    });
-    if (!allowed) {
-      return { ok: false, status: 429, error: "Rate limited" };
-    }
-    return await persistAgentCompiledMemoryForUser(ctx, {
+  handler: async (ctx, args): Promise<AgentMemoryWriteResult> => await runAsSessionUser(
+    ctx,
+    { rateLimit: AGENT_WRITE_LIMIT },
+    (userId) => persistAgentCompiledMemoryForUser(ctx, {
       userId,
       projectId: args.projectId,
       compiledJson: args.compiledJson,
       source: args.source,
-    });
-  },
+    })
+  ),
 });
