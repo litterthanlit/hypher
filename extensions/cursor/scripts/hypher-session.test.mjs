@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { mkdtempSync, writeFileSync, readFileSync } from "node:fs";
+import { mkdtempSync, writeFileSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -12,6 +12,7 @@ import {
   buildHandoffPayload,
   buildLoadOnceInstruction,
   buildUnmatchedInstruction,
+  detectGitIdentity,
   extractBrief,
   extractStructured,
   normalizeGitHubRepo,
@@ -459,4 +460,58 @@ test("session-end.mjs exits 0 with empty JSON when no credential is present", as
     child.stdin.end(`${JSON.stringify({ session_id: "cli-end", reason: "user_close", duration_ms: 12_000 })}\n`);
   });
   assert.deepEqual(JSON.parse(stdout.trim()), {});
+});
+
+// The pre-vendor implementation, kept as an oracle for detectGitIdentity.
+function legacyGitIdentity(cwd) {
+  const gitText = (args) => {
+    try {
+      return execFileSync("git", ["-C", cwd, ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
+    } catch {
+      return "";
+    }
+  };
+  const names = gitText(["remote"]).split("\n").map((line) => line.trim()).filter(Boolean);
+  const first = names.length ? gitText(["remote", "get-url", names.includes("origin") ? "origin" : names[0]]) : "";
+  const remote = gitText(["remote", "get-url", "origin"]) || first;
+  return {
+    cwd,
+    remote,
+    repo: normalizeGitHubRepo(remote),
+    branch: gitText(["branch", "--show-current"]),
+    commitSha: gitText(["rev-parse", "HEAD"]),
+    changedFiles: gitText(["status", "--porcelain"]).split("\n").map((line) => line.trimEnd()).filter(Boolean),
+  };
+}
+
+test("detectGitIdentity matches the previous git reads across repo states", () => {
+  const dir = mkdtempSync(join(tmpdir(), "hypher-git-identity-"));
+  const run = (...args) => execFileSync("git", ["-C", dir, ...args], { encoding: "utf8" }).trim();
+  const same = (label) => assert.deepEqual(detectGitIdentity(dir), legacyGitIdentity(dir), label);
+  try {
+    same("not a repo");
+    run("init", "-q", "-b", "main");
+    run("config", "user.email", "test@example.com");
+    run("config", "user.name", "Test");
+    run("config", "commit.gpgsign", "false");
+    writeFileSync(join(dir, "a.txt"), "one\n");
+    same("unborn branch, no remote");
+    assert.equal(detectGitIdentity(dir).branch, "main");
+    run("remote", "add", "upstream", "https://github.com/up/stream.git");
+    same("first remote");
+    run("remote", "add", "origin", "git@github.com:acme/widgets.git");
+    run("add", "-A");
+    run("commit", "-q", "-m", "init");
+    same("clean");
+    writeFileSync(join(dir, "a.txt"), "two\n");
+    writeFileSync(join(dir, "b.txt"), "new\n");
+    same("dirty");
+    assert.equal(detectGitIdentity(dir).changedFiles[0], "M a.txt");
+    run("checkout", "-q", "--detach");
+    same("detached");
+    assert.equal(detectGitIdentity(dir).branch, "");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+  assert.deepEqual(detectGitIdentity(""), { cwd: "", remote: "", repo: null, branch: "", commitSha: "", changedFiles: [] });
 });
