@@ -1,0 +1,14 @@
+{
+  "name": "@hypher/git",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Dependency-free git helpers shared by Hypher tools and the Cursor plugin.",
+  "type": "module",
+  "main": "./index.mjs",
+  "exports": {
+    ".": "./index.mjs"
+  },
+  "scripts": {
+    "test": "node --test index.test.mjs"
+  }
+}

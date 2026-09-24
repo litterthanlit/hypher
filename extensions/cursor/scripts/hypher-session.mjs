@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 
-import { execFileSync } from "node:child_process";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { normalizeGitHubRepo, repoIdentity } from "./vendor/hypher-git.mjs";
 
 export const INTEGRATIONS_URL = "https://hypher.app/app/settings/integrations";
 export const DEFAULT_MCP_URL = "https://www.hypher.app/api/mcp";
@@ -14,30 +14,7 @@ export const MAX_BRIEF_CHARS = 48_000;
 export const FETCH_TIMEOUT_MS = 8_000;
 const MAX_STATUS_FILES = 30;
 
-export function normalizeGitHubRepo(input) {
-  const raw = (input ?? "").trim();
-  if (!raw) return null;
-
-  let value = raw.replace(/\.git$/i, "");
-  const sshMatch = value.match(/^git@github\.com:(.+)$/i);
-  if (sshMatch?.[1]) {
-    value = sshMatch[1];
-  } else if (/github\.com/i.test(value)) {
-    try {
-      const url = new URL(value.startsWith("http") ? value : `https://${value.replace(/^git\+/, "")}`);
-      const parts = url.pathname.split("/").filter(Boolean);
-      if (parts.length >= 2) {
-        value = `${parts[0]}/${parts[1]}`;
-      }
-    } catch {
-      return null;
-    }
-  }
-
-  value = value.replace(/^\/+/, "").replace(/\.git$/i, "");
-  if (!/^[\w.-]+\/[\w.-]+$/.test(value)) return null;
-  return value;
-}
+export { normalizeGitHubRepo };
 
 export function readCredentials(env = process.env) {
   const apiKey = String(env.HYPHER_API_KEY ?? "").trim();
@@ -59,41 +36,24 @@ export function mcpUrl(env = process.env) {
   return String(env.HYPHER_MCP_URL ?? "").trim() || DEFAULT_MCP_URL;
 }
 
-function gitText(cwd, args) {
-  try {
-    return execFileSync("git", ["-C", cwd, ...args], {
-      encoding: "utf8",
-      timeout: 3_000,
-      stdio: ["ignore", "pipe", "ignore"],
-    }).trim();
-  } catch {
-    return "";
-  }
-}
-
-function firstRemoteUrl(cwd) {
-  const names = gitText(cwd, ["remote"]).split("\n").map((line) => line.trim()).filter(Boolean);
-  if (names.length === 0) return "";
-  const origin = names.includes("origin") ? "origin" : names[0];
-  return gitText(cwd, ["remote", "get-url", origin]);
-}
+const GIT_TIMEOUT_MS = 3_000;
 
 export function detectGitIdentity(cwd) {
   const root = String(cwd ?? "").trim();
   if (!root) {
     return { cwd: "", remote: "", repo: null, branch: "", commitSha: "", changedFiles: [] };
   }
-  const remote = gitText(root, ["remote", "get-url", "origin"]) || firstRemoteUrl(root);
-  const branch = gitText(root, ["branch", "--show-current"]);
-  const commitSha = gitText(root, ["rev-parse", "HEAD"]);
-  const status = gitText(root, ["status", "--porcelain"]);
-  const changedFiles = status.split("\n").map((line) => line.trimEnd()).filter(Boolean);
+  const id = repoIdentity(root, { timeoutMs: GIT_TIMEOUT_MS });
+  // Kept from the old trimmed `git status` read: the first line loses its leading space.
+  const changedFiles = [...id.changedFiles];
+  if (changedFiles.length > 0) changedFiles[0] = changedFiles[0].trimStart();
   return {
     cwd: root,
-    remote,
-    repo: normalizeGitHubRepo(remote),
-    branch,
-    commitSha,
+    remote: id.remote ?? "",
+    repo: id.repository,
+    // `git branch --show-current` semantics: empty when detached.
+    branch: id.branch === "HEAD" ? "" : id.branch ?? "",
+    commitSha: id.commit ?? "",
     changedFiles,
   };
 }
