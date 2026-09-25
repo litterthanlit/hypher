@@ -33,7 +33,6 @@ import type * as lib_actionAuth from "../lib/actionAuth.js";
 import type * as lib_auth from "../lib/auth.js";
 import type * as lib_authenticatedAction from "../lib/authenticatedAction.js";
 import type * as lib_clerk from "../lib/clerk.js";
-import type * as lib_generatedApiGap from "../lib/generatedApiGap.js";
 import type * as lib_githubAgentEvents from "../lib/githubAgentEvents.js";
 import type * as lib_githubBind from "../lib/githubBind.js";
 import type * as lib_mcpContext from "../lib/mcpContext.js";
@@ -84,7 +83,6 @@ declare const fullApi: ApiFromModules<{
   "lib/auth": typeof lib_auth;
   "lib/authenticatedAction": typeof lib_authenticatedAction;
   "lib/clerk": typeof lib_clerk;
-  "lib/generatedApiGap": typeof lib_generatedApiGap;
   "lib/githubAgentEvents": typeof lib_githubAgentEvents;
   "lib/githubBind": typeof lib_githubBind;
   "lib/mcpContext": typeof lib_mcpContext;
