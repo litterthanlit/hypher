@@ -9,7 +9,6 @@ export {
   computeSuggestionsFromData,
   cosineSimilarity,
   suggestProjectFromData,
-  suggestRelatedOnDrop,
 } from "./suggestions";
 
 export async function generateEmbedding(
