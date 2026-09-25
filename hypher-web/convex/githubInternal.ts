@@ -1,16 +1,5 @@
-import { internalQuery, internalMutation } from "./_generated/server";
+import { internalMutation } from "./_generated/server";
 import { v } from "convex/values";
-import type { Id } from "./_generated/dataModel";
-
-export const listGitHubProjects = internalQuery({
-  handler: async (ctx) => {
-    const all = await ctx.db
-      .query("objects")
-      .withIndex("by_kind", (q) => q.eq("kind", "project"))
-      .collect();
-    return all.filter((o) => o.githubRepo);
-  },
-});
 
 export const touchSync = internalMutation({
   args: {
@@ -36,28 +25,5 @@ export const touchSync = internalMutation({
       patch.blockers = cleaned ? `${cleaned}\n${ghSection}` : ghSection;
     }
     await ctx.db.patch(projectId, patch);
-  },
-});
-
-export const logGitHubActivity = internalMutation({
-  args: {
-    projectId: v.string(),
-    projectName: v.string(),
-    summary: v.string(),
-  },
-  handler: async (ctx, { projectId, projectName, summary }) => {
-    const project = await ctx.db.get(projectId as Id<"objects">);
-    const userId = project?.userId;
-    await ctx.db.insert("activity", {
-      ...(userId !== undefined ? { userId } : {}),
-      action: "updated",
-      objectId: projectId,
-      objectKind: "project",
-      objectName: projectName,
-      timestamp: Date.now(),
-      projectId,
-      activityType: "github",
-      summary,
-    });
   },
 });

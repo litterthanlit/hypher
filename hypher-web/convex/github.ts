@@ -363,54 +363,6 @@ export const syncRepo = internalAction({
   },
 });
 
-/* ── Sync all repos (called by cron) ────────────────────────────── */
-
-export const syncAllRepos = internalAction({
-  handler: async (ctx) => {
-    const token = process.env.GITHUB_TOKEN;
-    if (!token) return;
-
-    // Query all projects with GitHub repos
-    // We use runQuery for read access from actions
-    const allObjects = await ctx.runQuery(internal.githubInternal.listGitHubProjects);
-
-    for (const project of allObjects) {
-      if (!project.githubRepo) continue;
-      try {
-        const result = await ctx.runAction(internal.github.syncRepoInternal, {
-          repo: project.githubRepo,
-          token,
-          projectId: project._id,
-          projectName: project.name ?? "Unknown",
-          userId: project.userId,
-        });
-
-        // Update lastActivity if we got new commits
-        if (result.latestCommitDate) {
-          await ctx.runMutation(internal.githubInternal.touchSync, {
-            projectId: project._id,
-            timestamp: result.latestCommitDate,
-            blockers: result.blockers,
-          });
-        }
-
-        // Log activity
-        if (result.blockers.length > 0) {
-          await ctx.runMutation(internal.githubInternal.logGitHubActivity, {
-            projectId: project._id,
-            projectName: project.name ?? "Unknown",
-            summary: `GitHub sync: ${result.openPRCount} open PRs, ${result.openIssueCount} open issues, ${result.blockers.length} blockers`,
-          });
-        }
-      } catch (e) {
-        console.error(`GitHub sync failed for ${project.githubRepo}:`, e);
-      }
-    }
-  },
-});
-
-/* Internal versions for cron use */
-
 export const syncRepoInternal = internalAction({
   args: {
     repo: v.string(),
